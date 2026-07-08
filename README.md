@@ -1,77 +1,88 @@
-# Void - The best daily tracker at least for me! :)
+# Void - The Best Daily Tracker
 
-Sleep (wake time, bedtime, auto-calculated duration)
-Blood pressure, heart rate & body temperature (morning + evening)
-Weight & body fat %
-Nutrition (calories, protein, carbs, fat, water)
-Daily habit checklist (routines, reading, coding, journaling, stretching, language study, and more)
-A weighted daily score, computed from every metric above
+A comprehensive daily tracking application that helps you monitor your health, habits, goals, and more.
 
+## Features
 
-Weekly Body Measurements
+### Daily Tracking
+- **Sleep** - Wake time, bedtime, auto-calculated duration
+- **Vitals** - Blood pressure, heart rate & body temperature (morning + evening)
+- **Body Metrics** - Weight & body fat percentage
+- **Nutrition** - Calories, protein, carbs, fat, water intake
+- **Habits** - Daily habit checklist (routines, reading, coding, journaling, stretching, language study, and more)
+- **Daily Score** - Weighted daily score computed from every metric
 
+### Weekly Body Measurements
+- Full body measurement log (neck, shoulders, chest, arms, waist, hips, legs, and more)
+- Auto-computed ratios & indices: Waist-Hip Ratio, WHtR, FFMI, Adonis Index, BMR, Lean Body Mass, Muscle Quality, and others
+- Trend charts for every metric over time
 
-Full body measurement log (neck, shoulders, chest, arms, waist, hips, legs, and more)
-Auto-computed ratios & indices: Waist-Hip Ratio, WHtR, FFMI, Adonis Index, BMR, Lean Body Mass, Muscle Quality, and others
-Trend charts for every metric over time
+### Goals & Gamification
+- Per-metric goal setting with progress bars
+- Badges & achievements for streaks (habits, workouts, reading, daily score)
 
+### Books
+- Book list with last-page-read tracking and progress percentage
+- Personal ratings and reading statistics
 
-Goals & Gamification
+### Workouts
+- Workout logging (type, duration, exercises, sets/reps/weight)
+- Calendar heatmap of workout days
 
+### Projects
+- Personal project tracker with periodic reminders and progress tracking
 
-Per-metric goal setting with progress bars
-Badges & achievements for streaks (habits, workouts, reading, daily score)
+### Academic / Grading
+- Course/subject tracking with weighted grades and a running average
 
+### Dashboards
+- Overview dashboard with score, streaks, and key metrics
+- Correlation charts (e.g. sleep duration vs. next-day score)
+- Habit-streak and workout calendars
+- Weekly/monthly summary reports
 
-Books
+### Platform
+- Installable PWA — works offline, add to home screen
+- Optional API integration with a companion study-timer app to auto-fill the "Studied" metric
 
+## Tech Stack
 
-Book list with last-page-read tracking and progress %
-Personal ratings and reading stats
+| Layer | Technology |
+|-------|------------|
+| Frontend | React + TypeScript |
+| Styling | Tailwind CSS |
+| Backend / DB | Supabase (Postgres + Auth + Row Level Security) |
+| Hosting | Vercel |
+| Charts | Recharts |
+| PWA | Workbox / Service Worker |
 
+## Getting Started
 
-Workouts
+### Prerequisites
+- Node.js (v18 or higher)
+- npm or yarn
 
+### Installation
 
-Workout logging (type, duration, exercises, sets/reps/weight)
-Calendar heatmap of workout days
+```bash
+# Clone the repository
+git clone https://github.com/Ph1lippus/Void.git
 
+# Navigate to the project directory
+cd Void
 
-Projects
+# Install dependencies
+npm install
 
+# Set up environment variables
+# Edit .env file with your Supabase credentials:
+# VITE_SUPABASE_URL=your-supabase-url
+# VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-Personal project tracker with periodic reminders and progress tracking
+# Start development server
+npm run dev
+```
 
+## License
 
-Academic / Grading
-
-
-Course/subject tracking with weighted grades and a running average
-
-
-Dashboards
-
-
-Overview dashboard with score, streaks, and key metrics
-Correlation charts (e.g. sleep duration vs. next-day score)
-Habit-streak and workout calendars
-Weekly/monthly summary reports
-
-
-Platform
-
-
-Installable PWA — works offline, add to home screen
-Optional API integration with a companion study-timer app to auto-fill the "Studied" metric
-
-
-
-🛠 Tech Stack
-
-LayerChoiceFrontendReact + TypeScriptStylingTailwind CSSBackend / DBSupabase (Postgres + Auth + Row Level Security)HostingVercelChartsRechartsPWAWorkbox / Service Worker
-
-
-
-📄 License
-
-This project is licensed under the MIT License — see the LICENSE file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
