@@ -1,6 +1,8 @@
-# Void - The Best Daily Tracker
+# AnthroWeb
 
-A comprehensive daily tracking application that helps you monitor your health, habits, goals, and more.
+A comprehensive daily tracking application that helps you monitor your health, habits, goals, and more. Track everything from sleep and vitals to workouts, books, and personal projects.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
@@ -66,10 +68,10 @@ A comprehensive daily tracking application that helps you monitor your health, h
 
 ```bash
 # Clone the repository
-git clone https://github.com/Ph1lippus/Void.git
+git clone https://github.com/Ph1lippus/AnthroWeb.git
 
 # Navigate to the project directory
-cd Void
+cd AnthroWeb
 
 # Install dependencies
 npm install
@@ -82,6 +84,31 @@ npm install
 # Start development server
 npm run dev
 ```
+
+### Building for Production
+
+```bash
+npm run build
+```
+
+### Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
