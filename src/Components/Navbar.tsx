@@ -73,14 +73,16 @@ const Navbar: React.FC = () => {
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
                 <div className="navbar-brand-centered">
-                    <NavLink className="navbar-brand" to="/">AnthroWeb</NavLink>
+                    <NavLink className="navbar-brand" to="/">Trackist</NavLink>
                 </div>
                 <div className="navbar-actions">
                     {user ? (
                         <>
-                            <span className="navbar-user" title={nickname}>
-                                {nickname}
-                            </span>
+                            <div className="navbar-user-wrap">
+                                <span className="navbar-user" title={nickname}>
+                                    {nickname}
+                                </span>
+                            </div>
                             <div className="t-dropdown-wrap">
                                 <button
                                     ref={buttonRef}
@@ -89,7 +91,7 @@ const Navbar: React.FC = () => {
                                     aria-label="Menu"
                                     aria-expanded={menuOpen}
                                 >
-                                    <i className={`fa-solid ${menuOpen ? 'fa-ellipsis' : 'fa-ellipsis-vertical'} menu-icon navbar-menu-icon`}></i>
+                                    <i className={`fa-solid ${menuOpen ? 'fa-ellipsis' : 'fa-ellipsis-vertical'} menu-icon navbar-menu-icon ${menuOpen ? 'menu-open' : ''}`}></i>
                                 </button>
                                 <div
                                     ref={menuRef}

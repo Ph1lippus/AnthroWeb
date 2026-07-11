@@ -201,6 +201,12 @@ body {
   justify-content: center;
 }
 
+.navbar-user-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .navbar-user {
   color: var(--color-light);
   font-size: 0.95rem;
@@ -235,6 +241,10 @@ body {
 .navbar-menu-icon {
   display: inline-block;
   transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.navbar-menu-icon.menu-open {
+  transform: rotate(90deg);
 }
 
 .t-dropdown-wrap { position: relative; }
@@ -767,4 +777,96 @@ body {
   font-size: 0.85rem;
   width: 1rem;
   text-align: center;
+}
+
+/* Credits Page Styles */
+.credits-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  padding-top: calc(2rem + var(--navbar-height));
+}
+
+.dashboard-section {
+  width: 100%;
+  max-width: 960px;
+}
+
+.dashboard-section__head {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-section__head h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-section__head span {
+  color: var(--color-light);
+  opacity: 0.7;
+  font-size: 0.95rem;
+}
+
+.credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.credit-card {
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.credit-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent-border);
+}
+
+.credit-card__logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+  display: block;
+}
+
+.credit-card__title {
+  color: var(--color-light);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.credit-card__text {
+  color: var(--color-light);
+  opacity: 0.7;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.credit-card__link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.credit-card__link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
