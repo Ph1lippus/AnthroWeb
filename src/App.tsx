@@ -1,18 +1,22 @@
 import './App.css'
 import Navbar from './Components/Navbar'
 import HomePage from './Pages/HomePage'
+import LoginPage from './Pages/LoginPage'
+import RegisterPage from './Pages/RegisterPage'
 import Footer from './Components/Footer'
-import { BrowserRouter } from 'react-router-dom'
+import ScrollToTop from './Components/ScrollToTop'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="galaxy-bg">
-        <div className="stars"></div>
-        <div className="glow-overlay"></div>
-      </div>
+      <ScrollToTop />
       <Navbar />
-      <HomePage />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Routes>
       <Footer />
     </BrowserRouter>
   )

@@ -8,9 +8,9 @@ const Footer: React.FC = () => {
 
     return (
         <footer className="footer">
-            <div className="container">
+            <div className="container footer-inner">
                 <div className="footer__top">
-                    <span className="footer__brand">AnthroWeb</span>
+                    <Link to="/" className="footer__brand">AnthroWeb</Link>
                     <button 
                         onClick={scrollToTop} 
                         className="footer__back-btn" 

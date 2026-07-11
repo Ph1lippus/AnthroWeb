@@ -1,25 +1,129 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 
 const Navbar: React.FC = () => {
+    const navigate = useNavigate();
+    const [user, setUser] = useState<User | null>(null);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [closing, setClosing] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user || null);
+        });
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user || null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const closeMenu = useCallback(() => {
+        setClosing(true);
+        setTimeout(() => {
+            setMenuOpen(false);
+            setClosing(false);
+        }, 150); // matches --dropdown-close-dur
+    }, []);
+
+    // Close menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (
+                menuRef.current &&
+                !menuRef.current.contains(e.target as Node) &&
+                buttonRef.current &&
+                !buttonRef.current.contains(e.target as Node)
+            ) {
+                closeMenu();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [closeMenu]);
+
+    const toggleMenu = useCallback(() => {
+        if (menuOpen) {
+            closeMenu();
+        } else {
+            setMenuOpen(true);
+        }
+    }, [menuOpen, closeMenu]);
+
+    const handleLogout = async () => {
+        closeMenu();
+        await supabase.auth.signOut();
+        navigate('/login');
+    };
+
+    const nickname = user?.user_metadata?.username 
+        || user?.user_metadata?.nickname 
+        || user?.user_metadata?.full_name 
+        || user?.email?.split('@')[0] 
+        || 'Viewer';
+
     return (
-        <nav className="navbar">
-            <Link to="/" className="navbar__logo">AnthroWeb</Link>
-            <div className="navbar__links">
-                <Link to="/login" className="navbar__link">
-                    <i className="fas fa-sign-in-alt" style={{ marginRight: '0.5rem' }}></i>
-                    Login
-                </Link>
-                <Link to="/register" className="navbar__link">
-                    <i className="fas fa-user-plus" style={{ marginRight: '0.5rem' }}></i>
-                    Register
-                </Link>
-                <button 
-                    className="navbar__theme-toggle"
-                    aria-label="Theme settings"
-                >
-                    <i className="fas fa-moon"></i>
-                </button>
+        <nav className="navbar-brand-row" aria-label="Main navigation">
+            <div className="container navbar-inner">
+                <div className="navbar-brand-centered">
+                    <NavLink className="navbar-brand" to="/">AnthroWeb</NavLink>
+                </div>
+                <div className="navbar-actions">
+                    {user ? (
+                        <>
+                            <span className="navbar-user" title={nickname}>
+                                {nickname}
+                            </span>
+                            <div className="t-dropdown-wrap">
+                                <button
+                                    ref={buttonRef}
+                                    className="navbar-menu-btn"
+                                    onClick={toggleMenu}
+                                    aria-label="Menu"
+                                    aria-expanded={menuOpen}
+                                >
+                                    <i className={`fa-solid ${menuOpen ? 'fa-ellipsis' : 'fa-ellipsis-vertical'} menu-icon navbar-menu-icon`}></i>
+                                </button>
+                                <div
+                                    ref={menuRef}
+                                    className={`t-dropdown ${menuOpen ? (closing ? 'is-closing' : 'is-open') : ''}`}
+                                    data-origin="top-right"
+                                >
+                                    <button className="t-dropdown-item" onClick={handleLogout}>
+                                        <i className="fa-solid fa-right-from-bracket"></i>
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <NavLink
+                                className={({ isActive }) =>
+                                    `navbar-action-link navbar-auth-link${isActive ? ' active' : ''}`
+                                }
+                                to="/login"
+                            >
+                                Login
+                            </NavLink>
+                            <NavLink
+                                className={({ isActive }) =>
+                                    `navbar-action-link navbar-auth-link${isActive ? ' active' : ''}`
+                                }
+                                to="/register"
+                            >
+                                Register
+                            </NavLink>
+                        </>
+                    )}
+                </div>
             </div>
         </nav>
     );
