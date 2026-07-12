@@ -205,11 +205,20 @@ body {
   display: inline-flex;
   align-items: center;
   min-width: 0;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .navbar-user {
   color: var(--color-light);
   font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.navbar-user:hover {
+  color: var(--color-primary);
 }
 
 .navbar-action-link {
@@ -869,4 +878,45 @@ body {
 .credit-card__link:hover {
   opacity: 0.8;
   text-decoration: underline;
+}
+
+/* Secondary Navbar */
+.secondary-navbar {
+  position: fixed;
+  top: var(--navbar-height);
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  z-index: 99;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.secondary-navbar-inner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.secondary-navbar-links {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.secondary-navbar-link {
+  color: var(--color-light);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.secondary-navbar-link:hover,
+.secondary-navbar-link.active {
+  background: var(--accent-bg);
+  color: var(--color-primary);
 }

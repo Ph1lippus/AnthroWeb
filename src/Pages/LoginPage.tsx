@@ -48,7 +48,7 @@ const LoginPage: React.FC = () => {
         setLoading(true);
         try {
             await signInWithEmail(email, password);
-            navigate('/');
+            navigate('/dashboard');
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to login. Please try again.';
             setError(message);

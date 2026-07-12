@@ -9,6 +9,7 @@ const RegisterPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
@@ -178,18 +179,28 @@ const RegisterPage: React.FC = () => {
                         <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
                         <div className={`t-input-wrap ${fieldErrors.confirmPassword ? 'is-error' : ''}`}>
                             <div className={`t-input ${fieldErrors.confirmPassword ? 'is-error' : ''} ${shakingField === 'confirmPassword' ? 'is-shaking' : ''}`}>
-                                <input
-                                    className="form-control"
-                                    id="confirmPassword"
-                                    type={showPassword ? 'text' : 'password'}
-                                    placeholder="Confirm your password"
-                                    required
-                                    value={confirmPassword}
-                                    onChange={(e) => {
-                                        setConfirmPassword(e.target.value);
-                                        clearFieldError('confirmPassword');
-                                    }}
-                                />
+                                <div className="password-input-wrap">
+                                    <input
+                                        className="form-control"
+                                        id="confirmPassword"
+                                        type={showConfirmPassword ? 'text' : 'password'}
+                                        placeholder="Confirm your password"
+                                        required
+                                        value={confirmPassword}
+                                        onChange={(e) => {
+                                            setConfirmPassword(e.target.value);
+                                            clearFieldError('confirmPassword');
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="password-toggle"
+                                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                                    >
+                                        <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                    </button>
+                                </div>
                             </div>
                             {fieldErrors.confirmPassword && <p className="t-error-msg">{fieldErrors.confirmPassword}</p>}
                         </div>

@@ -79,9 +79,13 @@ const Navbar: React.FC = () => {
                     {user ? (
                         <>
                             <div className="navbar-user-wrap">
-                                <span className="navbar-user" title={nickname}>
+                                <NavLink 
+                                    className="navbar-user" 
+                                    to="/profile"
+                                    title={nickname}
+                                >
                                     {nickname}
-                                </span>
+                                </NavLink>
                             </div>
                             <div className="t-dropdown-wrap">
                                 <button
