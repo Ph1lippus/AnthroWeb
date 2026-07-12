@@ -249,7 +249,20 @@ body {
 
 .t-dropdown-wrap { position: relative; }
 
-.home-wrapper { width: 100%; }
+/* Magnetic scroll snap for homepage */
+.home-wrapper {
+  width: 100%;
+  scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
+  overflow-y: auto;
+  height: 100vh;
+  overflow-x: hidden;
+}
+
+.home-wrapper .screen-height {
+  scroll-snap-align: center;
+  scroll-snap-stop: normal;
+}
 
 .home-page {
   text-align: center;
