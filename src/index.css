@@ -36,6 +36,8 @@
   --dropdown-pre-scale: 0.97;
   --dropdown-closing-scale: 0.99;
   --dropdown-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (max-width: 1024px) {
@@ -121,6 +123,18 @@ body {
   align-items: center;
   padding: 2rem;
   padding-top: calc(2rem + var(--navbar-height));
+}
+
+/* Page with secondary navbar at bottom - needs bottom padding */
+.page-main-with-secondary {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  padding-top: calc(2rem + var(--navbar-height));
+  padding-bottom: calc(2rem + 2.5rem); /* Space for bottom navbar (approx 48px) */
 }
 
 .container {
@@ -212,7 +226,7 @@ body {
 
 .navbar-user {
   color: var(--color-light);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: color 0.2s ease;
 }
@@ -356,6 +370,7 @@ body {
 .footer {
   background-color: var(--color-primary);
   padding: 2rem 0 0;
+  padding-bottom: 3;
   margin-top: auto;
 }
 
@@ -799,9 +814,21 @@ body {
   padding-top: calc(2rem + var(--navbar-height));
 }
 
+/* Legal Pages - center content on page */
+.legal-page {
+  padding: 2rem;
+  padding-top: calc(2rem + var(--navbar-height));
+  padding-bottom: calc(2rem + 2.5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
 .dashboard-section {
   width: 100%;
-  max-width: 960px;
+  max-width: 800px;
+  text-align: center;
 }
 
 .dashboard-section__head {
@@ -880,43 +907,146 @@ body {
   text-decoration: underline;
 }
 
-/* Secondary Navbar */
+/* Secondary Navbar - Bottom Navbar with Sliding Pill */
 .secondary-navbar {
   position: fixed;
-  top: var(--navbar-height);
+  bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(10px);
-  z-index: 99;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  backdrop-filter: none;
+  z-index: 100;
+  padding: 0.5rem 0;
+  display: flex;
+  justify-content: center;
 }
 
 .secondary-navbar-inner {
-  display: flex;
-  justify-content: center;
+  display: inline-flex;
   align-items: center;
-  padding: 0.5rem 0;
-}
-
-.secondary-navbar-links {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 48px;
+  background: #202020;
+  position: relative;
 }
 
 .secondary-navbar-link {
-  color: var(--color-light);
+  position: relative;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  height: 30px;
+  padding: 4px 12px;
+  color: rgba(193, 193, 193, 0.8);
+  cursor: pointer;
+  border-radius: 48px;
   text-decoration: none;
   font-size: 0.85rem;
   font-weight: 500;
-  padding: 0.4rem 1rem;
-  border-radius: 20px;
-  transition: all 0.2s ease;
+  z-index: 1;
+  transition: color var(--tabs-dur) var(--tabs-ease);
 }
 
-.secondary-navbar-link:hover,
+.secondary-navbar-link:not(.active):hover,
 .secondary-navbar-link.active {
-  background: var(--accent-bg);
   color: var(--color-primary);
+}
+
+.secondary-tabs-pill {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 30px;
+  width: 0;
+  background: #454545;
+  border-radius: 48px;
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width     var(--tabs-dur) var(--tabs-ease);
+  will-change: transform, width;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.secondary-tabs-pill.loaded {
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width     var(--tabs-dur) var(--tabs-ease);
+}
+
+/* Mobile: Full width */
+@media (max-width: 767px) {
+  .secondary-navbar-inner {
+    width: calc(100% - 2rem);
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secondary-tabs-pill, .secondary-navbar-link { transition: none !important; }
+}
+
+/* Legal Pages Styles */
+.legal-content {
+  max-width: 800px;
+  width: 100%;
+  margin-top: 2rem;
+  margin-bottom: 4rem;
+  text-align: center;
+}
+
+/* Ensure proper footer spacing on regular pages */
+.page-main {
+  padding-bottom: 4rem;
+}
+
+.legal-section {
+  margin-bottom: 1.5rem;
+}
+
+.legal-section h3 {
+  color: var(--color-light);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.legal-section p {
+  color: var(--color-light);
+  opacity: 0.85;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.legal-section ul {
+  margin: 0.5rem auto 0;
+  padding: 0;
+  list-style-position: inside;
+  text-align: center;
+}
+
+.legal-section li {
+  color: var(--color-light);
+  opacity: 0.8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.legal-section strong {
+  color: var(--color-primary);
+}
+
+.legal-date {
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  text-align: center;
 }

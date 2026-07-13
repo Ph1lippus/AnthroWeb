@@ -59,8 +59,11 @@ const Navbar: React.FC = () => {
 
     const handleLogout = async () => {
         closeMenu();
-        await supabase.auth.signOut();
-        navigate('/login');
+        // Ask for confirmation before logout
+        if (window.confirm('Are you sure you want to logout?')) {
+            await supabase.auth.signOut();
+            navigate('/login');
+        }
     };
 
     const nickname = user?.user_metadata?.username 
@@ -73,7 +76,7 @@ const Navbar: React.FC = () => {
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
                 <div className="navbar-brand-centered">
-                    <NavLink className="navbar-brand" to="/">Trackist</NavLink>
+                    <NavLink className="navbar-brand" to="/">AnthroWeb</NavLink>
                 </div>
                 <div className="navbar-actions">
                     {user ? (
@@ -102,6 +105,13 @@ const Navbar: React.FC = () => {
                                     className={`t-dropdown ${menuOpen ? (closing ? 'is-closing' : 'is-open') : ''}`}
                                     data-origin="top-right"
                                 >
+                                    <button className="t-dropdown-item" onClick={() => {
+                                        closeMenu();
+                                        navigate('/settings');
+                                    }}>
+                                        <i className="fa-solid fa-gear"></i>
+                                        Settings
+                                    </button>
                                     <button className="t-dropdown-item" onClick={handleLogout}>
                                         <i className="fa-solid fa-right-from-bracket"></i>
                                         Logout

@@ -1,5 +1,5 @@
 -- ============================================================
--- ANTHROWEB + PROTOMO DATABASE (Final with user_id on all tables)
+-- ANTHROWEB + PROTOMO DATABASE (Complete Schema)
 -- ============================================================
 
 -- ============================================================
@@ -79,11 +79,23 @@ CREATE TABLE IF NOT EXISTS grading_scales (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 1.7 User Settings (Onboarding data)
+CREATE TABLE IF NOT EXISTS user_settings (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
+    height_cm REAL,
+    date_of_birth DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_user_setting UNIQUE (user_id)
+);
+
 -- ============================================================
 -- TABLES WITH DEPENDENCIES
 -- ============================================================
 
--- 1.7 Daily Logs
+-- 1.8 Daily Logs
 CREATE TABLE IF NOT EXISTS daily_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -128,7 +140,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     CONSTRAINT unique_user_date UNIQUE (user_id, log_date)
 );
 
--- 1.8 Daily Habit Logs
+-- 1.9 Daily Habit Logs
 CREATE TABLE IF NOT EXISTS daily_habit_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -140,7 +152,7 @@ CREATE TABLE IF NOT EXISTS daily_habit_logs (
     CONSTRAINT unique_user_habit_date UNIQUE (user_id, habit_id, log_date)
 );
 
--- 1.9 Custom Measurement Logs
+-- 1.10 Custom Measurement Logs
 CREATE TABLE IF NOT EXISTS custom_measurement_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -152,7 +164,7 @@ CREATE TABLE IF NOT EXISTS custom_measurement_logs (
     CONSTRAINT unique_user_measurement_date UNIQUE (user_id, measurement_id, log_date)
 );
 
--- 1.10 Workout Template Days (now has user_id)
+-- 1.11 Workout Template Days
 CREATE TABLE IF NOT EXISTS workout_template_days (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     workout_template_id UUID NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
@@ -167,7 +179,7 @@ CREATE TABLE IF NOT EXISTS workout_template_days (
     CONSTRAINT unique_template_day UNIQUE (workout_template_id, day_of_week)
 );
 
--- 1.11 Workout Completion Log
+-- 1.12 Workout Completion Log
 CREATE TABLE IF NOT EXISTS workout_completion_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -182,7 +194,7 @@ CREATE TABLE IF NOT EXISTS workout_completion_log (
     CONSTRAINT unique_user_workout_date UNIQUE (user_id, workout_date)
 );
 
--- 1.12 Workout Exercises Log (now has user_id)
+-- 1.13 Workout Exercises Log
 CREATE TABLE IF NOT EXISTS workout_exercises_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     workout_completion_id UUID NOT NULL REFERENCES workout_completion_log(id) ON DELETE CASCADE,
@@ -194,7 +206,7 @@ CREATE TABLE IF NOT EXISTS workout_exercises_log (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.13 PR History (now has user_id)
+-- 1.14 PR History
 CREATE TABLE IF NOT EXISTS pr_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -206,14 +218,13 @@ CREATE TABLE IF NOT EXISTS pr_history (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.14 Weekly Body Measurements
+-- 1.15 Weekly Body Measurements (age removed)
 CREATE TABLE IF NOT EXISTS weekly_measurements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     measure_date DATE NOT NULL DEFAULT CURRENT_DATE,
     
     -- Basic
-    age INTEGER,
     weight REAL,
     visceral_level INTEGER,
     body_fat REAL,
@@ -266,7 +277,7 @@ CREATE TABLE IF NOT EXISTS weekly_measurements (
     CONSTRAINT unique_user_week UNIQUE (user_id, measure_date)
 );
 
--- 1.15 Books
+-- 1.16 Books
 CREATE TABLE IF NOT EXISTS books (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -282,7 +293,7 @@ CREATE TABLE IF NOT EXISTS books (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.16 Academic Grades
+-- 1.17 Academic Grades
 CREATE TABLE IF NOT EXISTS academic_grades (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -298,7 +309,7 @@ CREATE TABLE IF NOT EXISTS academic_grades (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.17 Academic Goals
+-- 1.18 Academic Goals
 CREATE TABLE IF NOT EXISTS academic_goals (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -311,7 +322,7 @@ CREATE TABLE IF NOT EXISTS academic_goals (
     CONSTRAINT unique_course_goal UNIQUE (user_id, semester_id, course_name)
 );
 
--- 1.18 Academic Assessments
+-- 1.19 Academic Assessments
 CREATE TABLE IF NOT EXISTS academic_assessments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -326,7 +337,7 @@ CREATE TABLE IF NOT EXISTS academic_assessments (
 );
 
 -- ============================================================
--- SECTION 2: PROTOMO TABLES
+-- PROTOMO TABLES
 -- ============================================================
 
 -- 2.1 Study Sessions
@@ -392,7 +403,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 -- ============================================================
--- SECTION 3: INDEXES
+-- INDEXES
 -- ============================================================
 
 CREATE INDEX idx_daily_logs_user_date ON daily_logs(user_id, log_date);
@@ -414,9 +425,10 @@ CREATE INDEX idx_academic_assessments_user_course ON academic_assessments(user_i
 CREATE INDEX idx_study_sessions_user_date ON study_sessions(user_id, session_date);
 CREATE INDEX idx_study_history_user_date ON study_history(user_id, history_date);
 CREATE INDEX idx_calendar_events_user_start ON calendar_events(user_id, start_time);
+CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
 
 -- ============================================================
--- SECTION 4: ROW LEVEL SECURITY (RLS) – Now all tables have user_id
+-- RLS
 -- ============================================================
 
 DO $$ 
@@ -447,7 +459,8 @@ BEGIN
             'study_history',
             'study_goals',
             'google_calendar_tokens',
-            'calendar_events'
+            'calendar_events',
+            'user_settings'
         ])
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
@@ -460,7 +473,7 @@ END;
 $$;
 
 -- ============================================================
--- SECTION 5: TRIGGERS
+-- TRIGGERS
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -495,7 +508,8 @@ BEGIN
             'study_history',
             'study_goals',
             'google_calendar_tokens',
-            'calendar_events'
+            'calendar_events',
+            'user_settings'
         ])
     LOOP
         EXECUTE format('CREATE TRIGGER update_%I_updated_at 
@@ -507,7 +521,7 @@ END;
 $$;
 
 -- ============================================================
--- SECTION 6: STUDY HISTORY TRIGGER
+-- STUDY HISTORY TRIGGER
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION update_study_history()
@@ -538,7 +552,7 @@ FOR EACH ROW
 EXECUTE FUNCTION update_study_history();
 
 -- ============================================================
--- SECTION 7: MINIMUM GRADE FUNCTION
+-- MINIMUM GRADE FUNCTION
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION calculate_minimum_required_grade(

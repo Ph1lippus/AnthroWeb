@@ -33,10 +33,10 @@ const Footer: React.FC = () => {
                         <a href="#">About AnthroWeb</a>
                         <a href="#">Contact</a>
                     </div>
-                    <div className="footer__links-group">
+<div className="footer__links-group">
                         <span className="footer__links-title">Legal</span>
-                        <a href="#">Privacy Policy</a>
-                        <a href="#">Terms of Service</a>
+                        <Link to="/privacy-policy">Privacy Policy</Link>
+                        <Link to="/terms-of-service">Terms of Service</Link>
                     </div>
                     <div className="footer__links-group">
                         <span className="footer__links-title">Connect</span>

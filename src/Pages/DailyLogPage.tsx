@@ -1,15 +1,15 @@
 import React from 'react';
 import Title from '../Components/Title';
 
-const ProfilePage: React.FC = () => {
+const DailyLogPage: React.FC = () => {
     return (
         <>
-            <Title title="Profile" />
+            <Title title="Daily Log" />
             <div className="page-main-with-secondary">
                 <div className="dashboard-section">
                     <div className="dashboard-section__head">
-                        <h2>Profile</h2>
-                        <span>Manage your account settings</span>
+                        <h2>Daily Log</h2>
+                        <span>Track your daily activities and habits</span>
                     </div>
                 </div>
             </div>
@@ -17,4 +17,4 @@ const ProfilePage: React.FC = () => {
     );
 };
 
-export default ProfilePage;
+export default DailyLogPage;

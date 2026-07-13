@@ -1,15 +1,15 @@
 import React from 'react';
 import Title from '../Components/Title';
 
-const ProfilePage: React.FC = () => {
+const StudyTimerPage: React.FC = () => {
     return (
         <>
-            <Title title="Profile" />
+            <Title title="Study Timer" />
             <div className="page-main-with-secondary">
                 <div className="dashboard-section">
                     <div className="dashboard-section__head">
-                        <h2>Profile</h2>
-                        <span>Manage your account settings</span>
+                        <h2>Study Timer</h2>
+                        <span>Track your study sessions and productivity</span>
                     </div>
                 </div>
             </div>
@@ -17,4 +17,4 @@ const ProfilePage: React.FC = () => {
     );
 };
 
-export default ProfilePage;
+export default StudyTimerPage;
