@@ -17,6 +17,7 @@ import ProfilePage from './Pages/ProfilePage'
 import CreditsPage from './Pages/CreditsPage'
 import PrivacyPolicyPage from './Pages/PrivacyPolicyPage'
 import TermsOfServicePage from './Pages/TermsOfServicePage'
+import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -46,7 +47,7 @@ const AuthenticatedFooter: React.FC = () => {
         return null;
     }
     
-    return <Footer />;
+    return <Footer loggedIn={!!user} />;
 };
 
 function App() {
@@ -57,8 +58,9 @@ function App() {
       <SecondaryNavbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
+<Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/credits" element={<CreditsPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />

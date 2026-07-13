@@ -1,13 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-const Footer: React.FC = () => {
+interface FooterProps {
+    loggedIn?: boolean;
+}
+
+const Footer: React.FC<FooterProps> = ({ loggedIn = false }) => {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    const footerPaddingClass = loggedIn ? 'footer--logged-in' : '';
+
     return (
-        <footer className="footer">
+        <footer className={`footer ${footerPaddingClass}`}>
             <div className="container footer-inner">
                 <div className="footer__top">
                     <Link to="/" className="footer__brand">AnthroWeb</Link>
