@@ -1,12 +1,35 @@
 -- ============================================================
--- ANTHROWEB + PROTOMO DATABASE (Complete Schema)
+-- ANTHROWEB + PROTOMO DATABASE (FINAL SCHEMA)
 -- ============================================================
 
 -- ============================================================
--- TABLES WITHOUT DEPENDENCIES (Created First)
+-- 1. CORE USER TABLES
 -- ============================================================
 
--- 1.1 Projects
+-- 1.1 User Settings (Onboarding data – single source of truth for static profile)
+CREATE TABLE IF NOT EXISTS user_settings (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
+    height_cm REAL,
+    date_of_birth DATE,
+    goal TEXT CHECK (goal IN ('maintain', 'lose', 'gain')),
+    starting_weight REAL,
+    starting_weight_date DATE,
+    starting_bodyfat REAL,
+    starting_bodyfat_date DATE,
+    target_weight REAL,
+    target_bodyfat REAL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_user_setting UNIQUE (user_id)
+);
+
+-- ============================================================
+-- 2. ANTHROWEB CORE TABLES
+-- ============================================================
+
+-- 2.1 Projects (referenced by daily_logs)
 CREATE TABLE IF NOT EXISTS projects (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -23,7 +46,7 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.2 Habits
+-- 2.2 Habits (user-defined checkboxes)
 CREATE TABLE IF NOT EXISTS habits (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -35,7 +58,7 @@ CREATE TABLE IF NOT EXISTS habits (
     CONSTRAINT unique_user_habit UNIQUE (user_id, name)
 );
 
--- 1.3 Custom Measurements
+-- 2.3 Custom Measurements (user-defined numeric metrics)
 CREATE TABLE IF NOT EXISTS custom_measurements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -46,7 +69,7 @@ CREATE TABLE IF NOT EXISTS custom_measurements (
     CONSTRAINT unique_user_custom_measurement UNIQUE (user_id, name)
 );
 
--- 1.4 Workout Templates
+-- 2.4 Workout Templates (weekly)
 CREATE TABLE IF NOT EXISTS workout_templates (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -57,7 +80,7 @@ CREATE TABLE IF NOT EXISTS workout_templates (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.5 Academic Semesters
+-- 2.5 Academic Semesters
 CREATE TABLE IF NOT EXISTS academic_semesters (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -69,7 +92,7 @@ CREATE TABLE IF NOT EXISTS academic_semesters (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.6 Grading Scales
+-- 2.6 Grading Scales (user-defined)
 CREATE TABLE IF NOT EXISTS grading_scales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -79,23 +102,11 @@ CREATE TABLE IF NOT EXISTS grading_scales (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.7 User Settings (Onboarding data)
-CREATE TABLE IF NOT EXISTS user_settings (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
-    height_cm REAL,
-    date_of_birth DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_user_setting UNIQUE (user_id)
-);
-
 -- ============================================================
--- TABLES WITH DEPENDENCIES
+-- 3. DAILY LOGS & DEPENDENCIES
 -- ============================================================
 
--- 1.8 Daily Logs
+-- 3.1 Daily Logs (the most important table)
 CREATE TABLE IF NOT EXISTS daily_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -122,6 +133,10 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     fat INTEGER,
     water INTEGER,
     
+    -- Body composition (daily)
+    weight REAL,
+    body_fat REAL,
+    
     -- Project work
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     project_work_done BOOLEAN DEFAULT FALSE,
@@ -140,7 +155,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     CONSTRAINT unique_user_date UNIQUE (user_id, log_date)
 );
 
--- 1.9 Daily Habit Logs
+-- 3.2 Daily Habit Logs
 CREATE TABLE IF NOT EXISTS daily_habit_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -152,7 +167,7 @@ CREATE TABLE IF NOT EXISTS daily_habit_logs (
     CONSTRAINT unique_user_habit_date UNIQUE (user_id, habit_id, log_date)
 );
 
--- 1.10 Custom Measurement Logs
+-- 3.3 Custom Measurement Logs
 CREATE TABLE IF NOT EXISTS custom_measurement_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -164,70 +179,14 @@ CREATE TABLE IF NOT EXISTS custom_measurement_logs (
     CONSTRAINT unique_user_measurement_date UNIQUE (user_id, measurement_id, log_date)
 );
 
--- 1.11 Workout Template Days
-CREATE TABLE IF NOT EXISTS workout_template_days (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    workout_template_id UUID NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
-    exercise_name TEXT NOT NULL,
-    target_sets INTEGER,
-    target_reps INTEGER,
-    target_weight REAL,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_template_day UNIQUE (workout_template_id, day_of_week)
-);
+-- ============================================================
+-- 4. BODY MEASUREMENTS (Weekly/Monthly)
+-- ============================================================
 
--- 1.12 Workout Completion Log
-CREATE TABLE IF NOT EXISTS workout_completion_log (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    workout_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    workout_template_id UUID REFERENCES workout_templates(id) ON DELETE SET NULL,
-    day_of_week INTEGER,
-    completed BOOLEAN DEFAULT FALSE,
-    intensity INTEGER CHECK (intensity >= 1 AND intensity <= 10),
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_user_workout_date UNIQUE (user_id, workout_date)
-);
-
--- 1.13 Workout Exercises Log
-CREATE TABLE IF NOT EXISTS workout_exercises_log (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    workout_completion_id UUID NOT NULL REFERENCES workout_completion_log(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    exercise_name TEXT NOT NULL,
-    sets INTEGER,
-    reps INTEGER,
-    weight REAL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 1.14 PR History
-CREATE TABLE IF NOT EXISTS pr_history (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    exercise_name TEXT NOT NULL,
-    weight REAL,
-    reps INTEGER,
-    workout_date DATE NOT NULL,
-    workout_completion_id UUID REFERENCES workout_completion_log(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 1.15 Weekly Body Measurements (age removed)
-CREATE TABLE IF NOT EXISTS weekly_measurements (
+CREATE TABLE IF NOT EXISTS body_measurements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     measure_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    
-    -- Basic
-    weight REAL,
-    visceral_level INTEGER,
-    body_fat REAL,
     
     -- Girth measurements (cm)
     wrist_left REAL,
@@ -274,10 +233,13 @@ CREATE TABLE IF NOT EXISTS weekly_measurements (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
-    CONSTRAINT unique_user_week UNIQUE (user_id, measure_date)
+    CONSTRAINT unique_user_measure_date UNIQUE (user_id, measure_date)
 );
 
--- 1.16 Books
+-- ============================================================
+-- 5. BOOKS
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS books (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -293,7 +255,69 @@ CREATE TABLE IF NOT EXISTS books (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.17 Academic Grades
+-- ============================================================
+-- 6. WORKOUTS & PR HISTORY
+-- ============================================================
+
+-- 6.1 Workout Template Days
+CREATE TABLE IF NOT EXISTS workout_template_days (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    workout_template_id UUID NOT NULL REFERENCES workout_templates(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+    exercise_name TEXT NOT NULL,
+    target_sets INTEGER,
+    target_reps INTEGER,
+    target_weight REAL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_template_day UNIQUE (workout_template_id, day_of_week)
+);
+
+-- 6.2 Workout Completion Log (Commit Chart)
+CREATE TABLE IF NOT EXISTS workout_completion_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    workout_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    workout_template_id UUID REFERENCES workout_templates(id) ON DELETE SET NULL,
+    day_of_week INTEGER,
+    completed BOOLEAN DEFAULT FALSE,
+    intensity INTEGER CHECK (intensity >= 1 AND intensity <= 10),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_user_workout_date UNIQUE (user_id, workout_date)
+);
+
+-- 6.3 Workout Exercises Log
+CREATE TABLE IF NOT EXISTS workout_exercises_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    workout_completion_id UUID NOT NULL REFERENCES workout_completion_log(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    exercise_name TEXT NOT NULL,
+    sets INTEGER,
+    reps INTEGER,
+    weight REAL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6.4 PR History (Personal Records)
+CREATE TABLE IF NOT EXISTS pr_history (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    exercise_name TEXT NOT NULL,
+    weight REAL,
+    reps INTEGER,
+    workout_date DATE NOT NULL,
+    workout_completion_id UUID REFERENCES workout_completion_log(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ============================================================
+-- 7. ACADEMICS
+-- ============================================================
+
+-- 7.1 Academic Grades
 CREATE TABLE IF NOT EXISTS academic_grades (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -309,7 +333,7 @@ CREATE TABLE IF NOT EXISTS academic_grades (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 1.18 Academic Goals
+-- 7.2 Academic Goals
 CREATE TABLE IF NOT EXISTS academic_goals (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -322,7 +346,7 @@ CREATE TABLE IF NOT EXISTS academic_goals (
     CONSTRAINT unique_course_goal UNIQUE (user_id, semester_id, course_name)
 );
 
--- 1.19 Academic Assessments
+-- 7.3 Academic Assessments
 CREATE TABLE IF NOT EXISTS academic_assessments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -337,10 +361,10 @@ CREATE TABLE IF NOT EXISTS academic_assessments (
 );
 
 -- ============================================================
--- PROTOMO TABLES
+-- 8. PROTOMO TABLES (Study Timer)
 -- ============================================================
 
--- 2.1 Study Sessions
+-- 8.1 Study Sessions
 CREATE TABLE IF NOT EXISTS study_sessions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -351,7 +375,7 @@ CREATE TABLE IF NOT EXISTS study_sessions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.2 Study History
+-- 8.2 Study History (auto-updated by trigger)
 CREATE TABLE IF NOT EXISTS study_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -365,7 +389,7 @@ CREATE TABLE IF NOT EXISTS study_history (
     CONSTRAINT unique_user_history_date UNIQUE (user_id, history_date)
 );
 
--- 2.3 Study Goals
+-- 8.3 Study Goals
 CREATE TABLE IF NOT EXISTS study_goals (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -376,7 +400,7 @@ CREATE TABLE IF NOT EXISTS study_goals (
     CONSTRAINT unique_user_goal UNIQUE (user_id)
 );
 
--- 2.4 Google Calendar Integration
+-- 8.4 Google Calendar Integration
 CREATE TABLE IF NOT EXISTS google_calendar_tokens (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -388,7 +412,7 @@ CREATE TABLE IF NOT EXISTS google_calendar_tokens (
     CONSTRAINT unique_user_calendar UNIQUE (user_id)
 );
 
--- 2.5 Calendar Events
+-- 8.5 Calendar Events
 CREATE TABLE IF NOT EXISTS calendar_events (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -403,13 +427,13 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 -- ============================================================
--- INDEXES
+-- 9. INDEXES
 -- ============================================================
 
 CREATE INDEX idx_daily_logs_user_date ON daily_logs(user_id, log_date);
 CREATE INDEX idx_habits_user_id ON habits(user_id);
 CREATE INDEX idx_daily_habit_logs_user_date ON daily_habit_logs(user_id, log_date);
-CREATE INDEX idx_weekly_measurements_user_date ON weekly_measurements(user_id, measure_date);
+CREATE INDEX idx_body_measurements_user_date ON body_measurements(user_id, measure_date);
 CREATE INDEX idx_custom_measurements_user_id ON custom_measurements(user_id);
 CREATE INDEX idx_custom_measurement_logs_user_date ON custom_measurement_logs(user_id, log_date);
 CREATE INDEX idx_books_user_id ON books(user_id);
@@ -428,7 +452,7 @@ CREATE INDEX idx_calendar_events_user_start ON calendar_events(user_id, start_ti
 CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
 
 -- ============================================================
--- RLS
+-- 10. ROW LEVEL SECURITY (RLS)
 -- ============================================================
 
 DO $$ 
@@ -437,10 +461,11 @@ DECLARE
 BEGIN
     FOR tbl IN 
         SELECT unnest(ARRAY[
+            'user_settings',
             'daily_logs',
             'habits',
             'daily_habit_logs',
-            'weekly_measurements',
+            'body_measurements',
             'custom_measurements',
             'custom_measurement_logs',
             'books',
@@ -459,8 +484,7 @@ BEGIN
             'study_history',
             'study_goals',
             'google_calendar_tokens',
-            'calendar_events',
-            'user_settings'
+            'calendar_events'
         ])
     LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
@@ -473,9 +497,10 @@ END;
 $$;
 
 -- ============================================================
--- TRIGGERS
+-- 11. TRIGGERS
 -- ============================================================
 
+-- 11.1 Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -490,10 +515,11 @@ DECLARE
 BEGIN
     FOR tbl IN 
         SELECT unnest(ARRAY[
+            'user_settings',
             'daily_logs',
             'habits',
             'daily_habit_logs',
-            'weekly_measurements',
+            'body_measurements',
             'custom_measurements',
             'custom_measurement_logs',
             'books',
@@ -508,8 +534,7 @@ BEGIN
             'study_history',
             'study_goals',
             'google_calendar_tokens',
-            'calendar_events',
-            'user_settings'
+            'calendar_events'
         ])
     LOOP
         EXECUTE format('CREATE TRIGGER update_%I_updated_at 
@@ -520,10 +545,7 @@ BEGIN
 END;
 $$;
 
--- ============================================================
--- STUDY HISTORY TRIGGER
--- ============================================================
-
+-- 11.2 Auto-update study_history on study_session insert
 CREATE OR REPLACE FUNCTION update_study_history()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -552,7 +574,7 @@ FOR EACH ROW
 EXECUTE FUNCTION update_study_history();
 
 -- ============================================================
--- MINIMUM GRADE FUNCTION
+-- 12. MINIMUM GRADE FUNCTION
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION calculate_minimum_required_grade(
