@@ -14,6 +14,7 @@ import AcademicPage from './Pages/AcademicPage'
 import StudyTimerPage from './Pages/StudyTimerPage'
 import SettingsPage from './Pages/SettingsPage'
 import ProfilePage from './Pages/ProfilePage'
+import EditProfilePage from './Pages/EditProfilePage'
 import CreditsPage from './Pages/CreditsPage'
 import PrivacyPolicyPage from './Pages/PrivacyPolicyPage'
 import TermsOfServicePage from './Pages/TermsOfServicePage'
@@ -42,7 +43,7 @@ const AuthenticatedFooter: React.FC = () => {
     }, []);
     
     // Don't show footer on authenticated pages (where secondary navbar appears)
-    const authPaths = ['/dashboard', '/daily-log', '/measurements', '/books', '/workouts', '/projects', '/academic', '/study-timer', '/settings', '/profile'];
+    const authPaths = ['/dashboard', '/daily-log', '/measurements', '/books', '/workouts', '/projects', '/academic', '/study-timer', '/settings', '/profile', '/profile/edit'];
     if (user && authPaths.includes(location.pathname)) {
         return null;
     }
@@ -58,7 +59,7 @@ function App() {
       <SecondaryNavbar />
       <Routes>
         <Route path="/" element={<HomePage />} />
-<Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/credits" element={<CreditsPage />} />
@@ -74,6 +75,7 @@ function App() {
         <Route path="/study-timer" element={<StudyTimerPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile/edit" element={<EditProfilePage />} />
       </Routes>
       <AuthenticatedFooter />
     </BrowserRouter>

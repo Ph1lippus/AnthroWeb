@@ -12,7 +12,7 @@
   --font-logo: 'Rubik Glitch', cursive;
   --text: #ffffff;
   --text-h: #ffffff;
-  --bg: #fff;
+  --bg: #fffbfb;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
   --accent: #00ffa6;
@@ -829,6 +829,67 @@ body {
   align-items: center;
 }
 
+.legal-content {
+  max-width: 800px;
+  width: 100%;
+  margin-top: 2rem;
+  margin-bottom: 4rem;
+}
+
+.legal-section {
+  margin-bottom: 1.5rem;
+}
+
+.legal-section h3 {
+  color: var(--color-light);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.legal-section p {
+  color: var(--color-light);
+  opacity: 0.85;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.legal-section ul {
+  margin: 0.5rem auto 0;
+  padding: 0;
+  list-style-position: inside;
+  text-align: center;
+}
+
+.legal-section li {
+  color: var(--color-light);
+  opacity: 0.8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.legal-section strong {
+  color: var(--color-primary);
+}
+
+.legal-date {
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+/* Ensure proper footer spacing on regular pages */
+.page-main {
+  padding-bottom: 4rem;
+}
+
 .dashboard-section {
   width: 100%;
   max-width: 800px;
@@ -992,65 +1053,122 @@ body {
   .secondary-tabs-pill, .secondary-navbar-link { transition: none !important; }
 }
 
-/* Legal Pages Styles */
-.legal-content {
-  max-width: 800px;
+/* Profile Page Styles */
+.profile-card {
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  border-radius: 16px;
   width: 100%;
-  margin-top: 2rem;
-  margin-bottom: 4rem;
-  text-align: center;
+  max-width: 600px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
 }
 
-/* Ensure proper footer spacing on regular pages */
-.page-main {
-  padding-bottom: 4rem;
-}
-
-.legal-section {
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #ffffff14;
 }
 
-.legal-section h3 {
+.profile-header h2 {
   color: var(--color-light);
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
   font-family: var(--font-mono);
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
 }
 
-.legal-section p {
-  color: var(--color-light);
-  opacity: 0.85;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  margin-bottom: 0.5rem;
-  text-align: center;
+.profile-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background: transparent;
 }
 
-.legal-section ul {
-  margin: 0.5rem auto 0;
-  padding: 0;
-  list-style-position: inside;
-  text-align: center;
-}
-
-.legal-section li {
-  color: var(--color-light);
-  opacity: 0.8;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin-bottom: 0.25rem;
-  text-align: center;
-}
-
-.legal-section strong {
+.profile-edit-btn:hover {
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
 
-.legal-date {
+.profile-edit-btn i {
+  font-size: 0.8rem;
+}
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.profile-section {
+  text-align: left;
+}
+
+.profile-section-title {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.profile-field {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ffffff08;
+}
+
+.profile-field:last-child {
+  border-bottom: none;
+}
+
+.profile-field-label {
   color: var(--color-light);
-  opacity: 0.6;
-  font-size: 0.85rem;
-  margin-top: 1rem;
-  text-align: center;
+  opacity: 0.7;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.profile-field-value {
+  color: var(--color-light);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Edit Profile Card - wider for the form */
+.auth-card.profile-form-card {
+  max-width: 600px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+  .profile-card {
+    padding: 1.5rem;
+  }
+  
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .profile-field {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 }

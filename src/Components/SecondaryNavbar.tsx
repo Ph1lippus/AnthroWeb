@@ -32,6 +32,7 @@ const SecondaryNavbar: React.FC = () => {
         { to: '/projects', label: 'Projects' },
         { to: '/academic', label: 'Academic' },
         { to: '/study-timer', label: 'Study Timer' },
+        { to: '/profile', label: 'Profile' },
     ];
 
     // Get the active tab index based on current route

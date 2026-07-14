@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signInWithEmail } from '../services/profileService';
+import { signInWithEmail, getUserSettings } from '../services/profileService';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -48,7 +48,13 @@ const LoginPage: React.FC = () => {
         setLoading(true);
         try {
             await signInWithEmail(email, password);
-            navigate('/dashboard');
+            // Check if user has settings, redirect to onboarding if not
+            const settings = await getUserSettings();
+            if (!settings) {
+                navigate('/profile/edit');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to login. Please try again.';
             setError(message);

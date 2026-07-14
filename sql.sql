@@ -1,5 +1,5 @@
 -- ============================================================
--- ANTHROWEB + PROTOMO DATABASE (FINAL SCHEMA)
+-- ANTHROWEB + PROTOMO DATABASE (FINAL)
 -- ============================================================
 
 -- ============================================================
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 -- 2. ANTHROWEB CORE TABLES
 -- ============================================================
 
--- 2.1 Projects (referenced by daily_logs)
+-- 2.1 Projects
 CREATE TABLE IF NOT EXISTS projects (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.2 Habits (user-defined checkboxes)
+-- 2.2 Habits
 CREATE TABLE IF NOT EXISTS habits (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS habits (
     CONSTRAINT unique_user_habit UNIQUE (user_id, name)
 );
 
--- 2.3 Custom Measurements (user-defined numeric metrics)
+-- 2.3 Custom Measurements
 CREATE TABLE IF NOT EXISTS custom_measurements (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS custom_measurements (
     CONSTRAINT unique_user_custom_measurement UNIQUE (user_id, name)
 );
 
--- 2.4 Workout Templates (weekly)
+-- 2.4 Workout Templates
 CREATE TABLE IF NOT EXISTS workout_templates (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS academic_semesters (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.6 Grading Scales (user-defined)
+-- 2.6 Grading Scales
 CREATE TABLE IF NOT EXISTS grading_scales (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     wake_time TIME,
     bedtime TIME,
     sleep_duration INTEGER,
+    sleep_quality INTEGER CHECK (sleep_quality >= 0 AND sleep_quality <= 10),
     
     -- Blood pressure, heart rate, temperature
     morning_systolic INTEGER,
@@ -148,12 +149,30 @@ CREATE TABLE IF NOT EXISTS daily_logs (
     mood INTEGER CHECK (mood >= 1 AND mood <= 10),
     journal_entry TEXT,
     
+    -- Goal snapshot (stores goals at time of saving)
+    goal_snapshot JSONB,
+    
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     CONSTRAINT unique_user_date UNIQUE (user_id, log_date)
 );
+
+-- goal_snapshot JSONB Example:
+-- {
+--     "goal": "lose",
+--     "target_weight": 80,
+--     "target_bodyfat": 15,
+--     "sleep_hours": 8,
+--     "wake_time": "07:00",
+--     "bedtime": "23:00",
+--     "calories": 2000,
+--     "protein": 150,
+--     "carbs": 200,
+--     "fat": 60,
+--     "water": 2500
+-- }
 
 -- 3.2 Daily Habit Logs
 CREATE TABLE IF NOT EXISTS daily_habit_logs (
@@ -240,6 +259,7 @@ CREATE TABLE IF NOT EXISTS body_measurements (
 -- 5. BOOKS
 -- ============================================================
 
+-- 5.1 Books
 CREATE TABLE IF NOT EXISTS books (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -253,6 +273,19 @@ CREATE TABLE IF NOT EXISTS books (
     completed_at DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 5.2 Book Progress Log
+CREATE TABLE IF NOT EXISTS book_progress_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    book_id UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    previous_page INTEGER DEFAULT 0,
+    current_page INTEGER NOT NULL,
+    pages_read INTEGER DEFAULT 0,
+    log_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_book_date UNIQUE (user_id, book_id, log_date)
 );
 
 -- ============================================================
@@ -274,7 +307,7 @@ CREATE TABLE IF NOT EXISTS workout_template_days (
     CONSTRAINT unique_template_day UNIQUE (workout_template_id, day_of_week)
 );
 
--- 6.2 Workout Completion Log (Commit Chart)
+-- 6.2 Workout Completion Log
 CREATE TABLE IF NOT EXISTS workout_completion_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -301,7 +334,7 @@ CREATE TABLE IF NOT EXISTS workout_exercises_log (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 6.4 PR History (Personal Records)
+-- 6.4 PR History
 CREATE TABLE IF NOT EXISTS pr_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -375,7 +408,7 @@ CREATE TABLE IF NOT EXISTS study_sessions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 8.2 Study History (auto-updated by trigger)
+-- 8.2 Study History
 CREATE TABLE IF NOT EXISTS study_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -437,6 +470,8 @@ CREATE INDEX idx_body_measurements_user_date ON body_measurements(user_id, measu
 CREATE INDEX idx_custom_measurements_user_id ON custom_measurements(user_id);
 CREATE INDEX idx_custom_measurement_logs_user_date ON custom_measurement_logs(user_id, log_date);
 CREATE INDEX idx_books_user_id ON books(user_id);
+CREATE INDEX idx_book_progress_log_user_date ON book_progress_log(user_id, log_date);
+CREATE INDEX idx_book_progress_log_book_id ON book_progress_log(book_id);
 CREATE INDEX idx_workout_templates_user_id ON workout_templates(user_id);
 CREATE INDEX idx_workout_template_days_template ON workout_template_days(workout_template_id);
 CREATE INDEX idx_workout_completion_user_date ON workout_completion_log(user_id, workout_date);
@@ -469,6 +504,7 @@ BEGIN
             'custom_measurements',
             'custom_measurement_logs',
             'books',
+            'book_progress_log',
             'workout_templates',
             'workout_template_days',
             'workout_completion_log',
@@ -573,6 +609,55 @@ AFTER INSERT ON study_sessions
 FOR EACH ROW
 EXECUTE FUNCTION update_study_history();
 
+-- 11.3 Book Progress Triggers
+
+-- Auto-fill reading habit
+CREATE OR REPLACE FUNCTION auto_fill_reading_habit()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.pages_read >= 5 THEN
+        INSERT INTO daily_logs (user_id, log_date, reading)
+        VALUES (NEW.user_id, NEW.log_date, true)
+        ON CONFLICT (user_id, log_date)
+        DO UPDATE SET reading = true;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_book_progress_log_insert
+AFTER INSERT ON book_progress_log
+FOR EACH ROW
+EXECUTE FUNCTION auto_fill_reading_habit();
+
+-- Update book progress when new log is inserted
+CREATE OR REPLACE FUNCTION update_book_progress()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE books
+    SET 
+        current_page = NEW.current_page,
+        progress = (NEW.current_page::REAL / total_pages) * 100,
+        updated_at = NOW()
+    WHERE id = NEW.book_id;
+
+    UPDATE books
+    SET 
+        status = 'completed',
+        completed_at = NEW.log_date
+    WHERE id = NEW.book_id
+    AND current_page >= total_pages
+    AND status != 'completed';
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_book_progress_log_insert_update_book
+AFTER INSERT ON book_progress_log
+FOR EACH ROW
+EXECUTE FUNCTION update_book_progress();
+
 -- ============================================================
 -- 12. MINIMUM GRADE FUNCTION
 -- ============================================================
@@ -637,3 +722,19 @@ BEGIN
         AND a.is_completed = FALSE;
 END;
 $$ LANGUAGE plpgsql;
+
+
+-- JSON SNAPSHOT USED FOR DAILY LOGS. TO MAKE SURE THAT WE DONT LOSE GOALS IF THEY ARE UPDATED.
+-- {
+--     "goal": "lose",
+--     "target_weight": 80,
+--     "target_bodyfat": 15,
+--     "sleep_hours": 8,
+--     "wake_time": "07:00",
+--     "bedtime": "23:00",
+--     "calories": 2000,
+--     "protein": 150,
+--     "carbs": 200,
+--     "fat": 60,
+--     "water": 2500
+-- }
