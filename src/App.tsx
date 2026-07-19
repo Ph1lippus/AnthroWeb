@@ -1,4 +1,3 @@
-import './App.css'
 import Navbar from './Components/Navbar'
 import SecondaryNavbar from './Components/SecondaryNavbar'
 import HomePage from './Pages/HomePage'

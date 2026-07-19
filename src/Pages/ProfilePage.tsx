@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { getCurrentUser, getUserSettings, signOutUser, getLatestBodyMeasurements } from '../services/profileService';
+import { getUserSettings, signOutUser, getLatestBodyMeasurements } from '../services/profileService';
+import { supabase } from '../services/supabaseClient';
 import Title from '../Components/Title';
 
 interface UserSettingsData {
@@ -10,9 +11,8 @@ interface UserSettingsData {
     date_of_birth: string | null;
     goal: string | null;
     starting_weight: number | null;
-    starting_weight_date: string | null;
+    last_measurement_date: string | null;
     starting_bodyfat: number | null;
-    starting_bodyfat_date: string | null;
     target_weight: number | null;
     target_bodyfat: number | null;
 }
@@ -26,18 +26,20 @@ interface LatestMeasurements {
 const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const [userEmail, setUserEmail] = useState<string>('');
+    const [username, setUsername] = useState<string>('');
     const [settings, setSettings] = useState<UserSettingsData | null>(null);
     const [latestMeasurements, setLatestMeasurements] = useState<LatestMeasurements | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadProfile = async () => {
-            const user = await getCurrentUser();
+            const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 navigate('/login');
                 return;
             }
             setUserEmail(user.email || '');
+            setUsername(user.user_metadata?.username || userEmail.split('@')[0] || 'User');
             
             const userSettings = await getUserSettings();
             if (userSettings) {
@@ -52,7 +54,7 @@ const ProfilePage: React.FC = () => {
             setLoading(false);
         };
         void loadProfile();
-    }, [navigate]);
+    }, [navigate, userEmail]);
 
     const calculateAge = (dateOfBirth: string | null): number | null => {
         if (!dateOfBirth) return null;
@@ -125,11 +127,9 @@ const ProfilePage: React.FC = () => {
             <>
                 <Title title="Profile" />
                 <div className="page-main-with-secondary">
-                    <div className="dashboard-section">
-                        <div className="dashboard-section__head">
-                            <h2>Profile</h2>
-                            <span>Loading...</span>
-                        </div>
+                    <div className="profile-loading">
+                        <div className="profile-loading-spinner"></div>
+                        <p>Loading profile...</p>
                     </div>
                 </div>
             </>
@@ -142,118 +142,147 @@ const ProfilePage: React.FC = () => {
         <>
             <Title title="Profile" />
             <div className="page-main-with-secondary">
-                <div className="profile-card">
-                    <div className="profile-header">
-                        <h2>Profile</h2>
-                        <Link to="/profile/edit" className="profile-edit-btn">
-                            <i className="fa-solid fa-pen"></i> Edit Profile
+                <div className="profile-card-modern">
+                    <div className="profile-header-modern">
+                        <h2 className="profile-name">{username}</h2>
+                        <p className="profile-email">{userEmail}</p>
+                        <Link to="/profile/edit" className="profile-edit-btn-modern">
+                            <i className="fa-solid fa-pen"></i>
                         </Link>
                     </div>
-                    
-                    <div className="profile-content">
-                        {/* User Section */}
-                        <div className="profile-section">
-                            <h3 className="profile-section-title">User</h3>
-                            <div className="profile-field">
-                                <span className="profile-field-label">Email:</span>
-                                <span className="profile-field-value">{userEmail}</span>
-                            </div>
-                        </div>
 
+                    <div className="profile-content-modern">
                         {/* Body Stats Section */}
-                        <div className="profile-section">
-                            <h3 className="profile-section-title">Body Stats</h3>
-                            <div className="profile-field">
-                                <span className="profile-field-label">Gender:</span>
-                                <span className="profile-field-value">{getGenderDisplay(settings?.gender)}</span>
-                            </div>
-                            <div className="profile-field">
-                                <span className="profile-field-label">Height:</span>
-                                <span className="profile-field-value">{settings?.height_cm ? `${settings.height_cm} cm` : 'Not set'}</span>
-                            </div>
-                            <div className="profile-field">
-                                <span className="profile-field-label">Date of Birth:</span>
-                                <span className="profile-field-value">{settings?.date_of_birth || 'Not set'}</span>
-                            </div>
-                            {settings?.date_of_birth && (
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Age:</span>
-                                    <span className="profile-field-value">{calculateAge(settings.date_of_birth)} years</span>
+                        <div className="profile-section-modern">
+                            <h3 className="profile-section-title-modern">
+                                <i className="fa-solid fa-user"></i> Body Stats
+                            </h3>
+                            <div className="profile-grid">
+                                <div className="profile-item">
+                                    <span className="profile-item-label">Gender</span>
+                                    <span className="profile-item-value">{getGenderDisplay(settings?.gender)}</span>
                                 </div>
-                            )}
+                                <div className="profile-item">
+                                    <span className="profile-item-label">Height</span>
+                                    <span className="profile-item-value">{settings?.height_cm ? `${settings.height_cm} cm` : 'Not set'}</span>
+                                </div>
+                                <div className="profile-item">
+                                    <span className="profile-item-label">Date of Birth</span>
+                                    <span className="profile-item-value">{settings?.date_of_birth || 'Not set'}</span>
+                                </div>
+                                {settings?.date_of_birth && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Age</span>
+                                        <span className="profile-item-value">{calculateAge(settings.date_of_birth)} years</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Goals Section */}
-                        <div className="profile-section">
-                            <h3 className="profile-section-title">Goals</h3>
-                            <div className="profile-field">
-                                <span className="profile-field-label">Goal:</span>
-                                <span className="profile-field-value">{getGoalDisplay(settings?.goal)}</span>
+                        <div className="profile-section-modern">
+                            <h3 className="profile-section-title-modern">
+                                <i className="fa-solid fa-bullseye"></i> Goals
+                            </h3>
+                            <div className="profile-grid">
+                                <div className="profile-item">
+                                    <span className="profile-item-label">Goal</span>
+                                    <span className="profile-item-value">{getGoalDisplay(settings?.goal)}</span>
+                                </div>
+                                {settings?.target_weight && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Target Weight</span>
+                                        <span className="profile-item-value">{settings.target_weight} kg</span>
+                                    </div>
+                                )}
+                                {settings?.target_bodyfat && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Target Body Fat</span>
+                                        <span className="profile-item-value">{settings.target_bodyfat}%</span>
+                                    </div>
+                                )}
                             </div>
-                            {settings?.starting_weight && (
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Starting Weight:</span>
-                                    <span className="profile-field-value">
-                                        {settings.starting_weight} kg ({settings.starting_weight_date || 'Date not set'})
-                                    </span>
-                                </div>
-                            )}
-                            {settings?.target_weight && (
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Target Weight:</span>
-                                    <span className="profile-field-value">{settings.target_weight} kg</span>
-                                </div>
-                            )}
-                            {settings?.starting_bodyfat && (
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Starting Body Fat:</span>
-                                    <span className="profile-field-value">
-                                        {settings.starting_bodyfat}% ({settings.starting_bodyfat_date || 'Date not set'})
-                                    </span>
-                                </div>
-                            )}
-                            {settings?.target_bodyfat && (
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Target Body Fat:</span>
-                                    <span className="profile-field-value">{settings.target_bodyfat}%</span>
-                                </div>
-                            )}
+                        </div>
+
+                        {/* Starting Measurements Section */}
+                        <div className="profile-section-modern">
+                            <h3 className="profile-section-title-modern">
+                                <i className="fa-solid fa-weight-scale"></i> Starting Measurements
+                            </h3>
+                            <div className="profile-grid">
+                                {settings?.starting_weight && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Starting Weight</span>
+                                        <span className="profile-item-value">
+                                            {settings.starting_weight} kg
+                                            {settings.starting_bodyfat && (
+                                                <><br/><span className="profile-item-label">Starting BF</span> {settings.starting_bodyfat}%</>
+                                            )}
+                                            {settings.last_measurement_date && (
+                                                <><br/><span className="profile-item-label">Date</span> {settings.last_measurement_date}</>
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+                                {!settings?.starting_weight && settings?.starting_bodyfat && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Starting Body Fat</span>
+                                        <span className="profile-item-value">
+                                            {settings.starting_bodyfat}%
+                                        </span>
+                                    </div>
+                                )}
+                                {!settings?.starting_weight && settings?.last_measurement_date && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Last Measurement Date</span>
+                                        <span className="profile-item-value">{settings.last_measurement_date}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Progress Summary Section */}
                         {settings?.goal && settings.goal !== 'maintain' && settings.starting_weight && settings.target_weight && latestMeasurements?.weight && (
-                            <div className="profile-section">
-                                <h3 className="profile-section-title">Progress Summary</h3>
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Weight Loss:</span>
-                                    <span className="profile-field-value">
-                                        {settings.starting_weight - latestMeasurements.weight} kg / {settings.starting_weight - settings.target_weight} kg
-                                    </span>
-                                </div>
-                                {settings.starting_bodyfat && settings.target_bodyfat && latestMeasurements.body_fat && (
-                                    <div className="profile-field">
-                                        <span className="profile-field-label">Body Fat Loss:</span>
-                                        <span className="profile-field-value">
-                                            {settings.starting_bodyfat - latestMeasurements.body_fat}% / {settings.starting_bodyfat - settings.target_bodyfat}%
-                                        </span>
+                            <div className="profile-section-modern">
+                                <h3 className="profile-section-title-modern">
+                                    <i className="fa-solid fa-chart-line"></i> Progress
+                                </h3>
+                                <div className="profile-progress">
+                                    <div className="progress-bar-container">
+                                        <div className="progress-bar">
+                                            <div className="progress-fill" style={{ width: `${Math.round(progress.overallProgress)}%` }}></div>
+                                        </div>
+                                        <span className="progress-text">{Math.round(progress.overallProgress)}%</span>
                                     </div>
-                                )}
-                                <div className="profile-field">
-                                    <span className="profile-field-label">Progress:</span>
-                                    <span className="profile-field-value">{Math.round(progress.overallProgress)}%</span>
+                                    {settings.starting_weight && settings.target_weight && (
+                                        <div className="progress-details">
+                                            <div className="progress-detail">
+                                                <span className="progress-detail-label">Weight:</span>
+                                                <span className="progress-detail-value">
+                                                    {Math.abs(settings.starting_weight - latestMeasurements.weight).toFixed(1)} kg / {Math.abs(settings.starting_weight - settings.target_weight).toFixed(1)} kg
+                                                </span>
+                                            </div>
+                                            {settings.starting_bodyfat && settings.target_bodyfat && latestMeasurements.body_fat && (
+                                                <div className="progress-detail">
+                                                    <span className="progress-detail-label">Body Fat:</span>
+                                                    <span className="progress-detail-value">
+                                                        {Math.abs(settings.starting_bodyfat - latestMeasurements.body_fat).toFixed(1)}% / {Math.abs(settings.starting_bodyfat - settings.target_bodyfat).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
-
-                        {/* Sign Out Button */}
-                        <button 
-                            onClick={handleSignOut}
-                            className="btn btn-secondary w-100 mt-3"
-                            style={{ background: 'rgba(219, 34, 42, 0.12)', border: '1px solid rgba(219, 34, 42, 0.4)', color: '#ff6b70' }}
-                        >
-                            Sign Out
-                        </button>
                     </div>
+                    
+                    <button 
+                        onClick={handleSignOut}
+                        className="profile-signout-btn"
+                    >
+                        <i className="fa-solid fa-right-from-bracket"></i> Sign Out
+                    </button>
                 </div>
             </div>
         </>

@@ -2,11 +2,44 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUserSettings, createUserSettings, updateUserSettings } from '../services/profileService';
 import { getCurrentUser } from '../services/profileService';
+import { supabase } from '../services/supabaseClient';
 import type { UserSettings } from '../services/profileService';
 import Title from '../Components/Title';
 
 type GenderType = 'male' | 'female' | 'other' | 'prefer_not_to_say' | '';
 type GoalType = 'maintain' | 'lose' | 'gain' | '';
+
+// Date input mask - formats as DD/MM/YYYY
+const formatDateInput = (value: string): string => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) {
+        return numbers;
+    } else if (numbers.length <= 4) {
+        return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    } else if (numbers.length <= 8) {
+        return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+    }
+    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+};
+
+// Convert DD/MM/YYYY to YYYY-MM-DD for storage
+const convertToStorageFormat = (value: string): string => {
+    const parts = value.split('/');
+    if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return value;
+};
+
+// Convert YYYY-MM-DD to DD/MM/YYYY for display
+const convertToDisplayFormat = (value: string): string => {
+    if (!value) return '';
+    if (value.includes('-')) {
+        const parts = value.split('-');
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return value;
+};
 
 const EditProfilePage: React.FC = () => {
     const navigate = useNavigate();
@@ -15,16 +48,16 @@ const EditProfilePage: React.FC = () => {
     const [isNewUser, setIsNewUser] = useState(true);
     
     // Form states
+    const [username, setUsername] = useState<string>('');
     const [gender, setGender] = useState<GenderType>('');
     const [heightCm, setHeightCm] = useState<number | ''>('');
     const [dateOfBirth, setDateOfBirth] = useState<string>('');
     const [goal, setGoal] = useState<GoalType>('');
     const [startingWeight, setStartingWeight] = useState<number | ''>('');
-    const [startingWeightDate, setStartingWeightDate] = useState<string>('');
     const [startingBodyfat, setStartingBodyfat] = useState<number | ''>('');
-    const [startingBodyfatDate, setStartingBodyfatDate] = useState<string>('');
     const [targetWeight, setTargetWeight] = useState<number | ''>('');
     const [targetBodyfat, setTargetBodyfat] = useState<number | ''>('');
+    const [lastMeasurementDate, setLastMeasurementDate] = useState<string>('');
 
     // Field errors and shake animation
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -45,20 +78,25 @@ const EditProfilePage: React.FC = () => {
                 setIsNewUser(false);
                 setGender(existingSettings.gender || '');
                 setHeightCm(existingSettings.height_cm || '');
-                setDateOfBirth(existingSettings.date_of_birth || '');
+                setDateOfBirth(convertToDisplayFormat(existingSettings.date_of_birth || ''));
                 setGoal(existingSettings.goal || '');
                 setStartingWeight(existingSettings.starting_weight || '');
-                setStartingWeightDate(existingSettings.starting_weight_date || '');
                 setStartingBodyfat(existingSettings.starting_bodyfat || '');
-                setStartingBodyfatDate(existingSettings.starting_bodyfat_date || '');
                 setTargetWeight(existingSettings.target_weight || '');
                 setTargetBodyfat(existingSettings.target_bodyfat || '');
+                setLastMeasurementDate(convertToDisplayFormat(existingSettings.last_measurement_date || ''));
+            }
+            
+            // Get username from Supabase auth user metadata
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.user_metadata?.username) {
+                setUsername(user.user_metadata.username);
             }
         };
         void loadData();
     }, []);
 
-    const validateForm = () => {
+const validateForm = () => {
         const errors: Record<string, string> = {};
         
         if (!gender) {
@@ -69,6 +107,29 @@ const EditProfilePage: React.FC = () => {
         }
         if (!dateOfBirth) {
             errors.date_of_birth = 'Please enter your date of birth.';
+        } else if (dateOfBirth.replace(/\D/g, '').length !== 8) {
+            errors.date_of_birth = 'Date must be in DD/MM/YYYY format.';
+        } else {
+            // Validate age range (5-120 years)
+            const parts = dateOfBirth.split('/');
+            const birthDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            const today = new Date();
+            const age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) 
+                ? age - 1 : age;
+            if (actualAge < 5 || actualAge > 120) {
+                errors.date_of_birth = 'Age must be between 5 and 120 years.';
+            }
+        }
+        if (lastMeasurementDate && lastMeasurementDate.replace(/\D/g, '').length === 8) {
+            const parts = lastMeasurementDate.split('/');
+            const inputDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (inputDate > today) {
+                errors.last_measurement_date = 'Date cannot be in the future.';
+            }
         }
         if (!goal) {
             errors.goal = 'Please select your goal.';
@@ -103,12 +164,11 @@ const EditProfilePage: React.FC = () => {
                 user_id: user.id,
                 gender,
                 height_cm: typeof heightCm === 'number' ? heightCm : null,
-                date_of_birth: dateOfBirth || null,
+                date_of_birth: convertToStorageFormat(dateOfBirth) || null,
                 goal,
                 starting_weight: typeof startingWeight === 'number' ? startingWeight : null,
-                starting_weight_date: startingWeightDate || null,
+                last_measurement_date: convertToStorageFormat(lastMeasurementDate) || null,
                 starting_bodyfat: typeof startingBodyfat === 'number' ? startingBodyfat : null,
-                starting_bodyfat_date: startingBodyfatDate || null,
                 target_weight: typeof targetWeight === 'number' ? targetWeight : null,
                 target_bodyfat: typeof targetBodyfat === 'number' ? targetBodyfat : null,
             };
@@ -136,11 +196,85 @@ const EditProfilePage: React.FC = () => {
         });
     };
 
+    const renderInput = (
+        id: string, 
+        label: string, 
+        value: string | number, 
+        onChange: (value: string) => void, 
+        type: 'text' | 'number' = 'text', 
+        placeholder?: string, 
+        required: boolean = false, 
+        step?: string,
+        isDate: boolean = false
+    ) => (
+        <div className="mb-3 text-start">
+            <label htmlFor={id} className="form-label">{label}</label>
+            <div
+                className={`t-input-wrap ${fieldErrors[id] ? 'is-error' : ''}`}
+                ref={(el) => { fieldRefs.current[id] = el; }}
+            >
+                <div className={`t-input ${fieldErrors[id] ? 'is-error' : ''} ${shakingField === id ? 'is-shaking' : ''}`}>
+                    <input
+                        className="form-control"
+                        id={id}
+                        type={type}
+                        placeholder={placeholder}
+                        value={value}
+                        step={step}
+                        onChange={(e) => {
+                            const val = isDate ? formatDateInput(e.target.value) : e.target.value;
+                            onChange(val);
+                            clearFieldError(id);
+                        }}
+                        required={required}
+                    />
+                </div>
+                {fieldErrors[id] && <p className="t-error-msg">{fieldErrors[id]}</p>}
+            </div>
+        </div>
+    );
+
+    const renderSelect = (
+        id: string, 
+        label: string, 
+        value: string, 
+        options: { value: string; label: string }[], 
+        required: boolean = false,
+        onSelect: (value: string) => void
+    ) => (
+        <div className="mb-3 text-start">
+            <label htmlFor={id} className="form-label">{label}</label>
+            <div
+                className={`t-input-wrap ${fieldErrors[id] ? 'is-error' : ''}`}
+                ref={(el) => { fieldRefs.current[id] = el; }}
+            >
+                <div className={`t-input ${fieldErrors[id] ? 'is-error' : ''} ${shakingField === id ? 'is-shaking' : ''}`}>
+                    <select
+                        className="form-control form-select"
+                        id={id}
+                        value={value}
+                        onChange={(e) => {
+                            onSelect(e.target.value);
+                            clearFieldError(id);
+                        }}
+                        required={required}
+                    >
+                        <option value="">Select {label.toLowerCase()}</option>
+                        {options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                </div>
+                {fieldErrors[id] && <p className="t-error-msg">{fieldErrors[id]}</p>}
+            </div>
+        </div>
+    );
+
     return (
         <>
             <Title title={isNewUser ? "Complete Your Profile" : "Edit Profile"} />
             <div className="page-main-with-secondary">
-                <div className="auth-card">
+                <div className="auth-card profile-form-card">
                     <h2 className="auth-title">{isNewUser ? "Welcome! Complete Your Profile" : "Edit Your Profile"}</h2>
                     <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
                         {isNewUser ? "Let's set up your fitness profile to get started." : "Update your fitness profile information."}
@@ -148,214 +282,46 @@ const EditProfilePage: React.FC = () => {
                     <form onSubmit={handleSubmit} noValidate>
                         {error && <div className="auth-error">{error}</div>}
                         
-                        {/* Gender */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="gender" className="form-label">Gender</label>
-                            <div
-                                className={`t-input-wrap ${fieldErrors.gender ? 'is-error' : ''}`}
-                                ref={(el) => { fieldRefs.current['gender'] = el; }}
-                            >
-                                <div className={`t-input ${fieldErrors.gender ? 'is-error' : ''} ${shakingField === 'gender' ? 'is-shaking' : ''}`}>
-                                    <select
-                                        className="form-control"
-                                        id="gender"
-                                        value={gender}
-                                        onChange={(e) => {
-                                            setGender(e.target.value as GenderType);
-                                            clearFieldError('gender');
-                                        }}
-                                        required
-                                    >
-                                        <option value="">Select gender</option>
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                        <option value="other">Other</option>
-                                        <option value="prefer_not_to_say">Prefer not to say</option>
-                                    </select>
-                                </div>
-                                {fieldErrors.gender && <p className="t-error-msg">{fieldErrors.gender}</p>}
-                            </div>
+                        {/* Personal Info Section */}
+                        <div className="form-grid">
+                            {renderInput('username', 'Username', username, setUsername, 'text', 'Enter your username', false)}
                         </div>
-
-                        {/* Height */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="height_cm" className="form-label">Height (cm)</label>
-                            <div
-                                className={`t-input-wrap ${fieldErrors.height_cm ? 'is-error' : ''}`}
-                                ref={(el) => { fieldRefs.current['height_cm'] = el; }}
-                            >
-                                <div className={`t-input ${fieldErrors.height_cm ? 'is-error' : ''} ${shakingField === 'height_cm' ? 'is-shaking' : ''}`}>
-                                    <input
-                                        className="form-control"
-                                        id="height_cm"
-                                        type="number"
-                                        placeholder="Enter height in cm"
-                                        value={heightCm}
-                                        onChange={(e) => {
-                                            setHeightCm(e.target.value ? parseFloat(e.target.value) : '');
-                                            clearFieldError('height_cm');
-                                        }}
-                                        required
-                                    />
-                                </div>
-                                {fieldErrors.height_cm && <p className="t-error-msg">{fieldErrors.height_cm}</p>}
-                            </div>
+                        
+                        {/* Body Stats Section */}
+                        <div className="form-grid">
+                            {renderInput('height_cm', 'Height (cm)', heightCm, (v) => setHeightCm(v ? parseFloat(v) : ''), 'number', 'Enter height in cm', true)}
+                            {renderInput('date_of_birth', 'Date of Birth', dateOfBirth, setDateOfBirth, 'text', 'DD/MM/YYYY', true, undefined, true)}
                         </div>
-
-                        {/* Date of Birth */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="date_of_birth" className="form-label">Date of Birth</label>
-                            <div
-                                className={`t-input-wrap ${fieldErrors.date_of_birth ? 'is-error' : ''}`}
-                                ref={(el) => { fieldRefs.current['date_of_birth'] = el; }}
-                            >
-                                <div className={`t-input ${fieldErrors.date_of_birth ? 'is-error' : ''} ${shakingField === 'date_of_birth' ? 'is-shaking' : ''}`}>
-                                    <input
-                                        className="form-control"
-                                        id="date_of_birth"
-                                        type="date"
-                                        value={dateOfBirth}
-                                        onChange={(e) => {
-                                            setDateOfBirth(e.target.value);
-                                            clearFieldError('date_of_birth');
-                                        }}
-                                        required
-                                    />
-                                </div>
-                                {fieldErrors.date_of_birth && <p className="t-error-msg">{fieldErrors.date_of_birth}</p>}
-                            </div>
+                        
+                        <div className="form-grid">
+                            {renderSelect('gender', 'Gender', gender, [
+                                { value: 'male', label: 'Male' },
+                                { value: 'female', label: 'Female' },
+                                { value: 'other', label: 'Other' },
+                                { value: 'prefer_not_to_say', label: 'Prefer not to say' }
+                            ], true, (v) => setGender(v as GenderType))}
+                            {renderSelect('goal', 'Goal', goal, [
+                                { value: 'maintain', label: 'Maintain Weight' },
+                                { value: 'lose', label: 'Lose Weight' },
+                                { value: 'gain', label: 'Gain Weight' }
+                            ], true, (v) => setGoal(v as GoalType))}
                         </div>
-
-                        {/* Goal */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="goal" className="form-label">Goal</label>
-                            <div
-                                className={`t-input-wrap ${fieldErrors.goal ? 'is-error' : ''}`}
-                                ref={(el) => { fieldRefs.current['goal'] = el; }}
-                            >
-                                <div className={`t-input ${fieldErrors.goal ? 'is-error' : ''} ${shakingField === 'goal' ? 'is-shaking' : ''}`}>
-                                    <select
-                                        className="form-control"
-                                        id="goal"
-                                        value={goal}
-                                        onChange={(e) => {
-                                            setGoal(e.target.value as GoalType);
-                                            clearFieldError('goal');
-                                        }}
-                                        required
-                                    >
-                                        <option value="">Select goal</option>
-                                        <option value="maintain">Maintain Weight</option>
-                                        <option value="lose">Lose Weight</option>
-                                        <option value="gain">Gain Weight</option>
-                                    </select>
-                                </div>
-                                {fieldErrors.goal && <p className="t-error-msg">{fieldErrors.goal}</p>}
-                            </div>
+                        
+                        {/* Starting Measurements Section */}
+                        <div className="form-grid">
+                            {renderInput('starting_weight', 'Starting Weight (kg)', startingWeight, (v) => setStartingWeight(v ? parseFloat(v) : ''), 'number', 'Enter starting weight', false, '0.1')}
+                            {renderInput('starting_bodyfat', 'Starting Body Fat (%)', startingBodyfat, (v) => setStartingBodyfat(v ? parseFloat(v) : ''), 'number', 'Enter starting body fat', false, '0.1')}
                         </div>
-
-                        {/* Starting Weight */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="starting_weight" className="form-label">Starting Weight (kg)</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="starting_weight"
-                                        type="number"
-                                        step="0.1"
-                                        placeholder="Enter starting weight"
-                                        value={startingWeight}
-                                        onChange={(e) => setStartingWeight(e.target.value ? parseFloat(e.target.value) : '')}
-                                    />
-                                </div>
-                            </div>
+                        
+                        {/* Target Measurements Section */}
+                        <div className="form-grid">
+                            {renderInput('target_weight', 'Target Weight (kg)', targetWeight, (v) => setTargetWeight(v ? parseFloat(v) : ''), 'number', 'Enter target weight', false, '0.1')}
+                            {renderInput('target_bodyfat', 'Target Body Fat (%)', targetBodyfat, (v) => setTargetBodyfat(v ? parseFloat(v) : ''), 'number', 'Enter target body fat', false, '0.1')}
                         </div>
-
-                        {/* Starting Weight Date */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="starting_weight_date" className="form-label">Starting Weight Date</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="starting_weight_date"
-                                        type="date"
-                                        value={startingWeightDate}
-                                        onChange={(e) => setStartingWeightDate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Starting Body Fat */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="starting_bodyfat" className="form-label">Starting Body Fat (%)</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="starting_bodyfat"
-                                        type="number"
-                                        step="0.1"
-                                        placeholder="Enter starting body fat"
-                                        value={startingBodyfat}
-                                        onChange={(e) => setStartingBodyfat(e.target.value ? parseFloat(e.target.value) : '')}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Starting Body Fat Date */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="starting_bodyfat_date" className="form-label">Starting Body Fat Date</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="starting_bodyfat_date"
-                                        type="date"
-                                        value={startingBodyfatDate}
-                                        onChange={(e) => setStartingBodyfatDate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Target Weight */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="target_weight" className="form-label">Target Weight (kg)</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="target_weight"
-                                        type="number"
-                                        step="0.1"
-                                        placeholder="Enter target weight"
-                                        value={targetWeight}
-                                        onChange={(e) => setTargetWeight(e.target.value ? parseFloat(e.target.value) : '')}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Target Body Fat */}
-                        <div className="mb-3 text-start">
-                            <label htmlFor="target_bodyfat" className="form-label">Target Body Fat (%)</label>
-                            <div className="t-input-wrap">
-                                <div className="t-input">
-                                    <input
-                                        className="form-control"
-                                        id="target_bodyfat"
-                                        type="number"
-                                        step="0.1"
-                                        placeholder="Enter target body fat"
-                                        value={targetBodyfat}
-                                        onChange={(e) => setTargetBodyfat(e.target.value ? parseFloat(e.target.value) : '')}
-                                    />
-                                </div>
-                            </div>
+                        
+                        {/* Last Measurement Date */}
+                        <div className="form-grid">
+                            {renderInput('last_measurement_date', 'Last Measurement Date', lastMeasurementDate, setLastMeasurementDate, 'text', 'DD/MM/YYYY', false, undefined, true)}
                         </div>
 
                         <button type="submit" className="btn btn-primary w-100" disabled={loading}>

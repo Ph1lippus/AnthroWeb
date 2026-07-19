@@ -67,11 +67,10 @@ export interface UserSettings {
     date_of_birth: string | null;
     goal: 'maintain' | 'lose' | 'gain' | '';
     starting_weight: number | null;
-    starting_weight_date: string | null;
     starting_bodyfat: number | null;
-    starting_bodyfat_date: string | null;
     target_weight: number | null;
     target_bodyfat: number | null;
+    last_measurement_date: string | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -105,11 +104,10 @@ export const createUserSettings = async (settings: UserSettings) => {
             date_of_birth: settings.date_of_birth,
             goal: settings.goal,
             starting_weight: settings.starting_weight,
-            starting_weight_date: settings.starting_weight_date,
             starting_bodyfat: settings.starting_bodyfat,
-            starting_bodyfat_date: settings.starting_bodyfat_date,
             target_weight: settings.target_weight,
             target_bodyfat: settings.target_bodyfat,
+            last_measurement_date: settings.last_measurement_date,
         })
         .select()
         .single();
@@ -135,11 +133,10 @@ export const updateUserSettings = async (settings: UserSettings) => {
             date_of_birth: settings.date_of_birth,
             goal: settings.goal,
             starting_weight: settings.starting_weight,
-            starting_weight_date: settings.starting_weight_date,
             starting_bodyfat: settings.starting_bodyfat,
-            starting_bodyfat_date: settings.starting_bodyfat_date,
             target_weight: settings.target_weight,
             target_bodyfat: settings.target_bodyfat,
+            last_measurement_date: settings.last_measurement_date,
             updated_at: new Date().toISOString(),
         })
         .select()
