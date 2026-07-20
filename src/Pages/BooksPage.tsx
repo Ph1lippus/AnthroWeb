@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Title from '../Components/Title';
-import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV } from '../services/bookService';
+import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
+
+interface DuplicateGroup {
+    title: string;
+    books: Book[];
+}
 
 const BooksPage: React.FC = () => {
     const [books, setBooks] = useState<Book[]>([]);
@@ -40,6 +45,12 @@ const BooksPage: React.FC = () => {
     const [chronoDisplay, setChronoDisplay] = useState('00:00:00');
     const [isChronoRunning, setIsChronoRunning] = useState(false);
     const chronoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Duplicate checking state
+    const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
+    const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+    const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
+    const [duplicatesDeleting, setDuplicatesDeleting] = useState(false);
 
     // Fetch all books at once
     useEffect(() => {
@@ -180,6 +191,89 @@ const BooksPage: React.FC = () => {
             }
         };
         reader.readAsText(file);
+    };
+
+    // Duplicate checking logic
+    const findDuplicates = useCallback(() => {
+        const titleMap = new Map<string, Book[]>();
+        for (const book of books) {
+            const lowerTitle = book.title.toLowerCase().trim();
+            const existing = titleMap.get(lowerTitle) || [];
+            existing.push(book);
+            titleMap.set(lowerTitle, existing);
+        }
+
+        const groups: DuplicateGroup[] = [];
+        for (const [title, bookList] of titleMap.entries()) {
+            if (bookList.length > 1) {
+                groups.push({ title, books: bookList });
+            }
+        }
+
+        // Sort groups by number of duplicates (most first)
+        groups.sort((a, b) => b.books.length - a.books.length);
+
+        return groups;
+    }, [books]);
+
+    const handleCheckDuplicates = useCallback(() => {
+        const groups = findDuplicates();
+        setDuplicateGroups(groups);
+
+        // Pre-select all books except the first one in each group (keep one)
+        const toDelete = new Set<string>();
+        for (const group of groups) {
+            // Keep the first book (the one with the highest current_page or most progress)
+            const sorted = [...group.books].sort((a, b) => {
+                // Sort by progress desc, then by current_page desc, then by created_at desc
+                if (b.progress !== a.progress) return b.progress - a.progress;
+                if (b.current_page !== a.current_page) return b.current_page - a.current_page;
+                return (b.created_at || '').localeCompare(a.created_at || '');
+            });
+            // The first one (best) will be kept, the rest marked for deletion
+            for (let i = 1; i < sorted.length; i++) {
+                if (sorted[i].id) toDelete.add(sorted[i].id!);
+            }
+        }
+        setSelectedDeleteIds(toDelete);
+        setShowDuplicatesModal(true);
+    }, [findDuplicates]);
+
+    const toggleDuplicateSelection = (bookId: string) => {
+        setSelectedDeleteIds(prev => {
+            const next = new Set(prev);
+            if (next.has(bookId)) {
+                next.delete(bookId);
+            } else {
+                next.add(bookId);
+            }
+            return next;
+        });
+    };
+
+    const handleDeleteDuplicates = async () => {
+        if (selectedDeleteIds.size === 0) return;
+
+        setDuplicatesDeleting(true);
+        try {
+            await deleteMultipleBooks(Array.from(selectedDeleteIds));
+            // Close modal and refresh
+            setShowDuplicatesModal(false);
+            setDuplicateGroups([]);
+            setSelectedDeleteIds(new Set());
+            const refreshedBooks = await getUserBooks();
+            setBooks(refreshedBooks);
+        } catch (err) {
+            console.error('Failed to delete duplicates:', err);
+        } finally {
+            setDuplicatesDeleting(false);
+        }
+    };
+
+    const handleCloseDuplicatesModal = () => {
+        setShowDuplicatesModal(false);
+        setDuplicateGroups([]);
+        setSelectedDeleteIds(new Set());
     };
 
     // Fixed timer: uses refs to avoid stale closures
@@ -406,6 +500,9 @@ const BooksPage: React.FC = () => {
                                 </button>
                                 <button onClick={() => setShowImportModal(true)} className="btn-action">
                                     <i className="i-lucide-upload mr-1"></i>Import
+                                </button>
+                                <button onClick={handleCheckDuplicates} className="btn-action" disabled={totalBooksCount < 2}>
+                                    <i className="fa-solid fa-copy mr-1"></i>Check Duplicates
                                 </button>
                             </div>
 
@@ -672,6 +769,107 @@ const BooksPage: React.FC = () => {
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Duplicates Modal */}
+            {showDuplicatesModal && (
+                <div className="import-modal-overlay" onClick={handleCloseDuplicatesModal}>
+                    <div className="import-modal-card duplicates-modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="mb-4">Manage Duplicate Books</h3>
+
+                        {duplicateGroups.length === 0 ? (
+                            <div className="duplicates-empty">
+                                <i className="fa-solid fa-check-circle duplicates-empty-icon"></i>
+                                <p>No duplicate titles found! All books have unique titles.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <p className="text-sm opacity-70 mb-3">
+                                    Found <strong>{duplicateGroups.length}</strong> duplicate title group{duplicateGroups.length > 1 ? 's' : ''}.
+                                    Below each group, the first entry (best progress) will be kept. Uncheck any you want to keep as well.
+                                </p>
+
+                                <div className="duplicates-scroll-area">
+                                    {duplicateGroups.map((group, groupIdx) => {
+                                        // Sort: best kept first (checked = false, since we pre-marked all but best for deletion)
+                                        const sorted = [...group.books].sort((a, b) => {
+                                            if (b.progress !== a.progress) return b.progress - a.progress;
+                                            if (b.current_page !== a.current_page) return b.current_page - a.current_page;
+                                            return (b.created_at || '').localeCompare(a.created_at || '');
+                                        });
+
+                                        return (
+                                            <div key={groupIdx} className="duplicate-group">
+                                                <div className="duplicate-group-header">
+                                                    <i className="fa-solid fa-copy"></i>
+                                                    <span>"{group.title}"</span>
+                                                    <span className="duplicate-count">{sorted.length} copies</span>
+                                                </div>
+                                                <div className="duplicate-books-list">
+                                                    {sorted.map((book, bookIdx) => {
+                                                        const isBest = bookIdx === 0;
+                                                        return (
+                                                            <label
+                                                                key={book.id}
+                                                                className={`duplicate-book-item ${isBest ? 'duplicate-book-item--kept' : ''}`}
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedDeleteIds.has(book.id!)}
+                                                                    onChange={() => {
+                                                                        // Cannot delete the last remaining book in a group
+                                                                        const keptCount = sorted.filter(b => !selectedDeleteIds.has(b.id!) || b.id === book.id).length;
+                                                                        if (!selectedDeleteIds.has(book.id!) && keptCount <= 1) return;
+                                                                        toggleDuplicateSelection(book.id!);
+                                                                    }}
+                                                                    disabled={duplicatesDeleting}
+                                                                />
+                                                                <div className="duplicate-book-info">
+                                                                    <span className="duplicate-book-title">
+                                                                        {isBest && <span className="duplicate-best-badge">KEPT</span>}
+                                                                        {book.title}
+                                                                    </span>
+                                                                    <span className="duplicate-book-meta">
+                                                                        Page {book.current_page}/{book.total_pages} &middot; {book.progress}% &middot; {book.status}
+                                                                    </span>
+                                                                </div>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="duplicates-summary">
+                                    <span>
+                                        Deleting <strong>{selectedDeleteIds.size}</strong> book{selectedDeleteIds.size !== 1 ? 's' : ''}
+                                    </span>
+                                </div>
+
+                                <div className="flex gap-2 justify-end mt-4">
+                                    <button
+                                        type="button"
+                                        onClick={handleCloseDuplicatesModal}
+                                        className="btn-form-cancel"
+                                        disabled={duplicatesDeleting}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleDeleteDuplicates}
+                                        className="btn-form-submit btn-form-submit--danger"
+                                        disabled={selectedDeleteIds.size === 0 || duplicatesDeleting}
+                                    >
+                                        {duplicatesDeleting ? 'Deleting...' : `Delete ${selectedDeleteIds.size} Duplicate${selectedDeleteIds.size !== 1 ? 's' : ''}`}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

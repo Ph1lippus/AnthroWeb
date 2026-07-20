@@ -78,6 +78,7 @@ export const getUserBooks = async (): Promise<Book[]> => {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
+            .limit(pageSize)
             .range(from, to);
 
         if (error) {
@@ -95,6 +96,21 @@ export const getUserBooks = async (): Promise<Book[]> => {
     }
 
     return allBooks;
+};
+
+// Delete multiple books by id
+export const deleteMultipleBooks = async (ids: string[]): Promise<void> => {
+    if (ids.length === 0) return;
+
+    const { error } = await supabase
+        .from('books')
+        .delete()
+        .in('id', ids);
+
+    if (error) {
+        console.error('Error deleting books:', error.message);
+        throw error;
+    }
 };
 
 // Create a new book
@@ -169,13 +185,21 @@ export const updateBookProgress = async (id: string, currentPage: number, totalP
     });
 };
 
-// Export books to CSV format
+// Export books to CSV format (properly escapes commas and quotes in titles)
 export const exportBooksToCSV = (books: Book[]): string => {
     const headers = ['title', 'total_pages', 'current_page'];
+    const escapeCsvField = (field: string | number): string => {
+        const str = String(field);
+        // If the field contains commas, quotes, or newlines, wrap it in quotes
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
     const rows = books.map(book => [
-        book.title,
-        book.total_pages,
-        book.current_page
+        escapeCsvField(book.title),
+        escapeCsvField(book.total_pages),
+        escapeCsvField(book.current_page)
     ].join(','));
     
     return [headers.join(','), ...rows].join('\n');
