@@ -127,7 +127,7 @@ export const updateUserSettings = async (settings: UserSettings) => {
     const { data, error } = await supabase
         .from('user_settings')
         .upsert({
-            user_id: user.id,
+            user_id: settings.user_id || user.id,
             gender: settings.gender,
             height_cm: settings.height_cm,
             date_of_birth: settings.date_of_birth,
@@ -138,6 +138,8 @@ export const updateUserSettings = async (settings: UserSettings) => {
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
             updated_at: new Date().toISOString(),
+        }, {
+            onConflict: 'user_id'
         })
         .select()
         .single();

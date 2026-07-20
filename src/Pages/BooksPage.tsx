@@ -1,95 +1,68 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Title from '../Components/Title';
-import { getUserBooksPaginated, getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV } from '../services/bookService';
+import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV } from '../services/bookService';
 import type { Book } from '../services/bookService';
-
-const PAGE_SIZE = 100;
 
 const BooksPage: React.FC = () => {
     const [books, setBooks] = useState<Book[]>([]);
-    const [totalBooksCount, setTotalBooksCount] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [hasMore, setHasMore] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [importError, setImportError] = useState<string | null>(null);
-    const [showCompleted, setShowCompleted] = useState(true);
-    
-    // Form state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [submittedSearch, setSubmittedSearch] = useState('');
+
+    // Delete confirmation modal
+    const [deleteTarget, setDeleteTarget] = useState<Book | null>(null);
+
+    // Edit modal state
+    const [editModalBook, setEditModalBook] = useState<Book | null>(null);
+    const [editLoading, setEditLoading] = useState(false);
+    const [editTitle, setEditTitle] = useState('');
+    const [editTotalPages, setEditTotalPages] = useState('');
+    const [editCurrentPage, setEditCurrentPage] = useState('');
+
+    // Add form state
     const [title, setTitle] = useState('');
     const [totalPages, setTotalPages] = useState('');
     const [currentPageInput, setCurrentPageInput] = useState('');
-    
-    // Timer state
-    const [timerMinutes, setTimerMinutes] = useState(15);
-    const [timerSeconds, setTimerSeconds] = useState(0);
+
+    // Timer state - use refs to avoid stale closure issues
+    const timerDisplayRef = useRef({ minutes: 15, seconds: 0 });
+    const [timerDisplay, setTimerDisplay] = useState('15:00');
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const timerInputRef = useRef<HTMLInputElement>(null);
 
-    const fetchBooks = async (page: number = 0, append: boolean = false) => {
-        if (page === 0) {
-            setLoading(true);
-        } else {
-            setLoadingMore(true);
-        }
+    // Chronometer state - counts up forever
+    const chronoTimeRef = useRef(0);
+    const [chronoDisplay, setChronoDisplay] = useState('00:00:00');
+    const [isChronoRunning, setIsChronoRunning] = useState(false);
+    const chronoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-        const result = await getUserBooksPaginated(page, PAGE_SIZE);
-        
-        if (append) {
-            setBooks(prev => [...prev, ...result.data]);
-        } else {
-            setBooks(result.data);
-        }
-        setTotalBooksCount(result.total);
-        setHasMore(result.hasMore);
-        setCurrentPage(page);
-        setLoading(false);
-        setLoadingMore(false);
-    };
-
+    // Fetch all books at once
     useEffect(() => {
-        const load = async () => {
-            await fetchBooks(0, false);
+        const loadBooks = async () => {
+            setLoading(true);
+            const allBooks = await getUserBooks();
+            setBooks(allBooks);
+            setLoading(false);
         };
-        load();
+        loadBooks();
     }, []);
 
-    const loadMore = () => {
-        if (!loadingMore && hasMore) {
-            fetchBooks(currentPage + 1, true);
-        }
-    };
-
+    // Cleanup timers on unmount
     useEffect(() => {
-        if (isTimerRunning) {
-            timerRef.current = setInterval(() => {
-                setTimerSeconds(prev => {
-                    if (prev > 0) {
-                        return prev - 1;
-                    } else {
-                        setTimerMinutes(m => {
-                            if (m > 0) {
-                                return m - 1;
-                            } else {
-                                setIsTimerRunning(false);
-                                return 0;
-                            }
-                        });
-                        return 59;
-                    }
-                });
-            }, 1000);
-        }
-        
         return () => {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+            }
+            if (chronoIntervalRef.current) {
+                clearInterval(chronoIntervalRef.current);
             }
         };
-    }, [isTimerRunning]);
+    }, []);
 
     const resetForm = () => {
         setTitle('');
@@ -101,10 +74,10 @@ const BooksPage: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const totalPagesNum = parseInt(totalPages) || 0;
         const currentPageNum = parseInt(currentPageInput) || 0;
-        
+
         if (editingBook) {
             await updateBook(editingBook.id!, {
                 title,
@@ -122,33 +95,62 @@ const BooksPage: React.FC = () => {
                 status: 'reading',
             });
         }
-        
+
+        const refreshedBooks = await getUserBooks();
+        setBooks(refreshedBooks);
         resetForm();
-        fetchBooks(0, false);
     };
 
-    const handleEdit = (book: Book) => {
-        setEditingBook(book);
-        setTitle(book.title);
-        setTotalPages(book.total_pages.toString());
-        setCurrentPageInput(book.current_page.toString());
-        setShowAddForm(true);
+    const openEditModal = (book: Book) => {
+        setEditModalBook(book);
+        setEditTitle(book.title);
+        setEditTotalPages(book.total_pages.toString());
+        setEditCurrentPage(book.current_page.toString());
     };
 
-    const handleDelete = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this book?')) {
-            await deleteBook(id);
-            fetchBooks(0, false);
+    const closeEditModal = () => {
+        setEditModalBook(null);
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editModalBook) return;
+
+        setEditLoading(true);
+        try {
+            const totalPagesNum = parseInt(editTotalPages) || 0;
+            const currentPageNum = parseInt(editCurrentPage) || 0;
+
+            await updateBook(editModalBook.id!, {
+                title: editTitle,
+                total_pages: totalPagesNum,
+                current_page: currentPageNum,
+                progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
+            });
+
+            const refreshedBooks = await getUserBooks();
+            setBooks(refreshedBooks);
+            closeEditModal();
+        } finally {
+            setEditLoading(false);
         }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteTarget) return;
+        await deleteBook(deleteTarget.id!);
+        const refreshedBooks = await getUserBooks();
+        setBooks(refreshedBooks);
+        setDeleteTarget(null);
     };
 
     const handlePageUpdate = async (book: Book, newPage: number) => {
         await updateBookProgress(book.id!, newPage, book.total_pages);
-        fetchBooks(0, false);
+        const refreshedBooks = await getUserBooks();
+        setBooks(refreshedBooks);
     };
 
     const handleExport = async () => {
-        // For export, fetch all books
         const allBooks = await getUserBooks();
         const csv = exportBooksToCSV(allBooks);
         const blob = new Blob([csv], { type: 'text/csv' });
@@ -171,7 +173,8 @@ const BooksPage: React.FC = () => {
                 await importBooksFromCSV(content);
                 setImportError(null);
                 setShowImportModal(false);
-                fetchBooks(0, false);
+                const refreshedBooks = await getUserBooks();
+                setBooks(refreshedBooks);
             } catch {
                 setImportError('Failed to import books. Please check your CSV format.');
             }
@@ -179,100 +182,194 @@ const BooksPage: React.FC = () => {
         reader.readAsText(file);
     };
 
+    // Fixed timer: uses refs to avoid stale closures
     const startTimer = () => {
-        setTimerSeconds(0);
+        const minutes = parseInt(timerInputRef.current?.value || '15');
+        timerDisplayRef.current = { minutes, seconds: 0 };
+        setTimerDisplay(formatTime(minutes, 0));
         setIsTimerRunning(true);
+
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+        }
+
+        timerIntervalRef.current = setInterval(() => {
+            const { minutes: m, seconds: s } = timerDisplayRef.current;
+            if (s > 0) {
+                timerDisplayRef.current = { minutes: m, seconds: s - 1 };
+            } else if (m > 0) {
+                timerDisplayRef.current = { minutes: m - 1, seconds: 59 };
+            } else {
+                clearInterval(timerIntervalRef.current!);
+                timerIntervalRef.current = null;
+                setIsTimerRunning(false);
+                return;
+            }
+            const { minutes: newM, seconds: newS } = timerDisplayRef.current;
+            setTimerDisplay(formatTime(newM, newS));
+        }, 1000);
     };
 
     const stopTimer = () => {
-        setIsTimerRunning(false);
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
         }
+        setIsTimerRunning(false);
+        // Keep the current display showing the stopped time
     };
 
     const formatTime = (minutes: number, seconds: number) => {
         return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    // Separate completed vs reading books
-    const completedBooks = books.filter(b => b.total_pages > 0 && b.current_page >= b.total_pages);
-    const readingBooks = books
-        .filter(b => !(b.total_pages > 0 && b.current_page >= b.total_pages))
-        .sort((a, b) => {
-            // Books with progress (current_page > 0) come first
-            const aHasProgress = a.current_page > 0 ? 1 : 0;
-            const bHasProgress = b.current_page > 0 ? 1 : 0;
-            return bHasProgress - aHasProgress;
-        });
+    // Chronometer functions - counts up forever
+    const formatChronoTime = (totalSeconds: number) => {
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
 
-    // Compute stats
+    const startChrono = () => {
+        if (isChronoRunning) return;
+        setIsChronoRunning(true);
+        chronoIntervalRef.current = setInterval(() => {
+            chronoTimeRef.current += 1;
+            setChronoDisplay(formatChronoTime(chronoTimeRef.current));
+        }, 1000);
+    };
+
+    const stopChrono = () => {
+        if (chronoIntervalRef.current) {
+            clearInterval(chronoIntervalRef.current);
+            chronoIntervalRef.current = null;
+        }
+        setIsChronoRunning(false);
+    };
+
+    const resetChrono = () => {
+        if (chronoIntervalRef.current) {
+            clearInterval(chronoIntervalRef.current);
+            chronoIntervalRef.current = null;
+        }
+        chronoTimeRef.current = 0;
+        setChronoDisplay('00:00:00');
+        setIsChronoRunning(false);
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            setSubmittedSearch(searchQuery);
+        }
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
+        setSubmittedSearch('');
+    };
+
+    const handlePageKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, book: Book) => {
+        if (e.key === 'Enter') {
+            const input = e.target as HTMLInputElement;
+            const newPage = parseInt(input.value) || 0;
+            handlePageUpdate(book, newPage);
+        }
+    };
+
+    const completedBooks = books.filter(b => b.total_pages > 0 && b.current_page >= b.total_pages);
+    const activeReadingBooks = books
+        .filter(b => !(b.total_pages > 0 && b.current_page >= b.total_pages) && b.current_page > 0)
+        .sort((a, b) => b.current_page - a.current_page);
+    const notStartedBooks = books.filter(b => b.current_page === 0);
+
+    const tagMatch = submittedSearch.match(/^(#\w+)\s*(.*)/i);
+    const activeTag = tagMatch ? tagMatch[1].toLowerCase() : null;
+    const textSearch = tagMatch ? tagMatch[2].trim() : submittedSearch.trim();
+
+    const getFilteredBooks = () => {
+        if (!submittedSearch) return [];
+
+        let filtered = books;
+
+        if (activeTag === '#completed') {
+            filtered = completedBooks;
+        } else if (activeTag === '#reading') {
+            filtered = activeReadingBooks;
+        } else if (activeTag === '#unread') {
+            filtered = notStartedBooks;
+        }
+
+        if (textSearch) {
+            filtered = filtered.filter(b =>
+                b.title.toLowerCase().includes(textSearch.toLowerCase())
+            );
+        }
+
+        return filtered;
+    };
+
+    const searchFiltered = getFilteredBooks();
+
+    const getSearchHeader = () => {
+        if (!submittedSearch) return '';
+        const count = searchFiltered.length;
+        const label = activeTag ? `${activeTag} ` : '';
+        return `${label}Results (${count})`;
+    };
+
     const totalPagesRead = books.reduce((sum, b) => sum + b.current_page, 0);
+    const totalBooksCount = books.length;
     const completedCount = completedBooks.length;
 
-    const renderBookRow = (book: Book) => (
+    const renderBookCard = (book: Book) => (
         <div key={book.id} className="book-card">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-                {/* Title */}
-                <div className="min-w-0">
-                    <h3 className="book-title">{book.title}</h3>
+            <div className="book-card-top">
+                <h3 className="book-title">{book.title}</h3>
+                <div className="flex gap-1 shrink-0">
+                    <button
+                        onClick={() => openEditModal(book)}
+                        className="book-action-btn"
+                        title="Edit book details"
+                        aria-label="Edit book"
+                    >
+                        <i className="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button
+                        onClick={() => setDeleteTarget(book)}
+                        className="book-action-btn book-action-btn--danger"
+                        title="Delete book"
+                        aria-label="Delete book"
+                    >
+                        <i className="fa-solid fa-trash"></i>
+                    </button>
                 </div>
-
-                {/* Next Page to Read */}
+            </div>
+            <div className="book-card-details">
                 <div className="flex items-center gap-2">
+                    <label className="book-detail-label">Page:</label>
                     <input
                         type="number"
-                        value={book.current_page}
-                        onChange={(e) => handlePageUpdate(book, parseInt(e.target.value) || 0)}
+                        defaultValue={book.current_page}
+                        key={book.id + '-' + book.current_page}
+                        onKeyDown={(e) => handlePageKeyDown(e, book)}
                         className="book-page-input"
                         min="0"
                         max={book.total_pages > 0 ? book.total_pages : undefined}
                     />
                     {book.total_pages > 0 && (
-                        <span className="text-sm opacity-50">/ {book.total_pages}</span>
+                        <span className="text-xs opacity-50">/ {book.total_pages}</span>
                     )}
                 </div>
-
-                {/* Total Pages */}
-                <div>
-                    {book.total_pages > 0 ? (
-                        <span className="book-total-pages">{book.total_pages}</span>
-                    ) : (
-                        <span className="book-total-pages unknown">Unknown</span>
-                    )}
-                </div>
-
-                {/* Progress */}
-                <div className="flex items-center gap-2">
-                    <div className="progress-bar flex-1 h-2">
-                        <div 
-                            className="progress-fill" 
+                <div className="flex items-center gap-2 flex-1">
+                    <div className="progress-bar flex-1 h-1.5">
+                        <div
+                            className="progress-fill"
                             style={{ width: `${book.progress}%` }}
                         ></div>
                     </div>
-                    <span className="book-progress-pct">
-                        {book.progress}%
-                    </span>
+                    <span className="book-progress-pct">{book.progress}%</span>
                 </div>
-            </div>
-            
-            {/* Actions Row */}
-            <hr className="book-actions-divider" />
-            <div className="flex gap-2 justify-end">
-                <button
-                    onClick={() => handleEdit(book)}
-                    className="book-action-btn"
-                    title="Edit book"
-                >
-                    <i className="i-lucide-edit"></i>
-                </button>
-                <button
-                    onClick={() => handleDelete(book.id!)}
-                    className="book-action-btn book-action-btn--danger"
-                    title="Delete book"
-                >
-                    <i className="i-lucide-trash-2"></i>
-                </button>
             </div>
         </div>
     );
@@ -280,15 +377,10 @@ const BooksPage: React.FC = () => {
     return (
         <>
             <Title title="Books" />
-            <div className="page-main-with-secondary">
+            <div className="books-page-wrapper">
                 <div className="dashboard-section books-section">
-                    <div className="dashboard-section__head">
-                        <h2>Books</h2>
-                        <span>Track your reading progress</span>
-                    </div>
-
                     <div className="books-card">
-                        {/* Stats Summary */}
+                        {/* Stats + Top Bar */}
                         <div className="books-stats">
                             <div className="books-stat-item">
                                 <span className="books-stat-label">Total Books</span>
@@ -304,132 +396,100 @@ const BooksPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Top Bar with Actions and Timer */}
-                        <div className="flex justify-between items-start flex-wrap gap-4 mt-6 mb-8">
-                            {/* Action Buttons */}
-                            <div className="flex gap-3 flex-wrap">
-                                <button 
-                                    onClick={() => setShowAddForm(true)}
-                                    className="btn-action"
-                                >
-                                    <i className="i-lucide-plus mr-1"></i>
-                                    Add Book
+                        <div className="books-top-bar">
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => setShowAddForm(true)} className="btn-action">
+                                    <i className="i-lucide-plus mr-1"></i>Add Book
                                 </button>
-                                <button 
-                                    onClick={handleExport}
-                                    className="btn-action"
-                                    disabled={totalBooksCount === 0}
-                                >
-                                    <i className="i-lucide-download mr-1"></i>
-                                    Export
+                                <button onClick={handleExport} className="btn-action" disabled={totalBooksCount === 0}>
+                                    <i className="i-lucide-download mr-1"></i>Export
                                 </button>
-                                <button 
-                                    onClick={() => setShowImportModal(true)}
-                                    className="btn-action"
-                                >
-                                    <i className="i-lucide-upload mr-1"></i>
-                                    Import
+                                <button onClick={() => setShowImportModal(true)} className="btn-action">
+                                    <i className="i-lucide-upload mr-1"></i>Import
                                 </button>
                             </div>
 
-                            {/* Global Timer */}
-                            <div className="timer-section">
-                                <span className="timer-label">Reading Timer:</span>
-                                <input
-                                    type="number"
-                                    value={timerMinutes}
-                                    onChange={(e) => setTimerMinutes(parseInt(e.target.value) || 15)}
-                                    className="timer-input"
-                                    min="1"
-                                    disabled={isTimerRunning}
-                                />
-                                <span className="timer-unit">min</span>
-                                {isTimerRunning && (
-                                    <span className="timer-display">
-                                        {formatTime(timerMinutes, timerSeconds)}
-                                    </span>
-                                )}
-                                {isTimerRunning ? (
-                                    <button
-                                        onClick={stopTimer}
-                                        className="timer-btn timer-btn--stop"
-                                    >
-                                        <i className="i-lucide-pause mr-1"></i>
-                                        Stop
-                                    </button>
+                            <div className="timer-section chrono-section">
+                                <span className="timer-label">Chrono:</span>
+                                <span className="chrono-display">{chronoDisplay}</span>
+                                {isChronoRunning ? (
+                                    <>
+                                        <button onClick={stopChrono} className="timer-btn timer-btn--stop">
+                                            <i className="i-lucide-pause mr-1"></i>Stop
+                                        </button>
+                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
+                                            <i className="fa-solid fa-rotate-right"></i>
+                                        </button>
+                                    </>
                                 ) : (
-                                    <button
-                                        onClick={startTimer}
-                                        className="timer-btn timer-btn--start"
-                                    >
-                                        <i className="i-lucide-play mr-1"></i>
-                                        Start
-                                    </button>
+                                    <>
+                                        <button onClick={startChrono} className="timer-btn timer-btn--start">
+                                            <i className="i-lucide-play mr-1"></i>Start
+                                        </button>
+                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
+                                            <i className="fa-solid fa-rotate-right"></i>
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                            <div className="timer-section">
+                                <span className="timer-label">Timer:</span>
+                                {isTimerRunning ? (
+                                    <>
+                                        <span className="timer-display">{timerDisplay}</span>
+                                        <button onClick={stopTimer} className="timer-btn timer-btn--stop">
+                                            <i className="i-lucide-pause mr-1"></i>Stop
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <input
+                                            ref={timerInputRef}
+                                            type="number"
+                                            defaultValue={15}
+                                            className="timer-input"
+                                            min="1"
+                                        />
+                                        <span className="timer-unit">min</span>
+                                        <button onClick={startTimer} className="timer-btn timer-btn--start">
+                                            <i className="i-lucide-play mr-1"></i>Start
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>
 
-                        {/* Add/Edit Form */}
-                        {showAddForm && (
-                            <div className="book-form-card mb-8">
-                                <h3 className="mb-5">
-                                    <i className={`i-lucide-${editingBook ? 'edit' : 'plus-circle'} mr-1`}></i>
-                                    {editingBook ? 'Edit Book' : 'Add New Book'}
+                        {/* Add/Edit Form - inline (for adding) */}
+                        {showAddForm && !editingBook && (
+                            <div className="book-form-card mb-3">
+                                <h3 className="mb-4">
+                                    <i className="i-lucide-plus-circle mr-1"></i>Add New Book
                                 </h3>
                                 <form onSubmit={handleSubmit}>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
                                         <div>
                                             <label className="form-label">Title</label>
-                                            <input
-                                                type="text"
-                                                value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
-                                                className="form-control"
-                                                placeholder="Book title"
-                                                required
-                                            />
+                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="form-control" placeholder="Book title" required />
                                         </div>
                                         <div>
                                             <label className="form-label">Total Pages</label>
-                                            <input
-                                                type="number"
-                                                value={totalPages}
-                                                onChange={(e) => setTotalPages(e.target.value)}
-                                                className="form-control"
-                                                placeholder="Total pages (0 for unknown)"
-                                                min="0"
-                                            />
+                                            <input type="number" value={totalPages} onChange={(e) => setTotalPages(e.target.value)} className="form-control" placeholder="Total pages" min="0" />
                                         </div>
                                         <div>
                                             <label className="form-label">Current Page</label>
-                                            <input
-                                                type="number"
-                                                value={currentPageInput}
-                                                onChange={(e) => setCurrentPageInput(e.target.value)}
-                                                className="form-control"
-                                                placeholder="Current page (0 if not started)"
-                                                min="0"
-                                            />
+                                            <input type="number" value={currentPageInput} onChange={(e) => setCurrentPageInput(e.target.value)} className="form-control" placeholder="Current page" min="0" />
                                         </div>
                                     </div>
                                     <hr className="book-actions-divider mb-4" />
                                     <div className="flex flex-col sm:flex-row gap-3 w-full">
-                                        <button
-                                            type="button"
-                                            onClick={resetForm}
-                                            className="btn-form-cancel flex-1"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button type="submit" className="btn-form-submit flex-1">
-                                            {editingBook ? 'Update' : 'Add'} Book
-                                        </button>
+                                        <button type="button" onClick={resetForm} className="btn-form-cancel flex-1">Cancel</button>
+                                        <button type="submit" className="btn-form-submit flex-1">Add Book</button>
                                     </div>
                                 </form>
                             </div>
                         )}
 
-                        {/* Books List - hidden while showing add form */}
+                        {/* Books Content */}
                         {!showAddForm && (
                             loading ? (
                                 <div className="profile-loading">
@@ -443,83 +503,158 @@ const BooksPage: React.FC = () => {
                                     <p className="books-empty-text">Add your first book or import from CSV to start tracking!</p>
                                 </div>
                             ) : (
-                                <div className="w-full">
-                                    {/* Completed Books Section - Collapsible */}
-                                    {completedBooks.length > 0 && (
-                                        <div className="mb-8">
-                                            <button
-                                                onClick={() => setShowCompleted(!showCompleted)}
-                                                className="books-section-header books-section-header--clickable"
-                                            >
-                                                <i className={`i-lucide-chevron-${showCompleted ? 'down' : 'right'} transition-transform`}></i>
-                                                <i className="i-lucide-check-circle"></i>
-                                                Completed ({completedBooks.length})
-                                            </button>
-                                            {showCompleted && (
-                                                <div className="flex flex-col gap-3 mt-4">
-                                                    <div className="books-header">
-                                                        <div>Title</div>
-                                                        <div>Next Page to Read</div>
-                                                        <div>Total Pages</div>
-                                                        <div>Progress</div>
+                                <div className="books-two-col">
+                                    <div className="books-left-col">
+                                        <div className="search-container">
+                                            <div className="search-input-wrapper">
+                                                <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                                <input
+                                                    type="text"
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    onKeyDown={handleSearchKeyDown}
+                                                    className="search-input"
+                                                    placeholder='Search books... (try #completed, #reading, #unread)'
+                                                />
+                                                {(searchQuery || submittedSearch) && (
+                                                    <button
+                                                        className="search-clear-btn"
+                                                        onClick={clearSearch}
+                                                        aria-label="Clear search"
+                                                    >
+                                                        <i className="fa-solid fa-xmark"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="books-scroll-area">
+                                            {submittedSearch && (
+                                                <div>
+                                                    <div className="books-section-header">
+                                                        <i className="i-lucide-search"></i>
+                                                        {getSearchHeader()}
                                                     </div>
-                                                    {completedBooks.map(renderBookRow)}
+                                                    {searchFiltered.length > 0 ? (
+                                                        <div className="flex flex-col gap-2 mt-3">
+                                                            {searchFiltered.map(renderBookCard)}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm opacity-50 mt-2">No books match your search.</p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {!submittedSearch && notStartedBooks.length > 0 && (
+                                                <div className="mt-2">
+                                                    <div className="text-xs opacity-40">
+                                                        {notStartedBooks.length} unread books &mdash; press Enter to search
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-
-                                    {/* Reading Books Section */}
-                                    <div>
-                                        <div className="books-section-header">
-                                            <i className="i-lucide-book-open"></i>
-                                            {readingBooks.length > 0 ? 'Currently Reading' : 'Your Library'}
-                                        </div>
-                                        {readingBooks.length > 0 ? (
-                                            <div className="flex flex-col gap-3 mt-4">
-                                                <div className="books-header">
-                                                    <div>Title</div>
-                                                    <div>Next Page to Read</div>
-                                                    <div>Total Pages</div>
-                                                    <div>Progress</div>
-                                                </div>
-                                                {readingBooks.map(renderBookRow)}
-                                            </div>
-                                        ) : completedBooks.length > 0 ? (
-                                            <div className="books-empty">
-                                                <p className="books-empty-text">All books completed! Great job!</p>
-                                            </div>
-                                        ) : null}
                                     </div>
 
-                                    {/* Load More Button */}
-                                    {hasMore && (
-                                        <div className="text-center mt-6">
-                                            <button
-                                                onClick={loadMore}
-                                                disabled={loadingMore}
-                                                className="btn-action"
-                                            >
-                                                {loadingMore ? (
-                                                    <>
-                                                        <div className="profile-loading-spinner" style={{ width: 16, height: 16, borderWidth: 2, margin: 0 }}></div>
-                                                        Loading...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <i className="i-lucide-chevron-down mr-1"></i>
-                                                        Load More ({totalBooksCount - books.length} remaining)
-                                                    </>
-                                                )}
-                                            </button>
+                                    <div className="books-right-col">
+                                        <div className="books-section-header">
+                                            <i className="i-lucide-book-open"></i>
+                                            Currently Reading
                                         </div>
-                                    )}
+                                        {activeReadingBooks.length > 0 ? (
+                                            <div className="books-scroll-area">
+                                                <div className="flex flex-col gap-2 mt-3">
+                                                    {activeReadingBooks.map(renderBookCard)}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="books-empty py-6">
+                                                <p className="books-empty-text">No books in progress.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Edit Book Modal */}
+            {editModalBook && (
+                <div className="import-modal-overlay" onClick={closeEditModal}>
+                    <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3>Edit Book</h3>
+                        <form onSubmit={handleEditSubmit}>
+                            <div className="mb-4">
+                                <label className="form-label">Title</label>
+                                <input
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    className="form-control"
+                                    required
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="form-label">Total Pages</label>
+                                    <input
+                                        type="number"
+                                        value={editTotalPages}
+                                        onChange={(e) => setEditTotalPages(e.target.value)}
+                                        className="form-control"
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="form-label">Current Page</label>
+                                    <input
+                                        type="number"
+                                        value={editCurrentPage}
+                                        onChange={(e) => setEditCurrentPage(e.target.value)}
+                                        className="form-control"
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2 justify-end mt-5">
+                                <button type="button" onClick={closeEditModal} className="btn-form-cancel" disabled={editLoading}>Cancel</button>
+                                <button type="submit" className="btn-form-submit" disabled={editLoading}>
+                                    {editLoading ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteTarget && (
+                <div className="import-modal-overlay" onClick={() => setDeleteTarget(null)}>
+                    <div className="import-modal-card delete-modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3>Delete Book</h3>
+                        <p className="delete-modal-text">
+                            Are you sure you want to delete <strong>"{deleteTarget.title}"</strong>? This action cannot be undone.
+                        </p>
+                        <div className="flex gap-2 justify-center mt-5">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteTarget(null)}
+                                className="btn-form-cancel"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                className="btn-form-submit btn-form-submit--danger"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Import Modal */}
             {showImportModal && (
@@ -530,30 +665,13 @@ const BooksPage: React.FC = () => {
                             CSV format: <code className="bg-white/10 px-1 rounded">title,total_pages,current_page</code>
                         </p>
                         <p className="text-xs opacity-60 mb-4">
-                            • If total_pages is empty, it will be set to 0 (Unknown)<br/>
+                            • If total_pages is empty, it will be set to 0 (Unknown)<br />
                             • If current_page is empty, it will be set to 0
                         </p>
-                        
-                        {importError && (
-                            <div className="auth-error mb-3">
-                                {importError}
-                            </div>
-                        )}
-                        
-                        <input
-                            type="file"
-                            accept=".csv,text/csv"
-                            onChange={handleImport}
-                            className="form-control mb-4"
-                        />
-                        
+                        {importError && (<div className="auth-error mb-3">{importError}</div>)}
+                        <input type="file" accept=".csv,text/csv" onChange={handleImport} className="form-control mb-4" />
                         <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setShowImportModal(false)}
-                                className="btn-form-cancel"
-                            >
-                                Cancel
-                            </button>
+                            <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
                         </div>
                     </div>
                 </div>

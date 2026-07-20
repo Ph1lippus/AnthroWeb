@@ -274,7 +274,7 @@ const validateForm = () => {
         <>
             <Title title={isNewUser ? "Complete Your Profile" : "Edit Profile"} />
             <div className="page-main-with-secondary">
-                <div className="auth-card profile-form-card">
+                <div className="auth-card">
                     <h2 className="auth-title">{isNewUser ? "Welcome! Complete Your Profile" : "Edit Your Profile"}</h2>
                     <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
                         {isNewUser ? "Let's set up your fitness profile to get started." : "Update your fitness profile information."}
@@ -327,17 +327,6 @@ const validateForm = () => {
                         <button type="submit" className="btn btn-primary w-100" disabled={loading}>
                             {loading ? (isNewUser ? 'Creating...' : 'Saving...') : (isNewUser ? 'Complete Profile' : 'Save Changes')}
                         </button>
-                        
-                        {!isNewUser && (
-                            <button 
-                                type="button" 
-                                className="btn btn-secondary w-100 mt-2" 
-                                onClick={() => navigate('/profile')}
-                                style={{ background: 'transparent', border: '1px solid #ffffff1f', color: 'var(--color-light)' }}
-                            >
-                                Cancel
-                            </button>
-                        )}
                     </form>
                 </div>
             </div>

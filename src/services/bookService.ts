@@ -59,22 +59,42 @@ export const getUserBooksPaginated = async (page: number = 0, pageSize: number =
     };
 };
 
-// Fetch all books for current user (legacy, for export)
-export const getUserBooks = async () => {
+// Fetch all books for current user (handles > 1000 books by pagination)
+export const getUserBooks = async (): Promise<Book[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+    const allBooks: Book[] = [];
+    const pageSize = 1000;
+    let page = 0;
+    let hasMore = true;
 
-    if (error) {
-        console.error('Error fetching books:', error.message);
-        return [];
+    while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error } = await supabase
+            .from('books')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .range(from, to);
+
+        if (error) {
+            console.error('Error fetching books:', error.message);
+            break;
+        }
+
+        if (data && data.length > 0) {
+            allBooks.push(...(data as Book[]));
+            hasMore = data.length === pageSize;
+            page++;
+        } else {
+            hasMore = false;
+        }
     }
-    return data as Book[];
+
+    return allBooks;
 };
 
 // Create a new book
