@@ -459,33 +459,32 @@ const BooksPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Add/Edit Form - inline (for adding) */}
+                        {/* Add Book Modal */}
                         {showAddForm && !editingBook && (
-                            <div className="book-form-card mb-3">
-                                <h3 className="mb-4">
-                                    <i className="i-lucide-plus-circle mr-1"></i>Add New Book
-                                </h3>
-                                <form onSubmit={handleSubmit}>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                                        <div>
+                            <div className="import-modal-overlay" onClick={resetForm}>
+                                <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
+                                    <h3 className="mb-4">Add New Book</h3>
+                                    <form onSubmit={handleSubmit}>
+                                        <div className="mb-4">
                                             <label className="form-label">Title</label>
                                             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="form-control" placeholder="Book title" required />
                                         </div>
-                                        <div>
-                                            <label className="form-label">Total Pages</label>
-                                            <input type="number" value={totalPages} onChange={(e) => setTotalPages(e.target.value)} className="form-control" placeholder="Total pages" min="0" />
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label className="form-label">Total Pages</label>
+                                                <input type="number" value={totalPages} onChange={(e) => setTotalPages(e.target.value)} className="form-control" placeholder="Total pages" min="0" />
+                                            </div>
+                                            <div>
+                                                <label className="form-label">Current Page</label>
+                                                <input type="number" value={currentPageInput} onChange={(e) => setCurrentPageInput(e.target.value)} className="form-control" placeholder="Current page" min="0" />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="form-label">Current Page</label>
-                                            <input type="number" value={currentPageInput} onChange={(e) => setCurrentPageInput(e.target.value)} className="form-control" placeholder="Current page" min="0" />
+                                        <div className="flex gap-2 justify-end mt-5">
+                                            <button type="button" onClick={resetForm} className="btn-form-cancel">Cancel</button>
+                                            <button type="submit" className="btn-form-submit">Add Book</button>
                                         </div>
-                                    </div>
-                                    <hr className="book-actions-divider mb-4" />
-                                    <div className="flex flex-col sm:flex-row gap-3 w-full">
-                                        <button type="button" onClick={resetForm} className="btn-form-cancel flex-1">Cancel</button>
-                                        <button type="submit" className="btn-form-submit flex-1">Add Book</button>
-                                    </div>
-                                </form>
+                                    </form>
+                                </div>
                             </div>
                         )}
 
@@ -583,7 +582,7 @@ const BooksPage: React.FC = () => {
             {editModalBook && (
                 <div className="import-modal-overlay" onClick={closeEditModal}>
                     <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
-                        <h3>Edit Book</h3>
+                        <h3 className="mb-4">Edit Book</h3>
                         <form onSubmit={handleEditSubmit}>
                             <div className="mb-4">
                                 <label className="form-label">Title</label>
@@ -632,7 +631,7 @@ const BooksPage: React.FC = () => {
             {deleteTarget && (
                 <div className="import-modal-overlay" onClick={() => setDeleteTarget(null)}>
                     <div className="import-modal-card delete-modal-card" onClick={(e) => e.stopPropagation()}>
-                        <h3>Delete Book</h3>
+                        <h3 className="mb-4">Delete Book</h3>
                         <p className="delete-modal-text">
                             Are you sure you want to delete <strong>"{deleteTarget.title}"</strong>? This action cannot be undone.
                         </p>
@@ -660,7 +659,7 @@ const BooksPage: React.FC = () => {
             {showImportModal && (
                 <div className="import-modal-overlay">
                     <div className="import-modal-card">
-                        <h3>Import Books from CSV</h3>
+                        <h3 className="mb-4">Import Books from CSV</h3>
                         <p className="text-sm opacity-70 mb-2">
                             CSV format: <code className="bg-white/10 px-1 rounded">title,total_pages,current_page</code>
                         </p>

@@ -1480,7 +1480,7 @@ input[type="number"] {
   align-items: center;
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 2
+  border: 1px solid #ffffff14;
   padding: 0.4rem 0.7rem;
   border-radius: 12px;
   flex-shrink: 0;
@@ -1947,10 +1947,15 @@ input[type="number"] {
   letter-spacing: 0.3px;
 }
 
-/* Edit modal labels - even smaller */
+/* All modal labels - smaller than input text */
 .import-modal-card .form-label {
+  color: var(--color-light);
+  text-align: left;
   font-size: 0.6rem;
-  margin-bottom: 0.4rem;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.3px;
 }
 
 .book-form-card .form-control {
