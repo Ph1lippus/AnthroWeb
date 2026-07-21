@@ -1,4 +1,18 @@
 {
+  "redirects": [
+    { "source": "/dashboard", "destination": "/Dashboard", "permanent": false },
+    { "source": "/daily-log", "destination": "/Daily-Log", "permanent": false },
+    { "source": "/measurements", "destination": "/Measurements", "permanent": false },
+    { "source": "/books", "destination": "/Books", "permanent": false },
+    { "source": "/workouts", "destination": "/Workouts", "permanent": false },
+    { "source": "/projects", "destination": "/Projects", "permanent": false },
+    { "source": "/academic", "destination": "/Academic", "permanent": false },
+    { "source": "/notes", "destination": "/Notes", "permanent": false },
+    { "source": "/study-timer", "destination": "/Study-Timer", "permanent": false },
+    { "source": "/settings", "destination": "/Settings", "permanent": false },
+    { "source": "/profile", "destination": "/Profile", "permanent": false },
+    { "source": "/profile/edit", "destination": "/Profile/Edit", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/Dashboard", "destination": "/" },
     { "source": "/Daily-Log", "destination": "/" },

@@ -44,7 +44,8 @@ const AuthenticatedFooter: React.FC = () => {
     
     // Don't show footer on authenticated pages (where secondary navbar appears)
     const authPaths = ['/Dashboard', '/Daily-Log', '/Measurements', '/Books', '/Workouts', '/Projects', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
-    if (user && authPaths.includes(location.pathname)) {
+    const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
+    if (user && (authPaths.includes(location.pathname) || authPaths.includes(normalizedPath))) {
         return null;
     }
     

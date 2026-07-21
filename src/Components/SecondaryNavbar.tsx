@@ -36,9 +36,14 @@ const SecondaryNavbar: React.FC = () => {
         { to: '/Profile', label: 'Profile' },
     ];
 
-    // Get the active tab index based on current route
+    // Get the active tab index based on current route (case-insensitive)
     const getActiveTabIndex = useCallback(() => {
-        const index = navItems.findIndex(item => item.to === location.pathname);
+        const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
+        const index = navItems.findIndex(item => 
+            item.to.toLowerCase() === location.pathname.toLowerCase() ||
+            item.to === normalizedPath ||
+            item.to === location.pathname
+        );
         return index === -1 ? 0 : index;
     }, [location.pathname]);
 
@@ -102,9 +107,9 @@ const SecondaryNavbar: React.FC = () => {
                     <NavLink
                         key={item.to}
                         to={item.to}
-                        className={({ isActive }) =>
-                            `secondary-navbar-link${isActive ? ' active' : ''}`
-                        }
+                                className={({ isActive }) =>
+                                    `secondary-navbar-link${isActive || location.pathname.toLowerCase() === item.to.toLowerCase() ? ' active' : ''}`
+                                }
                         role="tab"
                         data-index={index}
                         onClick={handleTabClick}
