@@ -611,12 +611,10 @@ const BooksPage: React.FC = () => {
                         </div>
 
                         {/* Add Book Modal */}
-                        {showAddForm && !editingBook && (
+                        {showAddForm && (
                             <div className="import-modal-overlay" onClick={(e) => {
                                 if (e.target === e.currentTarget) resetForm();
                             }}>
-                                <div className="import-modal-card">
-                            <div className="import-modal-overlay" onClick={resetForm}>
                                 <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
                                     <h3 className="mb-4">Add New Book</h3>
                                     <form onSubmit={handleSubmit}>
@@ -718,7 +716,6 @@ const BooksPage: React.FC = () => {
                                                                     </>
                                                                 );
                                                             })()}
-                                                            {searchFiltered.map(renderBookCard)}
                                                         </div>
                                                     ) : (
                                                         <p className="text-sm opacity-50 mt-2">No books match your search.</p>
@@ -763,10 +760,8 @@ const BooksPage: React.FC = () => {
             {/* Edit Book Modal */}
             {editModalBook && (
                 <div className="import-modal-overlay" onClick={(e) => {
-                                if (e.target === e.currentTarget) closeEditModal();
-                            }}>
-                                <div className="import-modal-card">
-                <div className="import-modal-overlay" onClick={closeEditModal}>
+                    if (e.target === e.currentTarget) closeEditModal();
+                }}>
                     <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-4">Edit Book</h3>
                         <form onSubmit={handleEditSubmit}>
@@ -816,10 +811,8 @@ const BooksPage: React.FC = () => {
             {/* Delete Confirmation Modal */}
             {deleteTarget && (
                 <div className="import-modal-overlay" onClick={(e) => {
-                                if (e.target === e.currentTarget) setDeleteTarget(null);
-                            }}>
-                                <div className="import-modal-card delete-modal-card">
-                <div className="import-modal-overlay" onClick={() => setDeleteTarget(null)}>
+                    if (e.target === e.currentTarget) setDeleteTarget(null);
+                }}>
                     <div className="import-modal-card delete-modal-card" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-4">Delete Book</h3>
                         <p className="delete-modal-text">
@@ -844,12 +837,13 @@ const BooksPage: React.FC = () => {
                     </div>
                 </div>
             )}
-             {/* Random Book Modal */}
-                        {showRandomModal && randomBook && (
-                            <div className="import-modal-overlay" onClick={(e) => {
-                                if (e.target === e.currentTarget) setShowRandomModal(false);
-                            }}>
-                                <div className="import-modal-card random-book-modal">
+
+            {/* Random Book Modal */}
+            {showRandomModal && randomBook && (
+                <div className="import-modal-overlay" onClick={(e) => {
+                    if (e.target === e.currentTarget) setShowRandomModal(false);
+                }}>
+                    <div className="import-modal-card random-book-modal" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-4">Random Pick!</h3>
                         {randomBook.total_pages > 0 && (
                             <p className="text-sm opacity-70 mb-3 text-center">{randomBook.total_pages} pages</p>
