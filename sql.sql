@@ -384,3 +384,48 @@ CREATE TABLE public.book_progress_log (
   CONSTRAINT book_progress_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT book_progress_log_book_id_fkey FOREIGN KEY (book_id) REFERENCES public.books(id)
 );
+
+-- ============================================================
+-- NOTES TABLE (Complete - run this in Supabase SQL editor)
+-- ============================================================
+
+-- 1. Create the table (with ON DELETE CASCADE)
+CREATE TABLE IF NOT EXISTS public.notes (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    is_pinned BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2. Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON public.notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_notes_pinned ON public.notes(user_id, is_pinned);
+
+-- 3. Auto-update updated_at trigger (reuses your existing function)
+CREATE TRIGGER update_notes_updated_at
+    BEFORE UPDATE ON public.notes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+-- 4. Row Level Security (RLS)
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+CREATE POLICY "Users can view own notes"
+    ON public.notes FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own notes"
+    ON public.notes FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own notes"
+    ON public.notes FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own notes"
+    ON public.notes FOR DELETE
+    USING (auth.uid() = user_id);

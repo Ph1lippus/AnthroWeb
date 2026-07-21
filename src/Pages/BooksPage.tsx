@@ -8,6 +8,46 @@ interface DuplicateGroup {
     books: Book[];
 }
 
+
+interface GroupedBooks {
+    groupName: string;
+    books: Book[];
+}
+
+// Helper to extract group prefix from a book title (e.g., "Bible - Genesis" → "Bible")
+const getBookGroup = (title: string): string | null => {
+    const match = title.match(/^([^-]+?)\s*-\s*/);
+    return match ? match[1].trim() : null;
+};
+
+// Group books by their prefix (e.g., "Bible - Genesis" → group "Bible")
+const groupBooksByPrefix = (books: Book[]): { grouped: GroupedBooks[]; ungrouped: Book[] } => {
+    const groupMap = new Map<string, Book[]>();
+    const ungrouped: Book[] = [];
+
+    for (const book of books) {
+        const group = getBookGroup(book.title);
+        if (group) {
+            const existing = groupMap.get(group) || [];
+            existing.push(book);
+            groupMap.set(group, existing);
+        } else {
+            ungrouped.push(book);
+        }
+    }
+
+    const grouped: GroupedBooks[] = [];
+    for (const [groupName, groupBooks] of groupMap.entries()) {
+        grouped.push({
+            groupName,
+            books: groupBooks.sort((a, b) => a.title.localeCompare(b.title)),
+        });
+    }
+    grouped.sort((a, b) => a.groupName.localeCompare(b.groupName));
+
+    return { grouped, ungrouped };
+};
+
 const BooksPage: React.FC = () => {
     const [books, setBooks] = useState<Book[]>([]);
     const [loading, setLoading] = useState(true);
@@ -46,12 +86,23 @@ const BooksPage: React.FC = () => {
     const [isChronoRunning, setIsChronoRunning] = useState(false);
     const chronoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Random book picker state
+    const [randomBook, setRandomBook] = useState<Book | null>(null);
+    const [showRandomModal, setShowRandomModal] = useState(false);
+
     // Duplicate checking state
     const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
     const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
     const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
     const [duplicatesDeleting, setDuplicatesDeleting] = useState(false);
 
+
+    const handlePickRandom = () => {
+        if (notStartedBooks.length === 0) return;
+        const randomIndex = Math.floor(Math.random() * notStartedBooks.length);
+        setRandomBook(notStartedBooks[randomIndex]);
+        setShowRandomModal(true);
+    };
     // Fetch all books at once
     useEffect(() => {
         const loadBooks = async () => {
@@ -501,8 +552,11 @@ const BooksPage: React.FC = () => {
                                 <button onClick={() => setShowImportModal(true)} className="btn-action">
                                     <i className="i-lucide-upload mr-1"></i>Import
                                 </button>
+                                <button onClick={handlePickRandom} className="btn-action" disabled={notStartedBooks.length === 0}>
+                                    Random Unread
+                                </button>
                                 <button onClick={handleCheckDuplicates} className="btn-action" disabled={totalBooksCount < 2}>
-                                    <i className="fa-solid fa-copy mr-1"></i>Check Duplicates
+                                    Check Duplicates
                                 </button>
                             </div>
 
@@ -558,6 +612,10 @@ const BooksPage: React.FC = () => {
 
                         {/* Add Book Modal */}
                         {showAddForm && !editingBook && (
+                            <div className="import-modal-overlay" onClick={(e) => {
+                                if (e.target === e.currentTarget) resetForm();
+                            }}>
+                                <div className="import-modal-card">
                             <div className="import-modal-overlay" onClick={resetForm}>
                                 <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
                                     <h3 className="mb-4">Add New Book</h3>
@@ -633,6 +691,33 @@ const BooksPage: React.FC = () => {
                                                     </div>
                                                     {searchFiltered.length > 0 ? (
                                                         <div className="flex flex-col gap-2 mt-3">
+                                                            {(() => {
+                                                                const { grouped, ungrouped } = groupBooksByPrefix(searchFiltered);
+                                                                return (
+                                                                    <>
+                                                                        {grouped.map((group) => (
+                                                                            <div key={group.groupName} className="book-group">
+                                                                                <div className="book-group-header">
+                                                                                    <i className="fa-solid fa-layer-group"></i>
+                                                                                    {group.groupName}
+                                                                                    <span className="book-group-count">{group.books.length}</span>
+                                                                                </div>
+                                                                                {group.books.map(renderBookCard)}
+                                                                            </div>
+                                                                        ))}
+                                                                        {ungrouped.length > 0 && (
+                                                                            <div className="book-group">
+                                                                                <div className="book-group-header">
+                                                                                    <i className="fa-regular fa-bookmark"></i>
+                                                                                    Other Books
+                                                                                    <span className="book-group-count">{ungrouped.length}</span>
+                                                                                </div>
+                                                                                {ungrouped.map(renderBookCard)}
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                             {searchFiltered.map(renderBookCard)}
                                                         </div>
                                                     ) : (
@@ -677,6 +762,10 @@ const BooksPage: React.FC = () => {
 
             {/* Edit Book Modal */}
             {editModalBook && (
+                <div className="import-modal-overlay" onClick={(e) => {
+                                if (e.target === e.currentTarget) closeEditModal();
+                            }}>
+                                <div className="import-modal-card">
                 <div className="import-modal-overlay" onClick={closeEditModal}>
                     <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-4">Edit Book</h3>
@@ -726,6 +815,10 @@ const BooksPage: React.FC = () => {
 
             {/* Delete Confirmation Modal */}
             {deleteTarget && (
+                <div className="import-modal-overlay" onClick={(e) => {
+                                if (e.target === e.currentTarget) setDeleteTarget(null);
+                            }}>
+                                <div className="import-modal-card delete-modal-card">
                 <div className="import-modal-overlay" onClick={() => setDeleteTarget(null)}>
                     <div className="import-modal-card delete-modal-card" onClick={(e) => e.stopPropagation()}>
                         <h3 className="mb-4">Delete Book</h3>
@@ -746,6 +839,46 @@ const BooksPage: React.FC = () => {
                                 className="btn-form-submit btn-form-submit--danger"
                             >
                                 Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+             {/* Random Book Modal */}
+                        {showRandomModal && randomBook && (
+                            <div className="import-modal-overlay" onClick={(e) => {
+                                if (e.target === e.currentTarget) setShowRandomModal(false);
+                            }}>
+                                <div className="import-modal-card random-book-modal">
+                        <h3 className="mb-4">Random Pick!</h3>
+                        {randomBook.total_pages > 0 && (
+                            <p className="text-sm opacity-70 mb-3 text-center">{randomBook.total_pages} pages</p>
+                        )}
+                        <h4 className="font-bold text-lg italic mb-5 text-center">{randomBook.title}</h4>
+                        <div className="flex gap-2 mt-5">
+                            <button
+                                type="button"
+                                onClick={handlePickRandom}
+                                className="btn-form-cancel flex-1 text-center justify-center"
+                            >
+                                Pick Another
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowRandomModal(false);
+                                    openEditModal(randomBook);
+                                }}
+                                className="btn-form-submit flex-1 text-center justify-center"
+                            >
+                                Start Reading
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowRandomModal(false)}
+                                className="btn-form-cancel flex-1 text-center justify-center"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

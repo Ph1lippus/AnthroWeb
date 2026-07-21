@@ -31,6 +31,7 @@ const SecondaryNavbar: React.FC = () => {
         { to: '/workouts', label: 'Workouts' },
         { to: '/projects', label: 'Projects' },
         { to: '/academic', label: 'Academic' },
+        { to: '/notes', label: 'Notes' },
         { to: '/study-timer', label: 'Study Timer' },
         { to: '/profile', label: 'Profile' },
     ];
