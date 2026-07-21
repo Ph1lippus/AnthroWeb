@@ -43,7 +43,7 @@ const AuthenticatedFooter: React.FC = () => {
     }, []);
     
     // Don't show footer on authenticated pages (where secondary navbar appears)
-    const authPaths = ['/dashboard', '/daily-log', '/measurements', '/books', '/workouts', '/projects', '/academic', '/study-timer', '/notes', '/settings', '/profile', '/profile/edit'];
+    const authPaths = ['/Dashboard', '/Daily-Log', '/Measurements', '/Books', '/Workouts', '/Projects', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
     if (user && authPaths.includes(location.pathname)) {
         return null;
     }
@@ -65,18 +65,19 @@ function App() {
         <Route path="/credits" element={<CreditsPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/daily-log" element={<DailyLogPage />} />
-        <Route path="/measurements" element={<MeasurementsPage />} />
-        <Route path="/books" element={<BooksPage />} />
-        <Route path="/workouts" element={<WorkoutsPage />} />
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/academic" element={<AcademicPage />} />
-        <Route path="/study-timer" element={<StudyTimerPage />} />
-        <Route path="/notes" element={<NotesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/profile/edit" element={<EditProfilePage />} />
+        <Route path="/Dashboard" element={<DashboardPage />} />
+        <Route path="/Daily-Log" element={<DailyLogPage />} />
+        <Route path="/Measurements" element={<MeasurementsPage />} />
+        <Route path="/Books" element={<BooksPage />} />
+        <Route path="/Workouts" element={<WorkoutsPage />} />
+        <Route path="/Projects" element={<ProjectsPage />} />
+        <Route path="/Academic" element={<AcademicPage />} />
+        <Route path="/Study-Timer" element={<StudyTimerPage />} />
+        <Route path="/Notes" element={<NotesPage />} />
+        <Route path="/Settings" element={<SettingsPage />} />
+        <Route path="/Profile" element={<ProfilePage />} />
+        <Route path="/Profile/Edit" element={<EditProfilePage />} />
+        <Route path="*" element={<HomePage />} />
       </Routes>
       <AuthenticatedFooter />
     </BrowserRouter>

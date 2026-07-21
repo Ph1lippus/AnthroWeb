@@ -1,0 +1,17 @@
+{
+  "rewrites": [
+    { "source": "/Dashboard", "destination": "/" },
+    { "source": "/Daily-Log", "destination": "/" },
+    { "source": "/Measurements", "destination": "/" },
+    { "source": "/Books", "destination": "/" },
+    { "source": "/Workouts", "destination": "/" },
+    { "source": "/Projects", "destination": "/" },
+    { "source": "/Academic", "destination": "/" },
+    { "source": "/Notes", "destination": "/" },
+    { "source": "/Study-Timer", "destination": "/" },
+    { "source": "/Settings", "destination": "/" },
+    { "source": "/Profile", "destination": "/" },
+    { "source": "/Profile/Edit", "destination": "/" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}

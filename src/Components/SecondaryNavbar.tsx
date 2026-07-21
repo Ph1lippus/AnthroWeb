@@ -24,16 +24,16 @@ const SecondaryNavbar: React.FC = () => {
     }, []);
 
     const navItems = [
-        { to: '/dashboard', label: 'Dashboard' },
-        { to: '/daily-log', label: 'Daily Log' },
-        { to: '/measurements', label: 'Measurements' },
-        { to: '/books', label: 'Books' },
-        { to: '/workouts', label: 'Workouts' },
-        { to: '/projects', label: 'Projects' },
-        { to: '/academic', label: 'Academic' },
-        { to: '/notes', label: 'Notes' },
-        { to: '/study-timer', label: 'Study Timer' },
-        { to: '/profile', label: 'Profile' },
+        { to: '/Dashboard', label: 'Dashboard' },
+        { to: '/Daily-Log', label: 'Daily Log' },
+        { to: '/Measurements', label: 'Measurements' },
+        { to: '/Books', label: 'Books' },
+        { to: '/Workouts', label: 'Workouts' },
+        { to: '/Projects', label: 'Projects' },
+        { to: '/Academic', label: 'Academic' },
+        { to: '/Notes', label: 'Notes' },
+        { to: '/Study-Timer', label: 'Study Timer' },
+        { to: '/Profile', label: 'Profile' },
     ];
 
     // Get the active tab index based on current route

@@ -84,7 +84,7 @@ const Navbar: React.FC = () => {
                             <div className="navbar-user-wrap">
                                 <NavLink 
                                     className="navbar-user" 
-                                    to="/profile"
+                                    to="/Profile"
                                     title={nickname}
                                 >
                                     {nickname}
@@ -107,7 +107,7 @@ const Navbar: React.FC = () => {
                                 >
                                     <button className="t-dropdown-item" onClick={() => {
                                         closeMenu();
-                                        navigate('/settings');
+                                        navigate('/Settings');
                                     }}>
                                         <i className="fa-solid fa-gear"></i>
                                         Settings
