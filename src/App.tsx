@@ -5,6 +5,8 @@ import LoginPage from './Pages/LoginPage'
 import RegisterPage from './Pages/RegisterPage'
 import DashboardPage from './Pages/DashboardPage'
 import DailyLogPage from './Pages/DailyLogPage'
+import DailyLogHistoryPage from './Pages/DailyLogHistoryPage'
+import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
 import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
 import WorkoutsPage from './Pages/WorkoutsPage'
@@ -67,7 +69,9 @@ function App() {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/Dashboard" element={<DashboardPage />} />
+        <Route path="/Daily-Log/Setup" element={<DailyLogGoalSetupPage />} />
         <Route path="/Daily-Log" element={<DailyLogPage />} />
+        <Route path="/Daily-Log/History" element={<DailyLogHistoryPage />} />
         <Route path="/Measurements" element={<MeasurementsPage />} />
         <Route path="/Books" element={<BooksPage />} />
         <Route path="/Workouts" element={<WorkoutsPage />} />

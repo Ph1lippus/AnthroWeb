@@ -71,6 +71,7 @@ export interface UserSettings {
     target_weight: number | null;
     target_bodyfat: number | null;
     last_measurement_date: string | null;
+    active_goals?: Record<string, any> | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -137,6 +138,7 @@ export const updateUserSettings = async (settings: UserSettings) => {
             target_weight: settings.target_weight,
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
+            active_goals: (settings as any).active_goals,
             updated_at: new Date().toISOString(),
         }, {
             onConflict: 'user_id'

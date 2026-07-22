@@ -15,6 +15,20 @@ interface UserSettingsData {
     starting_bodyfat: number | null;
     target_weight: number | null;
     target_bodyfat: number | null;
+    active_goals?: {
+        nutrition?: {
+            calories?: number | null;
+            protein?: number | null;
+            carbs?: number | null;
+            fat?: number | null;
+            water?: number | null;
+        };
+        sleep?: {
+            hours?: number | null;
+            wake_time?: string | null;
+            bedtime?: string | null;
+        };
+    } | null;
 }
 
 interface LatestMeasurements {
@@ -201,6 +215,27 @@ const ProfilePage: React.FC = () => {
                                         <span className="profile-item-value">{settings.target_bodyfat}%</span>
                                     </div>
                                 )}
+                                {settings?.active_goals?.nutrition && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Daily Calories</span>
+                                        <span className="profile-item-value">{settings.active_goals.nutrition.calories ?? 'Not set'}</span>
+                                    </div>
+                                )}
+                                {settings?.active_goals?.sleep?.hours != null && (
+                                    <div className="profile-item">
+                                        <span className="profile-item-label">Sleep Goal</span>
+                                        <span className="profile-item-value">{settings.active_goals.sleep.hours} hrs</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ marginTop: '1rem' }}>
+                                <button 
+                                    onClick={() => navigate('/Daily-Log/Setup')}
+                                    className="btn btn-primary w-100"
+                                >
+                                    <i className="fa-solid fa-pen" style={{ marginRight: '0.5rem' }}></i>
+                                    Edit Goals
+                                </button>
                             </div>
                         </div>
 

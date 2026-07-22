@@ -274,7 +274,7 @@ const validateForm = () => {
         <>
             <Title title={isNewUser ? "Complete Your Profile" : "Edit Profile"} />
             <div className="page-main-with-secondary">
-                <div className="auth-card">
+                <div className="auth-card profile-form-card auth-card-wide">
                     <h2 className="auth-title">{isNewUser ? "Welcome! Complete Your Profile" : "Edit Your Profile"}</h2>
                     <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
                         {isNewUser ? "Let's set up your fitness profile to get started." : "Update your fitness profile information."}

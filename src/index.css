@@ -565,6 +565,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.auth-card-wide {
+  max-width: 700px;
+}
+
 .auth-title {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -3391,9 +3395,211 @@ input[type="number"] {
   margin: 0.4rem 0;
 }
 
-/* Random book modal styling */
-.random-book-modal {
-  max-width: 500px !important;
+/* ============================================
+   DAILY LOG PAGE - Dedicated Styles
+   ============================================ */
+
+/* Daily Log page wrapper - full viewport, no page scroll */
+.daily-logs-page-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem;
+  padding-top: calc(0.75rem + var(--navbar-height));
+  padding-bottom: calc(0.75rem + 3rem);
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Daily Log section takes full width */
+.dashboard-section.daily-logs-section {
+  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Daily Log card fills all vertical space */
+.daily-logs-card {
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  border-radius: 20px;
+  width: 100%;
+  padding: 1rem;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Daily log form spacing */
+.daily-log-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.daily-log-form::-webkit-scrollbar {
+  width: 4px;
+}
+
+.daily-log-form::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.daily-log-form::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.daily-log-form::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.daily-log-form .card {
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  border-radius: 12px;
+}
+
+.daily-log-form .card-header {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #ffffff14;
+}
+
+.daily-log-form .card-title {
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.daily-log-form .card-title i {
+  font-size: 0.75rem;
+}
+
+.daily-log-form .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+
+.daily-log-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.daily-log-form .form-label {
+  color: var(--color-light);
+  text-align: left;
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.7;
+  letter-spacing: 0.3px;
+}
+
+.daily-log-form .form-control {
+  background: #ffffff0a;
+  border: 1px solid #ffffff1f;
+  color: var(--color-light);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  width: 100%;
+}
+
+.daily-log-form .form-control:focus {
+  background: #ffffff12;
+  border-color: var(--color-primary);
+  color: var(--color-light);
+  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
+  outline: none;
+}
+
+.daily-log-form textarea.form-control {
+  resize: vertical;
+  min-height: 70px;
+}
+
+/* History card */
+.log-history-card {
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  border-radius: 12px;
+  padding: 0.75rem;
+  transition: all 0.25s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.log-history-card:hover {
+  background: #ffffff0a;
+  border-color: rgba(0, 255, 166, 0.15);
+}
+
+.log-history-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.log-history-date {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.log-history-summary {
+  color: var(--color-light);
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.log-history-journal-preview {
+  color: var(--color-light);
+  font-size: 0.72rem;
+  opacity: 0.55;
+  margin: 0;
+  line-height: 1.4;
+  border-top: 1px solid #ffffff14;
+  padding-top: 0.5rem;
+}
+
+/* Responsive adjustments for daily log page */
+@media (max-width: 768px) {
+  .daily-logs-card {
+    padding: 0.85rem;
+  }
+
+  .daily-log-form .grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Random book modal title styling */
