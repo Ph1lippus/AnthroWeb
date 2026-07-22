@@ -95,7 +95,9 @@ const BooksPage: React.FC = () => {
     const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
     const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
     const [duplicatesDeleting, setDuplicatesDeleting] = useState(false);
-
+    
+    // Ref to prevent double-fetching in React 18 StrictMode
+    const booksLoadedRef = useRef(false);
 
     const handlePickRandom = () => {
         if (notStartedBooks.length === 0) return;
@@ -106,8 +108,16 @@ const BooksPage: React.FC = () => {
     // Fetch all books at once
     useEffect(() => {
         const loadBooks = async () => {
+            // Prevent double-fetching in React 18 StrictMode
+            if (booksLoadedRef.current) {
+                console.log('⚠️  Books already loaded, skipping duplicate fetch');
+                return;
+            }
+            booksLoadedRef.current = true;
+            
             setLoading(true);
             const allBooks = await getUserBooks();
+            console.log(`✅ Initial load: Setting ${allBooks.length} books in state`);
             setBooks(allBooks);
             setLoading(false);
         };
@@ -159,6 +169,7 @@ const BooksPage: React.FC = () => {
         }
 
         const refreshedBooks = await getUserBooks();
+        console.log(`✅ After submit: Setting ${refreshedBooks.length} books in state`);
         setBooks(refreshedBooks);
         resetForm();
     };
@@ -191,6 +202,7 @@ const BooksPage: React.FC = () => {
             });
 
             const refreshedBooks = await getUserBooks();
+            console.log(`✅ After edit: Setting ${refreshedBooks.length} books in state`);
             setBooks(refreshedBooks);
             closeEditModal();
         } finally {
@@ -202,6 +214,7 @@ const BooksPage: React.FC = () => {
         if (!deleteTarget) return;
         await deleteBook(deleteTarget.id!);
         const refreshedBooks = await getUserBooks();
+        console.log(`✅ After delete: Setting ${refreshedBooks.length} books in state`);
         setBooks(refreshedBooks);
         setDeleteTarget(null);
     };
@@ -209,6 +222,7 @@ const BooksPage: React.FC = () => {
     const handlePageUpdate = async (book: Book, newPage: number) => {
         await updateBookProgress(book.id!, newPage, book.total_pages);
         const refreshedBooks = await getUserBooks();
+        console.log(`✅ After page update: Setting ${refreshedBooks.length} books in state`);
         setBooks(refreshedBooks);
     };
 
@@ -236,6 +250,7 @@ const BooksPage: React.FC = () => {
                 setImportError(null);
                 setShowImportModal(false);
                 const refreshedBooks = await getUserBooks();
+                console.log(`✅ After import: Setting ${refreshedBooks.length} books in state`);
                 setBooks(refreshedBooks);
             } catch {
                 setImportError('Failed to import books. Please check your CSV format.');
@@ -246,6 +261,28 @@ const BooksPage: React.FC = () => {
 
     // Duplicate checking logic
     const findDuplicates = useCallback(() => {
+        console.log(`🔍 Starting duplicate check on ${books.length} books...`);
+        console.log('   First 10 book IDs:', books.slice(0, 10).map(b => b.id));
+        console.log('   Total unique IDs:', new Set(books.filter(b => b.id).map(b => b.id)).size);
+        
+        // Check for actual duplicate IDs first
+        const idMap = new Map<string, Book[]>();
+        for (const book of books) {
+            if (book.id) {
+                const existing = idMap.get(book.id) || [];
+                existing.push(book);
+                idMap.set(book.id, existing);
+            }
+        }
+        
+        const duplicateIds = Array.from(idMap.entries()).filter(([, bookList]) => bookList.length > 1);
+        if (duplicateIds.length > 0) {
+            console.log(`⚠️  Found ${duplicateIds.length} duplicate IDs in state!`);
+            console.log('   Duplicate IDs:', duplicateIds.map(([id, books]) => ({ id, count: books.length })));
+        } else {
+            console.log('✅ No duplicate IDs found - all book IDs are unique');
+        }
+        
         const titleMap = new Map<string, Book[]>();
         for (const book of books) {
             const lowerTitle = book.title.toLowerCase().trim();
@@ -263,6 +300,33 @@ const BooksPage: React.FC = () => {
 
         // Sort groups by number of duplicates (most first)
         groups.sort((a, b) => b.books.length - a.books.length);
+
+        console.log(`🔍 Duplicate title check: Found ${groups.length} groups with ${groups.reduce((sum, g) => sum + g.books.length, 0)} total books`);
+        console.log(`   These are books with the SAME title (case-insensitive) but DIFFERENT IDs`);
+        
+        if (groups.length > 0) {
+            console.log('Duplicate titles found:');
+            groups.forEach((g, idx) => {
+                console.log(`  ${idx + 1}. "${g.title}" (${g.books.length} copies):`, 
+                    g.books.map(b => ({ 
+                        id: b.id, 
+                        title: b.title, 
+                        current_page: b.current_page,
+                        created_at: b.created_at 
+                    }))
+                );
+                
+                // Check if titles are exactly the same or just similar
+                const exactTitles = g.books.map(b => b.title);
+                const uniqueExactTitles = [...new Set(exactTitles)];
+                if (uniqueExactTitles.length > 1) {
+                    console.log(`     ⚠️  These books have DIFFERENT exact titles but match case-insensitively:`);
+                    uniqueExactTitles.forEach(t => console.log(`        - "${t}"`));
+                }
+            });
+        } else {
+            console.log('✅ No duplicate titles found!');
+        }
 
         return groups;
     }, [books]);
@@ -313,6 +377,7 @@ const BooksPage: React.FC = () => {
             setDuplicateGroups([]);
             setSelectedDeleteIds(new Set());
             const refreshedBooks = await getUserBooks();
+            console.log(`✅ After delete duplicates: Setting ${refreshedBooks.length} books in state`);
             setBooks(refreshedBooks);
         } catch (err) {
             console.error('Failed to delete duplicates:', err);

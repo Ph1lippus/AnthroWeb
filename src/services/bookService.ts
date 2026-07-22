@@ -40,12 +40,13 @@ export const getUserBooksPaginated = async (page: number = 0, pageSize: number =
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        const { data, error } = await supabase
+            .from('books')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
+            .range(from, to);
 
     if (error) {
         console.error('Error fetching books:', error.message);
@@ -72,6 +73,7 @@ export const getUserBooks = async (): Promise<Book[]> => {
     
     const totalInDb = count || 0;
     console.log(`📚 Total books in database for user: ${totalInDb}`);
+    console.log('🔍 getUserBooks() called from:', new Error().stack?.split('\n')[2]?.trim() || 'unknown');
 
     const allBooks: Book[] = [];
     const pageSize = 500; // Use 500 to stay well under PostgREST's 1000 row limit per request
@@ -87,6 +89,7 @@ export const getUserBooks = async (): Promise<Book[]> => {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
             .range(from, to);
 
         if (error) {
@@ -106,16 +109,12 @@ export const getUserBooks = async (): Promise<Book[]> => {
         }
     }
 
-    console.log(`Total books fetched before deduplication: ${allBooks.length}`);
-
-    // Return ALL books - don't filter out duplicates
-    // The database should have unique IDs, but if there are duplicates, we still show them
-    // This ensures all 2153 books are displayed
-    console.log(`Total books to display: ${allBooks.length}`);
+    console.log(`Total books fetched: ${allBooks.length}`);
+    console.log(`✅ Returning all ${allBooks.length} books (no deduplication)`);
     
     if (totalInDb !== allBooks.length) {
-        console.warn(`⚠️  MISMATCH: Database reports ${totalInDb} books but only fetched ${allBooks.length} rows`);
-        console.warn(`   This indicates a pagination or RLS issue.`);
+        console.warn(`⚠️  MISMATCH: Database reports ${totalInDb} books but fetched ${allBooks.length} rows`);
+        console.warn(`   This may indicate a pagination or RLS issue.`);
     }
 
     return allBooks;
