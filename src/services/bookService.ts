@@ -108,40 +108,17 @@ export const getUserBooks = async (): Promise<Book[]> => {
 
     console.log(`Total books fetched before deduplication: ${allBooks.length}`);
 
-    // Deduplicate by id as a safety net against any server-side pagination quirks
-    const seen = new Set<string>();
-    const uniqueBooks: Book[] = [];
-    const duplicateIdBooks: Book[] = [];
-    
-    for (const book of allBooks) {
-        if (!book.id) {
-            // Books without IDs should still be shown (data integrity issue)
-            uniqueBooks.push(book);
-        } else if (!seen.has(book.id)) {
-            seen.add(book.id);
-            uniqueBooks.push(book);
-        } else {
-            // Track books with duplicate IDs for diagnostics
-            duplicateIdBooks.push(book);
-        }
-    }
-
-    // Log diagnostic information
-    if (duplicateIdBooks.length > 0) {
-        console.warn(`⚠️  Found ${duplicateIdBooks.length} books with DUPLICATE IDs in the database!`);
-        console.warn(`   This is a data integrity issue. These books share IDs with other books.`);
-        console.warn(`   Books with duplicate IDs are being shown, but this may cause issues with updates/deletes.`);
-        console.warn(`   Consider using the duplicate checker to identify and fix these.`);
-        console.warn(`   Duplicate ID books:`, duplicateIdBooks.map(b => ({ id: b.id, title: b.title })));
-    }
-
-    console.log(`Total books to display: ${uniqueBooks.length}`);
+    // Return ALL books - don't filter out duplicates
+    // The database should have unique IDs, but if there are duplicates, we still show them
+    // This ensures all 2153 books are displayed
+    console.log(`Total books to display: ${allBooks.length}`);
     
     if (totalInDb !== allBooks.length) {
-        console.warn(`⚠️  MISMATCH: Database reports ${totalInDb} books but fetched ${allBooks.length} rows`);
+        console.warn(`⚠️  MISMATCH: Database reports ${totalInDb} books but only fetched ${allBooks.length} rows`);
+        console.warn(`   This indicates a pagination or RLS issue.`);
     }
 
-    return uniqueBooks;
+    return allBooks;
 };
 
 // Delete multiple books by id (batched to avoid PostgREST .in() limit of 1000)
