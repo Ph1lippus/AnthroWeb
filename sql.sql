@@ -7,8 +7,7 @@ CREATE TABLE public.projects (
   title text NOT NULL,
   description text,
   notes text,
-  status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'paused'::text, 'completed'::text, 'archived'::text])),
-  progress integer DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  status text DEFAULT 'planned'::text CHECK (status = ANY (ARRAY['planned'::text, 'active'::text, 'paused'::text, 'completed'::text, 'archived'::text])),
   priority text DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
   started_at date,
   deadline date,
@@ -247,7 +246,7 @@ CREATE TABLE public.books (
   total_pages integer NOT NULL DEFAULT 0,
   current_page integer DEFAULT 0,
   progress real DEFAULT 0,
-  status text DEFAULT 'reading'::text CHECK (status = ANY (ARRAY['reading'::text, 'completed'::text, 'dropped'::text])),
+  status text DEFAULT 'planned'::text CHECK (status = ANY (ARRAY['planned'::text, 'reading'::text, 'completed'::text, 'dropped'::text])),
   notes text,
   started_at date,
   completed_at date,
@@ -403,3 +402,61 @@ CREATE TABLE public.notes (
   CONSTRAINT notes_pkey PRIMARY KEY (id),
   CONSTRAINT notes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.project_plan_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  is_completed boolean DEFAULT false,
+  order_index integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT project_plan_items_pkey PRIMARY KEY (id),
+  CONSTRAINT project_plan_items_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT project_plan_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+
+-- ============================================
+-- DIAGNOSTIC QUERIES FOR DUPLICATE BOOK IDs
+-- ============================================
+-- Run these in Supabase SQL Editor to fix the 62 duplicate ID books
+
+-- Step 1: Find all duplicate IDs
+-- Replace 'YOUR_USER_ID_HERE' with your actual user ID from Supabase Auth
+-- SELECT id, COUNT(*) as duplicate_count, array_agg(title) as book_titles, array_agg(created_at) as created_dates
+-- FROM public.books 
+-- WHERE user_id = 'YOUR_USER_ID_HERE'
+-- GROUP BY id 
+-- HAVING COUNT(*) > 1
+-- ORDER BY duplicate_count DESC;
+
+-- Step 2: Fix duplicate IDs by assigning new UUIDs to duplicates
+-- This keeps the oldest book (by created_at) and updates all others with new IDs
+-- Replace 'YOUR_USER_ID_HERE' with your actual user ID
+-- WITH duplicates AS (
+--     SELECT id, COUNT(*) as cnt
+--     FROM public.books
+--     WHERE user_id = 'YOUR_USER_ID_HERE'
+--     GROUP BY id
+--     HAVING COUNT(*) > 1
+-- ),
+-- oldest_duplicates AS (
+--     SELECT DISTINCT ON (id) ctid
+--     FROM public.books
+--     WHERE user_id = 'YOUR_USER_ID_HERE'
+--       AND id IN (SELECT id FROM duplicates)
+--     ORDER BY id, created_at ASC
+-- )
+-- UPDATE public.books
+-- SET id = gen_random_uuid()
+-- WHERE user_id = 'YOUR_USER_ID_HERE'
+--   AND id IN (SELECT id FROM duplicates)
+--   AND ctid NOT IN (SELECT ctid FROM oldest_duplicates);
+
+-- Step 3: Verify the fix - should return 0 rows
+-- SELECT id, COUNT(*) as count
+-- FROM public.books
+-- WHERE user_id = 'YOUR_USER_ID_HERE'
+-- GROUP BY id
+-- HAVING COUNT(*) > 1;

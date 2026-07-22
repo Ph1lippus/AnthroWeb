@@ -154,7 +154,7 @@ const BooksPage: React.FC = () => {
                 total_pages: totalPagesNum,
                 current_page: currentPageNum,
                 progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
-                status: 'reading',
+                status: totalPagesNum > 0 ? (currentPageNum >= totalPagesNum ? 'completed' : 'reading') : 'planned',
             });
         }
 

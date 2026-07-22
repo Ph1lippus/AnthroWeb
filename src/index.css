@@ -2109,10 +2109,18 @@ input[type="number"] {
   background: #111;
   border: 1px solid #ffffff14;
   border-radius: 16px;
-  max-width: 440px;
+  max-width: 560px;
   width: 100%;
   padding: 1.5rem;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.edit-modal-card {
+  max-width: 700px;
+}
+
+.project-view-card {
+  max-width: 700px;
 }
 
 .import-modal-card h3 {
@@ -2789,35 +2797,291 @@ input[type="number"] {
   opacity: 0.45;
 }
 
+/* Project View Modal */
+.project-view-card {
+    max-width: 750px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.project-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #ffffff14;
+}
+
+.project-view-title {
+    color: var(--color-light);
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.project-view-status-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.project-view-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #ffffff14;
+}
+
+.project-view-deadline,
+.project-view-progress {
+    color: var(--color-light);
+    opacity: 0.6;
+    font-size: 0.75rem;
+}
+
+.project-view-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid #ffffff14;
+}
+
+.project-view-tab {
+    background: transparent;
+    border: none;
+    color: var(--color-light);
+    opacity: 0.6;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.project-view-tab.active {
+    color: var(--color-primary);
+    opacity: 1;
+    border-bottom-color: var(--color-primary);
+}
+
+.project-view-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+.project-view-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.project-view-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.project-view-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.project-notes-section {
+    margin-bottom: 1rem;
+}
+
+.project-notes-label {
+    color: var(--color-light);
+    opacity: 0.6;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.project-notes-editor {
+    background: #ffffff05;
+    border: 1px solid #ffffff14;
+    border-radius: 10px;
+    padding: 0.75rem;
+    min-height: 120px;
+    color: var(--color-light);
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.project-notes-editor:focus {
+    border-color: var(--color-primary);
+    background: #ffffff0a;
+}
+
+.project-notes-editor:empty:before {
+    content: attr(data-placeholder);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.project-plan-section {
+    margin-top: 1rem;
+}
+
+.project-plan-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.project-plan-title {
+    color: var(--color-light);
+    opacity: 0.6;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.project-plan-input-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.project-plan-input-row .form-control {
+    flex: 1;
+}
+
+.project-plan-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.project-plan-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.project-plan-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.project-plan-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.project-plan-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.project-plan-item:hover {
+    background: #ffffff05;
+}
+
+.project-plan-checkbox {
+    accent-color: var(--color-primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.project-plan-item-text {
+    color: var(--color-light);
+    font-size: 0.8rem;
+    flex: 1;
+}
+
+.project-plan-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-light);
+    opacity: 0.4;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.project-plan-delete-btn:hover {
+    opacity: 1;
+    color: #ff6b70;
+    background: rgba(219, 34, 42, 0.1);
+}
+
+/* Edit modal description textarea */
+.edit-description-textarea {
+    min-height: 120px;
+    max-height: 200px;
+    resize: vertical;
+    overflow-y: auto;
+}
+
+.edit-description-textarea::-webkit-scrollbar {
+    width: 4px;
+}
+
+.edit-description-textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.edit-description-textarea::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
 /* Responsive adjustments for projects page */
 @media (max-width: 768px) {
-  .projects-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
-  }
+    .projects-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+    }
 
-  .projects-stat-value {
-    font-size: 1rem;
-  }
+    .projects-stat-value {
+        font-size: 1rem;
+    }
 
-  .projects-two-col {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
+    .projects-two-col {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
 
-  .projects-top-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+    .projects-top-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
 
-  .projects-top-bar .flex {
-    justify-content: center;
-  }
+    .projects-top-bar .flex {
+        justify-content: center;
+    }
 }
 
 /* ============================================
-   NOTES PAGE - Dedicated Styles
-   ============================================ */
+    NOTES PAGE - Dedicated Styles
+    ============================================ */
 
 /* Notes page wrapper */
 .notes-page-wrapper {
@@ -3471,6 +3735,7 @@ input[type="number"] {
   background: #ffffff08;
   border: 1px solid #ffffff14;
   border-radius: 12px;
+  padding: 1.5rem;
 }
 
 .daily-log-form .card-header {
@@ -3500,7 +3765,6 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 1rem;
 }
 
 .daily-log-form .form-group {

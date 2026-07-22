@@ -8,7 +8,7 @@ export interface Book {
     total_pages: number;
     current_page: number;
     progress: number;
-    status: 'reading' | 'completed' | 'dropped';
+    status: 'planned' | 'reading' | 'completed' | 'dropped';
     notes?: string;
     started_at?: string;
     completed_at?: string;
@@ -55,7 +55,7 @@ export const getUserBooksPaginated = async (page: number = 0, pageSize: number =
     return {
         data: data as Book[],
         total,
-        hasMore: to < total - 1,
+        hasMore: from + pageSize < total,
     };
 };
 
@@ -64,8 +64,17 @@ export const getUserBooks = async (): Promise<Book[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
+    // First, get the total count to verify against
+    const { count } = await supabase
+        .from('books')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+    
+    const totalInDb = count || 0;
+    console.log(`📚 Total books in database for user: ${totalInDb}`);
+
     const allBooks: Book[] = [];
-    const pageSize = 1000;
+    const pageSize = 500; // Use 500 to stay well under PostgREST's 1000 row limit per request
     let page = 0;
     let hasMore = true;
 
@@ -78,7 +87,6 @@ export const getUserBooks = async (): Promise<Book[]> => {
             .select('*')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
-            .limit(pageSize)
             .range(from, to);
 
         if (error) {
@@ -87,29 +95,76 @@ export const getUserBooks = async (): Promise<Book[]> => {
         }
 
         if (data && data.length > 0) {
+            console.log(`Page ${page}: fetched ${data.length} books (range ${from}-${to})`);
             allBooks.push(...(data as Book[]));
+            // If we got less than pageSize, we've reached the end
             hasMore = data.length === pageSize;
             page++;
         } else {
+            console.log(`Page ${page}: no data returned, stopping`);
             hasMore = false;
         }
     }
 
-    return allBooks;
+    console.log(`Total books fetched before deduplication: ${allBooks.length}`);
+
+    // Deduplicate by id as a safety net against any server-side pagination quirks
+    const seen = new Set<string>();
+    const uniqueBooks: Book[] = [];
+    const duplicateIdBooks: Book[] = [];
+    
+    for (const book of allBooks) {
+        if (!book.id) {
+            // Books without IDs should still be shown (data integrity issue)
+            uniqueBooks.push(book);
+        } else if (!seen.has(book.id)) {
+            seen.add(book.id);
+            uniqueBooks.push(book);
+        } else {
+            // Track books with duplicate IDs for diagnostics
+            duplicateIdBooks.push(book);
+        }
+    }
+
+    // Log diagnostic information
+    if (duplicateIdBooks.length > 0) {
+        console.warn(`⚠️  Found ${duplicateIdBooks.length} books with DUPLICATE IDs in the database!`);
+        console.warn(`   This is a data integrity issue. These books share IDs with other books.`);
+        console.warn(`   Books with duplicate IDs are being shown, but this may cause issues with updates/deletes.`);
+        console.warn(`   Consider using the duplicate checker to identify and fix these.`);
+        console.warn(`   Duplicate ID books:`, duplicateIdBooks.map(b => ({ id: b.id, title: b.title })));
+    }
+
+    console.log(`Total books to display: ${uniqueBooks.length}`);
+    
+    if (totalInDb !== allBooks.length) {
+        console.warn(`⚠️  MISMATCH: Database reports ${totalInDb} books but fetched ${allBooks.length} rows`);
+    }
+
+    return uniqueBooks;
 };
 
-// Delete multiple books by id
+// Delete multiple books by id (batched to avoid PostgREST .in() limit of 1000)
 export const deleteMultipleBooks = async (ids: string[]): Promise<void> => {
     if (ids.length === 0) return;
 
-    const { error } = await supabase
-        .from('books')
-        .delete()
-        .in('id', ids);
+    const BATCH_SIZE = 100; // Safe batch size well under the 1000 limit
+    const batches: string[][] = [];
 
-    if (error) {
-        console.error('Error deleting books:', error.message);
-        throw error;
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
+    }
+
+    for (const batch of batches) {
+        const { error } = await supabase
+            .from('books')
+            .delete()
+            .in('id', batch);
+
+        if (error) {
+            console.error('Error deleting books batch:', error.message);
+            throw error;
+        }
     }
 };
 
@@ -126,7 +181,7 @@ export const createBook = async (book: Book) => {
             total_pages: book.total_pages,
             current_page: book.current_page || 0,
             progress: book.progress || 0,
-            status: book.status || 'reading',
+            status: book.status || 'planned',
             notes: book.notes,
             started_at: book.started_at,
         })
@@ -175,7 +230,7 @@ export const deleteBook = async (id: string) => {
 // Update book progress
 export const updateBookProgress = async (id: string, currentPage: number, totalPages: number) => {
     const progress = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
-    const status = currentPage >= totalPages ? 'completed' : 'reading';
+    const status = totalPages > 0 ? (currentPage >= totalPages ? 'completed' : 'reading') : 'planned';
 
     return updateBook(id, {
         current_page: currentPage,
@@ -226,7 +281,7 @@ export const importBooksFromCSV = async (csvContent: string) => {
                 total_pages: totalPagesNum,
                 current_page: currentPageNum,
                 progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
-                status: currentPageNum >= totalPagesNum ? 'completed' : 'reading',
+                status: totalPagesNum > 0 ? (currentPageNum >= totalPagesNum ? 'completed' : 'reading') : 'planned',
             });
         }
     }
