@@ -612,12 +612,36 @@ const DailyLogPage: React.FC = () => {
                                 </div>
                                 <div className="card-body">
                                     <div className="form-group">
-                                        <label className="form-label">Wake Time</label>
-                                        <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="form-control" />
+                                        <label className="form-label">Wake Time (24h format)</label>
+                                        <input 
+                                            type="text" 
+                                            value={wakeTime} 
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (/^\d{2}:\d{2}$/.test(val) || /^\d{1,2}:\d{2}$/.test(val) || val.length <= 5) {
+                                                    setWakeTime(val);
+                                                }
+                                            }}
+                                            className="form-control" 
+                                            placeholder="07:30" 
+                                            maxLength={5}
+                                        />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Bedtime</label>
-                                        <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)} className="form-control" />
+                                        <label className="form-label">Bedtime (24h format)</label>
+                                        <input 
+                                            type="text" 
+                                            value={bedtime} 
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (/^\d{2}:\d{2}$/.test(val) || /^\d{1,2}:\d{2}$/.test(val) || val.length <= 5) {
+                                                    setBedtime(val);
+                                                }
+                                            }}
+                                            className="form-control" 
+                                            placeholder="23:00" 
+                                            maxLength={5}
+                                        />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Sleep Quality (0-10)</label>
