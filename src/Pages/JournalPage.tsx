@@ -50,7 +50,6 @@ const JournalPage: React.FC = () => {
         setSaving(true);
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
-                user_id: '',
                 log_date: logDate,
                 journal_entry: journalEntry || undefined,
                 daily_score: journalEntry.trim().length > 0 ? 100 : 0,

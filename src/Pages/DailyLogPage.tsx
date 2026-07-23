@@ -356,7 +356,6 @@ const DailyLogPage: React.FC = () => {
             } : null;
 
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
-                user_id: '',
                 log_date: logDate,
                 wake_time: wakeTime || undefined,
                 bedtime: bedtime || undefined,
@@ -614,11 +613,11 @@ const DailyLogPage: React.FC = () => {
                                 <div className="card-body">
                                     <div className="form-group">
                                         <label className="form-label">Wake Time</label>
-                                        <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="form-control" />
+                                        <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="form-control" step="1" />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Bedtime</label>
-                                        <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)} className="form-control" />
+                                        <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)} className="form-control" step="1" />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Sleep Quality (0-10)</label>
