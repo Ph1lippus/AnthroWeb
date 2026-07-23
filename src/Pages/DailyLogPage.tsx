@@ -42,26 +42,26 @@ const calculateSleepDuration = (wakeTime: string, bedtime: string): number | nul
     return Math.round(duration * 10) / 10;
 };
 
-// Calculate BP score
+// Calculate BP score (0-100)
 const calculateBPScore = (systolic?: number, diastolic?: number): { points: number; status: string; color: string } => {
     if (!systolic || !diastolic) return { points: 0, status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
     if (systolic >= 180 || diastolic >= 120) return { points: 0, status: 'Hypertensive Crisis', color: 'var(--color-danger)' };
-    if (systolic >= 140 || diastolic >= 90) return { points: 4, status: 'High BP', color: 'var(--color-danger)' };
-    if (systolic >= 130 || diastolic >= 80) return { points: 7, status: 'Elevated', color: '#ffa500' };
-    if (systolic >= 90 && systolic < 130 && diastolic >= 60 && diastolic < 80) return { points: 15, status: 'Normal', color: 'var(--color-primary)' };
-    if (systolic < 90 || diastolic < 60) return { points: 8, status: 'Low BP', color: '#ffa500' };
-    return { points: 10, status: 'Other', color: 'rgba(255, 255, 255, 0.6)' };
+    if (systolic >= 140 || diastolic >= 90) return { points: 25, status: 'High BP', color: 'var(--color-danger)' };
+    if (systolic >= 130 || diastolic >= 80) return { points: 50, status: 'Elevated', color: '#ffa500' };
+    if (systolic >= 90 && systolic < 130 && diastolic >= 60 && diastolic < 80) return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
+    if (systolic < 90 || diastolic < 60) return { points: 50, status: 'Low BP', color: '#ffa500' };
+    return { points: 75, status: 'Other', color: 'rgba(255, 255, 255, 0.6)' };
 };
 
-// Calculate temperature score
+// Calculate temperature score (0-100)
 const calculateTempScore = (temp?: number): { points: number; status: string; color: string } => {
     if (!temp) return { points: 0, status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
     if (temp < 35) return { points: 0, status: 'Hypothermia', color: 'var(--color-danger)' };
     if (temp >= 38.5) return { points: 0, status: 'High Fever', color: 'var(--color-danger)' };
-    if (temp >= 37.5) return { points: 5, status: 'Mild Fever', color: '#ffa500' };
-    if (temp >= 36.5 && temp <= 37.5) return { points: 10, status: 'Normal', color: 'var(--color-primary)' };
-    if (temp >= 35 && temp < 36.5) return { points: 5, status: 'Cool', color: '#ffa500' };
-    return { points: 10, status: 'Normal', color: 'var(--color-primary)' };
+    if (temp >= 37.5) return { points: 50, status: 'Mild Fever', color: '#ffa500' };
+    if (temp >= 36.5 && temp <= 37.5) return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
+    if (temp >= 35 && temp < 36.5) return { points: 50, status: 'Cool', color: '#ffa500' };
+    return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
 };
 
 const DailyLogPage: React.FC = () => {
@@ -157,127 +157,135 @@ const DailyLogPage: React.FC = () => {
         return calculateSleepDuration(wakeTime, bedtime);
     }, [wakeTime, bedtime]);
 
-    // Get only active projects
+    // Get only active projects (NOT planned or paused)
     const activeProjects = useMemo(() => {
-        return projects.filter(p => p.status === 'active' || p.status === 'planned' || p.status === 'paused');
+        return projects.filter(p => p.status === 'active');
     }, [projects]);
 
-    // Analysis metrics
-    const analysis = useMemo(() => {
-        const bmi = weight && settings?.height_cm 
-            ? parseFloat((parseFloat(weight) / Math.pow((settings.height_cm / 100), 2)).toFixed(1)) 
-            : null;
+    // Helper to score individual inputs (0-100)
+    const scoreInput = useCallback((type: string, value: string | number | boolean | null | undefined): number => {
+        if (!value && value !== 0) return 0;
         
-        const bmiCategory = bmi 
-            ? bmi < 18.5 ? 'Underweight' 
-            : bmi < 25 ? 'Normal' 
-            : bmi < 30 ? 'Overweight' 
-            : 'Obese'
-            : null;
-        
-        const bpStatus = morningSystolic && morningDiastolic 
-            ? calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status
-            : null;
-
-        const tempStatus = bodyTemperature 
-            ? calculateTempScore(parseFloat(bodyTemperature)).status
-            : null;
-
-        const calDiff = calories && settings?.starting_weight && settings?.height_cm
-            ? (() => {
+        switch (type) {
+            case 'sleepQuality': {
+                const sq = parseInt(value as string);
+                return Math.round((sq / 10) * 100);
+            }
+            case 'morningSystolic':
+            case 'morningDiastolic': {
+                const sys = morningSystolic ? parseInt(morningSystolic) : 0;
+                const dia = morningDiastolic ? parseInt(morningDiastolic) : 0;
+                if (!sys || !dia) return 0;
+                return calculateBPScore(sys, dia).points;
+            }
+            case 'eveningSystolic':
+            case 'eveningDiastolic': {
+                const sys = eveningSystolic ? parseInt(eveningSystolic) : 0;
+                const dia = eveningDiastolic ? parseInt(eveningDiastolic) : 0;
+                if (!sys || !dia) return 0;
+                return calculateBPScore(sys, dia).points;
+            }
+            case 'bodyTemperature': {
+                const temp = parseFloat(value as string);
+                return calculateTempScore(temp).points;
+            }
+            case 'calories': {
+                const cal = parseInt(value as string);
+                if (!settings?.starting_weight || !settings?.height_cm) return 50;
                 const bmr = 10 * (settings.starting_weight || 70) + 6.25 * (settings.height_cm || 170) - 5 * 30 + 5;
                 const tdee = bmr * 1.55;
                 const targetCal = settings.goal === 'lose' ? tdee - 500 : settings.goal === 'gain' ? tdee + 500 : tdee;
-                return { current: parseInt(calories), target: Math.round(targetCal), diff: Math.round(targetCal - parseInt(calories)) };
-            })()
-            : null;
+                const diff = Math.abs(cal - targetCal);
+                if (diff < 200) return 100;
+                if (diff < 400) return 75;
+                if (diff < 600) return 50;
+                if (diff < 800) return 25;
+                return 25;
+            }
+            case 'protein': {
+                const proteinGrams = parseInt(value as string);
+                if (!settings?.starting_weight) return 50;
+                const targetProtein = (settings.starting_weight || 70) * 1.6;
+                const ratio = proteinGrams / targetProtein;
+                if (ratio >= 0.9 && ratio <= 1.3) return 100;
+                if (ratio >= 0.7) return 75;
+                if (ratio > 0) return 50;
+                return 25;
+            }
+            case 'carbs':
+            case 'fat': {
+                return 75;
+            }
+            case 'water': {
+                const waterMl = parseInt(value as string);
+                if (waterMl >= 2500) return 100;
+                if (waterMl >= 2000) return 80;
+                if (waterMl >= 1500) return 60;
+                if (waterMl >= 1000) return 40;
+                return 20;
+            }
+            case 'weight': {
+                if (!settings?.starting_weight || !settings?.height_cm) return 50;
+                const bmi = parseFloat(value as string) / Math.pow((settings.height_cm / 100), 2);
+                if (bmi >= 18.5 && bmi < 25) return 100;
+                if (bmi >= 25 && bmi < 30) return 75;
+                if (bmi >= 30) return 50;
+                return 75;
+            }
+            case 'bodyFat': {
+                const bf = parseFloat(value as string);
+                if (bf >= 10 && bf <= 20) return 100;
+                if (bf > 20 && bf <= 30) return 75;
+                return 50;
+            }
+            case 'mood': {
+                const moodVal = parseInt(value as string);
+                return Math.round((moodVal / 10) * 100);
+            }
+            case 'journalEntry': {
+                return (value as string).trim().length > 0 ? 100 : 0;
+            }
+            case 'projectWorkDone': {
+                return value ? 100 : 0;
+            }
+            default:
+                return 50;
+        }
+    }, [settings, morningSystolic, morningDiastolic, eveningSystolic, eveningDiastolic]);
 
-        return { bmi, bmiCategory, bpStatus, tempStatus, calDiff, sleepDuration: computedSleepDuration };
-    }, [weight, settings, morningSystolic, morningDiastolic, bodyTemperature, calories, computedSleepDuration]);
+    // Calculate individual input scores (each input = 5% weight)
+    const inputScores = useMemo(() => {
+        return {
+            wakeTime: (wakeTime && bedtime ? 100 : 0),
+            bedtime: (wakeTime && bedtime ? 100 : 0),
+            sleepQuality: scoreInput('sleepQuality', sleepQuality),
+            morningSystolic: scoreInput('morningSystolic', morningSystolic),
+            morningDiastolic: scoreInput('morningDiastolic', morningDiastolic),
+            morningBpm: morningBpm ? 100 : 0,
+            eveningSystolic: scoreInput('eveningSystolic', eveningSystolic),
+            eveningDiastolic: scoreInput('eveningDiastolic', eveningDiastolic),
+            eveningBpm: eveningBpm ? 100 : 0,
+            bodyTemperature: scoreInput('bodyTemperature', bodyTemperature),
+            calories: scoreInput('calories', calories),
+            protein: scoreInput('protein', protein),
+            carbs: scoreInput('carbs', carbs),
+            fat: scoreInput('fat', fat),
+            water: scoreInput('water', water),
+            weight: scoreInput('weight', weight),
+            bodyFat: scoreInput('bodyFat', bodyFat),
+            mood: scoreInput('mood', mood),
+            journalEntry: scoreInput('journalEntry', journalEntry),
+            projectWorkDone: scoreInput('projectWorkDone', projectWorkDone),
+        };
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, projectWorkDone, scoreInput]);
 
-    // Calculate daily score
+    // Calculate overall daily score (average of all inputs)
     const calculatedScore = useMemo(() => {
-        let totalPoints = 0;
-        let maxPoints = 0;
-
-        maxPoints += 20;
-        if (sleepQuality) {
-            const sq = parseInt(sleepQuality);
-            if (sq >= 8) totalPoints += 20;
-            else if (sq >= 6) totalPoints += 15;
-            else if (sq >= 4) totalPoints += 10;
-            else if (sq > 0) totalPoints += 5;
-        }
-
-        maxPoints += 15;
-        if (computedSleepDuration) {
-            const hours = computedSleepDuration;
-            if (hours >= 7 && hours <= 9) totalPoints += 15;
-            else if (hours >= 6 && hours < 7) totalPoints += 12;
-            else if (hours > 9 && hours <= 10) totalPoints += 12;
-            else if (hours >= 5 && hours < 6) totalPoints += 8;
-            else if (hours > 10) totalPoints += 8;
-            else if (hours > 0) totalPoints += 4;
-        }
-
-        maxPoints += 10;
-        if (calories && settings?.starting_weight && settings?.height_cm) {
-            const cal = parseInt(calories);
-            const bmr = 10 * (settings.starting_weight || 70) + 6.25 * (settings.height_cm || 170) - 5 * 30 + 5;
-            const tdee = bmr * 1.55;
-            const targetCal = settings.goal === 'lose' ? tdee - 500 : settings.goal === 'gain' ? tdee + 500 : tdee;
-            const diff = Math.abs(cal - targetCal);
-            if (diff < 200) totalPoints += 10;
-            else if (diff < 400) totalPoints += 7;
-            else if (diff < 600) totalPoints += 4;
-        } else if (calories) totalPoints += 5;
-
-        maxPoints += 10;
-        if (protein && settings?.starting_weight) {
-            const proteinGrams = parseInt(protein);
-            const targetProtein = (settings.starting_weight || 70) * 1.6;
-            const ratio = proteinGrams / targetProtein;
-            if (ratio >= 0.9 && ratio <= 1.3) totalPoints += 10;
-            else if (ratio >= 0.7) totalPoints += 7;
-            else if (ratio > 0) totalPoints += 4;
-        } else if (protein) totalPoints += 5;
-
-        maxPoints += 10;
-        if (water) {
-            const waterMl = parseInt(water);
-            if (waterMl >= 2500) totalPoints += 10;
-            else if (waterMl >= 2000) totalPoints += 8;
-            else if (waterMl >= 1500) totalPoints += 6;
-            else if (waterMl >= 1000) totalPoints += 3;
-        }
-
-        maxPoints += 15;
-        if (morningSystolic && morningDiastolic) {
-            const bpScore = calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic));
-            totalPoints += bpScore.points;
-        }
-
-        maxPoints += 10;
-        if (bodyTemperature) {
-            const tempScore = calculateTempScore(parseFloat(bodyTemperature));
-            totalPoints += tempScore.points;
-        }
-
-        maxPoints += 15;
-        if (projectWorkDone) totalPoints += 15;
-
-        maxPoints += 10;
-        if (mood) {
-            const moodVal = parseInt(mood);
-            totalPoints += Math.round((moodVal / 10) * 10);
-        }
-
-        maxPoints += 10;
-        if (journalEntry && journalEntry.trim().length > 0) totalPoints += 10;
-
-        const score = maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0;
-        return Math.min(100, Math.max(0, score));
-    }, [sleepQuality, computedSleepDuration, calories, protein, water, bodyTemperature, morningSystolic, morningDiastolic, projectWorkDone, mood, journalEntry, settings]);
+        const scores = Object.values(inputScores);
+        if (scores.length === 0) return 0;
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        return Math.round(avg);
+    }, [inputScores]);
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
@@ -410,7 +418,7 @@ const DailyLogPage: React.FC = () => {
         
         autoSaveTimerRef.current = setTimeout(() => {
             performSave();
-        }, 2000); // 2 second debounce
+        }, 2000);
 
         return () => {
             if (autoSaveTimerRef.current) {
@@ -468,6 +476,12 @@ const DailyLogPage: React.FC = () => {
         return null;
     }
 
+    const getScoreColor = (score: number) => {
+        if (score >= 80) return 'var(--color-primary)';
+        if (score >= 60) return '#ffa500';
+        return 'var(--color-danger)';
+    };
+
     return (
         <div className="daily-logs-page-wrapper">
             <div className="dashboard-section daily-logs-section">
@@ -489,53 +503,89 @@ const DailyLogPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Score + Analysis */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="card">
-                            <div className="card-body">
-                                <div className="flex items-center justify-between">
-                                    <span className="form-label mb-0">Daily Score</span>
-                                    <span className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-                                        {calculatedScore}/100
-                                    </span>
+                    {/* Overall Score */}
+                    <div className="card mb-4">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <span className="form-label mb-0">Overall Daily Score</span>
+                                <span className="text-2xl font-bold" style={{ color: getScoreColor(calculatedScore) }}>
+                                    {calculatedScore}/100
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Category Stat Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-moon"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Sleep</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.sleepQuality) }}>
+                                    {inputScores.sleepQuality}%
                                 </div>
                             </div>
                         </div>
-                        <div className="card">
-                            <div className="card-body">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="form-label mb-0">Analysis</span>
-                                    <span className="text-xs opacity-70">Live insights</span>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-heart-pulse"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Blood Pressure</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.morningSystolic) }}>
+                                    {inputScores.morningSystolic}%
                                 </div>
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                    {analysis.sleepDuration && (
-                                        <span className="analysis-badge">
-                                            <i className="i-lucide-moon mr-1"></i>Sleep: {analysis.sleepDuration}h
-                                        </span>
-                                    )}
-                                    {analysis.bmi && (
-                                        <span className="analysis-badge">
-                                            BMI: {analysis.bmi} ({analysis.bmiCategory})
-                                        </span>
-                                    )}
-                                    {analysis.calDiff && (
-                                        <span className="analysis-badge">
-                                            {analysis.calDiff.diff > 0 ? `${analysis.calDiff.diff} cal under` : Math.abs(analysis.calDiff.diff) + ' cal over'} target
-                                        </span>
-                                    )}
-                                    {analysis.bpStatus && (
-                                        <span className="analysis-badge">
-                                            BP: {analysis.bpStatus}
-                                        </span>
-                                    )}
-                                    {analysis.tempStatus && (
-                                        <span className="analysis-badge">
-                                            Temp: {analysis.tempStatus}
-                                        </span>
-                                    )}
-                                    {!analysis.sleepDuration && !analysis.bmi && !analysis.calDiff && !analysis.bpStatus && !analysis.tempStatus && (
-                                        <span className="opacity-40">Enter values to see analysis</span>
-                                    )}
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-thermometer"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Temperature</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.bodyTemperature) }}>
+                                    {inputScores.bodyTemperature}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-flame"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Calories</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.calories) }}>
+                                    {inputScores.calories}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-glass-water"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Water</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.water) }}>
+                                    {inputScores.water}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-weight"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Weight</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.weight) }}>
+                                    {inputScores.weight}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-file-text"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Journal</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.journalEntry) }}>
+                                    {inputScores.journalEntry}%
+                                </div>
+                            </div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-icon"><i className="i-lucide-briefcase"></i></div>
+                            <div className="stat-content">
+                                <div className="stat-label">Projects</div>
+                                <div className="stat-value" style={{ color: getScoreColor(inputScores.projectWorkDone) }}>
+                                    {inputScores.projectWorkDone}%
                                 </div>
                             </div>
                         </div>
