@@ -114,7 +114,7 @@ const DailyLogHistoryPage: React.FC = () => {
 
                     <div className="flex gap-2 mb-4">
                         <button onClick={() => navigate('/Daily-Log')} className="btn-action">
-                            <i className="i-lucide-plus mr-1"></i>New Log
+                            <i className="i-lucide-arrow-left mr-1"></i>Today's Log
                         </button>
                     </div>
 

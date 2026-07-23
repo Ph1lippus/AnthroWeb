@@ -104,7 +104,6 @@ const DailyLogPage: React.FC = () => {
 
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
-    const [sleepDuration, setSleepDuration] = useState('');
     const [sleepQuality, setSleepQuality] = useState('');
     const [morningSystolic, setMorningSystolic] = useState('');
     const [morningDiastolic, setMorningDiastolic] = useState('');
@@ -179,6 +178,49 @@ const DailyLogPage: React.FC = () => {
     const nutritionGoals = activeGoals?.nutrition;
     const sleepGoals = activeGoals?.sleep;
 
+    // Compute sleep duration from wake/bed times
+    const computedSleepDuration = useMemo(() => {
+        return calculateSleepDuration(wakeTime, bedtime);
+    }, [wakeTime, bedtime]);
+
+    // Get only active projects (not completed/archived)
+    const activeProjects = useMemo(() => {
+        return projects.filter(p => p.status === 'active' || p.status === 'planned' || p.status === 'paused');
+    }, [projects]);
+
+    // Analysis metrics for the current values
+    const analysis = useMemo(() => {
+        const bmi = weight && settings?.height_cm 
+            ? parseFloat((parseFloat(weight) / Math.pow((settings.height_cm / 100), 2)).toFixed(1)) 
+            : null;
+        
+        const bmiCategory = bmi 
+            ? bmi < 18.5 ? 'Underweight' 
+            : bmi < 25 ? 'Normal' 
+            : bmi < 30 ? 'Overweight' 
+            : 'Obese'
+            : null;
+        
+        const bpStatus = morningSystolic && morningDiastolic 
+            ? calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status
+            : null;
+
+        const tempStatus = bodyTemperature 
+            ? calculateTempScore(parseFloat(bodyTemperature)).status
+            : null;
+
+        const calDiff = calories && settings?.starting_weight && settings?.height_cm
+            ? (() => {
+                const bmr = 10 * (settings.starting_weight || 70) + 6.25 * (settings.height_cm || 170) - 5 * 30 + 5;
+                const tdee = bmr * 1.55;
+                const targetCal = settings.goal === 'lose' ? tdee - 500 : settings.goal === 'gain' ? tdee + 500 : tdee;
+                return { current: parseInt(calories), target: Math.round(targetCal), diff: Math.round(targetCal - parseInt(calories)) };
+            })()
+            : null;
+
+        return { bmi, bmiCategory, bpStatus, tempStatus, calDiff };
+    }, [weight, settings, morningSystolic, morningDiastolic, bodyTemperature, calories]);
+
     // Calculate daily score (0-100)
     const calculatedScore = useMemo(() => {
         let totalPoints = 0;
@@ -196,8 +238,8 @@ const DailyLogPage: React.FC = () => {
 
         // Sleep duration (max 15 points)
         maxPoints += 15;
-        if (sleepDuration) {
-            const hours = parseFloat(sleepDuration);
+        if (computedSleepDuration) {
+            const hours = computedSleepDuration;
             if (hours >= 7 && hours <= 9) totalPoints += 15;
             else if (hours >= 6 && hours < 7) totalPoints += 12;
             else if (hours > 9 && hours <= 10) totalPoints += 12;
@@ -218,7 +260,7 @@ const DailyLogPage: React.FC = () => {
             else if (diff < 400) totalPoints += 7;
             else if (diff < 600) totalPoints += 4;
         } else if (calories) {
-            totalPoints += 5; // partial if no settings
+            totalPoints += 5;
         }
 
         // Protein (max 10 points)
@@ -275,12 +317,11 @@ const DailyLogPage: React.FC = () => {
 
         const score = maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0;
         return Math.min(100, Math.max(0, score));
-    }, [sleepQuality, sleepDuration, calories, protein, water, bodyTemperature, morningSystolic, morningDiastolic, projectWorkDone, mood, journalEntry, settings]);
+    }, [sleepQuality, computedSleepDuration, calories, protein, water, bodyTemperature, morningSystolic, morningDiastolic, projectWorkDone, mood, journalEntry, settings]);
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
         setBedtime(log.bedtime || '');
-        setSleepDuration(log.sleep_duration?.toString() || '');
         setSleepQuality(log.sleep_quality?.toString() || '');
         setMorningSystolic(log.morning_systolic?.toString() || '');
         setMorningDiastolic(log.morning_diastolic?.toString() || '');
@@ -328,7 +369,6 @@ const DailyLogPage: React.FC = () => {
     const resetForm = () => {
         setWakeTime('');
         setBedtime('');
-        setSleepDuration('');
         setSleepQuality('');
         setMorningSystolic('');
         setMorningDiastolic('');
@@ -424,7 +464,7 @@ const DailyLogPage: React.FC = () => {
                 log_date: logDate,
                 wake_time: wakeTime || undefined,
                 bedtime: bedtime || undefined,
-                sleep_duration: sleepDuration ? parseFloat(sleepDuration) : undefined,
+                sleep_duration: computedSleepDuration || undefined,
                 sleep_quality: sleepQuality ? parseInt(sleepQuality) : undefined,
                 morning_systolic: morningSystolic ? parseInt(morningSystolic) : undefined,
                 morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : undefined,
@@ -519,14 +559,49 @@ const DailyLogPage: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Auto-calculated score preview */}
-                    <div className="card mb-4">
-                        <div className="card-body">
-                            <div className="flex items-center justify-between">
-                                <span className="form-label mb-0">Daily Score</span>
-                                <span className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
-                                    {calculatedScore}/100
-                                </span>
+                    {/* Score + Analysis Preview */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="card">
+                            <div className="card-body">
+                                <div className="flex items-center justify-between">
+                                    <span className="form-label mb-0">Daily Score</span>
+                                    <span className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>
+                                        {calculatedScore}/100
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="card">
+                            <div className="card-body">
+                                <div className="flex items-center justify-between">
+                                    <span className="form-label mb-0">Analysis</span>
+                                    <span className="text-xs opacity-70">Live insights based on your entries</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                                    {analysis.bmi && (
+                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                            BMI: {analysis.bmi} ({analysis.bmiCategory})
+                                        </span>
+                                    )}
+                                    {analysis.calDiff && (
+                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                            {analysis.calDiff.diff > 0 ? `${analysis.calDiff.diff} cal under` : Math.abs(analysis.calDiff.diff) + ' cal over'} target
+                                        </span>
+                                    )}
+                                    {analysis.bpStatus && (
+                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                            BP: {analysis.bpStatus}
+                                        </span>
+                                    )}
+                                    {analysis.tempStatus && (
+                                        <span className="px-2 py-1 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                                            Temp: {analysis.tempStatus}
+                                        </span>
+                                    )}
+                                    {!analysis.bmi && !analysis.calDiff && !analysis.bpStatus && !analysis.tempStatus && (
+                                        <span className="opacity-40">Enter values to see analysis</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -574,10 +649,11 @@ const DailyLogPage: React.FC = () => {
                                         <label className="form-label">Sleep Duration (hours)</label>
                                         <input 
                                             type="text" 
-                                            value={sleepDuration || calculateSleepDuration(wakeTime, bedtime) || ''} 
+                                            value={computedSleepDuration !== null ? computedSleepDuration.toString() + 'h' : ''} 
                                             readOnly 
                                             className="form-control" 
                                             placeholder={sleepGoals?.hours ? `Target: ${sleepGoals.hours}h` : 'Auto-calculated from times above'} 
+                                            style={{ color: computedSleepDuration !== null ? 'var(--color-primary)' : undefined, fontWeight: computedSleepDuration !== null ? 600 : undefined }}
                                         />
                                     </div>
                                     <div className="form-group">
@@ -589,7 +665,7 @@ const DailyLogPage: React.FC = () => {
                                             value={sleepQuality} 
                                             onChange={(e) => setSleepQuality(e.target.value)} 
                                             className="form-control" 
-                                            placeholder={sleepGoals?.hours ? `Target: ${sleepGoals.hours * 10}/10` : 'How well did you sleep?'} 
+                                            placeholder="How well did you sleep?" 
                                         />
                                     </div>
                                 </div>
@@ -644,7 +720,7 @@ const DailyLogPage: React.FC = () => {
                                             value={bodyTemperature} 
                                             onChange={(e) => setBodyTemperature(e.target.value)} 
                                             className="form-control" 
-                                            placeholder={nutritionGoals?.water ? '36.5-37.5 (normal)' : '36.5'} 
+                                            placeholder="36.5" 
                                         />
                                         {bodyTemperature && (
                                             <span className="text-xs mt-1" style={{ color: calculateTempScore(parseFloat(bodyTemperature)).color }}>
@@ -730,50 +806,42 @@ const DailyLogPage: React.FC = () => {
                                         <label className="form-label">Body Fat (%)</label>
                                         <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="form-control" placeholder="15.0" />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="form-group">
-                                            <label className="form-label">Mood (1-10)</label>
-                                            <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
-                                        </div>
-                                        <div className="form-group">
-                                            <label className="form-label">Project Work Done</label>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={projectWorkDone}
-                                                    onChange={(e) => setProjectWorkDone(e.target.checked)}
-                                                    className="w-4 h-4"
-                                                />
-                                                <span className="text-sm opacity-80">Completed project work today</span>
-                                            </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Mood (1-10)</label>
+                                        <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Project Work Done</label>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={projectWorkDone}
+                                                onChange={(e) => setProjectWorkDone(e.target.checked)}
+                                                className="w-4 h-4"
+                                            />
+                                            <span className="text-sm opacity-80">Completed project work today</span>
                                         </div>
                                     </div>
                                     <div className="form-group mt-3">
                                         <label className="form-label">Projects Worked On</label>
-                                        <div className="relative">
-                                            <select 
-                                                className="form-select w-100" 
-                                                disabled={loadingProjects || projects.length === 0}
-                                            >
-                                                <option value="">-- Select projects --</option>
-                                            </select>
-                                            {!loadingProjects && projects.length > 0 && (
-                                                <div className="mt-2 max-h-32 overflow-y-auto border border-[rgba(255,255,255,0.1)] rounded-lg p-2" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                                                    {projects.filter(p => p.status !== 'completed' && p.status !== 'archived').map(project => (
-                                                        <label key={project.id} className="flex items-center gap-2 cursor-pointer py-1">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedProjectIds.has(project.id!)}
-                                                                onChange={() => handleProjectToggle(project.id!)}
-                                                                className="w-3 h-3"
-                                                            />
-                                                            <span className="text-sm opacity-90">{project.title}</span>
-                                                        </label>
-                                                    ))}
-                                                    {projects.filter(p => p.status !== 'completed' && p.status !== 'archived').length === 0 && (
-                                                        <p className="text-xs opacity-50">No active projects. Add projects in Projects page.</p>
-                                                    )}
-                                                </div>
+                                        <p className="text-xs opacity-50 mb-2">Select the active projects you worked on today</p>
+                                        <div className="max-h-32 overflow-y-auto border border-[rgba(255,255,255,0.1)] rounded-lg p-2" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                                            {loadingProjects ? (
+                                                <p className="text-xs opacity-50">Loading projects...</p>
+                                            ) : activeProjects.length > 0 ? (
+                                                activeProjects.map(project => (
+                                                    <label key={project.id} className="flex items-center gap-2 cursor-pointer py-1 hover:opacity-80">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedProjectIds.has(project.id!)}
+                                                            onChange={() => handleProjectToggle(project.id!)}
+                                                            className="w-3 h-3"
+                                                        />
+                                                        <span className="text-sm opacity-90">{project.title}</span>
+                                                    </label>
+                                                ))
+                                            ) : (
+                                                <p className="text-xs opacity-50">No active projects. Add projects in Projects page.</p>
                                             )}
                                         </div>
                                     </div>
