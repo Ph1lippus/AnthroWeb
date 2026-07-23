@@ -615,15 +615,28 @@ const DailyLogPage: React.FC = () => {
                                         <label className="form-label">Wake Time (24h format)</label>
                                         <input 
                                             type="text" 
-                                            value={wakeTime} 
+                                            value={wakeTime || ''} 
                                             onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (/^\d{2}:\d{2}$/.test(val) || /^\d{1,2}:\d{2}$/.test(val) || val.length <= 5) {
+                                                let val = e.target.value.replace(/\D/g, '');
+                                                if (val.length >= 3) {
+                                                    val = val.slice(0, 2) + ':' + val.slice(2, 4);
+                                                }
+                                                if (val.length > 5) val = val.slice(0, 5);
+                                                if (/^(\d{2}:)?(\d{0,2})$/.test(val)) {
+                                                    const parts = val.split(':');
+                                                    if (parts[0] && parseInt(parts[0]) > 23) return;
+                                                    if (parts[1] && parseInt(parts[1]) > 59) return;
                                                     setWakeTime(val);
                                                 }
                                             }}
-                                            className="form-control" 
-                                            placeholder="07:30" 
+                                            onBlur={(e) => {
+                                                const val = e.target.value;
+                                                if (val.length === 4 && !val.includes(':')) {
+                                                    setWakeTime(val.slice(0, 2) + ':' + val.slice(2));
+                                                }
+                                            }}
+                                            className="form-control font-mono" 
+                                            placeholder="--:--" 
                                             maxLength={5}
                                         />
                                     </div>
@@ -631,15 +644,28 @@ const DailyLogPage: React.FC = () => {
                                         <label className="form-label">Bedtime (24h format)</label>
                                         <input 
                                             type="text" 
-                                            value={bedtime} 
+                                            value={bedtime || ''} 
                                             onChange={(e) => {
-                                                const val = e.target.value;
-                                                if (/^\d{2}:\d{2}$/.test(val) || /^\d{1,2}:\d{2}$/.test(val) || val.length <= 5) {
+                                                let val = e.target.value.replace(/\D/g, '');
+                                                if (val.length >= 3) {
+                                                    val = val.slice(0, 2) + ':' + val.slice(2, 4);
+                                                }
+                                                if (val.length > 5) val = val.slice(0, 5);
+                                                if (/^(\d{2}:)?(\d{0,2})$/.test(val)) {
+                                                    const parts = val.split(':');
+                                                    if (parts[0] && parseInt(parts[0]) > 23) return;
+                                                    if (parts[1] && parseInt(parts[1]) > 59) return;
                                                     setBedtime(val);
                                                 }
                                             }}
-                                            className="form-control" 
-                                            placeholder="23:00" 
+                                            onBlur={(e) => {
+                                                const val = e.target.value;
+                                                if (val.length === 4 && !val.includes(':')) {
+                                                    setBedtime(val.slice(0, 2) + ':' + val.slice(2));
+                                                }
+                                            }}
+                                            className="form-control font-mono" 
+                                            placeholder="--:--" 
                                             maxLength={5}
                                         />
                                     </div>
