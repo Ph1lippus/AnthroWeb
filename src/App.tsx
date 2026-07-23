@@ -6,6 +6,7 @@ import RegisterPage from './Pages/RegisterPage'
 import DashboardPage from './Pages/DashboardPage'
 import DailyLogPage from './Pages/DailyLogPage'
 import DailyLogHistoryPage from './Pages/DailyLogHistoryPage'
+import JournalPage from './Pages/JournalPage'
 import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
 import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
@@ -72,6 +73,7 @@ function App() {
         <Route path="/Daily-Log/Setup" element={<DailyLogGoalSetupPage />} />
         <Route path="/Daily-Log" element={<DailyLogPage />} />
         <Route path="/Daily-Log/History" element={<DailyLogHistoryPage />} />
+        <Route path="/Journal" element={<JournalPage />} />
         <Route path="/Measurements" element={<MeasurementsPage />} />
         <Route path="/Books" element={<BooksPage />} />
         <Route path="/Workouts" element={<WorkoutsPage />} />

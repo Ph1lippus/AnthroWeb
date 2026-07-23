@@ -26,6 +26,7 @@ const SecondaryNavbar: React.FC = () => {
     const navItems = [
         { to: '/Dashboard', label: 'Dashboard' },
         { to: '/Daily-Log', label: 'Daily Log' },
+        { to: '/Journal', label: 'Journal' },
         { to: '/Measurements', label: 'Measurements' },
         { to: '/Books', label: 'Books' },
         { to: '/Workouts', label: 'Workouts' },
