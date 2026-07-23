@@ -16,6 +16,32 @@ const JournalPage: React.FC = () => {
 
     const logDate = new Date().toISOString().split('T')[0];
     const [journalEntry, setJournalEntry] = useState('');
+    const [showTips, setShowTips] = useState(true);
+
+    const journalTips = [
+        "💡 What's one thing you're grateful for today?",
+        "💡 Describe a challenge you faced and how you handled it.",
+        "💡 What did you learn about yourself today?",
+        "💡 Write about a moment that made you smile.",
+        "💡 What would you do differently tomorrow?",
+        "💡 Describe your energy levels throughout the day.",
+        "💡 What are you looking forward to tomorrow?",
+        "💡 Did you stick to your habits? What helped or hindered you?",
+        "💡 Write about your meals - what did you enjoy most?",
+        "💡 How did your body feel today? Any aches, pains, or improvements?",
+        "💡 What's one small win you had today?",
+        "💡 Describe your sleep quality in detail.",
+        "💡 Did you have any interesting dreams?",
+        "💡 How did you manage stress today?",
+        "💡 What's on your mind right now?",
+    ];
+
+    const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
+    const [randomTip, setRandomTip] = useState(getRandomTip);
+
+    const refreshTip = () => {
+        setRandomTip(getRandomTip());
+    };
 
     // Load user settings
     useEffect(() => {
@@ -25,6 +51,7 @@ const JournalPage: React.FC = () => {
         };
         loadSettings();
     }, []);
+
 
     // Check for existing log
     useEffect(() => {
@@ -144,6 +171,30 @@ const JournalPage: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Writing Tip */}
+                    {showTips && (
+                        <div className="card mb-4" style={{ background: 'rgba(0, 255, 166, 0.05)', borderColor: 'rgba(0, 255, 166, 0.2)' }}>
+                            <div className="card-body">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2 flex-1">
+                                        <i className="i-lucide-lightbulb" style={{ color: 'var(--color-primary)', marginTop: '0.15rem' }}></i>
+                                        <div>
+                                            <div className="text-sm font-semibold mb-1" style={{ color: 'var(--color-primary)' }}>Writing Tip</div>
+                                            <div className="text-xs opacity-80">{randomTip}</div>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowTips(false)}
+                                        className="text-xs opacity-50 hover:opacity-100"
+                                        style={{ background: 'none', border: 'none', color: 'var(--color-light)', cursor: 'pointer' }}
+                                    >
+                                        <i className="i-lucide-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Journal Entry */}
                     <div className="card mb-4">
                         <div className="card-header">
@@ -160,8 +211,19 @@ const JournalPage: React.FC = () => {
                                     placeholder="Write your thoughts, reflections, or anything notable about today..."
                                 />
                             </div>
-                            <div className="text-xs opacity-50 mt-2">
-                                {journalEntry.length} characters
+                            <div className="flex items-center justify-between mt-2">
+                                <div className="text-xs opacity-50">
+                                    {journalEntry.length} characters
+                                </div>
+                                {!showTips && (
+                                    <button 
+                                        onClick={() => { setShowTips(true); refreshTip(); }}
+                                        className="text-xs opacity-50 hover:opacity-100"
+                                        style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer' }}
+                                    >
+                                        <i className="i-lucide-lightbulb mr-1"></i>Show tips
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

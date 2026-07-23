@@ -644,10 +644,20 @@ const DailyLogPage: React.FC = () => {
                                         <div className="form-group">
                                             <label className="form-label">Morning Diastolic</label>
                                             <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="form-control" placeholder="80" />
+                                            {morningSystolic && morningDiastolic && (
+                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
+                                                    {calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Morning BPM</label>
-                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="form-control" placeholder="72" />
+                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="form-control" placeholder="60-100" />
+                                            {morningBpm && (
+                                                <span className="text-xs mt-1" style={{ color: morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
+                                                    {morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'Normal' : morningBpm && parseInt(morningBpm) < 60 ? 'Low' : 'High'}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Evening Systolic</label>
@@ -661,10 +671,20 @@ const DailyLogPage: React.FC = () => {
                                         <div className="form-group">
                                             <label className="form-label">Evening Diastolic</label>
                                             <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="form-control" placeholder="80" />
+                                            {eveningSystolic && eveningDiastolic && (
+                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
+                                                    {calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Evening BPM</label>
-                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="form-control" placeholder="72" />
+                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="form-control" placeholder="60-100" />
+                                            {eveningBpm && (
+                                                <span className="text-xs mt-1" style={{ color: eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
+                                                    {eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'Normal' : eveningBpm && parseInt(eveningBpm) < 60 ? 'Low' : 'High'}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="form-group mt-3">
