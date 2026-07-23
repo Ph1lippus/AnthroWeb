@@ -23,6 +23,16 @@ const NotesPage: React.FC = () => {
     // Rich text editor ref
     const editorRef = useRef<HTMLDivElement>(null);
 
+    // Toast notification state
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ type, message });
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     // Fetch notes
     useEffect(() => {
         const loadNotes = async () => {
@@ -77,16 +87,20 @@ const NotesPage: React.FC = () => {
                     title: noteTitle.trim(),
                     content,
                 });
+                showToast('success', 'Note updated successfully');
             } else {
                 await createNote({
                     title: noteTitle.trim(),
                     content,
                 });
+                showToast('success', 'Note created successfully');
             }
 
             const refreshedNotes = await getUserNotes();
             setNotes(refreshedNotes);
             resetForm();
+        } catch {
+            showToast('error', 'Failed to save note');
         } finally {
             setSaving(false);
         }
@@ -94,10 +108,12 @@ const NotesPage: React.FC = () => {
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
+        const deletedTitle = deleteTarget.title;
         await deleteNote(deleteTarget.id!);
         const refreshedNotes = await getUserNotes();
         setNotes(refreshedNotes);
         setDeleteTarget(null);
+        showToast('error', `Deleted "${deletedTitle}"`);
     };
 
     const handleTogglePin = async (note: Note) => {
@@ -430,6 +446,16 @@ const NotesPage: React.FC = () => {
                             className="note-view-content"
                             dangerouslySetInnerHTML={{ __html: viewNote.content }}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className="toast-container">
+                    <div className={`toast toast--${toast.type}`}>
+                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
+                        <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>
             )}

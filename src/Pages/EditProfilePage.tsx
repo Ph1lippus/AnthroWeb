@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Title from '../Components/Title';
 import { getUserSettings, createUserSettings, updateUserSettings } from '../services/profileService';
 import { getCurrentUser } from '../services/profileService';
 import { supabase } from '../services/supabaseClient';
 import type { UserSettings } from '../services/profileService';
-import Title from '../Components/Title';
 
 type GenderType = 'male' | 'female' | 'other' | 'prefer_not_to_say' | '';
 type GoalType = 'maintain' | 'lose' | 'gain' | '';
@@ -47,6 +47,16 @@ const EditProfilePage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isNewUser, setIsNewUser] = useState(true);
     
+    // Toast notification state
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ type, message });
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     // Form states
     const [username, setUsername] = useState<string>('');
     const [gender, setGender] = useState<GenderType>('');
@@ -179,10 +189,12 @@ const validateForm = () => {
                 await updateUserSettings(settings);
             }
 
-            navigate('/profile');
+            showToast('success', isNewUser ? 'Profile created successfully!' : 'Profile updated successfully!');
+            setTimeout(() => navigate('/profile'), 800);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
             setError(message);
+            showToast('error', 'Failed to save profile');
         } finally {
             setLoading(false);
         }
@@ -330,6 +342,16 @@ const validateForm = () => {
                     </form>
                 </div>
             </div>
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className="toast-container">
+                    <div className={`toast toast--${toast.type}`}>
+                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
+                        <span className="toast-text">{toast.message}</span>
+                    </div>
+                </div>
+            )}
         </>
     );
 };

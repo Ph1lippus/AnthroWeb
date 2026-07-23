@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import { getUserSettings, updateUserSettings, type UserSettings } from '../services/profileService';
@@ -85,6 +85,16 @@ const DailyLogGoalSetupPage: React.FC = () => {
         load();
     }, [navigate]);
 
+    // Toast notification state
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ type, message });
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!settings) return;
@@ -111,10 +121,12 @@ const DailyLogGoalSetupPage: React.FC = () => {
             };
             await updateUserSettings(updatedSettings);
             setMessage({ text: 'Goals saved successfully! Redirecting...', type: 'success' });
+            showToast('success', 'Goals saved successfully!');
             setTimeout(() => navigate('/Daily-Log'), 1200);
         } catch (err) {
             console.error('Error saving goals:', err);
             setMessage({ text: 'Failed to save goals.', type: 'error' });
+            showToast('error', 'Failed to save goals');
         } finally {
             setSaving(false);
         }
@@ -231,6 +243,16 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     </form>
                 </div>
             </div>
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className="toast-container">
+                    <div className={`toast toast--${toast.type}`}>
+                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
+                        <span className="toast-text">{toast.message}</span>
+                    </div>
+                </div>
+            )}
         </>
     );
 };

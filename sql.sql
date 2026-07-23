@@ -418,6 +418,39 @@ CREATE TABLE public.project_plan_items (
 );
 
 -- ============================================
+-- ROW LEVEL SECURITY POLICIES FOR project_plan_items
+-- ============================================
+-- Run these in Supabase SQL Editor if plan items fail to save
+-- with "new row violates row-level security policy" error
+
+-- Enable RLS on project_plan_items
+ALTER TABLE public.project_plan_items ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view their own plan items
+CREATE POLICY "Users can view their own plan items"
+ON public.project_plan_items
+FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Policy: Users can insert plan items for their own projects
+CREATE POLICY "Users can insert plan items for their own projects"
+ON public.project_plan_items
+FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can update their own plan items
+CREATE POLICY "Users can update their own plan items"
+ON public.project_plan_items
+FOR UPDATE
+USING (auth.uid() = user_id);
+
+-- Policy: Users can delete their own plan items
+CREATE POLICY "Users can delete their own plan items"
+ON public.project_plan_items
+FOR DELETE
+USING (auth.uid() = user_id);
+
+-- ============================================
 -- DIAGNOSTIC QUERIES FOR DUPLICATE BOOK IDs
 -- ============================================
 -- Run these in Supabase SQL Editor to fix the 62 duplicate ID books

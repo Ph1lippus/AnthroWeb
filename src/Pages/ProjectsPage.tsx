@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Title from '../Components/Title';
 import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete } from '../services/projectService';
 import type { Project, ProjectPlanItem } from '../services/projectService';
@@ -40,6 +40,16 @@ const ProjectsPage: React.FC = () => {
     // Delete confirmation modal
     const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
+    // Toast notification state
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ type, message });
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     // Edit modal state
     const [editModalProject, setEditModalProject] = useState<Project | null>(null);
     const [editLoading, setEditLoading] = useState(false);
@@ -61,6 +71,8 @@ const ProjectsPage: React.FC = () => {
     const [planItems, setPlanItems] = useState<ProjectPlanItem[]>([]);
     const [newPlanTitle, setNewPlanTitle] = useState('');
     const [notesText, setNotesText] = useState('');
+    const [notesSaving, setNotesSaving] = useState(false);
+    const [notesSaved, setNotesSaved] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
 
     // Fetch all projects at once
@@ -96,27 +108,33 @@ const ProjectsPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (editingProject) {
-            await updateProject(editingProject.id!, {
-                title,
-                description: description || undefined,
-                status,
-                priority,
-                deadline: deadline || undefined,
-            });
-        } else {
-            await createProject({
-                title,
-                description: description || undefined,
-                status,
-                priority,
-                deadline: deadline || undefined,
-            });
-        }
+        try {
+            if (editingProject) {
+                await updateProject(editingProject.id!, {
+                    title,
+                    description: description || undefined,
+                    status,
+                    priority,
+                    deadline: deadline || undefined,
+                });
+                showToast('success', 'Project updated successfully');
+            } else {
+                await createProject({
+                    title,
+                    description: description || undefined,
+                    status,
+                    priority,
+                    deadline: deadline || undefined,
+                });
+                showToast('success', 'Project created successfully');
+            }
 
-        const refreshedProjects = await getUserProjects();
-        setProjects(refreshedProjects);
-        resetForm();
+            const refreshedProjects = await getUserProjects();
+            setProjects(refreshedProjects);
+            resetForm();
+        } catch {
+            showToast('error', 'Failed to save project');
+        }
     };
 
     const openEditModal = (project: Project) => {
@@ -153,6 +171,9 @@ const ProjectsPage: React.FC = () => {
             const refreshedProjects = await getUserProjects();
             setProjects(refreshedProjects);
             closeEditModal();
+            showToast('success', 'Project updated successfully');
+        } catch {
+            showToast('error', 'Failed to update project');
         } finally {
             setEditLoading(false);
         }
@@ -160,10 +181,12 @@ const ProjectsPage: React.FC = () => {
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
+        const deletedTitle = deleteTarget.title;
         await deleteProject(deleteTarget.id!);
         const refreshedProjects = await getUserProjects();
         setProjects(refreshedProjects);
         setDeleteTarget(null);
+        showToast('error', `Deleted "${deletedTitle}"`);
     };
 
     const handleExport = async () => {
@@ -301,12 +324,20 @@ const ProjectsPage: React.FC = () => {
 
     const saveNotes = async () => {
         if (!viewProject) return;
+        setNotesSaving(true);
+        setNotesSaved(false);
         try {
             await updateProject(viewProject.id!, { notes: notesText });
             setViewProject(prev => prev ? { ...prev, notes: notesText } : prev);
             setProjects(prev => prev.map(p => p.id === viewProject.id ? { ...p, notes: notesText } : p));
+            setNotesSaved(true);
+            // Auto-hide the saved message after 3 seconds
+            setTimeout(() => setNotesSaved(false), 3000);
         } catch (err) {
             console.error('Error saving notes:', err);
+            setNotesSaved(false);
+        } finally {
+            setNotesSaving(false);
         }
     };
 
@@ -712,10 +743,23 @@ const ProjectsPage: React.FC = () => {
                                     className="project-notes-editor"
                                     value={notesText}
                                     onChange={(e) => setNotesText(e.target.value)}
-                                    onBlur={saveNotes}
                                     placeholder="Add notes to your project..."
                                     rows={6}
                                 />
+                                <div className="project-notes-actions">
+                                    <button
+                                        onClick={saveNotes}
+                                        className="btn-action"
+                                        disabled={notesSaving}
+                                    >
+                                        {notesSaving ? 'Saving...' : 'Save Notes'}
+                                    </button>
+                                    {notesSaved && (
+                                        <span className="notes-saved-message">
+                                            <i className="fa-solid fa-check mr-1"></i>Saved!
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="project-plan-section">
@@ -781,7 +825,7 @@ const ProjectsPage: React.FC = () => {
                                     ) : (
                                         <div className="flex flex-col gap-1 mt-2">
                                             {planItems.map(item => (
-                                                <div key={item.id} className="project-plan-item">
+                                                <label key={item.id} className="checkbox-label project-plan-item">
                                                     <input
                                                         type="checkbox"
                                                         checked={item.is_completed}
@@ -794,13 +838,17 @@ const ProjectsPage: React.FC = () => {
                                                                 console.error('Error toggling plan item:', err);
                                                             }
                                                         }}
-                                                        className="project-plan-checkbox"
+                                                        className="checkbox-input"
                                                     />
+                                                    <span className="checkbox-custom"></span>
                                                     <span className={`project-plan-item-text ${item.is_completed ? 'line-through opacity-60' : ''}`}>
                                                         {item.title}
                                                     </span>
                                                     <button
-                                                        onClick={async () => {
+                                                        type="button"
+                                                        onClick={async (e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
                                                             try {
                                                                 await deleteProjectPlanItem(item.id!);
                                                                 await refreshPlanItems();
@@ -813,7 +861,7 @@ const ProjectsPage: React.FC = () => {
                                                     >
                                                         <i className="fa-solid fa-trash"></i>
                                                     </button>
-                                                </div>
+                                                </label>
                                             ))}
                                         </div>
                                     )}
@@ -848,6 +896,16 @@ const ProjectsPage: React.FC = () => {
                                 Delete
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className="toast-container">
+                    <div className={`toast toast--${toast.type}`}>
+                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
+                        <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>
             )}

@@ -96,6 +96,16 @@ const BooksPage: React.FC = () => {
     const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
     const [duplicatesDeleting, setDuplicatesDeleting] = useState(false);
     
+    // Toast notification state
+    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast({ type, message });
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     // Ref to prevent double-fetching in React 18 StrictMode
     const booksLoadedRef = useRef(false);
 
@@ -150,28 +160,34 @@ const BooksPage: React.FC = () => {
         const totalPagesNum = parseInt(totalPages) || 0;
         const currentPageNum = parseInt(currentPageInput) || 0;
 
-        if (editingBook) {
-            await updateBook(editingBook.id!, {
-                title,
-                total_pages: totalPagesNum,
-                current_page: currentPageNum,
-                progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
-            });
-        } else {
-            await createBook({
-                user_id: '',
-                title,
-                total_pages: totalPagesNum,
-                current_page: currentPageNum,
-                progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
-                status: totalPagesNum > 0 ? (currentPageNum >= totalPagesNum ? 'completed' : 'reading') : 'planned',
-            });
-        }
+        try {
+            if (editingBook) {
+                await updateBook(editingBook.id!, {
+                    title,
+                    total_pages: totalPagesNum,
+                    current_page: currentPageNum,
+                    progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
+                });
+                showToast('success', 'Book updated successfully');
+            } else {
+                await createBook({
+                    user_id: '',
+                    title,
+                    total_pages: totalPagesNum,
+                    current_page: currentPageNum,
+                    progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
+                    status: totalPagesNum > 0 ? (currentPageNum >= totalPagesNum ? 'completed' : 'reading') : 'planned',
+                });
+                showToast('success', 'Book added successfully');
+            }
 
-        const refreshedBooks = await getUserBooks();
-        console.log(`✅ After submit: Setting ${refreshedBooks.length} books in state`);
-        setBooks(refreshedBooks);
-        resetForm();
+            const refreshedBooks = await getUserBooks();
+            console.log(`✅ After submit: Setting ${refreshedBooks.length} books in state`);
+            setBooks(refreshedBooks);
+            resetForm();
+        } catch {
+            showToast('error', 'Failed to save book');
+        }
     };
 
     const openEditModal = (book: Book) => {
@@ -205,6 +221,9 @@ const BooksPage: React.FC = () => {
             console.log(`✅ After edit: Setting ${refreshedBooks.length} books in state`);
             setBooks(refreshedBooks);
             closeEditModal();
+            showToast('success', 'Book updated successfully');
+        } catch {
+            showToast('error', 'Failed to update book');
         } finally {
             setEditLoading(false);
         }
@@ -212,11 +231,13 @@ const BooksPage: React.FC = () => {
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
+        const deletedTitle = deleteTarget.title;
         await deleteBook(deleteTarget.id!);
         const refreshedBooks = await getUserBooks();
         console.log(`✅ After delete: Setting ${refreshedBooks.length} books in state`);
         setBooks(refreshedBooks);
         setDeleteTarget(null);
+        showToast('error', `Deleted "${deletedTitle}"`);
     };
 
     const handlePageUpdate = async (book: Book, newPage: number) => {
@@ -961,6 +982,16 @@ const BooksPage: React.FC = () => {
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className="toast-container">
+                    <div className={`toast toast--${toast.type}`}>
+                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
+                        <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>
             )}

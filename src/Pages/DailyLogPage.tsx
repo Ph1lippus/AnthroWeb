@@ -42,6 +42,42 @@ const calculateSleepDuration = (wakeTime: string, bedtime: string): number | nul
     return Math.round(duration * 10) / 10;
 };
 
+// Calculate time match score (0-100) - how close actual is to goal
+const calculateTimeMatchScore = (actualTime: string | null, goalTime: string | null): number => {
+    if (!actualTime || !goalTime) return 100; // No goal set, perfect score
+    
+    const [actualH, actualM] = actualTime.split(':').map(Number);
+    const [goalH, goalM] = goalTime.split(':').map(Number);
+    
+    const actualMinutes = actualH * 60 + actualM;
+    const goalMinutes = goalH * 60 + goalM;
+    
+    // Calculate difference in minutes (handle wrap-around)
+    let diff = Math.abs(actualMinutes - goalMinutes);
+    if (diff > 12 * 60) { // More than 12 hours difference, likely crossed midnight
+        diff = 24 * 60 - diff;
+    }
+    
+    // Very forgiving formula: stays at 100 until 30 min, then slowly decreases
+    // 0-30 min = 100, 60 min = 95, 90 min = 85, 120 min = 70, 180 min = 40
+    if (diff <= 30) return 100;
+    const score = 100 - ((diff - 30) / 10); // 1 point per 10 minutes after 30 min
+    return Math.max(0, Math.round(score));
+};
+
+// Calculate sleep duration match score (0-100)
+const calculateSleepDurationScore = (actualDuration: number | null, goalHours: number | null): number => {
+    if (!actualDuration || !goalHours) return 100; // No data or no goal, perfect score
+    
+    const diff = Math.abs(actualDuration - goalHours);
+    
+    // Very forgiving formula: stays at 100 until 0.5h (30 min), then slowly decreases
+    // 0-0.5h = 100, 1h = 95, 1.5h = 85, 2h = 70, 3h = 40
+    if (diff <= 0.5) return 100;
+    const score = 100 - ((diff - 0.5) / 0.2); // 1 point per 12 minutes after 30 min
+    return Math.max(0, Math.round(score));
+};
+
 // Calculate BP score (0-100)
 const calculateBPScore = (systolic?: number, diastolic?: number): { points: number; status: string; color: string } => {
     if (!systolic || !diastolic) return { points: 0, status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
@@ -163,13 +199,26 @@ const DailyLogPage: React.FC = () => {
     }, [projects]);
 
     // Helper to score individual inputs (0-100)
-    const scoreInput = useCallback((type: string, value: string | number | boolean | null | undefined): number => {
+    const scoreInput = useCallback((type: string, value: string | number | boolean | null | undefined, wakeTime?: string, bedtime?: string, sleepDuration?: number | null): number => {
         if (!value && value !== 0) return 0;
         
         switch (type) {
             case 'sleepQuality': {
                 const sq = parseInt(value as string);
-                return Math.round((sq / 10) * 100);
+                const qualityScore = Math.round((sq / 10) * 100);
+                
+                // If we have goals, combine quality with time/duration scores
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+                if (activeGoals?.sleep) {
+                    const wakeTimeScore = calculateTimeMatchScore(wakeTime || null, activeGoals.sleep.wake_time);
+                    const bedtimeScore = calculateTimeMatchScore(bedtime || null, activeGoals.sleep.bedtime);
+                    const durationScore = calculateSleepDurationScore(sleepDuration || null, activeGoals.sleep.hours);
+                    
+                    // Sleep score = 25% quality + 25% wake time + 25% bedtime + 25% duration
+                    return Math.round((qualityScore * 0.25) + (wakeTimeScore * 0.25) + (bedtimeScore * 0.25) + (durationScore * 0.25));
+                }
+                
+                return qualityScore;
             }
             case 'morningSystolic':
             case 'morningDiastolic': {
@@ -251,14 +300,14 @@ const DailyLogPage: React.FC = () => {
             default:
                 return 50;
         }
-    }, [settings, morningSystolic, morningDiastolic, eveningSystolic, eveningDiastolic]);
+    }, [settings, morningSystolic, morningDiastolic, eveningSystolic, eveningDiastolic, wakeTime, bedtime, computedSleepDuration]);
 
     // Calculate individual input scores (each input = 5% weight)
     const inputScores = useMemo(() => {
         return {
             wakeTime: (wakeTime && bedtime ? 100 : 0),
             bedtime: (wakeTime && bedtime ? 100 : 0),
-            sleepQuality: scoreInput('sleepQuality', sleepQuality),
+            sleepQuality: scoreInput('sleepQuality', sleepQuality, wakeTime, bedtime, computedSleepDuration),
             morningSystolic: scoreInput('morningSystolic', morningSystolic),
             morningDiastolic: scoreInput('morningDiastolic', morningDiastolic),
             morningBpm: morningBpm ? 100 : 0,
@@ -591,22 +640,14 @@ const DailyLogPage: React.FC = () => {
                     </div>
 
                     <div className="daily-log-form">
-                        <div className="card mb-4">
-                            <div className="card-body">
-                                <div className="flex items-center gap-3">
-                                    <i className="i-lucide-calendar" style={{ color: 'var(--color-primary)', fontSize: '1.1rem' }}></i>
-                                    <div>
-                                        <div className="form-label mb-0">Log Date</div>
-                                        <div className="text-lg font-semibold" style={{ color: 'var(--color-light)' }}>
-                                            {new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-xs opacity-60">
+                                {new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className="card">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="card md:col-span-1">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-sun mr-2"></i>Sleep</h3>
                                 </div>
@@ -676,65 +717,77 @@ const DailyLogPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="card">
+                            <div className="card md:col-span-1">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-activity mr-2"></i>Blood Pressure & Heart Rate</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex flex-col gap-3">
                                         <div className="form-group">
-                                            <label className="form-label">Morning Systolic</label>
+                                            <label className="form-label">
+                                                Morning Systolic
+                                                {morningSystolic && morningDiastolic && (
+                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
+                                                        ({calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className="form-control" placeholder="120" />
-                                            {morningSystolic && morningDiastolic && (
-                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
-                                                    {calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status}
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Morning Diastolic</label>
+                                            <label className="form-label">
+                                                Morning Diastolic
+                                                {morningSystolic && morningDiastolic && (
+                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
+                                                        ({calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="form-control" placeholder="80" />
-                                            {morningSystolic && morningDiastolic && (
-                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
-                                                    {calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status}
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Morning BPM</label>
+                                            <label className="form-label">
+                                                Morning BPM
+                                                {morningBpm && (
+                                                    <span className="text-xs ml-2" style={{ color: morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
+                                                        ({morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'Normal' : morningBpm && parseInt(morningBpm) < 60 ? 'Low' : 'High'})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="form-control" placeholder="60-100" />
-                                            {morningBpm && (
-                                                <span className="text-xs mt-1" style={{ color: morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
-                                                    {morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'Normal' : morningBpm && parseInt(morningBpm) < 60 ? 'Low' : 'High'}
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Evening Systolic</label>
+                                            <label className="form-label">
+                                                Evening Systolic
+                                                {eveningSystolic && eveningDiastolic && (
+                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
+                                                        ({calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className="form-control" placeholder="120" />
-                                            {eveningSystolic && eveningDiastolic && (
-                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
-                                                    {calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status}
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Evening Diastolic</label>
+                                            <label className="form-label">
+                                                Evening Diastolic
+                                                {eveningSystolic && eveningDiastolic && (
+                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
+                                                        ({calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="form-control" placeholder="80" />
-                                            {eveningSystolic && eveningDiastolic && (
-                                                <span className="text-xs mt-1" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
-                                                    {calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status}
-                                                </span>
-                                            )}
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Evening BPM</label>
+                                            <label className="form-label">
+                                                Evening BPM
+                                                {eveningBpm && (
+                                                    <span className="text-xs ml-2" style={{ color: eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
+                                                        ({eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'Normal' : eveningBpm && parseInt(eveningBpm) < 60 ? 'Low' : 'High'})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="form-control" placeholder="60-100" />
-                                            {eveningBpm && (
-                                                <span className="text-xs mt-1" style={{ color: eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
-                                                    {eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'Normal' : eveningBpm && parseInt(eveningBpm) < 60 ? 'Low' : 'High'}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
                                     <div className="form-group mt-3">
@@ -748,10 +801,8 @@ const DailyLogPage: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className="card">
+                            <div className="card md:col-span-1">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-flame mr-2"></i>Nutrition</h3>
                                 </div>
@@ -760,19 +811,17 @@ const DailyLogPage: React.FC = () => {
                                         <label className="form-label">Calories</label>
                                         <input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} className="form-control" placeholder={nutritionGoals?.calories ? String(nutritionGoals.calories) : '2000'} />
                                     </div>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <div className="form-group">
-                                            <label className="form-label">Protein (g)</label>
-                                            <input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} className="form-control" placeholder={nutritionGoals?.protein ? String(nutritionGoals.protein) : '150'} />
-                                        </div>
-                                        <div className="form-group">
-                                            <label className="form-label">Carbs (g)</label>
-                                            <input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} className="form-control" placeholder={nutritionGoals?.carbs ? String(nutritionGoals.carbs) : '200'} />
-                                        </div>
-                                        <div className="form-group">
-                                            <label className="form-label">Fat (g)</label>
-                                            <input type="number" value={fat} onChange={(e) => setFat(e.target.value)} className="form-control" placeholder={nutritionGoals?.fat ? String(nutritionGoals.fat) : '65'} />
-                                        </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Protein (g)</label>
+                                        <input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} className="form-control" placeholder={nutritionGoals?.protein ? String(nutritionGoals.protein) : '150'} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Carbs (g)</label>
+                                        <input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} className="form-control" placeholder={nutritionGoals?.carbs ? String(nutritionGoals.carbs) : '200'} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Fat (g)</label>
+                                        <input type="number" value={fat} onChange={(e) => setFat(e.target.value)} className="form-control" placeholder={nutritionGoals?.fat ? String(nutritionGoals.fat) : '65'} />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Water (ml)</label>
@@ -780,155 +829,152 @@ const DailyLogPage: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div className="card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-weight mr-2"></i>Body Metrics</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="form-group">
-                                        <label className="form-label">Weight (kg)</label>
-                                        <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="form-control" placeholder="75.5" />
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Body Fat (%)</label>
-                                        <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="form-control" placeholder="15.0" />
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Mood (1-10)</label>
-                                        <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="form-label">Project Work Done</label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={projectWorkDone} onChange={(e) => setProjectWorkDone(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-80">Completed project work today</span>
-                                        </label>
-                                    </div>
-                                    <div className="form-group mt-3">
-                                        <label className="form-label">Projects Worked On</label>
-                                        <p className="text-xs opacity-50 mb-2">Select the active projects you worked on today</p>
-                                        <div className="projects-checkbox-list">
-                                            {loadingProjects ? (
-                                                <p className="text-xs opacity-50">Loading projects...</p>
-                                            ) : activeProjects.length > 0 ? (
-                                                activeProjects.map(project => (
-                                                    <label key={project.id} className="checkbox-label">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedProjectIds.has(project.id!)}
-                                                            onChange={() => handleProjectToggle(project.id!)}
-                                                            className="checkbox-input"
-                                                        />
-                                                        <span className="checkbox-custom"></span>
-                                                        <span className="text-sm opacity-90">{project.title}</span>
-                                                    </label>
-                                                ))
-                                            ) : (
-                                                <p className="text-xs opacity-50">No active projects. Add projects in Projects page.</p>
-                                            )}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div className="form-group">
+                                            <label className="form-label">Weight (kg)</label>
+                                            <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="form-control" placeholder="75.5" />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Body Fat (%)</label>
+                                            <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="form-control" placeholder="15.0" />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">Mood (1-10)</label>
+                                            <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="card mb-4">
-                            <div className="card-header">
-                                <h3 className="card-title"><i className="i-lucide-file-text mr-2"></i>Journal</h3>
-                            </div>
-                            <div className="card-body">
-                                <div className="form-group">
-                                    <label className="form-label">Journal Entry</label>
-                                    <textarea value={journalEntry} onChange={(e) => setJournalEntry(e.target.value)} className="form-control" rows={4} placeholder="How was your day? Any notes or reflections..." />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Habits Section */}
-                        <div className="card mb-4">
+                            {/* Habits Section */}
+                            <div className="card mb-4">
                             <div className="card-header">
                                 <h3 className="card-title"><i className="i-lucide-check-circle mr-2"></i>Habits</h3>
                             </div>
                             <div className="card-body">
-                                <div className="flex flex-col gap-2">
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={morningRoutine} onChange={(e) => setMorningRoutine(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Morning Routine</span>
-                                    </label>
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={eveningRoutine} onChange={(e) => setEveningRoutine(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Evening Routine</span>
-                                    </label>
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={fruitServing} onChange={(e) => setFruitServing(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Fruit Serving</span>
-                                    </label>
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={studied} onChange={(e) => setStudied(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Studied</span>
-                                    </label>
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={stretching} onChange={(e) => setStretching(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Stretching</span>
-                                    </label>
-                                    <label className="checkbox-label">
-                                        <input type="checkbox" checked={reading} onChange={(e) => setReading(e.target.checked)} className="checkbox-input" />
-                                        <span className="checkbox-custom"></span>
-                                        <span className="text-sm opacity-90">Reading</span>
-                                    </label>
-                                    {loadingHabits ? (
-                                        <p className="text-xs opacity-60">Loading custom habits...</p>
-                                    ) : habits.length > 0 && (
-                                        <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
-                                            <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
-                                            {habits.map((habit) => (
-                                                <label key={habit.id} className="checkbox-label">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={completedHabits.has(habit.id!)}
-                                                        onChange={async () => {
-                                                            const result = await toggleHabitForDate(habit.id!, logDate);
-                                                            setCompletedHabits(prev => {
-                                                                const next = new Set(prev);
-                                                                if (result) next.add(habit.id!);
-                                                                else next.delete(habit.id!);
-                                                                return next;
-                                                            });
-                                                        }}
-                                                        className="checkbox-input"
-                                                    />
-                                                    <span className="checkbox-custom"></span>
-                                                    <span className="text-sm opacity-90">{habit.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-2">
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={morningRoutine} onChange={(e) => setMorningRoutine(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Morning Routine</span>
+                                        </label>
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={eveningRoutine} onChange={(e) => setEveningRoutine(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Evening Routine</span>
+                                        </label>
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={fruitServing} onChange={(e) => setFruitServing(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Fruit Serving</span>
+                                        </label>
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={studied} onChange={(e) => setStudied(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Studied</span>
+                                        </label>
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={stretching} onChange={(e) => setStretching(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Stretching</span>
+                                        </label>
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={reading} onChange={(e) => setReading(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Reading</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2">
+                                        <label className="checkbox-label">
+                                            <input type="checkbox" checked={projectWorkDone} onChange={(e) => setProjectWorkDone(e.target.checked)} className="checkbox-input" />
+                                            <span className="checkbox-custom"></span>
+                                            <span className="text-sm opacity-90">Project Work Done</span>
+                                        </label>
+                                        
+                                        {projectWorkDone && (
+                                            <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
+                                                <p className="text-xs opacity-50 mb-2">Projects Worked On:</p>
+                                                <div className="projects-checkbox-list">
+                                                    {loadingProjects ? (
+                                                        <p className="text-xs opacity-50">Loading projects...</p>
+                                                    ) : activeProjects.length > 0 ? (
+                                                        activeProjects.map(project => (
+                                                            <label key={project.id} className="checkbox-label">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedProjectIds.has(project.id!)}
+                                                                    onChange={() => handleProjectToggle(project.id!)}
+                                                                    className="checkbox-input"
+                                                                />
+                                                                <span className="checkbox-custom"></span>
+                                                                <span className="text-sm opacity-90">{project.title}</span>
+                                                            </label>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-xs opacity-50">No active projects</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 
-                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                    {!showCustomHabit ? (
-                                        <button type="button" onClick={() => setShowCustomHabit(true)} className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100">
-                                            <i className="i-lucide-plus"></i>Add Custom Habit
-                                        </button>
-                                    ) : (
-                                        <div className="flex flex-col gap-2">
-                                            <input type="text" value={customHabitName} onChange={(e) => setCustomHabitName(e.target.value)} className="form-control text-sm" placeholder="Habit name" maxLength={50} />
-                                            <textarea value={customHabitDesc} onChange={(e) => setCustomHabitDesc(e.target.value)} className="form-control text-sm" placeholder="Description (optional)" rows={1} maxLength={100} />
-                                            <div className="flex gap-2">
-                                                <button type="button" onClick={handleAddCustomHabit} disabled={addingHabit || !customHabitName.trim()} className="btn-form-submit text-xs px-2 py-1">
-                                                    {addingHabit ? 'Adding...' : 'Add'}
-                                                </button>
-                                                <button type="button" onClick={() => setShowCustomHabit(false)} className="btn-form-cancel text-xs px-2 py-1">Cancel</button>
+                                {loadingHabits ? (
+                                    <p className="text-xs opacity-60 mt-3">Loading custom habits...</p>
+                                ) : habits.length > 0 && (
+                                    <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-3">
+                                        <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
+                                        {habits.map((habit) => (
+                                            <label key={habit.id} className="checkbox-label">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={completedHabits.has(habit.id!)}
+                                                    onChange={async () => {
+                                                        const result = await toggleHabitForDate(habit.id!, logDate);
+                                                        setCompletedHabits(prev => {
+                                                            const next = new Set(prev);
+                                                            if (result) next.add(habit.id!);
+                                                            else next.delete(habit.id!);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className="checkbox-input"
+                                                />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">{habit.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                    <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                        {!showCustomHabit ? (
+                                            <button type="button" onClick={() => setShowCustomHabit(true)} className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100">
+                                                <i className="i-lucide-plus"></i>Add Custom Habit
+                                            </button>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <input type="text" value={customHabitName} onChange={(e) => setCustomHabitName(e.target.value)} className="form-control text-sm" placeholder="Habit name" maxLength={50} />
+                                                <textarea value={customHabitDesc} onChange={(e) => setCustomHabitDesc(e.target.value)} className="form-control text-sm" placeholder="Description (optional)" rows={1} maxLength={100} />
+                                                <div className="flex gap-2">
+                                                    <button type="button" onClick={handleAddCustomHabit} disabled={addingHabit || !customHabitName.trim()} className="btn-form-submit text-xs px-2 py-1">
+                                                        {addingHabit ? 'Adding...' : 'Add'}
+                                                    </button>
+                                                    <button type="button" onClick={() => setShowCustomHabit(false)} className="btn-form-cancel text-xs px-2 py-1">Cancel</button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
