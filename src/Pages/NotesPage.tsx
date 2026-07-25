@@ -341,56 +341,58 @@ const NotesPage: React.FC = () => {
                                 autoFocus
                             />
                         </div>
-                        <div className="mb-3">
-                            <label className="form-label">Content</label>
-                            <div className="note-editor-toolbar">
-                                <button type="button" onClick={handleFormatBold} className="note-toolbar-btn" title="Bold (Ctrl+B)">
-                                    <i className="fa-solid fa-bold"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatItalic} className="note-toolbar-btn" title="Italic (Ctrl+I)">
-                                    <i className="fa-solid fa-italic"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatUnderline} className="note-toolbar-btn" title="Underline (Ctrl+U)">
-                                    <i className="fa-solid fa-underline"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatStrikeThrough} className="note-toolbar-btn" title="Strikethrough">
-                                    <i className="fa-solid fa-strikethrough"></i>
-                                </button>
-                                <span className="note-toolbar-separator"></span>
-                                <button type="button" onClick={handleFormatHeading} className="note-toolbar-btn" title="Heading">
-                                    <i className="fa-solid fa-heading"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatParagraph} className="note-toolbar-btn" title="Paragraph">
-                                    <i className="fa-solid fa-paragraph"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatBlockquote} className="note-toolbar-btn" title="Blockquote">
-                                    <i className="fa-solid fa-quote-left"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatCode} className="note-toolbar-btn" title="Code block">
-                                    <i className="fa-solid fa-code"></i>
-                                </button>
-                                <span className="note-toolbar-separator"></span>
-                                <button type="button" onClick={handleFormatOrderedList} className="note-toolbar-btn" title="Ordered list">
-                                    <i className="fa-solid fa-list-ol"></i>
-                                </button>
-                                <button type="button" onClick={handleFormatUnorderedList} className="note-toolbar-btn" title="Unordered list">
-                                    <i className="fa-solid fa-list-ul"></i>
-                                </button>
-                                <span className="note-toolbar-separator"></span>
-                                <button type="button" onClick={handleInsertLink} className="note-toolbar-btn" title="Insert link">
-                                    <i className="fa-solid fa-link"></i>
-                                </button>
-                                <button type="button" onClick={handleInsertImage} className="note-toolbar-btn" title="Insert image">
-                                    <i className="fa-solid fa-image"></i>
-                                </button>
+                        <div className="note-modal-content">
+                            <div className="mb-3">
+                                <label className="form-label">Content</label>
+                                <div className="note-editor-toolbar">
+                                    <button type="button" onClick={handleFormatBold} className="note-toolbar-btn" title="Bold (Ctrl+B)">
+                                        <i className="fa-solid fa-bold"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatItalic} className="note-toolbar-btn" title="Italic (Ctrl+I)">
+                                        <i className="fa-solid fa-italic"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatUnderline} className="note-toolbar-btn" title="Underline (Ctrl+U)">
+                                        <i className="fa-solid fa-underline"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatStrikeThrough} className="note-toolbar-btn" title="Strikethrough">
+                                        <i className="fa-solid fa-strikethrough"></i>
+                                    </button>
+                                    <span className="note-toolbar-separator"></span>
+                                    <button type="button" onClick={handleFormatHeading} className="note-toolbar-btn" title="Heading">
+                                        <i className="fa-solid fa-heading"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatParagraph} className="note-toolbar-btn" title="Paragraph">
+                                        <i className="fa-solid fa-paragraph"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatBlockquote} className="note-toolbar-btn" title="Blockquote">
+                                        <i className="fa-solid fa-quote-left"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatCode} className="note-toolbar-btn" title="Code block">
+                                        <i className="fa-solid fa-code"></i>
+                                    </button>
+                                    <span className="note-toolbar-separator"></span>
+                                    <button type="button" onClick={handleFormatOrderedList} className="note-toolbar-btn" title="Ordered list">
+                                        <i className="fa-solid fa-list-ol"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatUnorderedList} className="note-toolbar-btn" title="Unordered list">
+                                        <i className="fa-solid fa-list-ul"></i>
+                                    </button>
+                                    <span className="note-toolbar-separator"></span>
+                                    <button type="button" onClick={handleInsertLink} className="note-toolbar-btn" title="Insert link">
+                                        <i className="fa-solid fa-link"></i>
+                                    </button>
+                                    <button type="button" onClick={handleInsertImage} className="note-toolbar-btn" title="Insert image">
+                                        <i className="fa-solid fa-image"></i>
+                                    </button>
+                                </div>
+                                <div
+                                    ref={editorRef}
+                                    className="note-editor"
+                                    contentEditable
+                                    suppressContentEditableWarning
+                                    data-placeholder="Write your note content here..."
+                                ></div>
                             </div>
-                            <div
-                                ref={editorRef}
-                                className="note-editor"
-                                contentEditable
-                                suppressContentEditableWarning
-                                data-placeholder="Write your note content here..."
-                            ></div>
                         </div>
                         <div className="flex gap-2 justify-end mt-4">
                             <button type="button" onClick={resetForm} className="btn-form-cancel" disabled={saving}>Cancel</button>
