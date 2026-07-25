@@ -8,7 +8,6 @@ export interface Project {
     description?: string;
     notes?: string;
     status: 'planned' | 'active' | 'paused' | 'completed' | 'archived';
-    progress: number;
     priority: 'low' | 'medium' | 'high';
     started_at?: string;
     deadline?: string;
@@ -61,7 +60,6 @@ export const createProject = async (project: {
     description?: string;
     notes?: string;
     status?: 'planned' | 'active' | 'paused' | 'completed' | 'archived';
-    progress?: number;
     priority?: 'low' | 'medium' | 'high';
     started_at?: string;
     deadline?: string;
@@ -77,7 +75,6 @@ export const createProject = async (project: {
             description: project.description,
             notes: project.notes,
             status: project.status || 'planned',
-            progress: project.progress || 0,
             priority: project.priority || 'medium',
             started_at: project.started_at,
             deadline: project.deadline,
@@ -122,18 +119,6 @@ export const deleteProject = async (id: string) => {
         console.error('Error deleting project:', error.message);
         throw error;
     }
-};
-
-// Update project progress
-export const updateProjectProgress = async (id: string, progress: number) => {
-    const clampedProgress = Math.max(0, Math.min(100, progress));
-    const status = clampedProgress >= 100 ? 'completed' : 'active';
-
-    return updateProject(id, {
-        progress: clampedProgress,
-        status,
-        completed_at: status === 'completed' ? new Date().toISOString().split('T')[0] : undefined,
-    });
 };
 
 // Project Plan Item types

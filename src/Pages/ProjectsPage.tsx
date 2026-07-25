@@ -57,7 +57,6 @@ const ProjectsPage: React.FC = () => {
     const [editDescription, setEditDescription] = useState('');
     const [editStatus, setEditStatus] = useState<'planned' | 'active' | 'paused' | 'completed' | 'archived'>('planned');
     const [editPriority, setEditPriority] = useState<'low' | 'medium' | 'high'>('medium');
-    const [editProgress, setEditProgress] = useState('');
     const [editDeadline, setEditDeadline] = useState('');
     // Add form state
     const [title, setTitle] = useState('');
@@ -143,7 +142,6 @@ const ProjectsPage: React.FC = () => {
         setEditDescription(project.description || '');
         setEditStatus(project.status);
         setEditPriority(project.priority);
-        setEditProgress((project.progress || 0).toString());
         setEditDeadline(project.deadline || '');
     };
 
@@ -157,14 +155,11 @@ const ProjectsPage: React.FC = () => {
 
         setEditLoading(true);
         try {
-            const progressNum = parseInt(editProgress) || 0;
-
             await updateProject(editModalProject.id!, {
                 title: editTitle,
                 description: editDescription || undefined,
                 status: editStatus,
                 priority: editPriority,
-                progress: progressNum,
                 deadline: editDeadline || undefined,
             });
 
@@ -671,17 +666,6 @@ const ProjectsPage: React.FC = () => {
                                         <option value="low">Low</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div className="mb-4">
-                                <label className="form-label">Progress</label>
-                                <input
-                                    type="number"
-                                    value={editProgress}
-                                    onChange={(e) => setEditProgress(e.target.value)}
-                                    className="form-control"
-                                    min="0"
-                                    max="100"
-                                />
                             </div>
                             <div className="mb-4">
                                 <label className="form-label">Deadline</label>
