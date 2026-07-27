@@ -42,41 +42,17 @@ const calculateSleepDuration = (wakeTime: string, bedtime: string): number | nul
     return Math.round(duration * 10) / 10;
 };
 
-// Calculate time match score (0-100) - how close actual is to goal
-const calculateTimeMatchScore = (actualTime: string | null, goalTime: string | null): number => {
-    if (!actualTime || !goalTime) return 100; // No goal set, perfect score
-    
-    const [actualH, actualM] = actualTime.split(':').map(Number);
-    const [goalH, goalM] = goalTime.split(':').map(Number);
-    
-    const actualMinutes = actualH * 60 + actualM;
-    const goalMinutes = goalH * 60 + goalM;
-    
-    // Calculate difference in minutes (handle wrap-around)
-    let diff = Math.abs(actualMinutes - goalMinutes);
-    if (diff > 12 * 60) { // More than 12 hours difference, likely crossed midnight
-        diff = 24 * 60 - diff;
-    }
-    
-    // Very forgiving formula: stays at 100 until 30 min, then slowly decreases
-    // 0-30 min = 100, 60 min = 95, 90 min = 85, 120 min = 70, 180 min = 40
-    if (diff <= 30) return 100;
-    const score = 100 - ((diff - 30) / 10); // 1 point per 10 minutes after 30 min
-    return Math.max(0, Math.round(score));
+// Format sleep duration as HH:MM (e.g. 7.5 -> "07:30"), or "--:--" when no data
+const formatSleepDuration = (duration: number | null): string => {
+    if (duration === null || duration === undefined || isNaN(duration)) return '--:--';
+    const hours = Math.floor(duration);
+    const minutes = Math.round((duration - hours) * 60);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
+// Calculate time match score (0-100) - how close actual is to goal
+
 // Calculate sleep duration match score (0-100)
-const calculateSleepDurationScore = (actualDuration: number | null, goalHours: number | null): number => {
-    if (!actualDuration || !goalHours) return 100; // No data or no goal, perfect score
-    
-    const diff = Math.abs(actualDuration - goalHours);
-    
-    // Very forgiving formula: stays at 100 until 0.5h (30 min), then slowly decreases
-    // 0-0.5h = 100, 1h = 95, 1.5h = 85, 2h = 70, 3h = 40
-    if (diff <= 0.5) return 100;
-    const score = 100 - ((diff - 0.5) / 0.2); // 1 point per 12 minutes after 30 min
-    return Math.max(0, Math.round(score));
-};
 
 // Calculate BP score (0-100)
 const calculateBPScore = (systolic?: number, diastolic?: number): { points: number; status: string; color: string } => {
@@ -99,6 +75,145 @@ const calculateTempScore = (temp?: number): { points: number; status: string; co
     if (temp >= 35 && temp < 36.5) return { points: 50, status: 'Cool', color: '#ffa500' };
     return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
 };
+
+// Analyze BPM
+const analyzeBPM = (bpm?: number): { status: string; color: string } => {
+    if (!bpm) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
+    if (bpm >= 60 && bpm <= 100) return { status: 'Normal', color: 'var(--color-primary)' };
+    if (bpm < 60) return { status: 'Low', color: '#ffa500' };
+    return { status: 'High', color: 'var(--color-danger)' };
+};
+
+// Analyze wake time
+const analyzeWakeTime = (time: string | null, goalTime: string | null): { status: string; color: string } => {
+    if (!time) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
+    if (!goalTime) return { status: 'Set', color: 'rgba(255, 255, 255, 0.4)' };
+    const [actualH, actualM] = time.split(':').map(Number);
+    const [goalH, goalM] = goalTime.split(':').map(Number);
+    const actualMin = actualH * 60 + actualM;
+    const goalMin = goalH * 60 + goalM;
+    let diff = Math.abs(actualMin - goalMin);
+    if (diff > 12 * 60) diff = 24 * 60 - diff;
+    if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
+    if (diff <= 30) return { status: 'Close', color: '#ffa500' };
+    return { status: 'Off', color: 'var(--color-danger)' };
+};
+
+// Analyze bedtime
+const analyzeBedtime = (time: string | null, goalTime: string | null): { status: string; color: string } => {
+    if (!time) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
+    if (!goalTime) return { status: 'Set', color: 'rgba(255, 255, 255, 0.4)' };
+    const [actualH, actualM] = time.split(':').map(Number);
+    const [goalH, goalM] = goalTime.split(':').map(Number);
+    const actualMin = actualH * 60 + actualM;
+    const goalMin = goalH * 60 + goalM;
+    let diff = Math.abs(actualMin - goalMin);
+    if (diff > 12 * 60) diff = 24 * 60 - diff;
+    if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
+    if (diff <= 30) return { status: 'Close', color: '#ffa500' };
+    return { status: 'Off', color: 'var(--color-danger)' };
+};
+
+// Analyze sleep quality
+const analyzeSleepQuality = (quality?: number): { status: string; color: string } => {
+    if (!quality) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
+    if (quality >= 8) return { status: 'Excellent', color: 'var(--color-primary)' };
+    if (quality >= 6) return { status: 'Good', color: 'var(--color-primary)' };
+    if (quality >= 4) return { status: 'Fair', color: '#ffa500' };
+    return { status: 'Poor', color: 'var(--color-danger)' };
+};
+
+// Analyze calories - uses user's goal from active_goals JSON
+const analyzeCalories = (calories?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!calories) return { status: 'No data - log your calories', color: 'rgba(255, 255, 255, 0.4)' };
+    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const targetCal = activeGoals?.nutrition?.calories;
+    if (!targetCal) return { status: 'Set a calorie goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    const diff = calories - targetCal;
+    if (Math.abs(diff) <= 200) return { status: `On Target (${targetCal} kcal) - great job!`, color: 'var(--color-primary)' };
+    if (diff < 0) return { status: `Under by ${Math.abs(diff)} kcal - add more food`, color: '#ffa500' };
+    return { status: `Over by ${diff} kcal - consider smaller portions`, color: 'var(--color-danger)' };
+};
+
+// Analyze protein - uses user's goal from active_goals JSON
+const analyzeProtein = (protein?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!protein) return { status: 'No data - log your protein', color: 'rgba(255, 255, 255, 0.4)' };
+    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const targetProtein = activeGoals?.nutrition?.protein;
+    if (!targetProtein) return { status: 'Set a protein goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    const diff = protein - targetProtein;
+    const ratio = protein / targetProtein;
+    if (ratio >= 0.85 && ratio <= 1.15) return { status: `Adequate (${targetProtein}g) - well done!`, color: 'var(--color-primary)' };
+    if (ratio < 0.85) return { status: `Low - need ${Math.max(0, targetProtein - protein)}g more`, color: '#ffa500' };
+    return { status: `High - ${diff}g over your ${targetProtein}g goal`, color: 'var(--color-danger)' };
+};
+
+// Analyze carbs - uses user's goal from active_goals JSON
+const analyzeCarbs = (carbs?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!carbs) return { status: 'No data - log your carbs', color: 'rgba(255, 255, 255, 0.4)' };
+    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const targetCarbs = activeGoals?.nutrition?.carbs;
+    if (!targetCarbs) return { status: 'Set a carb goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    const diff = carbs - targetCarbs;
+    const ratio = carbs / targetCarbs;
+    if (ratio >= 0.8 && ratio <= 1.2) return { status: `Adequate (${targetCarbs}g) - good job!`, color: 'var(--color-primary)' };
+    if (ratio < 0.8) return { status: `Low - need ${Math.max(0, targetCarbs - carbs)}g more`, color: '#ffa500' };
+    return { status: `High - ${diff}g over your ${targetCarbs}g goal`, color: 'var(--color-danger)' };
+};
+
+// Analyze fat - uses user's goal from active_goals JSON
+const analyzeFat = (fat?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!fat) return { status: 'No data - log your fat', color: 'rgba(255, 255, 255, 0.4)' };
+    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const targetFat = activeGoals?.nutrition?.fat;
+    if (!targetFat) return { status: 'Set a fat goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    const diff = fat - targetFat;
+    const ratio = fat / targetFat;
+    if (ratio >= 0.8 && ratio <= 1.2) return { status: `Adequate (${targetFat}g) - well done!`, color: 'var(--color-primary)' };
+    if (ratio < 0.8) return { status: `Low - need ${Math.max(0, targetFat - fat)}g more`, color: '#ffa500' };
+    return { status: `High - ${diff}g over your ${targetFat}g goal`, color: 'var(--color-danger)' };
+};
+
+// Analyze water - uses user's goal from active_goals JSON
+const analyzeWater = (water?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!water) return { status: 'No data - log your water', color: 'rgba(255, 255, 255, 0.4)' };
+    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const targetWater = activeGoals?.nutrition?.water;
+    if (!targetWater) return { status: 'Set a water goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    if (water >= targetWater) return { status: `Sufficient (${targetWater}ml) - great hydration!`, color: 'var(--color-primary)' };
+    if (water >= targetWater * 0.6) return { status: `Adequate - ${targetWater - water}ml to go`, color: '#ffa500' };
+    return { status: `Low - need ${targetWater - water}ml more`, color: 'var(--color-danger)' };
+};
+
+// Analyze weight - uses user's target_weight from settings
+const analyzeWeight = (weight?: number, settings?: UserSettings | null): { status: string; color: string } => {
+    if (!weight) return { status: 'No data - log your weight', color: 'rgba(255, 255, 255, 0.4)' };
+    if (!settings?.height_cm) return { status: 'Set your height in your profile', color: 'rgba(255, 255, 255, 0.4)' };
+    const bmi = weight / Math.pow((settings.height_cm / 100), 2);
+    if (bmi < 18.5) return { status: `Underweight (BMI ${bmi.toFixed(1)}) - consider gaining`, color: '#ffa500' };
+    if (bmi < 25) return { status: `Normal (BMI ${bmi.toFixed(1)}) - great!`, color: 'var(--color-primary)' };
+    if (bmi < 30) return { status: `Overweight (BMI ${bmi.toFixed(1)}) - consider losing`, color: '#ffa500' };
+    return { status: `Obese (BMI ${bmi.toFixed(1)}) - consult a professional`, color: 'var(--color-danger)' };
+};
+
+// Analyze body fat
+const analyzeBodyFat = (bodyFat?: number): { status: string; color: string } => {
+    if (!bodyFat) return { status: 'No data - log your body fat', color: 'rgba(255, 255, 255, 0.4)' };
+    if (bodyFat < 10) return { status: 'Low - below healthy range', color: '#ffa500' };
+    if (bodyFat <= 20) return { status: 'Athlete - excellent!', color: 'var(--color-primary)' };
+    if (bodyFat <= 30) return { status: 'Fitness - good range', color: '#ffa500' };
+    return { status: 'Obese - consider reducing body fat', color: 'var(--color-danger)' };
+};
+
+// Analyze mood
+const analyzeMood = (mood?: number): { status: string; color: string } => {
+    if (!mood) return { status: 'No data - log your mood', color: 'rgba(255, 255, 255, 0.4)' };
+    if (mood >= 8) return { status: 'Great - keep it up!', color: 'var(--color-primary)' };
+    if (mood >= 6) return { status: 'Good - nice!', color: 'var(--color-primary)' };
+    if (mood >= 4) return { status: 'Neutral - try to lift your spirits', color: '#ffa500' };
+    return { status: 'Low - consider rest or social connection', color: 'var(--color-danger)' };
+};
+
 
 const DailyLogPage: React.FC = () => {
     const navigate = useNavigate();
@@ -199,142 +314,371 @@ const DailyLogPage: React.FC = () => {
     }, [projects]);
 
     // Helper to score individual inputs (0-100)
-    const scoreInput = useCallback((type: string, value: string | number | boolean | null | undefined, wakeTime?: string, bedtime?: string, sleepDuration?: number | null): number => {
-        if (!value && value !== 0) return 0;
-        
-        switch (type) {
-            case 'sleepQuality': {
-                const sq = parseInt(value as string);
-                const qualityScore = Math.round((sq / 10) * 100);
-                
-                // If we have goals, combine quality with time/duration scores
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-                if (activeGoals?.sleep) {
-                    const wakeTimeScore = calculateTimeMatchScore(wakeTime || null, activeGoals.sleep.wake_time);
-                    const bedtimeScore = calculateTimeMatchScore(bedtime || null, activeGoals.sleep.bedtime);
-                    const durationScore = calculateSleepDurationScore(sleepDuration || null, activeGoals.sleep.hours);
-                    
-                    // Sleep score = 25% quality + 25% wake time + 25% bedtime + 25% duration
-                    return Math.round((qualityScore * 0.25) + (wakeTimeScore * 0.25) + (bedtimeScore * 0.25) + (durationScore * 0.25));
-                }
-                
-                return qualityScore;
-            }
-            case 'morningSystolic':
-            case 'morningDiastolic': {
-                const sys = morningSystolic ? parseInt(morningSystolic) : 0;
-                const dia = morningDiastolic ? parseInt(morningDiastolic) : 0;
-                if (!sys || !dia) return 0;
-                return calculateBPScore(sys, dia).points;
-            }
-            case 'eveningSystolic':
-            case 'eveningDiastolic': {
-                const sys = eveningSystolic ? parseInt(eveningSystolic) : 0;
-                const dia = eveningDiastolic ? parseInt(eveningDiastolic) : 0;
-                if (!sys || !dia) return 0;
-                return calculateBPScore(sys, dia).points;
-            }
-            case 'bodyTemperature': {
-                const temp = parseFloat(value as string);
-                return calculateTempScore(temp).points;
-            }
-            case 'calories': {
-                const cal = parseInt(value as string);
-                if (!settings?.starting_weight || !settings?.height_cm) return 50;
-                const bmr = 10 * (settings.starting_weight || 70) + 6.25 * (settings.height_cm || 170) - 5 * 30 + 5;
-                const tdee = bmr * 1.55;
-                const targetCal = settings.goal === 'lose' ? tdee - 500 : settings.goal === 'gain' ? tdee + 500 : tdee;
-                const diff = Math.abs(cal - targetCal);
-                if (diff < 200) return 100;
-                if (diff < 400) return 75;
-                if (diff < 600) return 50;
-                if (diff < 800) return 25;
-                return 25;
-            }
-            case 'protein': {
-                const proteinGrams = parseInt(value as string);
-                if (!settings?.starting_weight) return 50;
-                const targetProtein = (settings.starting_weight || 70) * 1.6;
-                const ratio = proteinGrams / targetProtein;
-                if (ratio >= 0.9 && ratio <= 1.3) return 100;
-                if (ratio >= 0.7) return 75;
-                if (ratio > 0) return 50;
-                return 25;
-            }
-            case 'carbs':
-            case 'fat': {
-                return 75;
-            }
-            case 'water': {
-                const waterMl = parseInt(value as string);
-                if (waterMl >= 2500) return 100;
-                if (waterMl >= 2000) return 80;
-                if (waterMl >= 1500) return 60;
-                if (waterMl >= 1000) return 40;
-                return 20;
-            }
-            case 'weight': {
-                if (!settings?.starting_weight || !settings?.height_cm) return 50;
-                const bmi = parseFloat(value as string) / Math.pow((settings.height_cm / 100), 2);
-                if (bmi >= 18.5 && bmi < 25) return 100;
-                if (bmi >= 25 && bmi < 30) return 75;
-                if (bmi >= 30) return 50;
-                return 75;
-            }
-            case 'bodyFat': {
-                const bf = parseFloat(value as string);
-                if (bf >= 10 && bf <= 20) return 100;
-                if (bf > 20 && bf <= 30) return 75;
-                return 50;
-            }
-            case 'mood': {
-                const moodVal = parseInt(value as string);
-                return Math.round((moodVal / 10) * 100);
-            }
-            case 'journalEntry': {
-                return (value as string).trim().length > 0 ? 100 : 0;
-            }
-            case 'projectWorkDone': {
-                return value ? 100 : 0;
-            }
-            default:
-                return 50;
+    // Calculate score for a single metric (0-100)
+
+    const calculateMetricScore = (type: string, value: string | number | boolean | null | undefined): { score: number; logged: boolean } => {
+
+        if (value === null || value === undefined || value === '' || value === false) {
+
+            return { score: 0, logged: false };
+
         }
-    }, [settings, morningSystolic, morningDiastolic, eveningSystolic, eveningDiastolic, wakeTime, bedtime, computedSleepDuration]);
 
-    // Calculate individual input scores (each input = 5% weight)
-    const inputScores = useMemo(() => {
-        return {
-            wakeTime: (wakeTime && bedtime ? 100 : 0),
-            bedtime: (wakeTime && bedtime ? 100 : 0),
-            sleepQuality: scoreInput('sleepQuality', sleepQuality, wakeTime, bedtime, computedSleepDuration),
-            morningSystolic: scoreInput('morningSystolic', morningSystolic),
-            morningDiastolic: scoreInput('morningDiastolic', morningDiastolic),
-            morningBpm: morningBpm ? 100 : 0,
-            eveningSystolic: scoreInput('eveningSystolic', eveningSystolic),
-            eveningDiastolic: scoreInput('eveningDiastolic', eveningDiastolic),
-            eveningBpm: eveningBpm ? 100 : 0,
-            bodyTemperature: scoreInput('bodyTemperature', bodyTemperature),
-            calories: scoreInput('calories', calories),
-            protein: scoreInput('protein', protein),
-            carbs: scoreInput('carbs', carbs),
-            fat: scoreInput('fat', fat),
-            water: scoreInput('water', water),
-            weight: scoreInput('weight', weight),
-            bodyFat: scoreInput('bodyFat', bodyFat),
-            mood: scoreInput('mood', mood),
-            journalEntry: scoreInput('journalEntry', journalEntry),
-            projectWorkDone: scoreInput('projectWorkDone', projectWorkDone),
-        };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, projectWorkDone, scoreInput]);
+        
 
-    // Calculate overall daily score (average of all inputs)
+        switch (type) {
+
+            /* eslint-disable no-fallthrough */
+            // === FIXED MEDICAL GUIDELINES (Range-Based) ===
+
+            case 'morningSystolic':
+
+            case 'eveningSystolic': {
+
+                const sys = parseFloat(value as string);
+
+                if (isNaN(sys)) return { score: 0, logged: false };
+
+                if (sys <= 120) return { score: 100, logged: true };
+
+                if (sys >= 140) return { score: 0, logged: true };
+
+                return { score: Math.round(((140 - sys) / 20) * 100), logged: true };
+
+            }
+
+            case 'morningDiastolic':
+
+            case 'eveningDiastolic': {
+
+                const dia = parseFloat(value as string);
+
+                if (isNaN(dia)) return { score: 0, logged: false };
+
+                if (dia <= 80) return { score: 100, logged: true };
+
+                if (dia >= 100) return { score: 0, logged: true };
+
+                return { score: Math.round(((100 - dia) / 20) * 100), logged: true };
+
+            }
+
+            case 'morningBpm':
+
+            case 'eveningBpm': {
+
+                const bpm = parseFloat(value as string);
+
+                if (isNaN(bpm)) return { score: 0, logged: false };
+
+                if (bpm >= 60 && bpm <= 100) return { score: 100, logged: true };
+
+                if (bpm < 40 || bpm > 120) return { score: 0, logged: true };
+
+                if (bpm < 60) return { score: Math.round(((bpm - 40) / 20) * 100), logged: true };
+
+                return { score: Math.round(((120 - bpm) / 20) * 100), logged: true };
+
+            }
+
+            case 'bodyTemperature': {
+
+                const temp = parseFloat(value as string);
+
+                if (isNaN(temp)) return { score: 0, logged: false };
+
+                if (temp >= 36.5 && temp <= 37.5) return { score: 100, logged: true };
+
+                if (temp < 35.5 || temp > 38.5) return { score: 0, logged: true };
+
+                if (temp < 36.5) return { score: Math.round(((temp - 35.5) / 1) * 100), logged: true };
+
+                return { score: Math.round(((38.5 - temp) / 1) * 100), logged: true };
+
+            }
+
+            
+
+            /* eslint-enable no-fallthrough */
+            // === USER-DEFINED GOALS (Linear Tolerance) ===
+
+            case 'calories': {
+
+                const cal = parseInt(value as string);
+
+                if (isNaN(cal)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const targetCal = activeGoals?.nutrition?.calories;
+
+                if (!targetCal) return { score: 50, logged: true };
+
+                if (cal <= targetCal) return { score: 100, logged: true };
+
+                const tolerance = targetCal * 0.25;
+
+                const diff = cal - targetCal;
+
+                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+            }
+
+            case 'protein': {
+
+                const p = parseFloat(value as string);
+
+                if (isNaN(p)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const targetProtein = activeGoals?.nutrition?.protein;
+
+                if (!targetProtein) return { score: 50, logged: true };
+
+                if (p >= targetProtein) return { score: 100, logged: true };
+
+                const tolerance = targetProtein * 0.33;
+
+                const diff = targetProtein - p;
+
+                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+            }
+
+            case 'carbs': {
+
+                const c = parseFloat(value as string);
+
+                if (isNaN(c)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const targetCarbs = activeGoals?.nutrition?.carbs;
+
+                if (!targetCarbs) return { score: 50, logged: true };
+
+                const tolerance = targetCarbs * 0.375;
+
+                const diff = Math.abs(c - targetCarbs);
+
+                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+            }
+
+            case 'fat': {
+
+                const f = parseFloat(value as string);
+
+                if (isNaN(f)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const targetFat = activeGoals?.nutrition?.fat;
+
+                if (!targetFat) return { score: 50, logged: true };
+
+                const tolerance = targetFat * 0.33;
+
+                const diff = Math.abs(f - targetFat);
+
+                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+            }
+
+            case 'water': {
+
+                const w = parseFloat(value as string);
+
+                if (isNaN(w)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const targetWater = activeGoals?.nutrition?.water;
+
+                if (!targetWater) return { score: 50, logged: true };
+
+                if (w >= targetWater) return { score: 100, logged: true };
+
+                const tolerance = targetWater * 0.3;
+
+                const diff = targetWater - w;
+
+                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+            }
+
+            case 'sleepQuality': {
+
+                const sq = parseInt(value as string);
+
+                if (isNaN(sq)) return { score: 0, logged: false };
+
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+                const goalHours = activeGoals?.sleep?.hours;
+
+                const qualityScore = Math.round((sq / 10) * 100);
+
+                if (goalHours && computedSleepDuration) {
+
+                    const diff = Math.abs(computedSleepDuration - goalHours);
+
+                    const durationScore = Math.max(0, Math.round(100 - ((diff / 2) * 100)));
+
+                    return { score: Math.round((qualityScore * 0.5) + (durationScore * 0.5)), logged: true };
+
+                }
+
+                // Cap quality-only score at 60 to avoid inflated scores when only sleep quality is logged
+                return { score: Math.min(60, qualityScore), logged: true };
+
+            }
+
+            
+
+            /* eslint-disable no-fallthrough */
+            // === BINARY HABITS ===
+
+            case 'morningRoutine':
+
+            case 'eveningRoutine':
+
+            case 'fruitServing':
+
+            case 'studied':
+
+            case 'journal':
+
+            case 'stretching':
+
+            case 'reading':
+
+            case 'projectWorkDone':
+
+                return { score: value ? 100 : 0, logged: true };
+
+            
+
+            /* eslint-enable no-fallthrough */
+            // === OPTIONAL FIELDS ===
+
+            case 'weight': {
+
+                const w = parseFloat(value as string);
+
+                if (isNaN(w)) return { score: 0, logged: false };
+
+                const targetWeight = settings?.target_weight;
+
+                if (!targetWeight) return { score: 50, logged: true };
+
+                const diff = Math.abs(w - targetWeight);
+
+                if (diff <= 2) return { score: 100, logged: true };
+
+                return { score: Math.max(0, Math.round(100 - ((diff - 2) / 2) * 100)), logged: true };
+
+            }
+
+            case 'bodyFat': {
+
+                const bf = parseFloat(value as string);
+
+                if (isNaN(bf)) return { score: 0, logged: false };
+
+                const targetBodyFat = settings?.target_bodyfat;
+
+                if (!targetBodyFat) return { score: 50, logged: true };
+
+                const diff = Math.abs(bf - targetBodyFat);
+
+                if (diff <= 3) return { score: 100, logged: true };
+
+                return { score: Math.max(0, Math.round(100 - ((diff - 3) / 3) * 100)), logged: true };
+
+            }
+
+            
+
+            default:
+
+                return { score: 0, logged: false };
+
+        }
+
+    };
+
+
+
+    // Calculate overall daily score (average of all logged metrics)
+
     const calculatedScore = useMemo(() => {
-        const scores = Object.values(inputScores);
-        if (scores.length === 0) return 0;
-        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+        const metrics: { score: number; logged: boolean }[] = [
+
+            calculateMetricScore('morningSystolic', morningSystolic),
+
+            calculateMetricScore('morningDiastolic', morningDiastolic),
+
+            calculateMetricScore('morningBpm', morningBpm),
+
+            calculateMetricScore('eveningSystolic', eveningSystolic),
+
+            calculateMetricScore('eveningDiastolic', eveningDiastolic),
+
+            calculateMetricScore('eveningBpm', eveningBpm),
+
+            calculateMetricScore('bodyTemperature', bodyTemperature),
+
+            calculateMetricScore('calories', calories),
+
+            calculateMetricScore('protein', protein),
+
+            calculateMetricScore('carbs', carbs),
+
+            calculateMetricScore('fat', fat),
+
+            calculateMetricScore('water', water),
+
+            calculateMetricScore('weight', weight),
+
+            calculateMetricScore('bodyFat', bodyFat),
+
+            calculateMetricScore('sleepQuality', sleepQuality),
+
+            calculateMetricScore('morningRoutine', morningRoutine),
+
+            calculateMetricScore('eveningRoutine', eveningRoutine),
+
+            calculateMetricScore('fruitServing', fruitServing),
+
+            calculateMetricScore('studied', studied),
+
+            calculateMetricScore('journal', journal),
+
+            calculateMetricScore('stretching', stretching),
+
+            calculateMetricScore('reading', reading),
+
+            calculateMetricScore('projectWorkDone', projectWorkDone),
+
+        ];
+
+        
+
+        const loggedMetrics = metrics.filter(m => m.logged);
+
+        if (loggedMetrics.length === 0) return 0;
+
+        
+
+        const avg = loggedMetrics.reduce((a, b) => a + b.score, 0) / loggedMetrics.length;
+
         return Math.round(avg);
-    }, [inputScores]);
+
+    }, [calculateMetricScore, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, sleepQuality, wakeTime, bedtime, computedSleepDuration, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, projectWorkDone, settings]);
+
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
@@ -563,82 +907,6 @@ const DailyLogPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Category Stat Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-moon"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Sleep</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.sleepQuality) }}>
-                                    {inputScores.sleepQuality}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-heart-pulse"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Blood Pressure</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.morningSystolic) }}>
-                                    {inputScores.morningSystolic}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-thermometer"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Temperature</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.bodyTemperature) }}>
-                                    {inputScores.bodyTemperature}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-flame"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Calories</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.calories) }}>
-                                    {inputScores.calories}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-glass-water"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Water</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.water) }}>
-                                    {inputScores.water}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-weight"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Weight</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.weight) }}>
-                                    {inputScores.weight}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-file-text"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Journal</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.journalEntry) }}>
-                                    {inputScores.journalEntry}%
-                                </div>
-                            </div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-icon"><i className="i-lucide-briefcase"></i></div>
-                            <div className="stat-content">
-                                <div className="stat-label">Projects</div>
-                                <div className="stat-value" style={{ color: getScoreColor(inputScores.projectWorkDone) }}>
-                                    {inputScores.projectWorkDone}%
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="daily-log-form">
                         <div className="flex items-center justify-between mb-4">
                             <span className="text-xs opacity-60">
@@ -646,14 +914,22 @@ const DailyLogPage: React.FC = () => {
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="card md:col-span-1">
+                        {/* Puzzle/Masonry layout - each card only uses the height it needs */}
+                        <div className="daily-log-puzzle daily-log-puzzle-3">
+                            <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-sun mr-2"></i>Sleep</h3>
                                 </div>
                                 <div className="card-body">
                                     <div className="form-group">
-                                        <label className="form-label">Wake Time (24h format)</label>
+                                        <label className="form-label">
+                                            Wake Time (24h format)
+                                            {wakeTime && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).color }}>
+                                                    ({analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input 
                                             type="text" 
                                             value={wakeTime || ''} 
@@ -682,7 +958,14 @@ const DailyLogPage: React.FC = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Bedtime (24h format)</label>
+                                        <label className="form-label">
+                                            Bedtime (24h format)
+                                            {bedtime && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeBedtime(bedtime || null, activeGoals?.sleep?.bedtime || null).color }}>
+                                                    ({analyzeBedtime(bedtime || null, activeGoals?.sleep?.bedtime || null).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input 
                                             type="text" 
                                             value={bedtime || ''} 
@@ -711,18 +994,35 @@ const DailyLogPage: React.FC = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Sleep Quality (0-10)</label>
+                                        <label className="form-label">
+                                            Sleep Duration
+                                            <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>
+                                                ({formatSleepDuration(computedSleepDuration)})
+                                            </span>
+                                        </label>
+                                        <input type="text" value={formatSleepDuration(computedSleepDuration)} readOnly className="form-control font-mono" placeholder="--:--" style={{ opacity: 0.7, cursor: 'default' }} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">
+                                            Sleep Quality (0-10)
+                                            {sleepQuality && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeSleepQuality(sleepQuality ? parseInt(sleepQuality) : undefined).color }}>
+                                                    ({analyzeSleepQuality(sleepQuality ? parseInt(sleepQuality) : undefined).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" min="0" max="10" value={sleepQuality} onChange={(e) => setSleepQuality(e.target.value)} className="form-control" placeholder="How well did you sleep?" />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="card md:col-span-1">
+                            <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-activity mr-2"></i>Blood Pressure & Heart Rate</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="flex flex-col gap-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="flex flex-col gap-3">
                                         <div className="form-group">
                                             <label className="form-label">
                                                 Morning Systolic
@@ -749,13 +1049,15 @@ const DailyLogPage: React.FC = () => {
                                             <label className="form-label">
                                                 Morning BPM
                                                 {morningBpm && (
-                                                    <span className="text-xs ml-2" style={{ color: morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
-                                                        ({morningBpm && parseInt(morningBpm) >= 60 && parseInt(morningBpm) <= 100 ? 'Normal' : morningBpm && parseInt(morningBpm) < 60 ? 'Low' : 'High'})
+                                                    <span className="text-xs ml-2" style={{ color: analyzeBPM(morningBpm ? parseInt(morningBpm) : undefined).color }}>
+                                                        ({analyzeBPM(morningBpm ? parseInt(morningBpm) : undefined).status})
                                                     </span>
                                                 )}
                                             </label>
                                             <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="form-control" placeholder="60-100" />
                                         </div>
+                                        </div>
+                                        <div className="flex flex-col gap-3">
                                         <div className="form-group">
                                             <label className="form-label">
                                                 Evening Systolic
@@ -782,72 +1084,128 @@ const DailyLogPage: React.FC = () => {
                                             <label className="form-label">
                                                 Evening BPM
                                                 {eveningBpm && (
-                                                    <span className="text-xs ml-2" style={{ color: eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'var(--color-primary)' : '#ffa500' }}>
-                                                        ({eveningBpm && parseInt(eveningBpm) >= 60 && parseInt(eveningBpm) <= 100 ? 'Normal' : eveningBpm && parseInt(eveningBpm) < 60 ? 'Low' : 'High'})
+                                                    <span className="text-xs ml-2" style={{ color: analyzeBPM(eveningBpm ? parseInt(eveningBpm) : undefined).color }}>
+                                                        ({analyzeBPM(eveningBpm ? parseInt(eveningBpm) : undefined).status})
                                                     </span>
                                                 )}
                                             </label>
                                             <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="form-control" placeholder="60-100" />
                                         </div>
+                                        </div>
                                     </div>
                                     <div className="form-group mt-3">
-                                        <label className="form-label">Body Temperature (°C)</label>
+                                        <label className="form-label">
+                                            Body Temperature (°C)
+                                            {bodyTemperature && (
+                                                <span className="text-xs ml-2" style={{ color: calculateTempScore(parseFloat(bodyTemperature)).color }}>
+                                                    ({calculateTempScore(parseFloat(bodyTemperature)).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" step="0.1" value={bodyTemperature} onChange={(e) => setBodyTemperature(e.target.value)} className="form-control" placeholder="36.5" />
-                                        {bodyTemperature && (
-                                            <span className="text-xs mt-1" style={{ color: calculateTempScore(parseFloat(bodyTemperature)).color }}>
-                                                {calculateTempScore(parseFloat(bodyTemperature)).status}
-                                            </span>
-                                        )}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="card md:col-span-1">
+                            <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-flame mr-2"></i>Nutrition</h3>
                                 </div>
                                 <div className="card-body">
                                     <div className="form-group">
-                                        <label className="form-label">Calories</label>
+                                        <label className="form-label">
+                                            Calories
+                                            {calories && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeCalories(calories ? parseInt(calories) : undefined, settings).color }}>
+                                                    ({analyzeCalories(calories ? parseInt(calories) : undefined, settings).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} className="form-control" placeholder={nutritionGoals?.calories ? String(nutritionGoals.calories) : '2000'} />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Protein (g)</label>
+                                        <label className="form-label">
+                                            Protein (g)
+                                            {protein && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeProtein(protein ? parseInt(protein) : undefined, settings).color }}>
+                                                    ({analyzeProtein(protein ? parseInt(protein) : undefined, settings).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} className="form-control" placeholder={nutritionGoals?.protein ? String(nutritionGoals.protein) : '150'} />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Carbs (g)</label>
+                                        <label className="form-label">
+                                            Carbs (g)
+                                            {carbs && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeCarbs(carbs ? parseInt(carbs) : undefined, settings).color }}>
+                                                    ({analyzeCarbs(carbs ? parseInt(carbs) : undefined, settings).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} className="form-control" placeholder={nutritionGoals?.carbs ? String(nutritionGoals.carbs) : '200'} />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Fat (g)</label>
+                                        <label className="form-label">
+                                            Fat (g)
+                                            {fat && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeFat(fat ? parseInt(fat) : undefined, settings).color }}>
+                                                    ({analyzeFat(fat ? parseInt(fat) : undefined, settings).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={fat} onChange={(e) => setFat(e.target.value)} className="form-control" placeholder={nutritionGoals?.fat ? String(nutritionGoals.fat) : '65'} />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Water (ml)</label>
+                                        <label className="form-label">
+                                            Water (ml)
+                                            {water && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeWater(water ? parseInt(water) : undefined, settings).color }}>
+                                                    ({analyzeWater(water ? parseInt(water) : undefined, settings).status})
+                                                </span>
+                                            )}
+                                        </label>
                                         <input type="number" value={water} onChange={(e) => setWater(e.target.value)} className="form-control" placeholder={nutritionGoals?.water ? String(nutritionGoals.water) : '2500'} />
                                     </div>
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div className="card">
+                        <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-weight mr-2"></i>Body Metrics</h3>
                                 </div>
                                 <div className="card-body">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                         <div className="form-group">
-                                            <label className="form-label">Weight (kg)</label>
+                                            <label className="form-label">
+                                                Weight (kg)
+                                                {weight && (
+                                                    <span className="text-xs ml-2" style={{ color: analyzeWeight(weight ? parseFloat(weight) : undefined, settings).color }}>
+                                                        ({analyzeWeight(weight ? parseFloat(weight) : undefined, settings).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="form-control" placeholder="75.5" />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Body Fat (%)</label>
+                                            <label className="form-label">
+                                                Body Fat (%)
+                                                {bodyFat && (
+                                                    <span className="text-xs ml-2" style={{ color: analyzeBodyFat(bodyFat ? parseFloat(bodyFat) : undefined).color }}>
+                                                        ({analyzeBodyFat(bodyFat ? parseFloat(bodyFat) : undefined).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="form-control" placeholder="15.0" />
                                         </div>
                                         <div className="form-group">
-                                            <label className="form-label">Mood (1-10)</label>
+                                            <label className="form-label">
+                                                Mood (1-10)
+                                                {mood && (
+                                                    <span className="text-xs ml-2" style={{ color: analyzeMood(mood ? parseInt(mood) : undefined).color }}>
+                                                        ({analyzeMood(mood ? parseInt(mood) : undefined).status})
+                                                    </span>
+                                                )}
+                                            </label>
                                             <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
                                         </div>
                                     </div>
@@ -855,108 +1213,129 @@ const DailyLogPage: React.FC = () => {
                             </div>
 
                             {/* Habits Section */}
-                            <div className="card mb-4">
-                            <div className="card-header">
-                                <h3 className="card-title"><i className="i-lucide-check-circle mr-2"></i>Habits</h3>
-                            </div>
-                            <div className="card-body">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="flex flex-col gap-2">
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={morningRoutine} onChange={(e) => setMorningRoutine(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Morning Routine</span>
-                                        </label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={eveningRoutine} onChange={(e) => setEveningRoutine(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Evening Routine</span>
-                                        </label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={fruitServing} onChange={(e) => setFruitServing(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Fruit Serving</span>
-                                        </label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={studied} onChange={(e) => setStudied(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Studied</span>
-                                        </label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={stretching} onChange={(e) => setStretching(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Stretching</span>
-                                        </label>
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={reading} onChange={(e) => setReading(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Reading</span>
-                                        </label>
+                            <div className="card puzzle-card mb-4">
+                                <div className="card-header">
+                                    <h3 className="card-title"><i className="i-lucide-check-circle mr-2"></i>Habits</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="flex flex-col gap-2">
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={morningRoutine} onChange={(e) => setMorningRoutine(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Morning Routine</span>
+                                                {morningRoutine && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={eveningRoutine} onChange={(e) => setEveningRoutine(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Evening Routine</span>
+                                                {eveningRoutine && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={fruitServing} onChange={(e) => setFruitServing(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Fruit Serving</span>
+                                                {fruitServing && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={studied} onChange={(e) => setStudied(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Studied</span>
+                                                {studied && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={stretching} onChange={(e) => setStretching(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Stretching</span>
+                                                {stretching && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={reading} onChange={(e) => setReading(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Reading</span>
+                                                {reading && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                        </div>
+                                        
+                                        <div className="flex flex-col gap-2">
+                                            <label className="checkbox-label">
+                                                <input type="checkbox" checked={projectWorkDone} onChange={(e) => setProjectWorkDone(e.target.checked)} className="checkbox-input" />
+                                                <span className="checkbox-custom"></span>
+                                                <span className="text-sm opacity-90">Project Work Done</span>
+                                                {projectWorkDone && (
+                                                    <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
+                                                )}
+                                            </label>
+                                            
+                                            {projectWorkDone && (
+                                                <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
+                                                    <p className="text-xs opacity-50 mb-2">Projects Worked On:</p>
+                                                    <div className="projects-checkbox-list">
+                                                        {loadingProjects ? (
+                                                            <p className="text-xs opacity-50">Loading projects...</p>
+                                                        ) : activeProjects.length > 0 ? (
+                                                            activeProjects.map(project => (
+                                                                <label key={project.id} className="checkbox-label">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedProjectIds.has(project.id!)}
+                                                                        onChange={() => handleProjectToggle(project.id!)}
+                                                                        className="checkbox-input"
+                                                                    />
+                                                                    <span className="checkbox-custom"></span>
+                                                                    <span className="text-sm opacity-90">{project.title}</span>
+                                                                </label>
+                                                            ))
+                                                        ) : (
+                                                            <p className="text-xs opacity-50">No active projects</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     
-                                    <div className="flex flex-col gap-2">
-                                        <label className="checkbox-label">
-                                            <input type="checkbox" checked={projectWorkDone} onChange={(e) => setProjectWorkDone(e.target.checked)} className="checkbox-input" />
-                                            <span className="checkbox-custom"></span>
-                                            <span className="text-sm opacity-90">Project Work Done</span>
-                                        </label>
-                                        
-                                        {projectWorkDone && (
-                                            <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
-                                                <p className="text-xs opacity-50 mb-2">Projects Worked On:</p>
-                                                <div className="projects-checkbox-list">
-                                                    {loadingProjects ? (
-                                                        <p className="text-xs opacity-50">Loading projects...</p>
-                                                    ) : activeProjects.length > 0 ? (
-                                                        activeProjects.map(project => (
-                                                            <label key={project.id} className="checkbox-label">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={selectedProjectIds.has(project.id!)}
-                                                                    onChange={() => handleProjectToggle(project.id!)}
-                                                                    className="checkbox-input"
-                                                                />
-                                                                <span className="checkbox-custom"></span>
-                                                                <span className="text-sm opacity-90">{project.title}</span>
-                                                            </label>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-xs opacity-50">No active projects</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                {loadingHabits ? (
-                                    <p className="text-xs opacity-60 mt-3">Loading custom habits...</p>
-                                ) : habits.length > 0 && (
-                                    <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-3">
-                                        <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
-                                        {habits.map((habit) => (
-                                            <label key={habit.id} className="checkbox-label">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={completedHabits.has(habit.id!)}
-                                                    onChange={async () => {
-                                                        const result = await toggleHabitForDate(habit.id!, logDate);
-                                                        setCompletedHabits(prev => {
-                                                            const next = new Set(prev);
-                                                            if (result) next.add(habit.id!);
-                                                            else next.delete(habit.id!);
-                                                            return next;
-                                                        });
-                                                    }}
-                                                    className="checkbox-input"
-                                                />
-                                                <span className="checkbox-custom"></span>
-                                                <span className="text-sm opacity-90">{habit.name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
-                                
+                                    {loadingHabits ? (
+                                        <p className="text-xs opacity-60 mt-3">Loading custom habits...</p>
+                                    ) : habits.length > 0 && (
+                                        <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-3">
+                                            <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
+                                            {habits.map((habit) => (
+                                                <label key={habit.id} className="checkbox-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={completedHabits.has(habit.id!)}
+                                                        onChange={async () => {
+                                                            const result = await toggleHabitForDate(habit.id!, logDate);
+                                                            setCompletedHabits(prev => {
+                                                                const next = new Set(prev);
+                                                                if (result) next.add(habit.id!);
+                                                                else next.delete(habit.id!);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className="checkbox-input"
+                                                    />
+                                                    <span className="checkbox-custom"></span>
+                                                    <span className="text-sm opacity-90">{habit.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                    
                                     <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                         {!showCustomHabit ? (
                                             <button type="button" onClick={() => setShowCustomHabit(true)} className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100">

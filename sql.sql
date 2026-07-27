@@ -416,80 +416,28 @@ CREATE TABLE public.project_plan_items (
   CONSTRAINT project_plan_items_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT project_plan_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
--- ============================================
--- ROW LEVEL SECURITY POLICIES FOR project_plan_items
--- ============================================
--- Run these in Supabase SQL Editor if plan items fail to save
--- with "new row violates row-level security policy" error
-
--- Enable RLS on project_plan_items
-ALTER TABLE public.project_plan_items ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can view their own plan items
-CREATE POLICY "Users can view their own plan items"
-ON public.project_plan_items
-FOR SELECT
-USING (auth.uid() = user_id);
-
--- Policy: Users can insert plan items for their own projects
-CREATE POLICY "Users can insert plan items for their own projects"
-ON public.project_plan_items
-FOR INSERT
-WITH CHECK (auth.uid() = user_id);
-
--- Policy: Users can update their own plan items
-CREATE POLICY "Users can update their own plan items"
-ON public.project_plan_items
-FOR UPDATE
-USING (auth.uid() = user_id);
-
--- Policy: Users can delete their own plan items
-CREATE POLICY "Users can delete their own plan items"
-ON public.project_plan_items
-FOR DELETE
-USING (auth.uid() = user_id);
-
--- ============================================
--- DIAGNOSTIC QUERIES FOR DUPLICATE BOOK IDs
--- ============================================
--- Run these in Supabase SQL Editor to fix the 62 duplicate ID books
-
--- Step 1: Find all duplicate IDs
--- Replace 'YOUR_USER_ID_HERE' with your actual user ID from Supabase Auth
--- SELECT id, COUNT(*) as duplicate_count, array_agg(title) as book_titles, array_agg(created_at) as created_dates
--- FROM public.books 
--- WHERE user_id = 'YOUR_USER_ID_HERE'
--- GROUP BY id 
--- HAVING COUNT(*) > 1
--- ORDER BY duplicate_count DESC;
-
--- Step 2: Fix duplicate IDs by assigning new UUIDs to duplicates
--- This keeps the oldest book (by created_at) and updates all others with new IDs
--- Replace 'YOUR_USER_ID_HERE' with your actual user ID
--- WITH duplicates AS (
---     SELECT id, COUNT(*) as cnt
---     FROM public.books
---     WHERE user_id = 'YOUR_USER_ID_HERE'
---     GROUP BY id
---     HAVING COUNT(*) > 1
--- ),
--- oldest_duplicates AS (
---     SELECT DISTINCT ON (id) ctid
---     FROM public.books
---     WHERE user_id = 'YOUR_USER_ID_HERE'
---       AND id IN (SELECT id FROM duplicates)
---     ORDER BY id, created_at ASC
--- )
--- UPDATE public.books
--- SET id = gen_random_uuid()
--- WHERE user_id = 'YOUR_USER_ID_HERE'
---   AND id IN (SELECT id FROM duplicates)
---   AND ctid NOT IN (SELECT ctid FROM oldest_duplicates);
-
--- Step 3: Verify the fix - should return 0 rows
--- SELECT id, COUNT(*) as count
--- FROM public.books
--- WHERE user_id = 'YOUR_USER_ID_HERE'
--- GROUP BY id
--- HAVING COUNT(*) > 1;
+CREATE TABLE public.abstinence_goals (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  start_date date NOT NULL DEFAULT CURRENT_DATE,
+  end_date date,
+  target_days integer,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT abstinence_goals_pkey PRIMARY KEY (id),
+  CONSTRAINT abstinence_goals_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.abstinence_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  duration_days integer NOT NULL,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT abstinence_history_pkey PRIMARY KEY (id),
+  CONSTRAINT abstinence_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
