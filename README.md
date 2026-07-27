@@ -6,10 +6,10 @@ A comprehensive daily tracking application that helps you monitor your health, h
 
 ## Features
 
-### Daily Tracking
+### Daily Tracking - Doing
 - **Sleep** - Wake time, bedtime, auto-calculated duration
 - **Vitals** - Blood pressure, heart rate & body temperature (morning + evening)
-- **Body Metrics** - Weight & body fat percentage
+- **Body Metrics** - Weight & body fat percentage - These are optional and do not affect the daily score.
 - **Nutrition** - Calories, protein, carbs, fat, water intake
 - **Habits** - Daily habit checklist (routines, reading, coding, journaling, stretching, language study, and more)
 - **Daily Score** - Weighted daily score computed from every metric
@@ -23,7 +23,7 @@ A comprehensive daily tracking application that helps you monitor your health, h
 - Per-metric goal setting with progress bars
 - Badges & achievements for streaks (habits, workouts, reading, daily score)
 
-### Books
+### Books - Done
 - Book list with last-page-read tracking and progress percentage
 - Personal ratings and reading statistics
 
@@ -31,7 +31,7 @@ A comprehensive daily tracking application that helps you monitor your health, h
 - Workout logging (type, duration, exercises, sets/reps/weight)
 - Calendar heatmap of workout days
 
-### Projects
+### Projects - Done
 - Personal project tracker with periodic reminders and progress tracking
 
 ### Academic / Grading
@@ -44,8 +44,8 @@ A comprehensive daily tracking application that helps you monitor your health, h
 - Weekly/monthly summary reports
 
 ### Platform
-- Installable PWA — works offline, add to home screen
-- Optional API integration with a companion study-timer app to auto-fill the "Studied" metric
+- Installable PWA — Can add to home screen
+- API integration with a companion study-timer app to help with studies. 
 
 ## Tech Stack
 
