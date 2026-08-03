@@ -3823,7 +3823,7 @@ input[type="number"] {
 
 .notes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
   gap: 0.5rem;
 }
 
@@ -4562,7 +4562,7 @@ input[type="number"] {
   flex-direction: column;
   align-items: center;
   padding: 0.75rem;
-  padding-top: calc(0.75rem + var(--navbar-height));
+  padding-top: 3rem;
   padding-bottom: calc(0.75rem + 3rem);
   height: 100vh;
   overflow: hidden;
