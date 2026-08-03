@@ -19,10 +19,6 @@ A comprehensive daily tracking application that helps you monitor your health, h
 - Auto-computed ratios & indices: Waist-Hip Ratio, WHtR, FFMI, Adonis Index, BMR, Lean Body Mass, Muscle Quality, and others
 - Trend charts for every metric over time
 
-### Goals & Gamification
-- Per-metric goal setting with progress bars
-- Badges & achievements for streaks (habits, workouts, reading, daily score)
-
 ### Books - Done
 - Book list with last-page-read tracking and progress percentage
 - Personal ratings and reading statistics
@@ -42,6 +38,9 @@ A comprehensive daily tracking application that helps you monitor your health, h
 - Correlation charts (e.g. sleep duration vs. next-day score)
 - Habit-streak and workout calendars
 - Weekly/monthly summary reports
+
+### Abstinence - Done
+- 
 
 ### Platform
 - Installable PWA — Can add to home screen
