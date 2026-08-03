@@ -12,6 +12,7 @@ import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
 import WorkoutsPage from './Pages/WorkoutsPage'
 import ProjectsPage from './Pages/ProjectsPage'
+import AbstinencePage from './Pages/AbstinencePage'
 import AcademicPage from './Pages/AcademicPage'
 import StudyTimerPage from './Pages/StudyTimerPage'
 import NotesPage from './Pages/NotesPage'
@@ -46,7 +47,7 @@ const AuthenticatedFooter: React.FC = () => {
     }, []);
     
     // Don't show footer on authenticated pages (where secondary navbar appears)
-    const authPaths = ['/Dashboard', '/Daily-Log', '/Measurements', '/Books', '/Workouts', '/Projects', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
+    const authPaths = ['/Dashboard', '/Daily-Log', '/Journal', '/Measurements', '/Books', '/Workouts', '/Projects', '/Abstinence', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
     const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
     if (user && (authPaths.includes(location.pathname) || authPaths.includes(normalizedPath))) {
         return null;
@@ -78,6 +79,7 @@ function App() {
         <Route path="/Books" element={<BooksPage />} />
         <Route path="/Workouts" element={<WorkoutsPage />} />
         <Route path="/Projects" element={<ProjectsPage />} />
+        <Route path="/Abstinence" element={<AbstinencePage />} />
         <Route path="/Academic" element={<AcademicPage />} />
         <Route path="/Study-Timer" element={<StudyTimerPage />} />
         <Route path="/Notes" element={<NotesPage />} />

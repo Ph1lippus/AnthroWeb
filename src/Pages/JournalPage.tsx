@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Title from '../Components/Title';
 import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
@@ -19,21 +20,21 @@ const JournalPage: React.FC = () => {
     const [showTips, setShowTips] = useState(true);
 
     const journalTips = [
-        "💡 What's one thing you're grateful for today?",
-        "💡 Describe a challenge you faced and how you handled it.",
-        "💡 What did you learn about yourself today?",
-        "💡 Write about a moment that made you smile.",
-        "💡 What would you do differently tomorrow?",
-        "💡 Describe your energy levels throughout the day.",
-        "💡 What are you looking forward to tomorrow?",
-        "💡 Did you stick to your habits? What helped or hindered you?",
-        "💡 Write about your meals - what did you enjoy most?",
-        "💡 How did your body feel today? Any aches, pains, or improvements?",
-        "💡 What's one small win you had today?",
-        "💡 Describe your sleep quality in detail.",
-        "💡 Did you have any interesting dreams?",
-        "💡 How did you manage stress today?",
-        "💡 What's on your mind right now?",
+        "What's one thing you're grateful for today?",
+        "Describe a challenge you faced and how you handled it.",
+        "What did you learn about yourself today?",
+        "Write about a moment that made you smile.",
+        "What would you do differently tomorrow?",
+        "Describe your energy levels throughout the day.",
+        "What are you looking forward to tomorrow?",
+        "Did you stick to your habits? What helped or hindered you?",
+        "Write about your meals - what did you enjoy most?",
+        "How did your body feel today? Any aches, pains, or improvements?",
+        "What's one small win you had today?",
+        "Describe your sleep quality in detail.",
+        "Did you have any interesting dreams?",
+        "How did you manage stress today?",
+        "What's on your mind right now?",
     ];
 
     const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
@@ -51,7 +52,6 @@ const JournalPage: React.FC = () => {
         };
         loadSettings();
     }, []);
-
 
     // Check for existing log
     useEffect(() => {
@@ -73,7 +73,7 @@ const JournalPage: React.FC = () => {
     // Auto-save function
     const performSave = useCallback(async () => {
         if (!settings) return;
-        
+
         setSaving(true);
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
@@ -102,11 +102,11 @@ const JournalPage: React.FC = () => {
     // Debounced auto-save
     useEffect(() => {
         if (!settings) return;
-        
+
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
         }
-        
+
         autoSaveTimerRef.current = setTimeout(() => {
             performSave();
         }, 2000);
@@ -120,108 +120,125 @@ const JournalPage: React.FC = () => {
 
     if (!settings) {
         return (
-            <div className="daily-logs-page-wrapper">
-                <div className="dashboard-section daily-logs-section">
-                    <div className="daily-logs-card">
-                        <div className="profile-loading">
-                            <div className="profile-loading-spinner"></div>
-                            <p>Loading...</p>
+            <>
+                <Title title="Journal" />
+                <div className="journal-page-wrapper">
+                    <div className="dashboard-section journal-section">
+                        <div className="journal-card">
+                            <div className="profile-loading">
+                                <div className="profile-loading-spinner"></div>
+                                <p>Loading...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </>
         );
     }
 
     const journalScore = journalEntry && journalEntry.trim().length > 0 ? 100 : 0;
+    const wordCount = journalEntry.trim() ? journalEntry.trim().split(/\s+/).length : 0;
+    const charCount = journalEntry.length;
+    const todayFormatted = new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
     return (
-        <div className="daily-logs-page-wrapper">
-            <div className="dashboard-section daily-logs-section">
-                <div className="daily-logs-card">
-                    <div className="flex gap-2 mb-4">
-                        <button onClick={() => navigate('/Daily-Log')} className="btn-action">
-                            <i className="i-lucide-arrow-left mr-1"></i>Back to Daily Log
-                        </button>
-                        <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
-                            <i className="i-lucide-history mr-1"></i>View History
-                        </button>
-                    </div>
-
-                    {/* Auto-save indicator */}
-                    <div className="flex items-center justify-end gap-2 mb-2 text-xs opacity-60">
-                        {saving ? (
-                            <span><i className="i-lucide-loader animate-spin mr-1"></i>Saving...</span>
-                        ) : lastSaved ? (
-                            <span><i className="i-lucide-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved {lastSaved.toLocaleTimeString()}</span>
-                        ) : (
-                            <span>Auto-saves as you type</span>
-                        )}
-                    </div>
-
-                    {/* Journal Score */}
-                    <div className="card mb-4">
-                        <div className="card-body">
-                            <div className="flex items-center justify-between">
-                                <span className="form-label mb-0">Journal Score</span>
-                                <span className="text-2xl font-bold" style={{ color: journalScore >= 80 ? 'var(--color-primary)' : journalScore > 0 ? '#ffa500' : 'var(--color-danger)' }}>
+        <>
+            <Title title="Journal" />
+            <div className="journal-page-wrapper">
+                <div className="dashboard-section journal-section">
+                    <div className="journal-card">
+                        {/* Stats Bar */}
+                        <div className="journal-stats">
+                            <div className="journal-stat-item">
+                                <span className="journal-stat-label">Journal Score</span>
+                                <span className="journal-stat-value" style={{ color: journalScore >= 80 ? 'var(--color-primary)' : journalScore > 0 ? '#ffa500' : 'var(--color-danger)' }}>
                                     {journalScore}/100
                                 </span>
                             </div>
+                            <div className="journal-stat-item">
+                                <span className="journal-stat-label">Words</span>
+                                <span className="journal-stat-value">{wordCount}</span>
+                            </div>
+                            <div className="journal-stat-item">
+                                <span className="journal-stat-label">Characters</span>
+                                <span className="journal-stat-value">{charCount}</span>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Writing Tip */}
-                    {showTips && (
-                        <div className="card mb-4" style={{ background: 'rgba(0, 255, 166, 0.05)', borderColor: 'rgba(0, 255, 166, 0.2)' }}>
-                            <div className="card-body">
-                                <div className="flex items-start justify-between gap-2">
+                        {/* Top Bar */}
+                        <div className="journal-top-bar">
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => navigate('/Daily-Log')} className="btn-action">
+                                    <i className="i-lucide-arrow-left mr-1"></i>Daily Log
+                                </button>
+                                <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
+                                    <i className="i-lucide-history mr-1"></i>History
+                                </button>
+                            </div>
+                            <div className="journal-autosave">
+                                {saving ? (
+                                    <span><i className="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving...</span>
+                                ) : lastSaved ? (
+                                    <span><i className="fa-solid fa-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved {lastSaved.toLocaleTimeString()}</span>
+                                ) : (
+                                    <span>Auto-saves as you type</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Date Header */}
+                        <div className="journal-date-header">
+                            <i className="fa-regular fa-calendar"></i>
+                            {todayFormatted}
+                        </div>
+
+                        {/* Writing Tip */}
+                        {showTips && (
+                            <div className="journal-tip-card">
+                                <div className="journal-tip-content">
                                     <div className="flex items-start gap-2 flex-1">
-                                        <i className="i-lucide-lightbulb" style={{ color: 'var(--color-primary)', marginTop: '0.15rem' }}></i>
+                                        <i className="fa-solid fa-lightbulb journal-tip-icon"></i>
                                         <div>
-                                            <div className="text-sm font-semibold mb-1" style={{ color: 'var(--color-primary)' }}>Writing Tip</div>
-                                            <div className="text-xs opacity-80">{randomTip}</div>
+                                            <div className="journal-tip-title">Writing Tip</div>
+                                            <div className="journal-tip-text">{randomTip}</div>
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => setShowTips(false)}
-                                        className="text-xs opacity-50 hover:opacity-100"
-                                        style={{ background: 'none', border: 'none', color: 'var(--color-light)', cursor: 'pointer' }}
+                                        className="journal-tip-close"
+                                        aria-label="Dismiss tip"
                                     >
-                                        <i className="i-lucide-x"></i>
+                                        <i className="fa-solid fa-xmark"></i>
                                     </button>
                                 </div>
+                                <button onClick={refreshTip} className="journal-tip-refresh">
+                                    <i className="fa-solid fa-rotate-right mr-1"></i>Another tip
+                                </button>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Journal Entry */}
-                    <div className="card mb-4">
-                        <div className="card-header">
-                            <h3 className="card-title"><i className="i-lucide-file-text mr-2"></i>Journal Entry</h3>
-                        </div>
-                        <div className="card-body">
-                            <div className="form-group">
-                                <label className="form-label">How was your day?</label>
-                                <textarea
-                                    value={journalEntry}
-                                    onChange={(e) => setJournalEntry(e.target.value)}
-                                    className="form-control"
-                                    rows={12}
-                                    placeholder="Write your thoughts, reflections, or anything notable about today..."
-                                />
+                        {/* Journal Editor */}
+                        <div className="journal-editor-section">
+                            <div className="journal-editor-header">
+                                <i className="fa-solid fa-pen-fancy"></i>
+                                Journal Entry
                             </div>
-                            <div className="flex items-center justify-between mt-2">
-                                <div className="text-xs opacity-50">
-                                    {journalEntry.length} characters
+                            <textarea
+                                value={journalEntry}
+                                onChange={(e) => setJournalEntry(e.target.value)}
+                                className="journal-editor"
+                                placeholder="Write your thoughts, reflections, or anything notable about today..."
+                            />
+                            <div className="journal-editor-footer">
+                                <div className="journal-editor-count">
+                                    {wordCount} words · {charCount} characters
                                 </div>
                                 {!showTips && (
-                                    <button 
+                                    <button
                                         onClick={() => { setShowTips(true); refreshTip(); }}
-                                        className="text-xs opacity-50 hover:opacity-100"
-                                        style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer' }}
+                                        className="journal-show-tips"
                                     >
-                                        <i className="i-lucide-lightbulb mr-1"></i>Show tips
+                                        <i className="fa-solid fa-lightbulb mr-1"></i>Show tips
                                     </button>
                                 )}
                             </div>
@@ -229,7 +246,7 @@ const JournalPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 

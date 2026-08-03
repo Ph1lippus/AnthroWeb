@@ -90,6 +90,7 @@ const Navbar: React.FC = () => {
                                     {nickname}
                                 </NavLink>
                             </div>
+                            
                             <div className="t-dropdown-wrap">
                                 <button
                                     ref={buttonRef}
@@ -98,7 +99,11 @@ const Navbar: React.FC = () => {
                                     aria-label="Menu"
                                     aria-expanded={menuOpen}
                                 >
-                                    <i className={`fa-solid ${menuOpen ? 'fa-ellipsis' : 'fa-ellipsis-vertical'} menu-icon navbar-menu-icon ${menuOpen ? 'menu-open' : ''}`}></i>
+                                    <div className={`navbar-hamburger ${menuOpen ? 'is-active' : ''}`}>
+                                        <span className="hamburger-line"></span>
+                                        <span className="hamburger-line"></span>
+                                        <span className="hamburger-line"></span>
+                                    </div>
                                 </button>
                                 <div
                                     ref={menuRef}

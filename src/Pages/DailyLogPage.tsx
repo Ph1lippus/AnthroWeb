@@ -882,7 +882,9 @@ const DailyLogPage: React.FC = () => {
                         <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
                             <i className="i-lucide-history mr-1"></i>View History
                         </button>
+                        
                     </div>
+                    
 
                     {/* Auto-save indicator */}
                     <div className="flex items-center justify-end gap-2 mb-2 text-xs opacity-60">
@@ -903,16 +905,14 @@ const DailyLogPage: React.FC = () => {
                                 <span className="text-2xl font-bold" style={{ color: getScoreColor(calculatedScore) }}>
                                     {calculatedScore}/100
                                 </span>
+                                <span className="text-xs opacity-60">
+                                {new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                            </span>
                             </div>
                         </div>
                     </div>
 
                     <div className="daily-log-form">
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs opacity-60">
-                                {new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                            </span>
-                        </div>
 
                         {/* Puzzle/Masonry layout - each card only uses the height it needs */}
                         <div className="daily-log-puzzle daily-log-puzzle-3">
