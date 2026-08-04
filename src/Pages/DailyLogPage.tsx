@@ -123,6 +123,23 @@ const analyzeSleepQuality = (quality?: number): { status: string; color: string 
     return { status: 'Poor', color: 'var(--color-danger)' };
 };
 
+// Analyze sleep duration
+const analyzeSleepDuration = (duration: number | null, goalHours?: number | null): { status: string; color: string } => {
+    if (duration === null || duration === undefined || isNaN(duration)) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
+    if (goalHours) {
+        const diff = Math.abs(duration - goalHours);
+        if (diff <= 0.5) return { status: 'On Target', color: 'var(--color-primary)' };
+        if (diff <= 1) return { status: 'Close', color: '#ffa500' };
+        if (duration < goalHours) return { status: 'Under', color: 'var(--color-danger)' };
+        return { status: 'Over', color: 'var(--color-danger)' };
+    }
+    if (duration >= 7 && duration <= 9) return { status: 'Good', color: 'var(--color-primary)' };
+    if (duration >= 6 && duration < 7) return { status: 'Fair', color: '#ffa500' };
+    if (duration >= 5 && duration < 6) return { status: 'Low', color: 'var(--color-danger)' };
+    if (duration > 9) return { status: 'High', color: '#ffa500' };
+    return { status: 'Very Low', color: 'var(--color-danger)' };
+};
+
 // Analyze calories - uses user's goal from active_goals JSON
 const analyzeCalories = (calories?: number, settings?: UserSettings | null): { status: string; color: string } => {
     if (!calories) return { status: 'No data - log your calories', color: 'rgba(255, 255, 255, 0.4)' };
@@ -941,7 +958,7 @@ const DailyLogPage: React.FC = () => {
                                 <div className="card-body">
                                     <div className="form-group">
                                         <label className="form-label">
-                                            Wake Time (24h format)
+                                            Wake Time (24h format) 
                                             {wakeTime && (
                                                 <span className="text-xs ml-2" style={{ color: analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).color }}>
                                                     ({analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).status})
@@ -1014,9 +1031,11 @@ const DailyLogPage: React.FC = () => {
                                     <div className="form-group">
                                         <label className="form-label">
                                             Sleep Duration
-                                            <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>
-                                                ({formatSleepDuration(computedSleepDuration)})
-                                            </span>
+                                            {computedSleepDuration && (
+                                                <span className="text-xs ml-2" style={{ color: analyzeSleepDuration(computedSleepDuration, activeGoals?.sleep?.hours).color }}>
+                                                    ({analyzeSleepDuration(computedSleepDuration, activeGoals?.sleep?.hours).status})
+                                                </span>
+                                            )}
                                         </label>
                                         <input type="text" value={formatSleepDuration(computedSleepDuration)} readOnly className="form-control font-mono" placeholder="--:--" style={{ opacity: 0.7, cursor: 'default' }} />
                                     </div>
