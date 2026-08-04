@@ -441,3 +441,14 @@ CREATE TABLE public.abstinence_history (
   CONSTRAINT abstinence_history_pkey PRIMARY KEY (id),
   CONSTRAINT abstinence_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.daily_log_projects (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  daily_log_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT daily_log_projects_pkey PRIMARY KEY (id),
+  CONSTRAINT daily_log_projects_daily_log_id_fkey FOREIGN KEY (daily_log_id) REFERENCES public.daily_logs(id),
+  CONSTRAINT daily_log_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT daily_log_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);

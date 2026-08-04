@@ -19,7 +19,6 @@ export interface DailyLog {
     carbs?: number;
     fat?: number;
     water?: number;
-    project_id?: string;
     project_work_done?: boolean;
     daily_score?: number;
     mood?: number;
@@ -119,7 +118,6 @@ export const createDailyLog = async (log: DailyLog) => {
             carbs: log.carbs,
             fat: log.fat,
             water: log.water,
-            project_id: log.project_id,
             project_work_done: log.project_work_done,
             daily_score: log.daily_score,
             mood: log.mood,
@@ -149,10 +147,18 @@ export const createDailyLog = async (log: DailyLog) => {
 
 // Update a daily log
 export const updateDailyLog = async (id: string, updates: Partial<DailyLog>) => {
+    // Explicitly exclude fields that should never be updated via this function
+    const updateData: Record<string, unknown> = {};
+    const excludedFields = ['user_id', 'id', 'created_at', 'updated_at'];
+    for (const [key, value] of Object.entries(updates)) {
+        if (!excludedFields.includes(key)) {
+            updateData[key] = value;
+        }
+    }
     const { data, error } = await supabase
         .from('daily_logs')
         .update({
-            ...updates,
+            ...updateData,
             updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -177,4 +183,54 @@ export const deleteDailyLog = async (id: string) => {
         console.error('Error deleting daily log:', error.message);
         throw error;
     }
+};
+
+// Save project associations for a daily log (replaces existing associations)
+export const saveDailyLogProjects = async (dailyLogId: string, projectIds: string[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    // Delete existing associations
+    const { error: deleteError } = await supabase
+        .from('daily_log_projects')
+        .delete()
+        .eq('daily_log_id', dailyLogId);
+
+    if (deleteError) {
+        console.error('Error deleting daily log projects:', deleteError.message);
+        throw deleteError;
+    }
+
+    // Insert new associations
+    if (projectIds.length > 0) {
+        const { error: insertError } = await supabase
+            .from('daily_log_projects')
+            .insert(
+                projectIds.map(projectId => ({
+                    daily_log_id: dailyLogId,
+                    project_id: projectId,
+                    user_id: user.id,
+                }))
+            );
+
+        if (insertError) {
+            console.error('Error saving daily log projects:', insertError.message);
+            throw insertError;
+        }
+    }
+};
+
+// Get project IDs associated with a daily log
+export const getDailyLogProjects = async (dailyLogId: string): Promise<string[]> => {
+    const { data, error } = await supabase
+        .from('daily_log_projects')
+        .select('project_id')
+        .eq('daily_log_id', dailyLogId);
+
+    if (error) {
+        console.error('Error fetching daily log projects:', error.message);
+        return [];
+    }
+
+    return data.map(item => item.project_id);
 };

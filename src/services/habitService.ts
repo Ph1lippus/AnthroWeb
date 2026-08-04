@@ -56,7 +56,7 @@ export const toggleHabitForDate = async (habitId: string, logDate: string): Prom
         // Toggle
         const { error } = await supabase
             .from('daily_habit_logs')
-            .update({ completed: !existing.completed })
+            .update({ completed: !existing.completed, updated_at: new Date().toISOString() })
             .eq('id', existing.id);
 
         if (error) throw error;

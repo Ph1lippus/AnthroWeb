@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/dailyLogService';
+import { createDailyLog, updateDailyLog, getDailyLogByDate, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
-import { getUserHabits, toggleHabitForDate, createHabit } from '../services/habitService';
+import { getUserHabits, toggleHabitForDate, createHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { getUserProjects } from '../services/projectService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
@@ -227,6 +227,7 @@ const DailyLogPage: React.FC = () => {
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [isLoadingData, setIsLoadingData] = useState(true);
 
     const logDate = new Date().toISOString().split('T')[0];
 
@@ -287,6 +288,15 @@ const DailyLogPage: React.FC = () => {
         };
         loadHabits();
     }, []);
+
+    // Load completed habits for the current date
+    useEffect(() => {
+        const loadCompletedHabits = async () => {
+            const completed = await getCompletedHabitsForDate(logDate);
+            setCompletedHabits(completed);
+        };
+        loadCompletedHabits();
+    }, [logDate]);
 
     // Load projects
     useEffect(() => {
@@ -713,15 +723,22 @@ const DailyLogPage: React.FC = () => {
     useEffect(() => {
         const checkExisting = async () => {
             if (!logDate) return;
+            setIsLoadingData(true);
             const log = await getDailyLogByDate(logDate);
             if (log) {
                 setExistingLog(log);
                 setIsEditing(true);
                 fillForm(log);
+                // Load project associations from junction table
+                const projectIds = await getDailyLogProjects(log.id!);
+                if (projectIds.length > 0) {
+                    setSelectedProjectIds(new Set(projectIds));
+                }
             } else {
                 setExistingLog(null);
                 setIsEditing(false);
             }
+            setIsLoadingData(false);
         };
         checkExisting();
     }, [logDate]);
@@ -753,7 +770,7 @@ const DailyLogPage: React.FC = () => {
                 wake_time: wakeTime || undefined,
                 bedtime: bedtime || undefined,
                 sleep_duration: computedSleepDuration || undefined,
-                sleep_quality: sleepQuality ? parseInt(sleepQuality) : undefined,
+                sleep_quality: sleepQuality ? Math.round(parseFloat(sleepQuality)) : undefined,
                 morning_systolic: morningSystolic ? parseInt(morningSystolic) : undefined,
                 morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : undefined,
                 morning_bpm: morningBpm ? parseInt(morningBpm) : undefined,
@@ -768,10 +785,9 @@ const DailyLogPage: React.FC = () => {
                 water: water ? parseInt(water) : undefined,
                 weight: weight ? parseFloat(weight) : undefined,
                 body_fat: bodyFat ? parseFloat(bodyFat) : undefined,
-                mood: mood ? parseInt(mood) : undefined,
+                mood: mood ? Math.round(parseFloat(mood)) : undefined,
                 daily_score: calculatedScore,
                 journal_entry: journalEntry || undefined,
-                project_id: selectedProjectIds.size > 0 ? Array.from(selectedProjectIds)[0] : undefined,
                 project_work_done: projectWorkDone,
                 goal_snapshot: goalSnapshot,
                 morning_routine: morningRoutine,
@@ -785,11 +801,13 @@ const DailyLogPage: React.FC = () => {
 
             if (isEditing && existingLog?.id) {
                 await updateDailyLog(existingLog.id, logData);
+                await saveDailyLogProjects(existingLog.id, Array.from(selectedProjectIds));
             } else {
                 const newLog = await createDailyLog(logData);
                 if (newLog) {
                     setExistingLog(newLog as DailyLog);
                     setIsEditing(true);
+                    await saveDailyLogProjects(newLog.id, Array.from(selectedProjectIds));
                 }
             }
             setLastSaved(new Date());
@@ -802,12 +820,12 @@ const DailyLogPage: React.FC = () => {
 
     // Debounced auto-save on any state change
     useEffect(() => {
-        if (!settings) return;
-        
+        if (!settings || isLoadingData) return;
+
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
         }
-        
+
         autoSaveTimerRef.current = setTimeout(() => {
             performSave();
         }, 2000);
@@ -817,7 +835,7 @@ const DailyLogPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, performSave, settings]);
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, performSave, settings, isLoadingData]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -1011,7 +1029,7 @@ const DailyLogPage: React.FC = () => {
                                                 </span>
                                             )}
                                         </label>
-                                        <input type="number" min="0" max="10" value={sleepQuality} onChange={(e) => setSleepQuality(e.target.value)} className="form-control" placeholder="How well did you sleep?" />
+                                        <input type="number" min="0" max="10" step="1" value={sleepQuality} onChange={(e) => setSleepQuality(e.target.value)} className="form-control" placeholder="How well did you sleep?" />
                                     </div>
                                 </div>
                             </div>
@@ -1206,7 +1224,7 @@ const DailyLogPage: React.FC = () => {
                                                     </span>
                                                 )}
                                             </label>
-                                            <input type="number" min="1" max="10" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
+                                            <input type="number" min="1" max="10" step="1" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
                                         </div>
                                     </div>
                                 </div>
