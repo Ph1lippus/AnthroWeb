@@ -256,12 +256,14 @@ const WorkoutCheckPage: React.FC = () => {
     if (loading) {
         return (
             <>
-                <Title title="Workout Check" />
-                <div className="page-main-with-secondary">
-                    <div className="dashboard-section">
-                        <div className="profile-loading">
-                            <div className="profile-loading-spinner"></div>
-                            <p>Loading workout...</p>
+                <Title title="Log Workout" />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card">
+                            <div className="profile-loading">
+                                <div className="profile-loading-spinner"></div>
+                                <p>Loading workout...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -272,20 +274,26 @@ const WorkoutCheckPage: React.FC = () => {
     if (exercises.length === 0) {
         return (
             <>
-                <Title title="Workout Check" />
-                <div className="page-main-with-secondary">
-                    <div className="dashboard-section">
-                        <div className="dashboard-section__head">
-                            <h2>Workout Check</h2>
-                            <span>Log your daily workout progress</span>
-                        </div>
-                        <div className="empty-state">
-                            <i className="fa-solid fa-dumbbell"></i>
-                            <h3>No workout scheduled for {todayName}</h3>
-                            <p>You haven't set up any exercises for {todayName}. Go to the Workouts page to create a workout template.</p>
-                            <button onClick={() => navigate('/Workouts')} className="btn-primary">
-                                <i className="fa-solid fa-plus mr-1"></i>Setup Workout
-                            </button>
+                <Title title="Log Workout" />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card">
+                            <div className="dashboard-section__head">
+                                <h2>Workout Check</h2>
+                                <span>Log your daily workout progress</span>
+                            </div>
+                            <div className="workout-empty-state">
+                                <div className="workout-empty-state__icon">
+                                    <i className="fa-solid fa-dumbbell"></i>
+                                </div>
+                                <h3 className="workout-empty-state__title">No workout scheduled for {todayName}</h3>
+                                <p className="workout-empty-state__description">
+                                    You haven't set up any exercises for {todayName}. Go to the Workouts page to create a workout template.
+                                </p>
+                                <button onClick={() => navigate('/Workouts/Templates')} className="btn-primary">
+                                    <i className="fa-solid fa-plus mr-1"></i>Setup Workout
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -295,156 +303,173 @@ const WorkoutCheckPage: React.FC = () => {
 
     return (
         <>
-            <Title title="Workout Check" />
-            <div className="page-main-with-secondary">
-                <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Workout Check</h2>
-                        <span>Log your daily workout progress</span>
-                    </div>
-
-                    {/* Workout Info Bar */}
-                    <div className="workout-info-bar">
-                        <div className="workout-date">
-                            <i className="fa-regular fa-calendar"></i>
-                            {todayName}, {today.toLocaleDateString()}
-                        </div>
-                        <div className="workout-progress">
-                            <div className="workout-progress-bar">
-                                <div 
-                                    className="workout-progress-fill" 
-                                    style={{ width: `${progress}%` }}
-                                ></div>
+            <Title title="Log Workout" />
+            <div className="books-page-wrapper">
+                <div className="dashboard-section workout-section">
+                    <div className="workout-card">
+                        {/* Top Bar */}
+                        <div className="workout-top-bar">
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => navigate('/Workouts')} className="btn-action">
+                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                </button>
+                                <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
+                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                </button>
+                                <button onClick={() => navigate('/Workouts/History')} className="btn-action">
+                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                </button>
+                                <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
+                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                </button>
                             </div>
-                            <span>{completedCount}/{totalCount} exercises</span>
+                            <div className="workout-check-status">
+                                {saving ? (
+                                    <span className="workout-check-status__saving">
+                                        <i className="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving...
+                                    </span>
+                                ) : saved ? (
+                                    <span className="workout-check-status__saved">
+                                        <i className="fa-solid fa-check mr-1"></i>Saved
+                                    </span>
+                                ) : (
+                                    <span className="workout-check-status__auto">Auto-saves</span>
+                                )}
+                            </div>
                         </div>
-                        <div className="workout-save-status">
-                            {saving ? (
-                                <span><i className="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving...</span>
-                            ) : saved ? (
-                                <span><i className="fa-solid fa-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved</span>
-                            ) : (
-                                <span>Auto-saves as you type</span>
-                            )}
-                        </div>
-                    </div>
 
-                    {/* Intensity Slider */}
-                    <div className="workout-intensity-section">
-                        <label className="workout-intensity-label">
-                            <i className="fa-solid fa-fire mr-1"></i>
-                            Intensity: <span className="intensity-value">{intensity}/10</span>
-                        </label>
-                        <input
-                            type="range"
-                            min="1"
-                            max="10"
-                            value={intensity}
-                            onChange={(e) => setIntensity(parseInt(e.target.value))}
-                            className="workout-intensity-slider"
-                        />
-                    </div>
-
-                    {/* Exercises List */}
-                    <div className="workout-exercises-list">
-                        {exercises.map((exercise, index) => (
-                            <div 
-                                key={index} 
-                                className={`workout-exercise-card ${exercise.completed ? 'completed' : ''}`}
-                            >
-                                <div className="exercise-header">
-                                    <div className="exercise-info">
-                                        <h3>{exercise.templateDay.exercise_name}</h3>
-                                        {exercise.templateDay.notes && (
-                                            <p className="exercise-notes">{exercise.templateDay.notes}</p>
-                                        )}
-                                        {exercise.templateDay.target_sets && exercise.templateDay.target_reps && (
-                                            <span className="exercise-target">
-                                                Target: {exercise.templateDay.target_sets} sets × {exercise.templateDay.target_reps} reps
-                                                {exercise.templateDay.target_weight && ` @ ${exercise.templateDay.target_weight}kg`}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => handleToggleComplete(index)}
-                                        className={`exercise-complete-btn ${exercise.completed ? 'completed' : ''}`}
-                                    >
-                                        <i className={`fa-solid ${exercise.completed ? 'fa-check-circle' : 'fa-circle'}`}></i>
-                                    </button>
+                        {/* Workout Info */}
+                        <div className="workout-check-info">
+                            <div className="workout-check-info__date">
+                                <i className="fa-regular fa-calendar mr-1"></i>
+                                {todayName}, {today.toLocaleDateString()}
+                            </div>
+                            <div className="workout-check-info__progress">
+                                <div className="workout-check-progress-bar">
+                                    <div 
+                                        className="workout-check-progress-fill" 
+                                        style={{ width: `${progress}%` }}
+                                    ></div>
                                 </div>
+                                <span className="workout-check-progress-text">{completedCount}/{totalCount}</span>
+                            </div>
+                        </div>
 
-                                {exercise.completed && (
-                                    <div className="exercise-details">
-                                        <div className="exercise-inputs">
-                                            <div className="exercise-input-group">
+                        {/* Intensity */}
+                        <div className="workout-check-intensity">
+                            <label className="workout-check-intensity__label">
+                                <i className="fa-solid fa-fire mr-1"></i>
+                                Intensity: <span className="workout-check-intensity__value">{intensity}/10</span>
+                            </label>
+                            <input
+                                type="range"
+                                min="1"
+                                max="10"
+                                value={intensity}
+                                onChange={(e) => setIntensity(parseInt(e.target.value))}
+                                className="workout-check-intensity__slider"
+                            />
+                        </div>
+
+                        {/* Exercises */}
+                        <div className="workout-check-exercises">
+                            {exercises.map((exercise, index) => (
+                                <div 
+                                    key={index} 
+                                    className={`workout-check-exercise ${exercise.completed ? 'workout-check-exercise--completed' : ''}`}
+                                >
+                                    <div className="workout-check-exercise__header">
+                                        <div className="workout-check-exercise__info">
+                                            <h4 className="workout-check-exercise__name">{exercise.templateDay.exercise_name}</h4>
+                                            {exercise.templateDay.notes && (
+                                                <p className="workout-check-exercise__notes">{exercise.templateDay.notes}</p>
+                                            )}
+                                            {exercise.templateDay.target_sets && exercise.templateDay.target_reps && (
+                                                <span className="workout-check-exercise__target">
+                                                    Target: {exercise.templateDay.target_sets}×{exercise.templateDay.target_reps}
+                                                    {exercise.templateDay.target_weight && ` @ ${exercise.templateDay.target_weight}kg`}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => handleToggleComplete(index)}
+                                            className="workout-check-exercise__toggle"
+                                        >
+                                            <i className={`fa-solid ${exercise.completed ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                                        </button>
+                                    </div>
+
+                                    {exercise.completed && (
+                                        <div className="workout-check-exercise__inputs">
+                                            <div className="workout-check-input-group">
                                                 <label>Sets</label>
                                                 <input
                                                     type="number"
                                                     value={exercise.sets}
                                                     onChange={(e) => handleExerciseChange(index, 'sets', e.target.value)}
                                                     placeholder="3"
+                                                    className="workout-check-input"
                                                 />
                                             </div>
-                                            <div className="exercise-input-group">
+                                            <div className="workout-check-input-group">
                                                 <label>Reps</label>
                                                 <input
                                                     type="number"
                                                     value={exercise.reps}
                                                     onChange={(e) => handleExerciseChange(index, 'reps', e.target.value)}
                                                     placeholder="10"
+                                                    className="workout-check-input"
                                                 />
                                             </div>
-                                            <div className="exercise-input-group">
+                                            <div className="workout-check-input-group">
                                                 <label>Weight (kg)</label>
                                                 <input
                                                     type="number"
-                                                    step="0.5"
                                                     value={exercise.weight}
                                                     onChange={(e) => handleExerciseChange(index, 'weight', e.target.value)}
                                                     placeholder="20"
+                                                    className="workout-check-input"
                                                 />
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Notes */}
+                        <div className="workout-check-notes">
+                            <label className="workout-check-notes__label">
+                                <i className="fa-solid fa-note-sticky mr-1"></i>
+                                Notes (optional)
+                            </label>
+                            <textarea
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="workout-check-notes__textarea"
+                                placeholder="How did the workout feel? Any observations?"
+                                rows={3}
+                            />
+                        </div>
+
+                        {/* Actions */}
+                        <div className="workout-check-actions">
+                            <button
+                                onClick={handleCompleteWorkout}
+                                disabled={completionLog?.completed || completedCount === 0}
+                                className={`btn-action workout-check-complete-btn ${completionLog?.completed ? 'workout-check-complete-btn--completed' : ''}`}
+                            >
+                                {completionLog?.completed ? (
+                                    <>
+                                        <i className="fa-solid fa-check mr-1"></i>Workout Completed
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fa-solid fa-flag-checkered mr-1"></i>Complete Workout
+                                    </>
                                 )}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Notes Section */}
-                    <div className="workout-notes-section">
-                        <label className="workout-notes-label">
-                            <i className="fa-solid fa-sticky-note mr-1"></i>
-                            Notes
-                        </label>
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="How did the workout feel? Any adjustments needed?"
-                            className="workout-notes-textarea"
-                        />
-                    </div>
-
-                    {/* Complete Workout Button */}
-                    <div className="workout-actions">
-                        <button
-                            onClick={handleCompleteWorkout}
-                            disabled={completionLog?.completed || completedCount === 0}
-                            className={`btn-primary ${completionLog?.completed ? 'completed' : ''}`}
-                        >
-                            {completionLog?.completed ? (
-                                <>
-                                    <i className="fa-solid fa-check mr-1"></i>Workout Completed
-                                </>
-                            ) : (
-                                <>
-                                    <i className="fa-solid fa-flag-checkered mr-1"></i>Complete Workout
-                                </>
-                            )}
-                        </button>
-                        <button onClick={() => navigate('/Workouts')} className="btn-secondary">
-                            <i className="fa-solid fa-dumbbell mr-1"></i>Manage Workouts
-                        </button>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

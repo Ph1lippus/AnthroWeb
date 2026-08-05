@@ -455,3 +455,150 @@ export const getWorkoutHistory = async (limit: number = 30): Promise<WorkoutComp
 
     return data as WorkoutCompletionLog[];
 };
+
+// Get all PRs for a user
+export const getAllPRs = async (): Promise<PRHistory[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('pr_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('workout_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching all PRs:', error.message);
+        return [];
+    }
+
+    return data as PRHistory[];
+};
+
+// Get workout stats for a date range
+export const getWorkoutStats = async (startDate: string, endDate: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('workout_completion_log')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('workout_date', startDate)
+        .lte('workout_date', endDate)
+        .order('workout_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching workout stats:', error.message);
+        return null;
+    }
+
+    const completedWorkouts = data?.filter(log => log.completed).length || 0;
+    const totalWorkouts = data?.length || 0;
+    
+    return {
+        totalWorkouts,
+        completedWorkouts,
+        completionRate: totalWorkouts > 0 ? (completedWorkouts / totalWorkouts) * 100 : 0,
+        logs: data as WorkoutCompletionLog[]
+    };
+};
+
+// Duplicate a workout template
+export const duplicateWorkoutTemplate = async (templateId: string) => {
+    const originalTemplate = await getWorkoutTemplate(templateId);
+    if (!originalTemplate) throw new Error('Template not found');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    // Create new template
+    const { data: newTemplate, error: templateError } = await supabase
+        .from('workout_templates')
+        .insert({
+            user_id: user.id,
+            name: `${originalTemplate.name} (Copy)`,
+            description: originalTemplate.description,
+            is_active: false,
+        })
+        .select()
+        .single();
+
+    if (templateError) {
+        console.error('Error duplicating template:', templateError.message);
+        throw templateError;
+    }
+
+    // Copy all template days
+    const originalDays = await getWorkoutTemplateDays(templateId);
+    for (const day of originalDays) {
+        await createWorkoutTemplateDay({
+            workout_template_id: newTemplate.id,
+            user_id: user.id,
+            day_of_week: day.day_of_week,
+            exercise_name: day.exercise_name,
+            target_sets: day.target_sets,
+            target_reps: day.target_reps,
+            target_weight: day.target_weight,
+            notes: day.notes,
+        });
+    }
+
+    return newTemplate;
+};
+
+// Get a single workout template by ID
+export const getWorkoutTemplate = async (id: string): Promise<WorkoutTemplate | null> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('workout_templates')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('Error fetching workout template:', error.message);
+        return null;
+    }
+
+    return data as WorkoutTemplate;
+};
+
+// Set active template
+export const setActiveTemplate = async (id: string) => {
+    // First, deactivate all templates for this user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    await supabase
+        .from('workout_templates')
+        .update({ is_active: false })
+        .eq('user_id', user.id);
+
+    // Then activate the selected template
+    return updateWorkoutTemplate(id, { is_active: true });
+};
+
+// Get active template
+export const getActiveTemplate = async (): Promise<WorkoutTemplate | null> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('workout_templates')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+    if (error) {
+        if (error.code === 'PGRST116') return null; // No rows returned
+        console.error('Error fetching active template:', error.message);
+        return null;
+    }
+
+    return data as WorkoutTemplate;
+};

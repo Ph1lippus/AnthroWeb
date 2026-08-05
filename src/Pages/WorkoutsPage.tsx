@@ -1,48 +1,190 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
+import {
+    getActiveTemplate,
+    getTodayWorkoutExercises,
+    isWorkoutCompleted,
+    setActiveTemplate,
+    getWorkoutTemplates,
+    type WorkoutTemplate
+} from '../services/workoutService';
 
 const WorkoutsPage: React.FC = () => {
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+    const [activeTemplate, setActiveTemplateState] = useState<WorkoutTemplate | null>(null);
+    const [todayWorkoutExists, setTodayWorkoutExists] = useState(false);
+    const [todayCompleted, setTodayCompleted] = useState(false);
+    const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today.getDay()];
+
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                setLoading(true);
+
+                const active = await getActiveTemplate();
+                const todayExercises = await getTodayWorkoutExercises();
+                const completed = await isWorkoutCompleted(todayStr);
+                const allTemplates = await getWorkoutTemplates();
+
+                setActiveTemplateState(active);
+                setTodayWorkoutExists(todayExercises.length > 0);
+                setTodayCompleted(completed);
+                setTemplates(allTemplates);
+            } catch (error) {
+                console.error('Error loading workout data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadData();
+    }, [todayStr]);
+
+    const handleActivateTemplate = async (templateId: string) => {
+        try {
+            await setActiveTemplate(templateId);
+            const active = await getActiveTemplate();
+            setActiveTemplateState(active);
+        } catch (error) {
+            console.error('Error activating template:', error);
+        }
+    };
 
     return (
         <>
             <Title title="Workouts" />
-            <div className="page-main-with-secondary">
-                <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Workouts</h2>
-                        <span>Manage your workout routines and progress</span>
-                    </div>
-                    
-                    <div className="workouts-main-actions">
-                        <button onClick={() => navigate('/Workouts/Check')} className="btn-primary">
-                            <i className="fa-solid fa-clipboard-check mr-1"></i>
-                            Check Today's Workout
-                        </button>
-                    </div>
-                    
-                    <div className="empty-state">
-                        <i className="fa-solid fa-dumbbell"></i>
-                        <h3>Workout Management</h3>
-                        <p>Create and manage your workout templates. Set up exercises for each day of the week to track your progress.</p>
-                        <div className="workout-features">
-                            <div className="feature-card">
-                                <i className="fa-solid fa-calendar-days"></i>
-                                <h4>Daily Templates</h4>
-                                <p>Set up different workouts for each day of the week</p>
-                            </div>
-                            <div className="feature-card">
-                                <i className="fa-solid fa-chart-line"></i>
-                                <h4>Track Progress</h4>
-                                <p>Log your sets, reps, and weight for each exercise</p>
-                            </div>
-                            <div className="feature-card">
-                                <i className="fa-solid fa-trophy"></i>
-                                <h4>PR Tracking</h4>
-                                <p>Automatically detect and save personal records</p>
+            <div className="books-page-wrapper">
+                <div className="dashboard-section workout-section">
+                    <div className="workout-card">
+                        {/* Top Bar */}
+                        <div className="workout-top-bar">
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
+                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                </button>
+                                <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
+                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                </button>
+                                <button onClick={() => navigate('/Workouts/History')} className="btn-action">
+                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                </button>
+                                <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
+                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                </button>
                             </div>
                         </div>
+
+                        {/* Workout Content */}
+                        {loading ? (
+                            <div className="profile-loading">
+                                <div className="profile-loading-spinner"></div>
+                                <p>Loading workout...</p>
+                            </div>
+                        ) : (
+                            <div className="workout-main-content">
+                                {/* Today's Status Card */}
+                                <div className="workout-status-card">
+                                    <div className="workout-status-card__header">
+                                        <h3 className="workout-status-card__title">Today: {todayName}</h3>
+                                        <span className={`workout-status-badge ${todayCompleted ? 'workout-status-badge--completed' : todayWorkoutExists ? 'workout-status-badge--pending' : 'workout-status-badge--none'}`}>
+                                            {todayCompleted ? 'Completed' : todayWorkoutExists ? 'Not Started' : 'No Workout'}
+                                        </span>
+                                    </div>
+                                    <div className="workout-status-card__body">
+                                        {todayCompleted ? (
+                                            <p className="workout-status-card__text">Great job! You completed today's workout. 💪</p>
+                                        ) : todayWorkoutExists ? (
+                                            <p className="workout-status-card__text">You have a workout scheduled for today. Click "Log Workout" to track your progress.</p>
+                                        ) : (
+                                            <p className="workout-status-card__text">No workout scheduled for today. Enjoy your rest day or set up a workout template.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Active Template Section */}
+                                <div className="workout-section">
+                                    <div className="workout-section-header">
+                                        <i className="fa-solid fa-layer-group"></i>
+                                        Active Template
+                                    </div>
+                                    {activeTemplate ? (
+                                        <div className="workout-template-card-active">
+                                            <div className="workout-template-card-active__info">
+                                                <h4 className="workout-template-card-active__name">{activeTemplate.name}</h4>
+                                                {activeTemplate.description && (
+                                                    <p className="workout-template-card-active__description">{activeTemplate.description}</p>
+                                                )}
+                                            </div>
+                                            <div className="workout-template-card-active__status">
+                                                <span className="workout-template-card-active__badge">Active</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="workout-empty-simple">
+                                            <p className="workout-empty-simple__text">No active template. Select one below to activate.</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Templates List */}
+                                {templates.length > 0 && (
+                                    <div className="workout-section">
+                                        <div className="workout-section-header">
+                                            <i className="fa-solid fa-dumbbell"></i>
+                                            All Templates ({templates.length})
+                                        </div>
+                                        <div className="workout-templates-list">
+                                            {templates.map((template) => (
+                                                <div key={template.id} className="workout-template-item">
+                                                    <div className="workout-template-item__info">
+                                                        <h4 className="workout-template-item__name">{template.name}</h4>
+                                                        {template.description && (
+                                                            <p className="workout-template-item__description">{template.description}</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="workout-template-item__actions">
+                                                        {activeTemplate?.id !== template.id ? (
+                                                            <button
+                                                                onClick={() => handleActivateTemplate(template.id!)}
+                                                                className="workout-template-item__btn workout-template-item__btn--activate"
+                                                            >
+                                                                <i className="fa-solid fa-check mr-1"></i>Activate
+                                                            </button>
+                                                        ) : (
+                                                            <span className="workout-template-item__active-label">Current</span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => navigate(`/Workouts/Template/${template.id}`)}
+                                                            className="workout-template-item__btn workout-template-item__btn--edit"
+                                                        >
+                                                            <i className="fa-solid fa-pen mr-1"></i>Edit
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {templates.length === 0 && (
+                                    <div className="workout-empty">
+                                        <i className="fa-solid fa-dumbbell workout-empty-icon"></i>
+                                        <p className="workout-empty-title">No workout templates</p>
+                                        <p className="workout-empty-text">Create your first workout template to start tracking your exercises.</p>
+                                        <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
+                                            <i className="fa-solid fa-plus mr-1"></i>Create Template
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
