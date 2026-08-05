@@ -108,7 +108,7 @@ const WorkoutContributionChart: React.FC<WorkoutContributionChartProps> = ({ com
 
             <div className="workout-contribution-chart__container">
                 <div className="workout-contribution-chart__months">
-                    {weeks.map((week, weekIndex) => (
+                    {weeks.map((_week, weekIndex) => (
                         <div key={weekIndex} className="workout-contribution-chart__month">
                             {getMonthLabel(weekIndex)}
                         </div>
