@@ -1,20 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
-import {
-    getTodayWorkoutExercises,
-    getWorkoutCompletionLog,
-    createWorkoutCompletionLog,
-    updateWorkoutCompletionLog,
-    createWorkoutExerciseLog,
-    updateWorkoutExerciseLog,
-    deleteWorkoutExerciseLog,
-    getWorkoutExerciseLogs,
-    getPRHistory,
-    createPR,
-    type WorkoutTemplateDay,
-    type PRHistory,
-} from '../services/workoutService';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
+import type { WorkoutTemplateDay, PRHistory } from '../services/workoutService';
 
 interface ExerciseLog {
     templateDay: WorkoutTemplateDay;
@@ -27,9 +15,24 @@ interface ExerciseLog {
 
 const WorkoutCheckPage: React.FC = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
+    const { 
+        todayExercises, 
+        completionLog, 
+        exerciseLogs,
+        loading, 
+        fetchTodayExercises,
+        fetchCompletionLog,
+        fetchExerciseLogs,
+        createCompletionLog,
+        updateCompletionLog,
+        createExerciseLog,
+        updateExerciseLog,
+        deleteExerciseLog,
+        createPR,
+        detectPR
+    } = useWorkoutStore();
+    
     const [exercises, setExercises] = useState<ExerciseLog[]>([]);
-    const [completionLog, setCompletionLog] = useState<any>(null);
     const [intensity, setIntensity] = useState<number>(5);
     const [notes, setNotes] = useState('');
     const [saving, setSaving] = useState(false);
@@ -47,53 +50,41 @@ const WorkoutCheckPage: React.FC = () => {
     // Load today's workout
     useEffect(() => {
         const loadWorkout = async () => {
-            setLoading(true);
-            
-            // Get today's exercises from template
-            const templateExercises = await getTodayWorkoutExercises();
-            
-            // Get existing completion log
-            const existingLog = await getWorkoutCompletionLog(todayDate);
-            setCompletionLog(existingLog);
-            
-            if (existingLog) {
-                setIntensity(existingLog.intensity || 5);
-                setNotes(existingLog.notes || '');
-                
-                // Get existing exercise logs
-                const exerciseLogs = await getWorkoutExerciseLogs(existingLog.id!);
-                
-                // Map template exercises with existing logs
-                const mappedExercises: ExerciseLog[] = templateExercises.map(template => {
-                    const existingLogEntry = exerciseLogs.find(log => log.exercise_name === template.exercise_name);
-                    return {
-                        templateDay: template,
-                        logId: existingLogEntry?.id,
-                        sets: existingLogEntry?.sets?.toString() || template.target_sets?.toString() || '',
-                        reps: existingLogEntry?.reps?.toString() || template.target_reps?.toString() || '',
-                        weight: existingLogEntry?.weight?.toString() || template.target_weight?.toString() || '',
-                        completed: !!existingLogEntry,
-                    };
-                });
-                
-                setExercises(mappedExercises);
-            } else {
-                // No existing log, create from template
-                const mappedExercises: ExerciseLog[] = templateExercises.map(template => ({
-                    templateDay: template,
-                    sets: template.target_sets?.toString() || '',
-                    reps: template.target_reps?.toString() || '',
-                    weight: template.target_weight?.toString() || '',
-                    completed: false,
-                }));
-                setExercises(mappedExercises);
-            }
-            
-            setLoading(false);
+            await fetchTodayExercises();
+            await fetchCompletionLog(todayDate);
         };
         
         loadWorkout();
-    }, [todayDate]);
+    }, [todayDate, fetchTodayExercises, fetchCompletionLog]);
+
+    // Map exercises when store data changes
+    useEffect(() => {
+        if (completionLog) {
+            setIntensity(completionLog.intensity || 5);
+            setNotes(completionLog.notes || '');
+            
+            if (completionLog.id) {
+                fetchExerciseLogs(completionLog.id);
+            }
+        }
+    }, [completionLog, fetchExerciseLogs]);
+
+    // Map template exercises with existing logs
+    useEffect(() => {
+        const mappedExercises: ExerciseLog[] = todayExercises.map(template => {
+            const existingLogEntry = exerciseLogs.find(log => log.exercise_name === template.exercise_name);
+            return {
+                templateDay: template,
+                logId: existingLogEntry?.id,
+                sets: existingLogEntry?.sets?.toString() || template.target_sets?.toString() || '',
+                reps: existingLogEntry?.reps?.toString() || template.target_reps?.toString() || '',
+                weight: existingLogEntry?.weight?.toString() || template.target_weight?.toString() || '',
+                completed: !!existingLogEntry,
+            };
+        });
+        
+        setExercises(mappedExercises);
+    }, [todayExercises, exerciseLogs]);
 
     // Auto-save function
     const performSave = async () => {
@@ -102,45 +93,46 @@ const WorkoutCheckPage: React.FC = () => {
         setSaving(true);
         try {
             // Create or update completion log
-            let logId = completionLog?.id;
+            let logId: string | undefined = completionLog?.id;
             
             if (!logId) {
-                const newLog = await createWorkoutCompletionLog({
+                const newLog = await createCompletionLog({
                     workout_date: todayDate,
                     completed: false,
                     intensity,
                     notes: notes || undefined,
                 });
-                logId = newLog.id;
-                setCompletionLog(newLog);
+                logId = newLog?.id;
             } else {
-                await updateWorkoutCompletionLog(logId, {
+                await updateCompletionLog(logId, {
                     intensity,
                     notes: notes || undefined,
                 });
             }
             
+            if (!logId) return;
+            
             // Save each exercise
             for (const exercise of exercises) {
                 if (exercise.completed && exercise.sets && exercise.reps) {
                     if (exercise.logId) {
-                        await updateWorkoutExerciseLog(exercise.logId, {
+                        await updateExerciseLog(exercise.logId, {
                             sets: parseInt(exercise.sets),
                             reps: parseInt(exercise.reps),
                             weight: exercise.weight ? parseFloat(exercise.weight) : undefined,
                         });
                     } else {
-                        const newExerciseLog = await createWorkoutExerciseLog({
-                            workout_completion_id: logId!,
+                        const newExerciseLog = await createExerciseLog({
+                            workout_completion_id: logId,
                             exercise_name: exercise.templateDay.exercise_name,
                             sets: parseInt(exercise.sets),
                             reps: parseInt(exercise.reps),
                             weight: exercise.weight ? parseFloat(exercise.weight) : undefined,
                         });
-                        exercise.logId = newExerciseLog.id;
+                        exercise.logId = newExerciseLog?.id;
                     }
                 } else if (!exercise.completed && exercise.logId) {
-                    await deleteWorkoutExerciseLog(exercise.logId);
+                    await deleteExerciseLog(exercise.logId);
                     exercise.logId = undefined;
                 }
             }
@@ -190,7 +182,7 @@ const WorkoutCheckPage: React.FC = () => {
         
         const logId = completionLog?.id;
         if (logId) {
-            await updateWorkoutCompletionLog(logId, { completed: true });
+            await updateCompletionLog(logId, { completed: true });
             
             // Check for PRs
             for (const exercise of exercises) {
@@ -198,41 +190,21 @@ const WorkoutCheckPage: React.FC = () => {
                     const weight = parseFloat(exercise.weight);
                     const reps = parseInt(exercise.reps);
                     
-                    // Get existing PRs for this exercise
-                    const existingPRs = await getPRHistory(exercise.templateDay.exercise_name);
+                    const isPR = await detectPR(exercise.templateDay.exercise_name, weight, reps);
                     
-                    // Check if this is a new PR (higher weight with same or more reps, or same weight with more reps)
-                    const isPR = existingPRs.every(pr => 
-                        !pr.weight || !pr.reps || 
-                        (weight > (pr.weight || 0) && reps >= (pr.reps || 0)) ||
-                        (weight >= (pr.weight || 0) && reps > (pr.reps || 0))
-                    );
-                    
-                    if (isPR && existingPRs.length === 0) {
-                        // First entry for this exercise - save as PR
-                        await createPR({
-                            exercise_name: exercise.templateDay.exercise_name,
-                            weight,
-                            reps,
-                            workout_date: todayDate,
-                            workout_completion_id: logId,
-                        });
-                    } else if (isPR) {
-                        // New PR - show modal
+                    if (isPR) {
                         setSelectedPR({
                             exercise_name: exercise.templateDay.exercise_name,
                             weight,
                             reps,
                             workout_date: todayDate,
-                            workout_completion_id: logId,
-                            user_id: '', // Will be set by service
                         });
                         setShowPRModal(true);
                     }
                 }
             }
             
-            setCompletionLog({ ...completionLog, completed: true });
+            navigate('/Workouts/History');
         }
     };
 

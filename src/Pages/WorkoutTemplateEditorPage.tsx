@@ -2,24 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import ExerciseEditor from '../Components/Workout/ExerciseEditor';
-import {
-    getWorkoutTemplate,
-    getWorkoutTemplateDays,
-    updateWorkoutTemplate,
-    createWorkoutTemplateDay,
-    updateWorkoutTemplateDay,
-    deleteWorkoutTemplateDay,
-    type WorkoutTemplate,
-    type WorkoutTemplateDay
-} from '../services/workoutService';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
+import type { WorkoutTemplateDay } from '../services/workoutService';
 
 const WorkoutTemplateEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
-    const [exercises, setExercises] = useState<WorkoutTemplateDay[]>([]);
+    const { 
+        currentTemplate, 
+        templateExercises, 
+        loading, 
+        fetchTemplate, 
+        fetchTemplateExercises,
+        updateTemplate,
+        addExercise,
+        updateExercise,
+        deleteExercise
+    } = useWorkoutStore();
+    
     const [selectedDay, setSelectedDay] = useState<number>(0);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [templateName, setTemplateName] = useState('');
     const [templateDescription, setTemplateDescription] = useState('');
@@ -31,46 +32,23 @@ const WorkoutTemplateEditorPage: React.FC = () => {
             navigate('/Workouts/Templates');
             return;
         }
-        loadTemplate();
-    }, [id]);
+        fetchTemplate(id);
+        fetchTemplateExercises(id);
+    }, [id, fetchTemplate, fetchTemplateExercises, navigate]);
 
     useEffect(() => {
-        if (template) {
-            setTemplateName(template.name);
-            setTemplateDescription(template.description || '');
+        if (currentTemplate) {
+            setTemplateName(currentTemplate.name);
+            setTemplateDescription(currentTemplate.description || '');
         }
-    }, [template]);
-
-    const loadTemplate = async () => {
-        try {
-            setLoading(true);
-            const templateData = await getWorkoutTemplate(id!);
-            if (!templateData) {
-                alert('Template not found');
-                navigate('/Workouts/Templates');
-                return;
-            }
-            setTemplate(templateData);
-            await loadExercises(id!);
-        } catch (error) {
-            console.error('Error loading template:', error);
-            alert('Failed to load template');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadExercises = async (templateId: string) => {
-        const allExercises = await getWorkoutTemplateDays(templateId);
-        setExercises(allExercises);
-    };
+    }, [currentTemplate]);
 
     const handleUpdateTemplate = async () => {
-        if (!template) return;
+        if (!currentTemplate) return;
         
         try {
             setSaving(true);
-            await updateWorkoutTemplate(template.id!, {
+            await updateTemplate(currentTemplate.id!, {
                 name: templateName,
                 description: templateDescription || undefined
             });
@@ -84,16 +62,15 @@ const WorkoutTemplateEditorPage: React.FC = () => {
     };
 
     const handleAddExercise = async (exercise: Omit<WorkoutTemplateDay, 'id' | 'created_at'>) => {
-        if (!template || !template.id) return;
+        if (!currentTemplate || !currentTemplate.id) return;
 
         try {
-            const newExercise = await createWorkoutTemplateDay({
+            await addExercise({
                 ...exercise,
-                workout_template_id: template.id,
-                user_id: template.user_id,
+                workout_template_id: currentTemplate.id,
+                user_id: currentTemplate.user_id,
                 day_of_week: selectedDay
             });
-            setExercises([...exercises, newExercise]);
         } catch (error) {
             console.error('Error adding exercise:', error);
             alert('Failed to add exercise');
@@ -102,10 +79,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
 
     const handleUpdateExercise = async (exerciseId: string, updates: Partial<WorkoutTemplateDay>) => {
         try {
-            await updateWorkoutTemplateDay(exerciseId, updates);
-            setExercises(exercises.map(ex => 
-                ex.id === exerciseId ? { ...ex, ...updates } : ex
-            ));
+            await updateExercise(exerciseId, updates);
         } catch (error) {
             console.error('Error updating exercise:', error);
             alert('Failed to update exercise');
@@ -114,8 +88,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
 
     const handleDeleteExercise = async (exerciseId: string) => {
         try {
-            await deleteWorkoutTemplateDay(exerciseId);
-            setExercises(exercises.filter(ex => ex.id !== exerciseId));
+            await deleteExercise(exerciseId);
         } catch (error) {
             console.error('Error deleting exercise:', error);
             alert('Failed to delete exercise');
@@ -123,7 +96,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
     };
 
     const getExercisesForDay = (day: number) => {
-        return exercises.filter(ex => ex.day_of_week === day);
+        return templateExercises.filter(ex => ex.day_of_week === day);
     };
 
     const getExerciseCountForDay = (day: number) => {
@@ -148,6 +121,21 @@ const WorkoutTemplateEditorPage: React.FC = () => {
         );
     }
 
+    if (!currentTemplate) {
+        return (
+            <>
+                <Title title="Edit Template" />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card">
+                            <p>Template not found</p>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Title title="Edit Template" />
@@ -163,8 +151,8 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
                                     <i className="fa-solid fa-layer-group mr-1"></i>Templates
                                 </button>
-                                <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                <button onClick={() => navigate(`/Workouts/Start/${currentTemplate.id}`)} className="btn-action">
+                                    <i className="fa-solid fa-play mr-1"></i>Start Workout
                                 </button>
                             </div>
                         </div>
@@ -271,7 +259,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                                     </div>
                                 );
                             })}
-                            {exercises.length === 0 && (
+                            {templateExercises.length === 0 && (
                                 <p style={{ textAlign: 'center', opacity: 0.7, padding: '2rem' }}>
                                     No exercises added to this template yet.
                                 </p>

@@ -1,50 +1,58 @@
 import React from 'react';
 
 interface WorkoutStatsCardsProps {
-    workoutsThisWeek: number;
-    totalPRs: number;
-    currentStreak: number;
-    completionRate: number;
+    weeklyStats: {
+        totalWorkouts: number;
+        completedWorkouts: number;
+        totalVolume: number;
+    };
+    monthlyStats: {
+        totalWorkouts: number;
+        completedWorkouts: number;
+        totalVolume: number;
+    };
 }
 
 const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
-    workoutsThisWeek,
-    totalPRs,
-    currentStreak,
-    completionRate
+    weeklyStats,
+    monthlyStats
 }) => {
+    const monthlyCompletionRate = monthlyStats.totalWorkouts > 0 
+        ? (monthlyStats.completedWorkouts / monthlyStats.totalWorkouts) * 100 
+        : 0;
+
     return (
         <div className="workout-dashboard-grid">
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
                     <i className="fa-solid fa-calendar-check"></i>
                 </div>
-                <div className="workout-stats-card__value">{workoutsThisWeek}</div>
+                <div className="workout-stats-card__value">{weeklyStats.completedWorkouts}</div>
                 <div className="workout-stats-card__label">Workouts This Week</div>
                 <div className="workout-stats-card__trend">
-                    {workoutsThisWeek >= 3 ? 'On track! 🎯' : 'Keep going! 💪'}
+                    {weeklyStats.completedWorkouts >= 3 ? 'On track! 🎯' : 'Keep going! 💪'}
                 </div>
             </div>
 
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-trophy"></i>
+                    <i className="fa-solid fa-dumbbell"></i>
                 </div>
-                <div className="workout-stats-card__value">{totalPRs}</div>
-                <div className="workout-stats-card__label">Total PRs</div>
+                <div className="workout-stats-card__value">{weeklyStats.totalVolume}</div>
+                <div className="workout-stats-card__label">Weekly Volume</div>
                 <div className="workout-stats-card__trend">
-                    {totalPRs > 0 ? 'Great progress! 🏆' : 'Start lifting! 🚀'}
+                    {weeklyStats.totalVolume > 1000 ? 'Great volume! 💪' : 'Keep pushing! ⚡'}
                 </div>
             </div>
 
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-fire"></i>
+                    <i className="fa-solid fa-calendar"></i>
                 </div>
-                <div className="workout-stats-card__value">{currentStreak}</div>
-                <div className="workout-stats-card__label">Day Streak</div>
+                <div className="workout-stats-card__value">{monthlyStats.completedWorkouts}</div>
+                <div className="workout-stats-card__label">Workouts This Month</div>
                 <div className="workout-stats-card__trend">
-                    {currentStreak >= 7 ? 'On fire! 🔥' : 'Building momentum ⚡'}
+                    {monthlyStats.completedWorkouts >= 12 ? 'Excellent! 🏆' : 'Building consistency 📈'}
                 </div>
             </div>
 
@@ -52,10 +60,10 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
                 <div className="workout-stats-card__icon">
                     <i className="fa-solid fa-chart-line"></i>
                 </div>
-                <div className="workout-stats-card__value">{completionRate.toFixed(0)}%</div>
-                <div className="workout-stats-card__label">Completion Rate</div>
+                <div className="workout-stats-card__value">{monthlyCompletionRate.toFixed(0)}%</div>
+                <div className="workout-stats-card__label">Monthly Completion Rate</div>
                 <div className="workout-stats-card__trend">
-                    {completionRate >= 80 ? 'Excellent! 📈' : 'Room to improve 📊'}
+                    {monthlyCompletionRate >= 80 ? 'Excellent! 📈' : 'Room to improve 📊'}
                 </div>
             </div>
         </div>

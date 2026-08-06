@@ -2,36 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import WorkoutContributionChart from '../Components/Workout/WorkoutContributionChart';
-import {
-    getWorkoutHistory,
-    getWorkoutExerciseLogs,
-    type WorkoutCompletionLog
-} from '../services/workoutService';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
+import type { WorkoutCompletionLog } from '../services/workoutService';
 
 const WorkoutHistoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const [workoutHistory, setWorkoutHistory] = useState<WorkoutCompletionLog[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { 
+        workoutHistory, 
+        loading, 
+        fetchWorkoutHistory, 
+        fetchExerciseLogs,
+        exerciseLogs 
+    } = useWorkoutStore();
+    
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedWorkout, setSelectedWorkout] = useState<WorkoutCompletionLog | null>(null);
-    const [exerciseLogs, setExerciseLogs] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        loadWorkoutHistory();
-    }, []);
-
-    const loadWorkoutHistory = async () => {
-        try {
-            setLoading(true);
-            const history = await getWorkoutHistory(90); // Last 90 days
-            setWorkoutHistory(history);
-        } catch (error) {
-            console.error('Error loading workout history:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+        fetchWorkoutHistory(90); // Last 90 days
+    }, [fetchWorkoutHistory]);
 
     const handleDateClick = async (date: string) => {
         const workout = workoutHistory.find(w => w.workout_date === date);
@@ -40,16 +30,13 @@ const WorkoutHistoryPage: React.FC = () => {
             setSelectedWorkout(workout);
             
             try {
-                const logs = await getWorkoutExerciseLogs(workout.id);
-                setExerciseLogs(logs);
+                await fetchExerciseLogs(workout.id);
             } catch (error) {
                 console.error('Error loading exercise logs:', error);
-                setExerciseLogs([]);
             }
         } else {
             setSelectedDate(date);
             setSelectedWorkout(null);
-            setExerciseLogs([]);
         }
     };
 

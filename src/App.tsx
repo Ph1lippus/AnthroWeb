@@ -16,6 +16,8 @@ import WorkoutTemplatesPage from './Pages/WorkoutTemplatesPage'
 import WorkoutTemplateEditorPage from './Pages/WorkoutTemplateEditorPage'
 import WorkoutHistoryPage from './Pages/WorkoutHistoryPage'
 import WorkoutPRsPage from './Pages/WorkoutPRsPage'
+import WorkoutStartPage from './Pages/WorkoutStartPage'
+import WorkoutDashboardPage from './Pages/WorkoutDashboardPage'
 import ProjectsPage from './Pages/ProjectsPage'
 import AbstinencePage from './Pages/AbstinencePage'
 import AcademicPage from './Pages/AcademicPage'
@@ -52,7 +54,7 @@ const AuthenticatedFooter: React.FC = () => {
     }, []);
     
     // Don't show footer on authenticated pages (where secondary navbar appears)
-    const authPaths = ['/Dashboard', '/Daily-Log', '/Journal', '/Measurements', '/Books', '/Workouts', '/Workouts/Templates', '/Workouts/Template', '/Workouts/Check', '/Workouts/History', '/Workouts/PRs', '/Projects', '/Abstinence', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
+    const authPaths = ['/Dashboard', '/Daily-Log', '/Journal', '/Measurements', '/Books', '/Workouts', '/Workouts/Dashboard', '/Workouts/Templates', '/Workouts/Template', '/Workouts/Start', '/Workouts/Check', '/Workouts/History', '/Workouts/PRs', '/Projects', '/Abstinence', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
     const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
     if (user && (authPaths.includes(location.pathname) || authPaths.includes(normalizedPath))) {
         return null;
@@ -83,8 +85,10 @@ function App() {
         <Route path="/Measurements" element={<MeasurementsPage />} />
         <Route path="/Books" element={<BooksPage />} />
         <Route path="/Workouts" element={<WorkoutsPage />} />
+        <Route path="/Workouts/Dashboard" element={<WorkoutDashboardPage />} />
         <Route path="/Workouts/Templates" element={<WorkoutTemplatesPage />} />
         <Route path="/Workouts/Template/:id" element={<WorkoutTemplateEditorPage />} />
+        <Route path="/Workouts/Start/:templateId" element={<WorkoutStartPage />} />
         <Route path="/Workouts/Check" element={<WorkoutCheckPage />} />
         <Route path="/Workouts/History" element={<WorkoutHistoryPage />} />
         <Route path="/Workouts/PRs" element={<WorkoutPRsPage />} />

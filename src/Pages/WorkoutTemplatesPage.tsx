@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
-import {
-    getWorkoutTemplates,
-    getWorkoutTemplateDays,
-    deleteWorkoutTemplate,
-    setActiveTemplate,
-    duplicateWorkoutTemplate,
-    createWorkoutTemplate,
-    type WorkoutTemplate
-} from '../services/workoutService';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { getWorkoutTemplateDays } from '../services/workoutService';
+import type { WorkoutTemplate } from '../services/workoutService';
 
 const WorkoutTemplatesPage: React.FC = () => {
     const navigate = useNavigate();
-    const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { 
+        templates, 
+        loading, 
+        fetchTemplates, 
+        createTemplate, 
+        deleteTemplate, 
+        setActiveTemplate: setActive, 
+        duplicateTemplate 
+    } = useWorkoutStore();
+    
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newTemplateName, setNewTemplateName] = useState('');
     const [newTemplateDescription, setNewTemplateDescription] = useState('');
@@ -25,34 +27,30 @@ const WorkoutTemplatesPage: React.FC = () => {
     const [deleteTarget, setDeleteTarget] = useState<WorkoutTemplate | null>(null);
 
     useEffect(() => {
-        loadTemplates();
-    }, []);
+        fetchTemplates();
+    }, [fetchTemplates]);
 
-    const loadTemplates = async () => {
-        try {
-            setLoading(true);
-            const data = await getWorkoutTemplates();
-            setTemplates(data);
-
+    useEffect(() => {
+        const loadTemplateDayCounts = async () => {
             const counts: Record<string, number> = {};
-            for (const template of data) {
+            for (const template of templates) {
                 const days = await getWorkoutTemplateDays(template.id!);
                 counts[template.id!] = days.length;
             }
             setTemplateDayCounts(counts);
-        } catch (error) {
-            console.error('Error loading templates:', error);
-        } finally {
-            setLoading(false);
+        };
+        
+        if (templates.length > 0) {
+            loadTemplateDayCounts();
         }
-    };
+    }, [templates]);
 
     const handleCreateTemplate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newTemplateName.trim()) return;
 
         try {
-            await createWorkoutTemplate({
+            await createTemplate({
                 name: newTemplateName,
                 description: newTemplateDescription || undefined,
                 is_active: false
@@ -60,7 +58,6 @@ const WorkoutTemplatesPage: React.FC = () => {
             setNewTemplateName('');
             setNewTemplateDescription('');
             setShowCreateModal(false);
-            loadTemplates();
         } catch (error) {
             console.error('Error creating template:', error);
             alert('Failed to create template. Please try again.');
@@ -69,8 +66,7 @@ const WorkoutTemplatesPage: React.FC = () => {
 
     const handleActivate = async (id: string) => {
         try {
-            await setActiveTemplate(id);
-            loadTemplates();
+            await setActive(id);
         } catch (error) {
             console.error('Error activating template:', error);
             alert('Failed to activate template. Please try again.');
@@ -79,8 +75,7 @@ const WorkoutTemplatesPage: React.FC = () => {
 
     const handleDuplicate = async (id: string) => {
         try {
-            await duplicateWorkoutTemplate(id);
-            loadTemplates();
+            await duplicateTemplate(id);
         } catch (error) {
             console.error('Error duplicating template:', error);
             alert('Failed to duplicate template. Please try again.');
@@ -90,8 +85,7 @@ const WorkoutTemplatesPage: React.FC = () => {
     const handleDelete = async () => {
         if (!deleteTarget) return;
         try {
-            await deleteWorkoutTemplate(deleteTarget.id!);
-            loadTemplates();
+            await deleteTemplate(deleteTarget.id!);
             setDeleteTarget(null);
         } catch (error) {
             console.error('Error deleting template:', error);
@@ -124,6 +118,20 @@ const WorkoutTemplatesPage: React.FC = () => {
                         )}
                     </div>
                     <div className="flex gap-1 shrink-0">
+                        <button
+                            onClick={() => navigate(`/Workouts/Start/${template.id}`)}
+                            className="workout-template-card-item__action"
+                            title="Start workout"
+                        >
+                            <i className="fa-solid fa-play"></i>
+                        </button>
+                        <button
+                            onClick={() => navigate(`/Workouts/Template/${template.id}`)}
+                            className="workout-template-card-item__action"
+                            title="Edit template"
+                        >
+                            <i className="fa-solid fa-pen"></i>
+                        </button>
                         <button
                             onClick={() => handleActivate(template.id!)}
                             className={`workout-template-card-item__action ${isActive ? 'workout-template-card-item__action--active' : ''}`}

@@ -118,7 +118,7 @@ export const getWorkoutTemplateDaysByDay = async (dayOfWeek: number): Promise<Wo
 };
 
 // Create a new workout template
-export const createWorkoutTemplate = async (template: { name: string; description?: string; is_active?: boolean }) => {
+export const createWorkoutTemplate = async (template: { name: string; description?: string; is_active?: boolean }): Promise<WorkoutTemplate> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -137,7 +137,7 @@ export const createWorkoutTemplate = async (template: { name: string; descriptio
         console.error('Error creating workout template:', error.message);
         throw error;
     }
-    return data;
+    return data as WorkoutTemplate;
 };
 
 // Update a workout template
@@ -170,7 +170,7 @@ export const deleteWorkoutTemplate = async (id: string) => {
 };
 
 // Create workout template day (exercise)
-export const createWorkoutTemplateDay = async (day: WorkoutTemplateDay) => {
+export const createWorkoutTemplateDay = async (day: WorkoutTemplateDay): Promise<WorkoutTemplateDay> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -193,7 +193,7 @@ export const createWorkoutTemplateDay = async (day: WorkoutTemplateDay) => {
         console.error('Error creating workout template day:', error.message);
         throw error;
     }
-    return data;
+    return data as WorkoutTemplateDay;
 };
 
 // Update workout template day
@@ -247,7 +247,7 @@ export const getWorkoutCompletionLog = async (date: string): Promise<WorkoutComp
 };
 
 // Create workout completion log
-export const createWorkoutCompletionLog = async (log: Omit<WorkoutCompletionLog, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+export const createWorkoutCompletionLog = async (log: Omit<WorkoutCompletionLog, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<WorkoutCompletionLog> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -269,7 +269,7 @@ export const createWorkoutCompletionLog = async (log: Omit<WorkoutCompletionLog,
         console.error('Error creating workout completion log:', error.message);
         throw error;
     }
-    return data;
+    return data as WorkoutCompletionLog;
 };
 
 // Update workout completion log
@@ -309,7 +309,7 @@ export const getWorkoutExerciseLogs = async (completionId: string): Promise<Work
 };
 
 // Create workout exercise log
-export const createWorkoutExerciseLog = async (log: Omit<WorkoutExerciseLog, 'id' | 'user_id' | 'created_at'>) => {
+export const createWorkoutExerciseLog = async (log: Omit<WorkoutExerciseLog, 'id' | 'user_id' | 'created_at'>): Promise<WorkoutExerciseLog> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -330,7 +330,7 @@ export const createWorkoutExerciseLog = async (log: Omit<WorkoutExerciseLog, 'id
         console.error('Error creating workout exercise log:', error.message);
         throw error;
     }
-    return data;
+    return data as WorkoutExerciseLog;
 };
 
 // Update workout exercise log
@@ -383,7 +383,7 @@ export const getPRHistory = async (exerciseName: string): Promise<PRHistory[]> =
 };
 
 // Create PR record
-export const createPR = async (pr: Omit<PRHistory, 'id' | 'user_id' | 'created_at'>) => {
+export const createPR = async (pr: Omit<PRHistory, 'id' | 'user_id' | 'created_at'>): Promise<PRHistory> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -404,7 +404,7 @@ export const createPR = async (pr: Omit<PRHistory, 'id' | 'user_id' | 'created_a
         console.error('Error creating PR:', error.message);
         throw error;
     }
-    return data;
+    return data as PRHistory;
 };
 
 // Get today's workout exercises based on day of week
@@ -505,7 +505,7 @@ export const getWorkoutStats = async (startDate: string, endDate: string) => {
 };
 
 // Duplicate a workout template
-export const duplicateWorkoutTemplate = async (templateId: string) => {
+export const duplicateWorkoutTemplate = async (templateId: string): Promise<WorkoutTemplate> => {
     const originalTemplate = await getWorkoutTemplate(templateId);
     if (!originalTemplate) throw new Error('Template not found');
 
@@ -544,7 +544,7 @@ export const duplicateWorkoutTemplate = async (templateId: string) => {
         });
     }
 
-    return newTemplate;
+    return newTemplate as WorkoutTemplate;
 };
 
 // Get a single workout template by ID

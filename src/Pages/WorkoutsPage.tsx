@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
-import {
-    getActiveTemplate,
-    getTodayWorkoutExercises,
-    isWorkoutCompleted,
-    setActiveTemplate,
-    getWorkoutTemplates,
-    type WorkoutTemplate
-} from '../services/workoutService';
+import { useWorkoutStore } from '../stores/useWorkoutStore';
 
 const WorkoutsPage: React.FC = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
-    const [activeTemplate, setActiveTemplateState] = useState<WorkoutTemplate | null>(null);
-    const [todayWorkoutExists, setTodayWorkoutExists] = useState(false);
+    const { 
+        loading, 
+        activeTemplate, 
+        todayExercises, 
+        templates, 
+        fetchActiveTemplate, 
+        fetchTodayExercises, 
+        fetchTemplates, 
+        setActiveTemplate: activateTemplate,
+        checkWorkoutCompleted
+    } = useWorkoutStore();
+    
     const [todayCompleted, setTodayCompleted] = useState(false);
-    const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -26,32 +27,25 @@ const WorkoutsPage: React.FC = () => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                setLoading(true);
-
-                const active = await getActiveTemplate();
-                const todayExercises = await getTodayWorkoutExercises();
-                const completed = await isWorkoutCompleted(todayStr);
-                const allTemplates = await getWorkoutTemplates();
-
-                setActiveTemplateState(active);
-                setTodayWorkoutExists(todayExercises.length > 0);
+                await Promise.all([
+                    fetchActiveTemplate(),
+                    fetchTodayExercises(),
+                    fetchTemplates()
+                ]);
+                
+                const completed = await checkWorkoutCompleted(todayStr);
                 setTodayCompleted(completed);
-                setTemplates(allTemplates);
             } catch (error) {
                 console.error('Error loading workout data:', error);
-            } finally {
-                setLoading(false);
             }
         };
 
         loadData();
-    }, [todayStr]);
+    }, [todayStr, fetchActiveTemplate, fetchTodayExercises, fetchTemplates, checkWorkoutCompleted]);
 
     const handleActivateTemplate = async (templateId: string) => {
         try {
-            await setActiveTemplate(templateId);
-            const active = await getActiveTemplate();
-            setActiveTemplateState(active);
+            await activateTemplate(templateId);
         } catch (error) {
             console.error('Error activating template:', error);
         }
@@ -93,14 +87,14 @@ const WorkoutsPage: React.FC = () => {
                                 <div className="workout-status-card">
                                     <div className="workout-status-card__header">
                                         <h3 className="workout-status-card__title">Today: {todayName}</h3>
-                                        <span className={`workout-status-badge ${todayCompleted ? 'workout-status-badge--completed' : todayWorkoutExists ? 'workout-status-badge--pending' : 'workout-status-badge--none'}`}>
-                                            {todayCompleted ? 'Completed' : todayWorkoutExists ? 'Not Started' : 'No Workout'}
+                                        <span className={`workout-status-badge ${todayCompleted ? 'workout-status-badge--completed' : todayExercises.length > 0 ? 'workout-status-badge--pending' : 'workout-status-badge--none'}`}>
+                                            {todayCompleted ? 'Completed' : todayExercises.length > 0 ? 'Not Started' : 'No Workout'}
                                         </span>
                                     </div>
                                     <div className="workout-status-card__body">
                                         {todayCompleted ? (
                                             <p className="workout-status-card__text">Great job! You completed today's workout. 💪</p>
-                                        ) : todayWorkoutExists ? (
+                                        ) : todayExercises.length > 0 ? (
                                             <p className="workout-status-card__text">You have a workout scheduled for today. Click "Log Workout" to track your progress.</p>
                                         ) : (
                                             <p className="workout-status-card__text">No workout scheduled for today. Enjoy your rest day or set up a workout template.</p>
