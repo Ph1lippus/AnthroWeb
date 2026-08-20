@@ -1604,18 +1604,6 @@ input[type="number"] {
   flex-direction: column;
   gap: 0.35rem;
 }
-.scored-input {
-  width: 100%;
-  padding: 0.85rem 1rem;
-  background: #ffffff0a;
-  border-radius: 26px;
-  border: 1px solid #ffffff14;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  outline: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
 .scored-input:focus {
   background: #ffffff12;
 }
@@ -1640,7 +1628,6 @@ input[type="number"] {
   left: 0.75rem;
   font-size: 0.65rem;
   color: var(--color-primary);
-  background: #000000;
   padding: 0 0.4rem;
 }
 .scored-input-goal {
@@ -4206,15 +4193,21 @@ input[type="number"] {
     padding: 1.2rem 0.75rem 0.5rem;
     background: #ffffff0a;
     color: var(--color-light);
-    border-radius: 25px;
+    border-radius: 20px;
     font-family: var(--font-mono);
     font-size: 0.9rem;
     outline: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.scored-input--empty {
+    border-color: rgba(255, 255, 255, 0.2) !important;
 }
 .scored-input::placeholder {
     color: transparent;
 }
 .scored-input:focus {
+    background: #ffffff12;
 }
 .scored-input-label {
     position: absolute;
@@ -4222,7 +4215,7 @@ input[type="number"] {
     top: 50%;
     transform: translateY(-50%);
     color: rgba(255, 255, 255, 0.5);
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     pointer-events: none;
     transform-origin: left center;
     background: transparent;
@@ -4233,24 +4226,13 @@ input[type="number"] {
     top: 0.45rem;
     transform: translateY(0);
     font-size: 0.6rem;
-    color: var(--color-primary);
     letter-spacing: 0.3px;
 }
-.scored-input-goal {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 0.6rem;
-    pointer-events: none;
-    white-space: nowrap;
-}
-.scored-input:focus + .scored-input-label + .scored-input-goal,
-.scored-input:not(:placeholder-shown) + .scored-input-label + .scored-input-goal {
-    top: 0.35rem;
-    transform: translateY(0);
-    opacity: 0.7;
+.scored-input-goal-inline {
+    opacity: 0.5;
+    font-size: 0.75rem;
+    margin-left: 0.35rem;
+    font-weight: 400;
 }
 .daily-log-form textarea.form-control {
   resize: vertical;
