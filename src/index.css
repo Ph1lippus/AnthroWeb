@@ -4227,6 +4227,7 @@ input[type="number"] {
     transform: translateY(0);
     font-size: 0.6rem;
     letter-spacing: 0.3px;
+    margin-bottom: 0.2rem;
 }
 .scored-input-goal-inline {
     opacity: 0.5;
