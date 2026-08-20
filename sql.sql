@@ -77,7 +77,7 @@ CREATE TABLE public.daily_logs (
   log_date date NOT NULL DEFAULT CURRENT_DATE,
   wake_time time without time zone,
   bedtime time without time zone,
-  sleep_duration integer,
+  sleep_duration real,
   morning_systolic integer,
   morning_diastolic integer,
   morning_bpm integer,
@@ -110,7 +110,8 @@ CREATE TABLE public.daily_logs (
   reading boolean DEFAULT false,
   CONSTRAINT daily_logs_pkey PRIMARY KEY (id),
   CONSTRAINT daily_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT daily_logs_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
+  CONSTRAINT daily_logs_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT daily_logs_user_id_log_date_key UNIQUE (user_id, log_date)
 );
 CREATE TABLE public.daily_habit_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -448,7 +449,7 @@ CREATE TABLE public.daily_log_projects (
   user_id uuid NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT daily_log_projects_pkey PRIMARY KEY (id),
-  CONSTRAINT daily_log_projects_daily_log_id_fkey FOREIGN KEY (daily_log_id) REFERENCES public.daily_logs(id),
+  CONSTRAINT daily_log_projects_daily_log_id_fkey FOREIGN KEY (daily_log_id) REFERENCES public.daily_logs(id) ON DELETE CASCADE,
   CONSTRAINT daily_log_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT daily_log_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

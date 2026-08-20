@@ -7,6 +7,7 @@ import DashboardPage from './Pages/DashboardPage'
 import DailyLogPage from './Pages/DailyLogPage'
 import DailyLogHistoryPage from './Pages/DailyLogHistoryPage'
 import JournalPage from './Pages/JournalPage'
+import JournalEditPage from './Pages/JournalEditPage'
 import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
 import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
@@ -53,10 +54,8 @@ const AuthenticatedFooter: React.FC = () => {
         return () => subscription.unsubscribe();
     }, []);
     
-    // Don't show footer on authenticated pages (where secondary navbar appears)
-    const authPaths = ['/Dashboard', '/Daily-Log', '/Journal', '/Measurements', '/Books', '/Workouts', '/Workouts/Dashboard', '/Workouts/Templates', '/Workouts/Template', '/Workouts/Start', '/Workouts/Check', '/Workouts/History', '/Workouts/PRs', '/Projects', '/Abstinence', '/Academic', '/Study-Timer', '/Notes', '/Settings', '/Profile', '/Profile/Edit'];
-    const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
-    if (user && (authPaths.includes(location.pathname) || authPaths.includes(normalizedPath))) {
+    // Only show footer on the home page
+    if (location.pathname !== '/') {
         return null;
     }
     
@@ -80,8 +79,10 @@ function App() {
         <Route path="/Dashboard" element={<DashboardPage />} />
         <Route path="/Daily-Log/Setup" element={<DailyLogGoalSetupPage />} />
         <Route path="/Daily-Log" element={<DailyLogPage />} />
+        <Route path="/Daily-Log/Edit/:id" element={<DailyLogPage />} />
         <Route path="/Daily-Log/History" element={<DailyLogHistoryPage />} />
         <Route path="/Journal" element={<JournalPage />} />
+        <Route path="/Journal/Edit/:id" element={<JournalEditPage />} />
         <Route path="/Measurements" element={<MeasurementsPage />} />
         <Route path="/Books" element={<BooksPage />} />
         <Route path="/Workouts" element={<WorkoutsPage />} />

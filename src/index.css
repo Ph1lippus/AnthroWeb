@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rubik+Glitch&display=swap');
 @import "tailwindcss";
-
 :root {
   --color-primary: #00ffa6;
   --color-primary-dark: #43b67d;
@@ -39,28 +38,23 @@
   --tabs-dur: 250ms;
   --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 @media (max-width: 1024px) {
   :root { font-size: 16px; }
 }
-
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-
 hr {
   border: none;
   height: 1px;
   background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.18), transparent);
 }
-
 html, body {
   height: 100%;
   margin: 0;
 }
-
 body {
   background-color: #000000;
   background-image: 
@@ -105,7 +99,6 @@ body {
   display: flex;
   flex-direction: column;
 }
-
 #root {
   width: 100%;
   min-height: 100svh;
@@ -113,7 +106,6 @@ body {
   flex-direction: column;
   box-sizing: border-box;
 }
-
 .screen-height,
 .page-main {
   min-height: 100vh;
@@ -124,7 +116,6 @@ body {
   padding: 2rem;
   padding-top: 3rem;
 }
-
 /* Books page - full viewport, no page scroll */
 .books-page-wrapper {
   width: 100%;
@@ -138,7 +129,6 @@ body {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 /* Page with secondary navbar at bottom - needs bottom padding */
 .page-main-with-secondary {
   min-height: 100vh;
@@ -150,7 +140,6 @@ body {
   padding-top: 3rem;
   padding-bottom: calc(2rem + 2.5rem); /* Space for bottom navbar (approx 48px) */
 }
-
 .container {
   width: 100%;
   padding-right: 1rem;
@@ -158,7 +147,6 @@ body {
   margin-right: auto;
   margin-left: auto;
 }
-
 .navbar-hamburger {
     width: 14px;
     height: 10px;
@@ -172,9 +160,7 @@ body {
     width: 100%;
     height: 2px;
     background-color: var(--color-light);
-    border-radius: 2px;
-    transition: transform 0.25s ease-in-out, opacity 0.25s ease-in-out,
-        background-color 0.25s ease;
+    border-radius: 25px;
 }
 .navbar-menu-btn:hover .navbar-hamburger span {
     background-color: var(--color-primary);
@@ -190,7 +176,6 @@ body {
     transform: translateY(-5px) rotate(-45deg);
     background-color: var(--color-primary);
 }
-
 @media (width >= 576px) {
   .container, .container-sm { max-width: 540px; }
 }
@@ -206,7 +191,6 @@ body {
 @media (width >= 1400px) {
   .container, .container-lg, .container-md, .container-sm, .container-xl, .container-xxl { max-width: 1320px; }
 }
-
 .navbar-brand-row {
   position: fixed;
   top: 0;
@@ -216,7 +200,6 @@ body {
   backdrop-filter: blur(12px);
   z-index: 100;
 }
-
 .navbar-brand-row::after {
   content: '';
   position: absolute;
@@ -226,7 +209,6 @@ body {
   height: 1px;
   background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.12), transparent);
 }
-
 .navbar-inner {
   display: flex;
   justify-content: flex-end;
@@ -235,24 +217,19 @@ body {
   position: relative;
   min-width: 98%;
 }
-
 .navbar-brand {
   font-family: var(--font-logo);
   font-size: 1rem;
   color: var(--color-light);
   text-decoration: none;
-  transition: color 0.3s ease;
   cursor: pointer;
 }
-
 .navbar-brand:hover { color: var(--color-primary); }
-
 .navbar-actions {
   display: flex;
   gap: 1rem;
   align-items: center;
 }
-
 .navbar-brand-centered {
   position: absolute;
   left: 50%;
@@ -261,7 +238,6 @@ body {
   display: flex;
   justify-content: center;
 }
-
 .navbar-user-wrap {
   display: inline-flex;
   align-items: center;
@@ -270,28 +246,21 @@ body {
   position: relative;
   z-index: 1;
 }
-
 .navbar-user {
   color: var(--color-light);
   font-size: 0.7rem;
   cursor: pointer;
-  transition: color 0.2s ease;
 }
-
 .navbar-user:hover {
   color: var(--color-primary);
 }
-
 .navbar-action-link {
   color: var(--color-light);
   text-decoration: none;
   font-weight: 500;
-  transition: color 0.3s ease;
   cursor: pointer;
 }
-
 .navbar-action-link:hover { color: var(--color-primary); }
-
 .navbar-menu-btn {
   background: transparent;
   border: none;
@@ -303,24 +272,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.3s ease;
 }
-
 .navbar-menu-btn:hover { color: var(--color-primary); }
-
 .navbar-menu-icon {
   display: inline-block;
-  transition: opacity 0.3s ease, transform 0.3s ease;
 }
-
 .navbar-menu-icon.menu-open {
   transform: rotate(90deg);
 }
-
 .t-dropdown-wrap { position: relative; }
-
 .home-wrapper { width: 100%; }
-
 .home-page {
   text-align: center;
   padding: 4rem 2rem;
@@ -329,7 +290,6 @@ body {
   justify-content: center;
   align-items: center;
 }
-
 .showcase-section {
   text-align: center;
   display: flex;
@@ -339,7 +299,6 @@ body {
   padding: 2rem;
   padding-top: 3rem;
 }
-
 .showcase-content {
   max-width: 700px;
   width: 100%;
@@ -347,7 +306,6 @@ body {
   flex-direction: column;
   align-items: center;
 }
-
 .showcase-title {
   font-size: 2.5rem;
   font-weight: 800;
@@ -357,7 +315,6 @@ body {
   font-family: var(--font-mono);
   text-transform: uppercase;
 }
-
 .showcase-text {
   color: var(--color-light);
   font-size: 1.05rem;
@@ -366,9 +323,7 @@ body {
   max-width: 600px;
   line-height: 1.6;
 }
-
 .showcase-cta { gap: 0; }
-
 .showcase-btn {
   margin-top: 2rem;
   font-size: 0.95rem;
@@ -376,7 +331,6 @@ body {
   text-decoration: none;
   display: inline-block;
 }
-
 .slogan {
   font-size: 3.5rem;
   font-weight: 800;
@@ -386,7 +340,6 @@ body {
   font-family: var(--font-mono);
   text-transform: uppercase;
 }
-
 .animated-hr {
   width: 100%;
   max-width: 600px;
@@ -394,18 +347,16 @@ body {
   background: linear-gradient(to right, transparent, var(--color-primary), transparent);
   margin: 1.5rem auto;
   border: none;
-  border-radius: 3px;
+  border-radius: 25px;
   animation: growLine 1.5s ease-out forwards;
   animation-delay: 0.3s;
   opacity: 0;
 }
-
 @keyframes growLine {
   0%   { transform: scaleX(0); opacity: 0; }
   60%  { opacity: 0.8; }
   100% { transform: scaleX(1); opacity: 1; }
 }
-
 .home-description {
   color: var(--color-light);
   font-size: 1.125rem;
@@ -413,20 +364,16 @@ body {
   margin-top: 1rem;
   max-width: 600px;
 }
-
 .footer {
   background-color: var(--color-primary);
   padding: 2rem 0 0;
   padding-bottom: 0;
   margin-top: auto;
 }
-
 .footer--logged-in {
   padding-bottom: 3rem;
 }
-
 .footer-inner { display: flex; flex-direction: column; }
-
 .navbar-hr {
   width: 100%;
   height: 1px;
@@ -434,7 +381,6 @@ body {
   border: none;
   margin: 0;
 }
-
 .navbar-auth-link {
   font-size: 0.85rem;
   padding: 0.25rem 0.25rem;
@@ -442,10 +388,8 @@ body {
   font-weight: 500;
   cursor: pointer;
 }
-
 .navbar-auth-link:hover,
 .navbar-auth-link.active { color: var(--color-primary); }
-
 .footer__top {
   display: flex;
   align-items: center;
@@ -453,7 +397,6 @@ body {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--color-dark);
 }
-
 .footer__brand {
   font-family: var(--font-logo);
   font-size: 1.5rem!important;
@@ -461,11 +404,8 @@ body {
   letter-spacing: 2px;
   text-decoration: none;
   cursor: pointer;
-  transition: color 0.3s ease;
 }
-
 .footer__brand:hover { color: #000000; }
-
 .footer__back-btn {
   background: #00000014;
   color: var(--color-dark);
@@ -476,31 +416,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
   font-size: 1.1rem;
   border: none;
 }
-
 .footer__back-btn:hover {
   background: var(--color-dark);
   color: var(--color-primary);
   transform: translateY(-3px);
 }
-
 .footer__links {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 2rem;
   padding: 1rem 0 1rem 0;
 }
-
 .footer__links-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   align-items: flex-start;
 }
-
 .footer__links-title {
   font-weight: 800;
   color: var(--color-dark);
@@ -508,19 +443,15 @@ body {
   letter-spacing: 1px;
   margin-bottom: 0.2rem;
 }
-
 .footer a {
   color: var(--color-dark);
   opacity: 0.85;
   text-decoration: none;
   font-size: 0.95rem;
-  transition: all 0.2s ease;
   font-weight: 500;
   cursor: pointer;
 }
-
 .footer a:hover { opacity: 1; color: #000000; }
-
 .footer__bottom {
   padding: 1rem 0;
   border-top: 1px solid var(--color-dark);
@@ -528,7 +459,6 @@ body {
   justify-content: center;
   align-items: center;
 }
-
 .footer__copyright {
   font-size: 0.95rem;
   color: var(--color-dark);
@@ -537,7 +467,6 @@ body {
   font-weight: 500;
   letter-spacing: 0.5px;
 }
-
 .footer__copyright a {
   color: var(--color-dark);
   opacity: 0.8;
@@ -545,16 +474,13 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
-
 .footer__copyright a:hover { opacity: 1; text-decoration: underline; }
-
 .footer__social {
   display: flex;
   gap: 1rem;
   margin-top: 0.5rem;
   justify-content: flex-start;
 }
-
 .footer__social a {
   display: flex;
   align-items: center;
@@ -565,18 +491,15 @@ body {
   background: #00000014;
   color: var(--color-dark);
   font-size: 1.2rem;
-  transition: all 0.3s ease;
   text-decoration: none;
   cursor: pointer;
 }
-
 .footer__social a:hover {
   background: var(--color-dark);
   color: var(--color-primary);
   transform: translateY(-3px);
   text-decoration: none;
 }
-
 .auth-page {
   min-height: 100vh;
   display: flex;
@@ -585,23 +508,18 @@ body {
   padding: 2rem;
   padding-top: 3rem;
 }
-
 .auth-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 16px;
+  border-radius: 25px;
   width: 100%;
   max-width: 400px;
   padding: 2rem;
   text-align: center;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
 }
-
 .auth-card-wide {
   max-width: 700px;
 }
-
 .auth-title {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -609,7 +527,6 @@ body {
   font-weight: 700;
   margin-bottom: 1.25rem;
 }
-
 .auth-card .form-label {
   color: var(--color-light);
   text-align: left;
@@ -619,36 +536,27 @@ body {
   margin-bottom: 0.3rem;
   letter-spacing: 0.3px;
 }
-
 .auth-card .form-control {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
 }
-
 .auth-card .form-control::placeholder { color: rgba(255, 255, 255, 0.4); }
-
 .auth-card .form-control:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
 }
-
 .password-input-wrap {
   position: relative;
   width: 100%;
 }
-
 .password-input-wrap .form-control {
   padding-right: 2.75rem;
   width: 100%;
 }
-
 .password-toggle {
   position: absolute;
   top: 50%;
@@ -662,99 +570,70 @@ body {
   font-size: 0.8rem;
   line-height: 1;
 }
-
 .password-toggle:hover { color: var(--color-primary); }
-
 .auth-card .btn-primary,
 .auth-card-btn {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: #000000;
   font-weight: 600;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.5rem 1rem;
   margin-top: 1rem;
   font-size: 0.82rem;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
-
 .auth-card .btn-primary:hover,
 .auth-card .btn-primary:active,
 .auth-card-btn:hover,
 .auth-card-btn:active {
   background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
   color: #000000;
 }
-
 .auth-extra-links { margin-top: 0.85rem; }
-
 .auth-link {
   color: var(--color-primary);
   text-decoration: none;
   font-size: 0.78rem;
-  transition: opacity 0.2s ease;
   cursor: pointer;
 }
-
 .auth-link:hover { opacity: 0.8; text-decoration: underline; }
-
 .auth-text {
   color: var(--color-light);
   opacity: 0.8;
   font-size: 0.78rem;
 }
-
 .auth-error {
   background: rgba(219, 34, 42, 0.12);
-  border: 1px solid rgba(219, 34, 42, 0.4);
   color: #ff6b70;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
   margin-bottom: 0.85rem;
   text-align: left;
 }
-
 .mb-3 { margin-bottom: 0.7rem; }
 .mb-4 { margin-bottom: 1rem; }
 .mt-3 { margin-top: 1rem; }
 .mt-5 { margin-top: 1.5rem; }
 .w-100 { width: 100%; }
 .text-start { text-align: left; }
-
 .t-input {
-  transition: border-color 150ms ease-out;
-  will-change: transform;
 }
-
 .t-input.is-error {
-  transition: border-color var(--revert-dur, 280ms) ease-out;
 }
-
 .t-error-msg {
   opacity: 0;
   visibility: hidden;
-  transition:
-    opacity    var(--revert-dur, 280ms) ease-out,
-    visibility 0s linear var(--revert-dur, 280ms);
 }
-
 .t-input-wrap.is-error .t-error-msg {
   opacity: 1;
   visibility: visible;
-  transition:
-    opacity    var(--revert-dur, 280ms) ease-out,
-    visibility 0s linear 0s;
 }
-
 .t-input.is-shaking {
   animation: t-input-shake calc(
       var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2
     ) linear;
 }
-
 @keyframes t-input-shake {
   0%      { transform: translateX(0);                                 animation-timing-function: var(--shake-ease); }
   28.57%  { transform: translateX(var(--shake-distance));             animation-timing-function: var(--shake-ease); }
@@ -762,18 +641,13 @@ body {
   78.57%  { transform: translateX(var(--shake-overshoot));            animation-timing-function: var(--shake-ease); }
   100%    { transform: translateX(0); }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .t-input { animation: none !important; transform: none !important; }
 }
-
-.t-input.is-error .form-control { border-color: var(--color-danger); }
-
+.t-input.is-error .form-control { background: var(--color-danger-dark); }
 .t-input.is-error .form-control:focus {
-  border-color: var(--color-danger);
-  box-shadow: 0 0 0 0.2rem rgba(219, 34, 42, 0.15);
+  background: var(--color-danger-dark);
 }
-
 .t-error-msg {
   color: #ff6b70;
   font-size: 0.7rem;
@@ -781,69 +655,50 @@ body {
   text-align: left;
   line-height: 1.3;
 }
-
 .t-input-wrap { width: 100%; }
-
 .t-input { width: 100%; }
-
 /* Number input - remove spin buttons */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-
 input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
 }
-
 .t-dropdown {
   transform-origin: top right;
   transform: scale(var(--dropdown-pre-scale));
   opacity: 0;
   pointer-events: none;
-  transition:
-    transform var(--dropdown-open-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-open-dur) var(--dropdown-ease);
-  will-change: transform, opacity;
   position: absolute;
   top: calc(100% + 0.75rem);
   right: 0;
   background: #000000;
-  border: 1px solid #ffffff14;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.35rem;
   min-width: 150px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   z-index: 200;
 }
-
 .t-dropdown[data-origin="top-right"]     { transform-origin: top right; }
 .t-dropdown[data-origin="top-center"]    { transform-origin: top center; }
 .t-dropdown[data-origin="bottom-left"]   { transform-origin: bottom left; }
 .t-dropdown[data-origin="bottom-center"] { transform-origin: bottom center; }
 .t-dropdown[data-origin="bottom-right"]  { transform-origin: bottom right; }
-
 .t-dropdown.is-open {
   transform: scale(1);
   opacity: 1;
   pointer-events: auto;
 }
-
 .t-dropdown.is-closing {
   transform: scale(var(--dropdown-closing-scale));
   opacity: 0;
   pointer-events: none;
-  transition:
-    transform var(--dropdown-close-dur) var(--dropdown-ease),
-    opacity   var(--dropdown-close-dur) var(--dropdown-ease);
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .t-dropdown { transition: none !important; }
+  .t-dropdown { }
 }
-
 .t-dropdown-item {
   display: flex;
   align-items: center;
@@ -856,22 +711,18 @@ input[type="number"] {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 25px;
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
 }
-
 .t-dropdown-item:hover {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
 }
-
 .t-dropdown-item i {
   font-size: 0.85rem;
   width: 1rem;
   text-align: center;
 }
-
 /* Credits Page Styles */
 .credits-page {
   min-height: 100vh;
@@ -882,7 +733,6 @@ input[type="number"] {
   padding: 2rem;
   padding-top: 3rem;
 }
-
 /* Legal Pages - center content on page */
 .legal-page {
   padding: 2rem;
@@ -893,18 +743,15 @@ input[type="number"] {
   justify-content: center;
   align-items: center;
 }
-
 .legal-content {
   max-width: 800px;
   width: 100%;
   margin-top: 2rem;
   margin-bottom: 4rem;
 }
-
 .legal-section {
   margin-bottom: 1.5rem;
 }
-
 .legal-section h3 {
   color: var(--color-light);
   font-size: 1.1rem;
@@ -912,7 +759,6 @@ input[type="number"] {
   margin-bottom: 0.5rem;
   font-family: var(--font-mono);
 }
-
 .legal-section p {
   color: var(--color-light);
   opacity: 0.85;
@@ -921,14 +767,12 @@ input[type="number"] {
   margin-bottom: 0.5rem;
   text-align: center;
 }
-
 .legal-section ul {
   margin: 0.5rem auto 0;
   padding: 0;
   list-style-position: inside;
   text-align: center;
 }
-
 .legal-section li {
   color: var(--color-light);
   opacity: 0.8;
@@ -937,11 +781,9 @@ input[type="number"] {
   margin-bottom: 0.25rem;
   text-align: center;
 }
-
 .legal-section strong {
   color: var(--color-primary);
 }
-
 .legal-date {
   color: var(--color-light);
   opacity: 0.6;
@@ -949,22 +791,18 @@ input[type="number"] {
   margin-top: 1rem;
   text-align: center;
 }
-
 .page-main {
   padding-bottom: 4rem;
 }
-
 .dashboard-section {
   width: 100%;
   max-width: 800px;
   text-align: center;
 }
-
 .dashboard-section__head {
   text-align: center;
   margin-bottom: 2rem;
 }
-
 .dashboard-section__head h2 {
   font-size: 2rem;
   font-weight: 700;
@@ -972,35 +810,93 @@ input[type="number"] {
   font-family: var(--font-mono);
   margin-bottom: 0.5rem;
 }
-
 .dashboard-section__head span {
   color: var(--color-light);
   opacity: 0.7;
   font-size: 0.95rem;
 }
-
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.card {
+  background: #ffffff08;
+  border-radius: 25px;
+  border: none;
+}
+.settings-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 1.5rem;
+}
+.settings-card:hover {
+  background: #ffffff12;
+}
+.settings-card--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.settings-card-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 25px;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.settings-card-icon--primary {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.settings-card-icon--danger {
+  background: rgba(219, 34, 42, 0.1);
+  color: var(--color-danger);
+}
+.settings-card-icon--muted {
+  background: #ffffff0a;
+  color: rgba(255, 255, 255, 0.4);
+}
+.settings-card-content {
+  flex: 1;
+  min-width: 0;
+}
+.settings-card-title {
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+}
+.settings-card-desc {
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin: 0;
+  font-family: var(--font-mono);
+}
 .credits-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
   width: 100%;
 }
-
 .credit-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   text-align: center;
   backdrop-filter: blur(10px);
-  transition: transform 0.3s ease, border-color 0.3s ease;
 }
-
 .credit-card:hover {
   transform: translateY(-5px);
-  border-color: var(--accent-border);
 }
-
 .credit-card__logo {
   width: 64px;
   height: 64px;
@@ -1008,34 +904,28 @@ input[type="number"] {
   margin: 0 auto 1rem;
   display: block;
 }
-
 .credit-card__title {
   color: var(--color-light);
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
-
 .credit-card__text {
   color: var(--color-light);
   opacity: 0.7;
   font-size: 0.85rem;
   margin-bottom: 1rem;
 }
-
 .credit-card__link {
   color: var(--color-primary);
   text-decoration: none;
   font-size: 0.8rem;
   font-weight: 500;
-  transition: opacity 0.2s ease;
 }
-
 .credit-card__link:hover {
   opacity: 0.8;
   text-decoration: underline;
 }
-
 /* Secondary Navbar - Bottom Navbar with Sliding Pill */
 .secondary-navbar {
   position: fixed;
@@ -1049,7 +939,6 @@ input[type="number"] {
   display: flex;
   justify-content: center;
 }
-
 .secondary-navbar-inner {
   display: inline-flex;
   align-items: center;
@@ -1059,7 +948,6 @@ input[type="number"] {
   background: #202020;
   position: relative;
 }
-
 .secondary-navbar-link {
   position: relative;
   appearance: none;
@@ -1074,14 +962,11 @@ input[type="number"] {
   font-size: 0.85rem;
   font-weight: 500;
   z-index: 1;
-  transition: color var(--tabs-dur) var(--tabs-ease);
 }
-
 .secondary-navbar-link:not(.active):hover,
 .secondary-navbar-link.active {
   color: var(--color-primary);
 }
-
 .secondary-tabs-pill {
   position: absolute;
   top: 3px;
@@ -1091,20 +976,11 @@ input[type="number"] {
   background: #454545;
   border-radius: 48px;
   transform: translateX(0);
-  transition:
-    transform var(--tabs-dur) var(--tabs-ease),
-    width     var(--tabs-dur) var(--tabs-ease);
-  will-change: transform, width;
   z-index: 0;
   pointer-events: none;
 }
-
 .secondary-tabs-pill.loaded {
-  transition:
-    transform var(--tabs-dur) var(--tabs-ease),
-    width     var(--tabs-dur) var(--tabs-ease);
 }
-
 /* Mobile: Full width */
 @media (max-width: 767px) {
   .secondary-navbar-inner {
@@ -1112,37 +988,30 @@ input[type="number"] {
     justify-content: space-between;
   }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .secondary-tabs-pill, .secondary-navbar-link { transition: none !important; }
+  .secondary-tabs-pill, .secondary-navbar-link { }
 }
-
 /* Edit Profile Form Styles - extends auth-card */
 .auth-card.profile-form-card {
   max-width: 700px;
 }
-
 .auth-card .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
 }
-
 .auth-card .form-grid:has(> :only-child) {
   grid-template-columns: 1fr;
 }
-
 .auth-card .form-grid > :only-child {
   grid-column: 1 / -1;
 }
-
 /* Form Select styling within auth-card */
 .auth-card .form-select {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
@@ -1153,35 +1022,26 @@ input[type="number"] {
   background-size: 16px;
   padding-right: 2.5rem;
 }
-
 /* Select dropdown options styling */
 .auth-card .form-select option {
   background: #202020;
   color: var(--color-light);
 }
-
 .auth-card .form-select::placeholder { color: rgba(255, 255, 255, 0.4); }
-
 .auth-card .form-select:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
   outline: none;
 }
-
 /* Modern Profile Card Styles */
 .profile-card-modern {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+  border-radius: 25px;
   width: 100%;
   max-width: 600px;
   padding: 2rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
 }
-
 .profile-header-modern {
   display: flex;
   justify-content: space-between;
@@ -1190,7 +1050,6 @@ input[type="number"] {
   padding-bottom: 1.5rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .profile-name {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -1198,43 +1057,34 @@ input[type="number"] {
   font-weight: 700;
   margin: 0 0 0.25rem 0;
 }
-
 .profile-email {
   color: var(--color-light);
   opacity: 0.6;
   font-size: 0.85rem;
   margin: 0;
 }
-
 .profile-edit-btn-modern {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: 25px;
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-primary);
   text-decoration: none;
-  transition: all 0.2s ease;
 }
-
 .profile-edit-btn-modern:hover {
   background: var(--accent-bg);
-  border-color: var(--color-primary);
 }
-
 .profile-content-modern {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
-
 .profile-section-modern {
   text-align: left;
 }
-
 .profile-section-title-modern {
   display: flex;
   align-items: center;
@@ -1249,25 +1099,20 @@ input[type="number"] {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .profile-section-title-modern i {
   font-size: 0.85rem;
 }
-
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
 }
-
 .profile-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.75rem;
   text-align: center;
 }
-
 .profile-item-label {
   display: block;
   color: var(--color-light);
@@ -1278,40 +1123,33 @@ input[type="number"] {
   letter-spacing: 0.3px;
   margin-bottom: 0.25rem;
 }
-
 .profile-item-value {
   display: block;
   color: var(--color-light);
   font-size: 0.9rem;
   font-weight: 600;
 }
-
 .profile-progress {
   margin-top: 0.5rem;
 }
-
 .progress-bar-container {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
-
 .progress-bar {
   flex: 1;
   height: 8px;
   background: #ffffff14;
-  border-radius: 4px;
+  border-radius: 25px;
   overflow: hidden;
 }
-
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
-  border-radius: 4px;
-  transition: width 0.5s ease;
+  border-radius: 25px;
 }
-
 .progress-text {
   color: var(--color-primary);
   font-family: var(--font-mono);
@@ -1320,75 +1158,513 @@ input[type="number"] {
   min-width: 40px;
   text-align: right;
 }
-
 .progress-details {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .progress-detail {
   display: flex;
   justify-content: space-between;
   font-size: 0.85rem;
 }
-
 .progress-detail-label {
   color: var(--color-light);
   opacity: 0.6;
 }
-
 .progress-detail-value {
   color: var(--color-light);
   font-weight: 500;
 }
-
 .profile-signout-btn {
   margin-top: 2rem;
   background: rgba(219, 34, 42, 0.1);
-  border: 1px solid rgba(219, 34, 42, 0.3);
   color: #ff6b70;
   padding: 0.6rem 1.5rem;
-  border-radius: 10px;
+  border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
-
 .profile-signout-btn:hover {
   background: rgba(219, 34, 42, 0.2);
   transform: translateY(-2px);
 }
-
 /* Profile Loading */
 .profile-loading {
   text-align: center;
   padding: 3rem 2rem;
 }
-
 .profile-loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #ffffff14;
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
-
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-
+/* ============================================
+   PROFILE PAGE - Modern Design
+   ============================================ */
+.profile-container {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: #ffffff08;
+  border-radius: 25px;
+}
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.profile-header-info {
+  flex: 1;
+  min-width: 0;
+}
+.profile-name {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-light);
+  margin: 0;
+  line-height: 1.2;
+}
+.profile-email {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0.25rem 0 0;
+  word-break: break-all;
+}
+.profile-edit-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 25px;
+  background: #ffffff0a;
+  color: var(--color-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+.profile-edit-btn:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+.profile-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #ffffff08;
+  border-radius: 25px;
+}
+.profile-stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 25px;
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.profile-stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.profile-stat-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.profile-stat-value {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.profile-section-title {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0;
+}
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+.profile-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  background: #ffffff08;
+  border-radius: 25px;
+}
+.profile-info-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.profile-info-value {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-light);
+  word-break: break-word;
+}
+.profile-info-sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 0.35rem;
+}
+.profile-progress-card {
+  padding: 1.25rem;
+  background: #ffffff08;
+  border-radius: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.profile-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.profile-progress-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.profile-progress-value {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.profile-progress-bar {
+  width: 100%;
+  height: 10px;
+  background: #ffffff14;
+  border-radius: 25px;
+  overflow: hidden;
+}
+.profile-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
+  border-radius: 25px;
+  transition: width 0.5s ease;
+}
+.profile-progress-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.profile-progress-detail {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+.profile-section-actions {
+  margin-top: 0.75rem;
+}
+.profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 25px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.profile-btn-primary {
+  background: var(--color-primary);
+  color: #000000;
+}
+.profile-btn-primary:hover {
+  background: var(--color-primary-dark);
+}
+.profile-btn-secondary {
+  background: #ffffff0a;
+  color: var(--color-light);
+}
+.profile-btn-secondary:hover {
+  background: #ffffff14;
+}
+.profile-btn-danger {
+  background: rgba(219, 34, 42, 0.12);
+  color: #ff6b70;
+}
+.profile-btn-danger:hover {
+  background: rgba(219, 34, 42, 0.22);
+}
+.profile-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.profile-activity-card {
+  padding: 1rem;
+  background: #ffffff08;
+  border-radius: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.profile-activity-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.profile-activity-date {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+.profile-activity-score {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.profile-activity-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+/* Profile Loading */
+.profile-loading {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+.profile-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+/* ============================================
+   SETTINGS PAGE - Modern Design
+   ============================================ */
+.settings-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.settings-header {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.settings-title {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-light);
+  margin: 0;
+}
+.settings-subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0.35rem 0 0;
+}
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #ffffff08;
+  border-radius: 25px;
+  border: none;
+  color: var(--color-light);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+  width: 100%;
+}
+.settings-item:hover {
+  background: #ffffff12;
+}
+.settings-item-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 25px;
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.settings-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.settings-item-title {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-light);
+}
+.settings-item-description {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.3;
+}
+.settings-item-arrow {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.settings-footer {
+  text-align: center;
+  padding: 1rem 0 0;
+}
+.settings-version {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin: 0;
+}
+/* ============================================
+   DAILY LOG - Scored Inputs
+   ============================================ */
+.scored-input-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.scored-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: #ffffff0a;
+  border-radius: 25px;
+  border: 2px solid #ffffff14;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.scored-input:focus {
+  background: #ffffff12;
+}
+.scored-input::placeholder {
+  color: transparent;
+}
+.scored-input-label {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  transition: all 0.15s ease;
+  background: transparent;
+  padding: 0 0.25rem;
+}
+.scored-input:focus + .scored-input-label,
+.scored-input:not(:placeholder-shown) + .scored-input-label {
+  top: -0.35rem;
+  left: 0.75rem;
+  font-size: 0.65rem;
+  color: var(--color-primary);
+  background: #000000;
+  padding: 0 0.4rem;
+}
+.scored-input-goal {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  transition: all 0.15s ease;
+}
+.scored-input:focus + .scored-input-label + .scored-input-goal,
+.scored-input:not(:placeholder-shown) + .scored-input-label + .scored-input-goal {
+  top: -0.35rem;
+  transform: translateY(0);
+  right: 0.5rem;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.5);
+}
 /* ============================================
    BOOKS PAGE - Dedicated Styles
    ============================================ */
-
 /* Books section takes full width */
 .dashboard-section.books-section {
   max-width: 100%;
@@ -1397,16 +1673,13 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 /* Books card fills all vertical space */
 .books-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+  border-radius: 25px;
   width: 100%;
   padding: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -1414,7 +1687,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Stats summary row - compact */
 .books-stats {
   display: grid;
@@ -1423,20 +1695,15 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .books-stat-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.6rem 0.5rem;
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .books-stat-item:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .books-stat-label {
   display: block;
   color: var(--color-light);
@@ -1447,7 +1714,6 @@ input[type="number"] {
   letter-spacing: 0.5px;
   margin-bottom: 0.2rem;
 }
-
 .books-stat-value {
   display: block;
   color: var(--color-primary);
@@ -1455,7 +1721,6 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 700;
 }
-
 /* Section header with icon */
 .books-section-header {
   display: flex;
@@ -1472,58 +1737,46 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .books-section-header i {
   font-size: 0.75rem;
 }
-
 /* Top bar action buttons */
 .btn-action {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.8rem;
-  border-radius: 10px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: #ffffff0a;
   color: var(--color-light);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .btn-action:hover {
   background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--color-primary);
 }
-
 .btn-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-
 .btn-action:disabled:hover {
   background: #ffffff0a;
-  border-color: #ffffff1f;
   color: var(--color-light);
 }
-
 /* Timer section */
 .timer-section {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #ffffff14;
   padding: 0.4rem 0.7rem;
-  border-radius: 12px;
+  border-radius: 25px;
   flex-shrink: 0;
 }
-
 .timer-label {
   font-size: 0.65rem;
   color: var(--color-light);
@@ -1532,36 +1785,28 @@ input[type="number"] {
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-
 .timer-input {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.25rem 0.4rem;
   font-size: 0.75rem;
   width: 50px;
   font-family: var(--font-mono);
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .timer-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
   outline: none;
 }
-
 .timer-input:disabled {
   opacity: 0.5;
 }
-
 .timer-unit {
   font-size: 0.65rem;
   color: var(--color-light);
   opacity: 0.4;
 }
-
 .timer-display {
   color: var(--color-primary);
   font-family: var(--font-mono);
@@ -1571,7 +1816,6 @@ input[type="number"] {
   min-width: 55px;
   text-align: center;
 }
-
 /* Chronometer display - formats as HH:MM:SS */
 .chrono-display {
   color: var(--color-primary);
@@ -1582,73 +1826,51 @@ input[type="number"] {
   min-width: 75px;
   text-align: center;
 }
-
 .timer-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .timer-btn--start {
   background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
   color: #000000;
 }
-
 .timer-btn--start:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .timer-btn--stop {
-  background: rgba(219, 34, 42, 0.15);
-  border-color: rgba(219, 34, 42, 0.4);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .timer-btn--stop:hover {
-  background: rgba(219, 34, 42, 0.25);
-  border-color: rgba(219, 34, 42, 0.6);
+  background: var(--color-danger-dark);
 }
-
 .timer-btn--reset {
   background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
   color: var(--color-light);
 }
-
 .timer-btn--reset:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
 }
-
 /* Book card - compact */
 .book-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.5rem 0.7rem;
-  transition: all 0.25s ease;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
 }
-
 .book-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.15);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  background: var(--accent-bg);
 }
-
 /* Book title */
 .book-title {
   font-size: 0.8rem;
@@ -1660,7 +1882,6 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
 }
-
 /* Compact book card layout */
 .book-card-top {
   display: flex;
@@ -1669,14 +1890,12 @@ input[type="number"] {
   gap: 0.4rem;
   margin-bottom: 0.3rem;
 }
-
 .book-card-details {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-
 .book-detail-label {
   font-size: 0.6rem;
   color: var(--color-light);
@@ -1685,19 +1904,16 @@ input[type="number"] {
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-
 /* Compact book action buttons */
 .book-card-top .book-action-btn {
   width: 26px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: 25px;
   font-size: 0.7rem;
 }
-
 .book-card-top .book-action-btn i {
   font-size: 0.7rem;
 }
-
 /* Two-column layout - grows to fill height */
 .books-two-col {
   display: grid;
@@ -1707,7 +1923,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .books-left-col {
   display: flex;
   flex-direction: column;
@@ -1716,7 +1931,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .books-right-col {
   display: flex;
   flex-direction: column;
@@ -1725,7 +1939,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Scrollable area for book lists */
 .books-scroll-area {
   overflow-y: auto;
@@ -1734,24 +1947,19 @@ input[type="number"] {
   min-height: 0;
   padding-right: 0.25rem;
 }
-
 .books-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
-
 .books-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .books-scroll-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .books-scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 /* Top action bar */
 .books-top-bar {
   display: flex;
@@ -1762,23 +1970,19 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 /* Compact book card overrides */
 .book-card .progress-bar {
   height: 3px;
 }
-
 .book-page-input {
   width: 45px;
   padding: 0.15rem 0.3rem;
   font-size: 0.7rem;
 }
-
 .book-progress-pct {
   font-size: 0.7rem;
   min-width: 32px;
 }
-
 /* Search bar container */
 .search-container {
   display: flex;
@@ -1786,12 +1990,10 @@ input[type="number"] {
   width: 100%;
   flex-shrink: 0;
 }
-
 .search-input-wrapper {
   position: relative;
   width: 100%;
 }
-
 .search-input-icon {
   position: absolute;
   left: 0.7rem;
@@ -1801,30 +2003,24 @@ input[type="number"] {
   opacity: 0.4;
   font-size: 0.7rem;
 }
-
 .search-input {
   width: 100%;
   padding-left: 2rem;
   padding-right: 2rem;
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   font-size: 0.75rem;
   font-family: var(--font-mono);
   height: 32px;
 }
-
 .search-input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
   outline: none;
 }
-
 .search-input::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
-
 .search-clear-btn {
   position: absolute;
   right: 0.4rem;
@@ -1838,51 +2034,39 @@ input[type="number"] {
   padding: 0.15rem;
   font-size: 0.7rem;
   line-height: 1;
-  transition: opacity 0.2s ease;
 }
-
 .search-clear-btn:hover {
   opacity: 1;
   color: var(--color-primary);
 }
-
 /* Book page input */
 .book-page-input {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 6px;
+  border-radius: 25px;
   padding: 0.2rem 0.3rem;
   font-size: 0.7rem;
   width: 45px;
   font-family: var(--font-mono);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-
 .book-page-input:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
   outline: none;
 }
-
 .book-page-input::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }
-
 /* Book total pages text */
 .book-total-pages {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .book-total-pages.unknown {
   opacity: 0.4;
   font-style: italic;
 }
-
 /* Book progress percentage */
 .book-progress-pct {
   color: var(--color-primary);
@@ -1892,7 +2076,6 @@ input[type="number"] {
   min-width: 32px;
   text-align: right;
 }
-
 /* Screen reader only text */
 .sr-only {
   position: absolute;
@@ -1905,16 +2088,13 @@ input[type="number"] {
   white-space: nowrap;
   border: 0;
 }
-
 /* Book group styling */
 .book-group {
   margin-bottom: 0.75rem;
 }
-
 .book-group:last-child {
   margin-bottom: 0;
 }
-
 .book-group-header {
   display: flex;
   align-items: center;
@@ -1929,18 +2109,15 @@ input[type="number"] {
   padding-bottom: 0.3rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .book-group-header i {
   font-size: 0.6rem;
 }
-
 .book-group-count {
   margin-left: auto;
   font-size: 0.55rem;
   opacity: 0.5;
   font-weight: 400;
 }
-
 /* Book action buttons */
 .book-action-btn {
   display: inline-flex;
@@ -1948,59 +2125,45 @@ input[type="number"] {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: #ffffff0a;
   color: var(--color-light);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .book-action-btn i {
   font-size: 0.85rem;
 }
-
 .book-action-btn:hover {
   background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
-
 .book-action-btn--danger {
-  background: rgba(219, 34, 42, 0.1);
-  border-color: rgba(219, 34, 42, 0.3);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .book-action-btn--danger:hover {
-  background: rgba(219, 34, 42, 0.2);
-  border-color: rgba(219, 34, 42, 0.5);
+  background: var(--color-danger-dark);
   color: #ff6b70;
   transform: translateY(-1px);
 }
-
 /* Book actions divider */
 .book-actions-divider {
   border: none;
   height: 1px;
   background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.12), transparent);
 }
-
 /* Add/Edit form card */
 .book-form-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 16px;
+  border-radius: 25px;
   width: 100%;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
 }
-
 .book-form-card h3 {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -2009,7 +2172,6 @@ input[type="number"] {
   margin-bottom: 1rem;
   text-align: left;
 }
-
 .book-form-card .form-label {
   color: var(--color-light);
   text-align: left;
@@ -2019,7 +2181,6 @@ input[type="number"] {
   margin-bottom: 0.5rem;
   letter-spacing: 0.3px;
 }
-
 /* All modal labels - smaller than input text */
 .import-modal-card .form-label {
   color: var(--color-light);
@@ -2030,102 +2191,78 @@ input[type="number"] {
   margin-bottom: 0.3rem;
   letter-spacing: 0.3px;
 }
-
 .book-form-card .form-control {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
   font-family: var(--font-mono);
 }
-
 .book-form-card .form-control::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
-
 .book-form-card .form-control:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
   outline: none;
 }
-
 /* Form buttons */
 .btn-form-cancel {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  border-radius: 10px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: transparent;
   color: var(--color-light);
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
-
 .btn-form-cancel:hover {
   background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
 }
-
 .btn-form-submit {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  border-radius: 10px;
-  border: 1px solid var(--color-primary);
+  border-radius: 25px;
   background: var(--color-primary);
   color: #000000;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
-
 .btn-form-submit:hover {
   background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
 }
-
 .btn-form-submit--danger {
-  background: rgba(219, 34, 42, 0.15);
-  border-color: rgba(219, 34, 42, 0.4);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .btn-form-submit--danger:hover {
-  background: rgba(219, 34, 42, 0.25);
-  border-color: rgba(219, 34, 42, 0.6);
+  background: var(--color-danger-dark);
 }
-
 .books-empty-icon {
   font-size: 2.5rem;
   opacity: 0.25;
   margin-bottom: 1rem;
   display: block;
 }
-
 .books-empty-title {
   font-size: 1rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 0.5rem;
 }
-
 .books-empty-text {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.45;
 }
-
 /* Import modal */
 .import-modal-overlay {
   position: fixed;
@@ -2138,25 +2275,19 @@ input[type="number"] {
   padding: 1rem;
   backdrop-filter: blur(4px);
 }
-
 .import-modal-card {
   background: #111;
-  border: 1px solid #ffffff14;
-  border-radius: 16px;
+  border-radius: 25px;
   max-width: 560px;
   width: 100%;
   padding: 1.5rem;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
-
 .edit-modal-card {
   max-width: 700px;
 }
-
 .project-view-card {
   max-width: 700px;
 }
-
 .import-modal-card h3 {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -2164,31 +2295,24 @@ input[type="number"] {
   font-weight: 600;
   margin-bottom: 0.75rem;
 }
-
 .import-modal-card .form-control {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
   font-family: var(--font-mono);
 }
-
 .import-modal-card .form-control:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
   outline: none;
 }
-
 /* Form Select styling within import modal */
 .import-modal-card .form-select {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
@@ -2200,20 +2324,15 @@ input[type="number"] {
   padding-right: 2.5rem;
   font-family: var(--font-mono);
 }
-
 .import-modal-card .form-select option {
   background: #202020;
   color: var(--color-light);
 }
-
 .import-modal-card .form-select:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
   outline: none;
 }
-
 /* Duplicates Modal */
 .duplicates-modal-card {
   max-width: 560px;
@@ -2221,21 +2340,18 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 .duplicates-empty {
   text-align: center;
   padding: 2rem 0;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .duplicates-empty-icon {
   font-size: 2.5rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   display: block;
 }
-
 .duplicates-scroll-area {
   max-height: 50vh;
   overflow-y: auto;
@@ -2244,27 +2360,21 @@ input[type="number"] {
   gap: 1rem;
   padding-right: 0.25rem;
 }
-
 .duplicates-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
-
 .duplicates-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .duplicates-scroll-area::-webkit-scrollbar-thumb {
   background: #ffffff33;
-  border-radius: 2px;
+  border-radius: 25px;
 }
-
 .duplicate-group {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.75rem;
 }
-
 .duplicate-group-header {
   display: flex;
   align-items: center;
@@ -2276,39 +2386,32 @@ input[type="number"] {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .duplicate-group-header i {
   color: var(--color-primary);
   font-size: 0.8rem;
 }
-
 .duplicate-count {
   margin-left: auto;
   font-size: 0.7rem;
   opacity: 0.5;
   font-weight: 400;
 }
-
 .duplicate-books-list {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .duplicate-book-item {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.4rem 0.5rem;
-  border-radius: 8px;
+  border-radius: 25px;
   cursor: pointer;
-  transition: background 0.15s ease;
 }
-
 .duplicate-book-item:hover {
   background: #ffffff0a;
 }
-
 .duplicate-book-item input[type="checkbox"] {
   accent-color: var(--color-danger);
   width: 16px;
@@ -2316,22 +2419,18 @@ input[type="number"] {
   cursor: pointer;
   flex-shrink: 0;
 }
-
 .duplicate-book-item--kept input[type="checkbox"] {
   accent-color: var(--color-primary);
 }
-
 .duplicate-book-item--kept {
   background: rgba(0, 255, 166, 0.06);
 }
-
 .duplicate-book-info {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   min-width: 0;
 }
-
 .duplicate-book-title {
   color: var(--color-light);
   font-size: 0.8rem;
@@ -2343,7 +2442,6 @@ input[type="number"] {
   align-items: center;
   gap: 0.4rem;
 }
-
 .duplicate-best-badge {
   display: inline-block;
   background: var(--color-primary);
@@ -2351,17 +2449,15 @@ input[type="number"] {
   font-size: 0.6rem;
   font-weight: 700;
   padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  border-radius: 25px;
   letter-spacing: 0.5px;
   flex-shrink: 0;
 }
-
 .duplicate-book-meta {
   font-size: 0.7rem;
   opacity: 0.5;
   color: var(--color-light);
 }
-
 .duplicates-summary {
   margin-top: 1rem;
   padding-top: 0.75rem;
@@ -2371,73 +2467,59 @@ input[type="number"] {
   font-size: 0.8rem;
   opacity: 0.8;
 }
-
 /* Responsive adjustments for books page */
 @media (max-width: 768px) {
   .books-stats {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.4rem;
   }
-
   .books-stat-value {
     font-size: 1rem;
   }
-
   .timer-section {
     width: 100%;
     justify-content: center;
     flex-wrap: wrap;
   }
-
   .book-form-card .grid {
     grid-template-columns: 1fr !important;
   }
-
   .books-two-col {
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-
   .books-top-bar {
     flex-direction: column;
     align-items: stretch;
   }
-
   .books-top-bar .flex {
     justify-content: center;
   }
 }
-
 /* Responsive adjustments */
 @media (max-width: 576px) {
   .profile-card-modern {
     padding: 1.5rem;
-    border-radius: 16px;
+    border-radius: 25px;
   }
-
   .profile-header-modern {
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
   }
-
   .profile-grid {
     grid-template-columns: 1fr;
   }
-
   .form-grid {
     grid-template-columns: 1fr;
   }
-
   .form-actions {
     flex-direction: column;
   }
 }
-
 /* ============================================
    PROJECTS PAGE - Dedicated Styles
    ============================================ */
-
 /* Projects page wrapper - same as books page */
 .projects-page-wrapper {
   width: 100%;
@@ -2451,7 +2533,6 @@ input[type="number"] {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 /* Projects section takes full width */
 .dashboard-section.projects-section {
   max-width: 100%;
@@ -2460,16 +2541,13 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 /* Projects card fills all vertical space */
 .projects-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+  border-radius: 25px;
   width: 100%;
   padding: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -2477,7 +2555,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Stats summary row - compact */
 .projects-stats {
   display: grid;
@@ -2486,20 +2563,15 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .projects-stat-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.6rem 0.5rem;
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .projects-stat-item:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .projects-stat-label {
   display: block;
   color: var(--color-light);
@@ -2510,7 +2582,6 @@ input[type="number"] {
   letter-spacing: 0.5px;
   margin-bottom: 0.2rem;
 }
-
 .projects-stat-value {
   display: block;
   color: var(--color-primary);
@@ -2518,7 +2589,6 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 700;
 }
-
 /* Section header with icon */
 .projects-section-header {
   display: flex;
@@ -2535,11 +2605,9 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .projects-section-header i {
   font-size: 0.75rem;
 }
-
 /* Top action bar */
 .projects-top-bar {
   display: flex;
@@ -2550,7 +2618,6 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 /* Two-column layout - grows to fill height */
 .projects-two-col {
   display: grid;
@@ -2560,7 +2627,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .projects-left-col {
   display: flex;
   flex-direction: column;
@@ -2569,7 +2635,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .projects-right-col {
   display: flex;
   flex-direction: column;
@@ -2578,7 +2643,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Scrollable area for project lists */
 .projects-scroll-area {
   overflow-y: auto;
@@ -2587,51 +2651,38 @@ input[type="number"] {
   min-height: 0;
   padding-right: 0.25rem;
 }
-
 .projects-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
-
 .projects-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .projects-scroll-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .projects-scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 /* Status group spacing */
 .projects-status-group {
   margin-bottom: 1rem;
 }
-
 .projects-status-group:last-child {
   margin-bottom: 0;
 }
-
 /* Project card - compact */
 .project-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.5rem 0.7rem;
-  transition: all 0.25s ease;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
 }
-
 .project-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.15);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  background: var(--accent-bg);
 }
-
 /* Project title */
 .project-title {
   font-size: 0.8rem;
@@ -2643,7 +2694,6 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
 }
-
 /* Compact project card layout */
 .project-card-top {
   display: flex;
@@ -2652,7 +2702,6 @@ input[type="number"] {
   gap: 0.4rem;
   margin-bottom: 0.3rem;
 }
-
 .project-title-section {
   display: flex;
   flex-direction: column;
@@ -2660,13 +2709,11 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
 }
-
 .project-badges {
   display: flex;
   gap: 0.3rem;
   flex-wrap: wrap;
 }
-
 .project-status-badge,
 .project-priority-badge {
   display: inline-flex;
@@ -2676,11 +2723,9 @@ input[type="number"] {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid;
+  border-radius: 25px;
   line-height: 1.2;
 }
-
 .project-description {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -2689,21 +2734,18 @@ input[type="number"] {
   line-height: 1.4;
   word-break: break-word;
 }
-
 .project-card-details {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-
 .project-card-info {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-
 .project-complete-btn {
   display: inline-flex;
   align-items: center;
@@ -2711,33 +2753,27 @@ input[type="number"] {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  border: 1px solid var(--color-primary);
   background: transparent;
   color: var(--color-primary);
   font-size: 0.55rem;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .project-complete-btn:hover {
   background: var(--color-primary);
   color: #000000;
   transform: scale(1.1);
 }
-
 .project-deadline {
   font-size: 0.6rem;
   color: var(--color-light);
   opacity: 0.5;
   white-space: nowrap;
 }
-
 .project-deadline--overdue {
   color: #ff6b70;
   opacity: 1;
 }
-
 /* Compact project action buttons */
 .project-action-btn {
   display: inline-flex;
@@ -2745,51 +2781,39 @@ input[type="number"] {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: #ffffff0a;
   color: var(--color-light);
   font-size: 0.7rem;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .project-action-btn i {
   font-size: 0.7rem;
 }
-
 .project-action-btn:hover {
   background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
-
 .project-action-btn--danger {
-  background: rgba(219, 34, 42, 0.1);
-  border-color: rgba(219, 34, 42, 0.3);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .project-action-btn--danger:hover {
-  background: rgba(219, 34, 42, 0.2);
-  border-color: rgba(219, 34, 42, 0.5);
+  background: var(--color-danger-dark);
   color: #ff6b70;
   transform: translateY(-1px);
 }
-
 /* Overview items in right column */
 .project-overview-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.6rem 0.7rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .project-overview-label {
   font-size: 0.65rem;
   color: var(--color-light);
@@ -2797,40 +2821,34 @@ input[type="number"] {
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-
 .project-overview-value {
   font-size: 0.85rem;
   color: var(--color-primary);
   font-family: var(--font-mono);
   font-weight: 700;
 }
-
 /* Empty state */
 .projects-empty {
   text-align: center;
   padding: 2rem 1rem;
 }
-
 .projects-empty-icon {
   font-size: 2.5rem;
   opacity: 0.25;
   margin-bottom: 1rem;
   display: block;
 }
-
 .projects-empty-title {
   font-size: 1rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 0.5rem;
 }
-
 .projects-empty-text {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.45;
 }
-
 /* Project View Modal */
 .project-view-card {
     max-width: 750px;
@@ -2839,7 +2857,6 @@ input[type="number"] {
     display: flex;
     flex-direction: column;
 }
-
 .project-view-header {
     display: flex;
     justify-content: space-between;
@@ -2849,7 +2866,6 @@ input[type="number"] {
     padding-bottom: 0.75rem;
     border-bottom: 1px solid #ffffff14;
 }
-
 .project-view-title {
     color: var(--color-light);
     font-family: var(--font-mono);
@@ -2860,14 +2876,12 @@ input[type="number"] {
     gap: 0.5rem;
     margin: 0;
 }
-
 .project-view-status-badge {
     font-size: 0.65rem;
     padding: 0.2rem 0.5rem;
-    border-radius: 6px;
+    border-radius: 25px;
     font-weight: 500;
 }
-
 .project-view-meta {
     display: flex;
     align-items: center;
@@ -2876,21 +2890,18 @@ input[type="number"] {
     padding-bottom: 0.75rem;
     border-bottom: 1px solid #ffffff14;
 }
-
 .project-view-deadline,
 .project-view-progress {
     color: var(--color-light);
     opacity: 0.6;
     font-size: 0.75rem;
 }
-
 .project-view-tabs {
     display: flex;
     gap: 0.5rem;
     margin-bottom: 0.75rem;
     border-bottom: 1px solid #ffffff14;
 }
-
 .project-view-tab {
     background: transparent;
     border: none;
@@ -2901,40 +2912,32 @@ input[type="number"] {
     font-weight: 500;
     padding: 0.5rem 1rem;
     cursor: pointer;
-    transition: all 0.2s ease;
     border-bottom: 2px solid transparent;
 }
-
 .project-view-tab.active {
     color: var(--color-primary);
     opacity: 1;
     border-bottom-color: var(--color-primary);
 }
-
 .project-view-content {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
 }
-
 .project-view-content::-webkit-scrollbar {
     width: 6px;
 }
-
 .project-view-content::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .project-view-content::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
+    border-radius: 25px;
 }
-
 .project-notes-section {
     margin-bottom: 1rem;
 }
-
 .project-notes-label {
     color: var(--color-light);
     opacity: 0.6;
@@ -2944,11 +2947,9 @@ input[type="number"] {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
     .project-notes-editor {
         background: #ffffff05;
-        border: 1px solid #ffffff14;
-        border-radius: 10px;
+        border-radius: 25px;
         padding: 0.75rem;
         min-height: 120px;
         width: 100%;
@@ -2958,25 +2959,20 @@ input[type="number"] {
         font-family: var(--font-mono);
         box-sizing: border-box;
     }
-
     .project-notes-editor:focus {
-        border-color: var(--color-primary);
         background: #ffffff0a;
     }
-
     .project-notes-editor:empty:before {
         content: attr(data-placeholder);
         opacity: 0.4;
         pointer-events: none;
     }
-
     .project-notes-actions {
         display: flex;
         align-items: center;
         gap: 0.75rem;
         margin-top: 0.5rem;
     }
-
     .notes-saved-message {
         display: inline-flex;
         align-items: center;
@@ -2986,18 +2982,15 @@ input[type="number"] {
         font-size: 0.75rem;
         font-weight: 500;
     }
-
 .project-plan-section {
     margin-top: 1rem;
 }
-
 .project-plan-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.5rem;
 }
-
 .project-plan-title {
     color: var(--color-light);
     opacity: 0.6;
@@ -3006,50 +2999,40 @@ input[type="number"] {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-
 .project-plan-input-row {
     display: flex;
     gap: 0.5rem;
     margin-bottom: 0.5rem;
 }
-
 .project-plan-input-row .form-control {
     flex: 1;
 }
-
 .project-plan-list {
     max-height: 200px;
     overflow-y: auto;
     padding-right: 0.25rem;
 }
-
 .project-plan-list::-webkit-scrollbar {
     width: 4px;
 }
-
 .project-plan-list::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .project-plan-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    border-radius: 25px;
 }
-
 .project-plan-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.5rem;
-    border-radius: 6px;
+    border-radius: 25px;
     cursor: pointer;
-    transition: background 0.15s ease;
 }
-
 .project-plan-item:hover {
     background: #ffffff05;
 }
-
 .project-plan-checkbox {
     accent-color: var(--color-primary);
     width: 16px;
@@ -3057,35 +3040,29 @@ input[type="number"] {
     cursor: pointer;
     flex-shrink: 0;
 }
-
 .project-plan-item-text {
     color: var(--color-light);
     font-size: 0.8rem;
     flex: 1;
 }
-
 .project-plan-delete-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 4px;
-    border: 1px solid transparent;
+    border-radius: 25px;
     background: transparent;
     color: var(--color-light);
     opacity: 0.4;
     font-size: 0.7rem;
     cursor: pointer;
-    transition: all 0.2s ease;
 }
-
 .project-plan-delete-btn:hover {
     opacity: 1;
     color: #ff6b70;
     background: rgba(219, 34, 42, 0.1);
 }
-
 /* Edit modal description textarea */
 .edit-description-textarea {
     min-height: 120px;
@@ -3093,50 +3070,40 @@ input[type="number"] {
     resize: vertical;
     overflow-y: auto;
 }
-
 .edit-description-textarea::-webkit-scrollbar {
     width: 4px;
 }
-
 .edit-description-textarea::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .edit-description-textarea::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    border-radius: 25px;
 }
-
 /* Responsive adjustments for projects page */
 @media (max-width: 768px) {
     .projects-stats {
         grid-template-columns: repeat(3, 1fr);
         gap: 0.4rem;
     }
-
     .projects-stat-value {
         font-size: 1rem;
     }
-
     .projects-two-col {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
-
     .projects-top-bar {
         flex-direction: column;
         align-items: stretch;
     }
-
     .projects-top-bar .flex {
         justify-content: center;
     }
 }
-
 /* ============================================
     ABSTINENCE PAGE - Dedicated Styles
     ============================================ */
-
 /* Abstinence page wrapper - same as projects/books page */
 .abstinence-page-wrapper {
   width: 100%;
@@ -3150,7 +3117,6 @@ input[type="number"] {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 /* Abstinence section takes full width */
 .dashboard-section.abstinence-section {
   max-width: 100%;
@@ -3159,16 +3125,13 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 /* Abstinence card container fills all vertical space */
 .abstinence-card-container {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+  border-radius: 25px;
   width: 100%;
   padding: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -3176,7 +3139,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Stats summary row - compact */
 .abstinence-stats {
   display: grid;
@@ -3185,20 +3147,15 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .abstinence-stat-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.6rem 0.5rem;
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .abstinence-stat-item:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .abstinence-stat-label {
   display: block;
   color: var(--color-light);
@@ -3209,7 +3166,6 @@ input[type="number"] {
   letter-spacing: 0.5px;
   margin-bottom: 0.2rem;
 }
-
 .abstinence-stat-value {
   display: block;
   color: var(--color-primary);
@@ -3217,7 +3173,6 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 700;
 }
-
 /* Section header with icon */
 .abstinence-section-header {
   display: flex;
@@ -3234,11 +3189,9 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .abstinence-section-header i {
   font-size: 0.75rem;
 }
-
 /* Top action bar */
 .abstinence-top-bar {
   display: flex;
@@ -3249,7 +3202,6 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 /* Two-column layout - grows to fill height */
 .abstinence-two-col {
   display: grid;
@@ -3259,7 +3211,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .abstinence-left-col {
   display: flex;
   flex-direction: column;
@@ -3268,7 +3219,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .abstinence-right-col {
   display: flex;
   flex-direction: column;
@@ -3277,7 +3227,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Scrollable area for abstinence lists */
 .abstinence-scroll-area {
   overflow-y: auto;
@@ -3286,59 +3235,44 @@ input[type="number"] {
   min-height: 0;
   padding-right: 0.25rem;
 }
-
 .abstinence-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
-
 .abstinence-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .abstinence-scroll-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .abstinence-scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 /* Status group spacing */
 .abstinence-status-group {
   margin-bottom: 1rem;
 }
-
 .abstinence-status-group:last-child {
   margin-bottom: 0;
 }
-
 /* Abstinence card - compact */
 .abstinence-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.5rem 0.7rem;
-  transition: all 0.25s ease;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
 }
-
 .abstinence-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.15);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  background: var(--accent-bg);
 }
-
 .abstinence-card--history {
   opacity: 0.8;
 }
-
 .abstinence-card--history:hover {
   opacity: 1;
 }
-
 /* Abstinence title */
 .abstinence-title {
   font-size: 0.8rem;
@@ -3350,7 +3284,6 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
 }
-
 /* Compact abstinence card layout */
 .abstinence-card-top {
   display: flex;
@@ -3359,7 +3292,6 @@ input[type="number"] {
   gap: 0.4rem;
   margin-bottom: 0.3rem;
 }
-
 .abstinence-title-section {
   display: flex;
   flex-direction: column;
@@ -3367,13 +3299,11 @@ input[type="number"] {
   flex: 1;
   min-width: 0;
 }
-
 .abstinence-badges {
   display: flex;
   gap: 0.3rem;
   flex-wrap: wrap;
 }
-
 .abstinence-day-badge,
 .abstinence-target-badge {
   display: inline-flex;
@@ -3383,11 +3313,9 @@ input[type="number"] {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  border: 1px solid;
+  border-radius: 25px;
   line-height: 1.2;
 }
-
 .abstinence-description {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -3396,7 +3324,6 @@ input[type="number"] {
   line-height: 1.4;
   word-break: break-word;
 }
-
 .abstinence-card-details {
   display: flex;
   align-items: center;
@@ -3404,14 +3331,12 @@ input[type="number"] {
   flex-wrap: wrap;
   margin-bottom: 0.3rem;
 }
-
 .abstinence-card-info {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
-
 .abstinence-start-date {
   font-size: 0.6rem;
   color: var(--color-light);
@@ -3421,7 +3346,6 @@ input[type="number"] {
   align-items: center;
   gap: 0.3rem;
 }
-
 .abstinence-progress-pct {
   font-size: 0.6rem;
   color: var(--color-primary);
@@ -3429,7 +3353,6 @@ input[type="number"] {
   font-weight: 600;
   white-space: nowrap;
 }
-
 /* Compact abstinence action buttons */
 .abstinence-action-btn {
   display: inline-flex;
@@ -3437,79 +3360,61 @@ input[type="number"] {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: #ffffff0a;
   color: var(--color-light);
   font-size: 0.7rem;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .abstinence-action-btn i {
   font-size: 0.7rem;
 }
-
 .abstinence-action-btn:hover {
   background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
-
 .abstinence-action-btn--danger {
-  background: rgba(219, 34, 42, 0.1);
-  border-color: rgba(219, 34, 42, 0.3);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .abstinence-action-btn--danger:hover {
-  background: rgba(219, 34, 42, 0.2);
-  border-color: rgba(219, 34, 42, 0.5);
+  background: var(--color-danger-dark);
   color: #ff6b70;
   transform: translateY(-1px);
 }
-
 .abstinence-action-btn--end {
-  background: rgba(0, 255, 166, 0.1);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
-
 .abstinence-action-btn--end:hover {
-  background: rgba(0, 255, 166, 0.2);
-  border-color: rgba(0, 255, 166, 0.5);
+  background: var(--accent-bg);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
-
 /* Empty state */
 .abstinence-empty {
   text-align: center;
   padding: 2rem 1rem;
 }
-
 .abstinence-empty-icon {
   font-size: 2.5rem;
   opacity: 0.25;
   margin-bottom: 1rem;
   display: block;
 }
-
 .abstinence-empty-title {
   font-size: 1rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 0.5rem;
 }
-
 .abstinence-empty-text {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.45;
 }
-
 /* Abstinence View Modal */
 .abstinence-view-card {
     max-width: 750px;
@@ -3518,7 +3423,6 @@ input[type="number"] {
     display: flex;
     flex-direction: column;
 }
-
 .abstinence-view-header {
     display: flex;
     justify-content: space-between;
@@ -3528,7 +3432,6 @@ input[type="number"] {
     padding-bottom: 0.75rem;
     border-bottom: 1px solid #ffffff14;
 }
-
 .abstinence-view-header h3 {
     color: var(--color-light);
     font-family: var(--font-mono);
@@ -3539,51 +3442,42 @@ input[type="number"] {
     gap: 0.5rem;
     margin: 0;
 }
-
 .abstinence-view-day-badge {
     font-size: 0.65rem;
     padding: 0.2rem 0.5rem;
-    border-radius: 6px;
+    border-radius: 25px;
     font-weight: 500;
 }
-
 .abstinence-view-content {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
 }
-
 .abstinence-view-content::-webkit-scrollbar {
     width: 6px;
 }
-
 .abstinence-view-content::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .abstinence-view-content::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
+    border-radius: 25px;
 }
-
 .abstinence-view-stats {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
     margin-bottom: 1rem;
 }
-
 .abstinence-view-stat {
     background: #ffffff05;
-    border: 1px solid #ffffff0a;
-    border-radius: 10px;
+    border-radius: 25px;
     padding: 0.6rem 0.7rem;
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
 }
-
 .abstinence-view-stat-label {
     font-size: 0.65rem;
     color: var(--color-light);
@@ -3591,22 +3485,18 @@ input[type="number"] {
     text-transform: uppercase;
     letter-spacing: 0.3px;
 }
-
 .abstinence-view-stat-value {
     font-size: 0.85rem;
     color: var(--color-primary);
     font-family: var(--font-mono);
     font-weight: 700;
 }
-
 .abstinence-view-progress-section {
     margin-bottom: 1rem;
 }
-
 .abstinence-notes-section {
     margin-bottom: 1rem;
 }
-
 .abstinence-notes-label {
     font-size: 0.75rem;
     color: var(--color-light);
@@ -3615,12 +3505,10 @@ input[type="number"] {
     letter-spacing: 0.3px;
     margin-bottom: 0.5rem;
 }
-
 .abstinence-notes-editor {
     width: 100%;
     background: #ffffff05;
-    border: 1px solid #ffffff0a;
-    border-radius: 8px;
+    border-radius: 25px;
     padding: 0.6rem;
     color: var(--color-light);
     font-family: var(--font-mono);
@@ -3628,54 +3516,43 @@ input[type="number"] {
     resize: vertical;
     min-height: 100px;
     outline: none;
-    transition: border-color 0.2s ease;
 }
-
 .abstinence-notes-editor:focus {
-    border-color: var(--color-primary);
+    background: var(--accent-bg);
 }
-
 .abstinence-notes-actions {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     margin-top: 0.5rem;
 }
-
 /* Responsive adjustments for abstinence page */
 @media (max-width: 768px) {
     .abstinence-stats {
         grid-template-columns: repeat(3, 1fr);
         gap: 0.4rem;
     }
-
     .abstinence-stat-value {
         font-size: 1rem;
     }
-
     .abstinence-two-col {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
-
     .abstinence-top-bar {
         flex-direction: column;
         align-items: stretch;
     }
-
     .abstinence-top-bar .flex {
         justify-content: center;
     }
-
     .abstinence-view-stats {
         grid-template-columns: 1fr;
     }
 }
-
 /* ============================================
     NOTES PAGE - Dedicated Styles
     ============================================ */
-
 /* Notes page wrapper */
 .notes-page-wrapper {
   width: 100%;
@@ -3689,7 +3566,6 @@ input[type="number"] {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 .dashboard-section.notes-section {
   max-width: 100%;
   width: 100%;
@@ -3697,15 +3573,12 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 .notes-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+  border-radius: 25px;
   width: 100%;
   padding: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -3713,7 +3586,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 .notes-stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -3721,20 +3593,15 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .notes-stat-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.6rem 0.5rem;
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .notes-stat-item:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .notes-stat-label {
   display: block;
   color: var(--color-light);
@@ -3745,7 +3612,6 @@ input[type="number"] {
   letter-spacing: 0.5px;
   margin-bottom: 0.2rem;
 }
-
 .notes-stat-value {
   display: block;
   color: var(--color-primary);
@@ -3753,7 +3619,6 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 700;
 }
-
 .notes-top-bar {
   display: flex;
   justify-content: space-between;
@@ -3763,12 +3628,10 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .notes-search {
   flex: 1;
   max-width: 320px;
 }
-
 .notes-scroll-area {
   overflow-y: auto;
   overflow-x: hidden;
@@ -3776,32 +3639,25 @@ input[type="number"] {
   min-height: 0;
   padding-right: 0.25rem;
 }
-
 .notes-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
-
 .notes-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .notes-scroll-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .notes-scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 .notes-group {
   margin-bottom: 1rem;
 }
-
 .notes-group:last-child {
   margin-bottom: 0;
 }
-
 .notes-group-header {
   display: flex;
   align-items: center;
@@ -3817,49 +3673,38 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .notes-group-header i {
   font-size: 0.7rem;
 }
-
 .notes-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
   gap: 0.5rem;
 }
-
 /* Note Card */
 .note-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.65rem;
-  transition: all 0.25s ease;
   text-align: left;
   width: 100%;
   display: flex;
   flex-direction: column;
 }
-
 .note-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.15);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  background: var(--accent-bg);
 }
-
 .note-card-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.4rem;
 }
-
 .note-card-title-section {
   flex: 1;
   min-width: 0;
   cursor: pointer;
 }
-
 .note-card-title {
   font-size: 0.85rem;
   font-weight: 600;
@@ -3871,13 +3716,11 @@ input[type="number"] {
   align-items: center;
   gap: 0.35rem;
 }
-
 .note-pin-icon {
   font-size: 0.65rem;
   color: var(--color-primary);
   opacity: 0.7;
 }
-
 .note-card-preview {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -3890,7 +3733,6 @@ input[type="number"] {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-
 .note-card-footer {
   display: flex;
   align-items: center;
@@ -3899,13 +3741,11 @@ input[type="number"] {
   padding-top: 0.3rem;
   border-top: 1px solid #ffffff0a;
 }
-
 .note-card-date {
   font-size: 0.6rem;
   color: var(--color-light);
   opacity: 0.4;
 }
-
 /* Note action buttons */
 .note-action-btn {
   display: inline-flex;
@@ -3913,72 +3753,56 @@ input[type="number"] {
   justify-content: center;
   width: 26px;
   height: 26px;
-  border-radius: 6px;
-  border: 1px solid #ffffff1f;
+  border-radius: 25px;
   background: #ffffff0a;
   color: var(--color-light);
   font-size: 0.65rem;
   cursor: pointer;
-  transition: all 0.2s ease;
   line-height: 1;
 }
-
 .note-action-btn i {
   font-size: 0.65rem;
 }
-
 .note-action-btn:hover {
   background: var(--accent-bg);
-  border-color: var(--accent-border);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
-
 .note-action-btn--danger {
-  background: rgba(219, 34, 42, 0.1);
-  border-color: rgba(219, 34, 42, 0.3);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .note-action-btn--danger:hover {
-  background: rgba(219, 34, 42, 0.2);
-  border-color: rgba(219, 34, 42, 0.5);
+  background: var(--color-danger-dark);
   color: #ff6b70;
   transform: translateY(-1px);
 }
-
 .note-action-btn--pinned {
-  background: rgba(0, 255, 166, 0.12);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
-
 /* Empty state */
 .notes-empty {
   text-align: center;
   padding: 2rem 1rem;
 }
-
 .notes-empty-icon {
   font-size: 2.5rem;
   opacity: 0.25;
   margin-bottom: 1rem;
   display: block;
 }
-
 .notes-empty-title {
   font-size: 1rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 0.5rem;
 }
-
 .notes-empty-text {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.45;
 }
-
 /* Note Modals */
 .note-modal-card {
   max-width: 800px !important;
@@ -3987,15 +3811,12 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 .note-modal-card > h3 {
   flex-shrink: 0;
 }
-
 .note-modal-card > .mb-3:first-of-type {
   flex-shrink: 0;
 }
-
 .note-modal-content {
   flex: 1;
   display: flex;
@@ -4003,30 +3824,24 @@ input[type="number"] {
   min-height: 0;
   overflow-y: auto;
 }
-
 .note-modal-content .note-editor {
   overflow-y: visible;
 }
-
 .note-modal-content::-webkit-scrollbar {
   width: 6px;
 }
-
 .note-modal-content::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .note-modal-content::-webkit-scrollbar-thumb {
   background: rgba(0, 255, 166, 0.2);
-  border-radius: 3px;
+  border-radius: 25px;
   cursor: grab;
 }
-
 .note-modal-content::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 166, 0.35);
   cursor: grab;
 }
-
 .note-view-card {
   max-width: 800px !important;
   width: 90vw;
@@ -4034,21 +3849,18 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 .note-view-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.5rem;
 }
-
 .note-view-header h3 {
   margin-bottom: 0 !important;
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
-
 .note-view-date {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -4057,7 +3869,6 @@ input[type="number"] {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .note-view-content {
   overflow-y: auto;
   flex: 1;
@@ -4066,26 +3877,21 @@ input[type="number"] {
   line-height: 1.7;
   cursor: grab;
 }
-
 .note-view-content::-webkit-scrollbar {
   width: 6px;
 }
-
 .note-view-content::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .note-view-content::-webkit-scrollbar-thumb {
   background: rgba(0, 255, 166, 0.2);
-  border-radius: 3px;
+  border-radius: 25px;
   cursor: grab;
 }
-
 .note-view-content::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 166, 0.35);
   cursor: grab;
 }
-
 .note-view-content h1,
 .note-view-content h2,
 .note-view-content h3,
@@ -4093,25 +3899,20 @@ input[type="number"] {
   color: var(--color-primary);
   margin: 1rem 0 0.5rem 0;
 }
-
 .note-view-content h3 {
   font-size: 1.1rem;
 }
-
 .note-view-content p {
   margin: 0.5rem 0;
 }
-
 .note-view-content ul,
 .note-view-content ol {
   padding-left: 1.5rem;
   margin: 0.5rem 0;
 }
-
 .note-view-content li {
   margin: 0.25rem 0;
 }
-
 .note-view-content blockquote {
   border-left: 3px solid var(--color-primary);
   padding-left: 1rem;
@@ -4119,47 +3920,39 @@ input[type="number"] {
   opacity: 0.8;
   font-style: italic;
 }
-
 .note-view-content pre {
   background: #ffffff0a;
-  border: 1px solid #ffffff14;
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.75rem;
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   margin: 0.5rem 0;
 }
-
 .note-view-content code {
   background: #ffffff0a;
   padding: 0.1rem 0.3rem;
-  border-radius: 4px;
+  border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
-
 .note-view-content pre code {
   background: none;
   padding: 0;
 }
-
 .note-view-content a {
   color: var(--color-primary);
   text-decoration: underline;
 }
-
 .note-view-content img {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: 25px;
   margin: 0.5rem 0;
 }
-
 .note-view-content strong {
   color: var(--color-light);
   font-weight: 700;
 }
-
 /* Rich Text Editor Toolbar */
 .note-editor-toolbar {
   display: flex;
@@ -4167,48 +3960,41 @@ input[type="number"] {
   gap: 0.2rem;
   padding: 0.4rem;
   background: #ffffff08;
-  border: 1px solid #ffffff14;
   border-radius: 10px 10px 0 0;
   border-bottom: none;
   flex-wrap: wrap;
 }
-
 .note-toolbar-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: 25px;
   border: none;
   background: transparent;
   color: var(--color-light);
   font-size: 0.75rem;
   cursor: pointer;
-  transition: all 0.15s ease;
   opacity: 0.6;
 }
-
 .note-toolbar-btn:hover {
   background: #ffffff10;
   opacity: 1;
   color: var(--color-primary);
 }
-
 .note-toolbar-separator {
   width: 1px;
   height: 20px;
   background: #ffffff1f;
   margin: 0 0.2rem;
 }
-
 /* Rich Text Editor */
 .note-editor {
   min-height: 200px;
   overflow-y: auto;
   padding: 0.75rem;
   background: #ffffff08;
-  border: 1px solid #ffffff1f;
   border-radius: 0 0 10px 10px;
   color: var(--color-light);
   font-size: 0.85rem;
@@ -4217,37 +4003,29 @@ input[type="number"] {
   cursor: grab;
   font-family: var(--font-mono);
 }
-
 .note-editor::-webkit-scrollbar {
   width: 6px;
 }
-
 .note-editor::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .note-editor::-webkit-scrollbar-thumb {
   background: rgba(0, 255, 166, 0.2);
-  border-radius: 3px;
+  border-radius: 25px;
   cursor: grab;
 }
-
 .note-editor::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 255, 166, 0.35);
   cursor: grab;
 }
-
 .note-editor:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.1);
+  background: var(--accent-bg);
 }
-
 .note-editor[data-placeholder]:empty:before {
   content: attr(data-placeholder);
   opacity: 0.3;
   pointer-events: none;
 }
-
 .note-editor h1,
 .note-editor h2,
 .note-editor h3,
@@ -4255,25 +4033,20 @@ input[type="number"] {
   color: var(--color-primary);
   margin: 0.75rem 0 0.35rem 0;
 }
-
 .note-editor h3 {
   font-size: 1.1rem;
 }
-
 .note-editor p {
   margin: 0.4rem 0;
 }
-
 .note-editor ul,
 .note-editor ol {
   padding-left: 1.5rem;
   margin: 0.4rem 0;
 }
-
 .note-editor li {
   margin: 0.15rem 0;
 }
-
 .note-editor blockquote {
   border-left: 3px solid var(--color-primary);
   padding-left: 0.75rem;
@@ -4281,46 +4054,38 @@ input[type="number"] {
   opacity: 0.8;
   font-style: italic;
 }
-
 .note-editor pre {
   background: #ffffff0a;
-  border: 1px solid #ffffff14;
-  border-radius: 6px;
+  border-radius: 25px;
   padding: 0.5rem;
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   margin: 0.4rem 0;
 }
-
 .note-editor code {
   background: #ffffff0a;
   padding: 0.1rem 0.3rem;
-  border-radius: 3px;
+  border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.75rem;
 }
-
 .note-editor pre code {
   background: none;
   padding: 0;
 }
-
 .note-editor a {
   color: var(--color-primary);
   text-decoration: underline;
 }
-
 .note-editor img {
   max-width: 100%;
-  border-radius: 6px;
+  border-radius: 25px;
   margin: 0.4rem 0;
 }
-
 /* ============================================
    DAILY LOG PAGE - Dedicated Styles
    ============================================ */
-
 /* Daily Log page wrapper - full viewport, no page scroll */
 .daily-logs-page-wrapper {
   width: 100%;
@@ -4334,7 +4099,6 @@ input[type="number"] {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 /* Daily Log section takes full width */
 .dashboard-section.daily-logs-section {
   max-width: 100%;
@@ -4343,16 +4107,10 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 /* Daily Log card fills all vertical space */
 .daily-logs-card {
-  background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
   width: 100%;
   padding: 1rem;
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -4360,7 +4118,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Daily log form spacing */
 .daily-log-form {
   display: flex;
@@ -4371,37 +4128,29 @@ input[type="number"] {
   overflow-y: auto;
   padding-right: 0.25rem;
 }
-
 .daily-log-form::-webkit-scrollbar {
   width: 4px;
 }
-
 .daily-log-form::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .daily-log-form::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .daily-log-form::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-
 .daily-log-form .card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
 }
-
 .daily-log-form .card-header {
   margin-bottom: 0.75rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid #ffffff14;
 }
-
 .daily-log-form .card-title {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -4414,23 +4163,19 @@ input[type="number"] {
   align-items: center;
   gap: 0.4rem;
 }
-
 .daily-log-form .card-title i {
   font-size: 0.75rem;
 }
-
 .daily-log-form .card-body {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
-
 .daily-log-form .form-group {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
-
 .daily-log-form .form-label {
   color: var(--color-light);
   text-align: left;
@@ -4439,47 +4184,90 @@ input[type="number"] {
   opacity: 0.7;
   letter-spacing: 0.3px;
 }
-
 .daily-log-form .form-control {
   background: #ffffff0a;
-  border: 1px solid #ffffff1f;
   color: var(--color-light);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.4rem 0.6rem;
   font-size: 0.78rem;
   font-family: var(--font-mono);
   width: 100%;
 }
-
 .daily-log-form .form-control:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-light);
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.15);
   outline: none;
 }
-
+/* Scored Input Styles - Floating Labels */
+.scored-input-wrap {
+    position: relative;
+}
+.scored-input {
+    width: 100%;
+    padding: 1.2rem 0.75rem 0.5rem;
+    background: #ffffff0a;
+    color: var(--color-light);
+    border-radius: 25px;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    outline: none;
+}
+.scored-input::placeholder {
+    color: transparent;
+}
+.scored-input:focus {
+}
+.scored-input-label {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    pointer-events: none;
+    transform-origin: left center;
+    background: transparent;
+    padding: 0;
+}
+.scored-input:focus + .scored-input-label,
+.scored-input:not(:placeholder-shown) + .scored-input-label {
+    top: 0.45rem;
+    transform: translateY(0);
+    font-size: 0.6rem;
+    color: var(--color-primary);
+    letter-spacing: 0.3px;
+}
+.scored-input-goal {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.6rem;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.scored-input:focus + .scored-input-label + .scored-input-goal,
+.scored-input:not(:placeholder-shown) + .scored-input-label + .scored-input-goal {
+    top: 0.35rem;
+    transform: translateY(0);
+    opacity: 0.7;
+}
 .daily-log-form textarea.form-control {
   resize: vertical;
   min-height: 70px;
 }
-
 /* History card */
 .log-history-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.75rem;
-  transition: all 0.25s ease;
   text-align: left;
   width: 100%;
 }
-
 .log-history-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
 }
-
 .log-history-top {
   display: flex;
   justify-content: space-between;
@@ -4487,14 +4275,12 @@ input[type="number"] {
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
-
 .log-history-date {
   color: var(--color-primary);
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 600;
 }
-
 .log-history-summary {
   color: var(--color-light);
   font-size: 0.75rem;
@@ -4502,7 +4288,6 @@ input[type="number"] {
   margin: 0 0 0.5rem;
   line-height: 1.4;
 }
-
 .log-history-journal-preview {
   color: var(--color-light);
   font-size: 0.72rem;
@@ -4512,50 +4297,41 @@ input[type="number"] {
   border-top: 1px solid #ffffff14;
   padding-top: 0.5rem;
 }
-
 /* Responsive adjustments for daily log page */
 @media (max-width: 768px) {
   .daily-logs-card {
     padding: 0.85rem;
   }
-
   .daily-log-form .grid {
     grid-template-columns: 1fr !important;
   }
 }
-
 /* Puzzle/Masonry layout for daily log - each card only uses the height it needs */
 .daily-log-puzzle {
   column-count: 3;
   column-gap: 1rem;
   margin-bottom: 1rem;
 }
-
 .daily-log-puzzle-3 {
   column-count: 3;
 }
-
 .daily-log-puzzle-2 {
   column-count: 2;
 }
-
 .puzzle-card {
   break-inside: avoid;
   margin-bottom: 1rem;
   display: block;
 }
-
 /* Responsive adjustments for puzzle layout */
 @media (max-width: 768px) {
   .daily-log-puzzle {
     column-count: 1;
   }
 }
-
 /* ============================================
    JOURNAL PAGE - Dedicated Styles
    ============================================ */
-
 /* Journal page wrapper - same as other pages */
 .journal-page-wrapper {
   width: 100%;
@@ -4569,7 +4345,6 @@ input[type="number"] {
   overflow: hidden;
   box-sizing: border-box;
 }
-
 /* Journal section takes full width */
 .dashboard-section.journal-section {
   max-width: 100%;
@@ -4578,16 +4353,12 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-
 /* Journal card fills all vertical space */
 .journal-card {
-  background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 20px;
+
   width: 100%;
   padding: 1rem;
   backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -4595,7 +4366,6 @@ input[type="number"] {
   min-height: 0;
   overflow: hidden;
 }
-
 /* Stats summary row */
 .journal-stats {
   display: grid;
@@ -4604,20 +4374,15 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .journal-stat-item {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.6rem 0.5rem;
   text-align: center;
-  transition: border-color 0.2s ease;
 }
-
 .journal-stat-item:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .journal-stat-label {
   display: block;
   color: var(--color-light);
@@ -4628,7 +4393,6 @@ input[type="number"] {
   letter-spacing: 0.5px;
   margin-bottom: 0.2rem;
 }
-
 .journal-stat-value {
   display: block;
   color: var(--color-primary);
@@ -4636,7 +4400,6 @@ input[type="number"] {
   font-size: 1.1rem;
   font-weight: 700;
 }
-
 /* Top action bar */
 .journal-top-bar {
   display: flex;
@@ -4647,7 +4410,6 @@ input[type="number"] {
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .journal-autosave {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -4656,7 +4418,6 @@ input[type="number"] {
   align-items: center;
   gap: 0.3rem;
 }
-
 /* Date header */
 .journal-date-header {
   display: flex;
@@ -4673,35 +4434,29 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .journal-date-header i {
   font-size: 0.75rem;
 }
-
 /* Writing tip card */
 .journal-tip-card {
   background: rgba(0, 255, 166, 0.05);
-  border: 1px solid rgba(0, 255, 166, 0.2);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
   flex-shrink: 0;
 }
-
 .journal-tip-content {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
 }
-
 .journal-tip-icon {
   color: var(--color-primary);
   font-size: 0.85rem;
   margin-top: 0.15rem;
   flex-shrink: 0;
 }
-
 .journal-tip-title {
   color: var(--color-primary);
   font-family: var(--font-mono);
@@ -4709,14 +4464,12 @@ input[type="number"] {
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
-
 .journal-tip-text {
   color: var(--color-light);
   opacity: 0.8;
   font-size: 0.75rem;
   line-height: 1.4;
 }
-
 .journal-tip-close {
   background: transparent;
   border: none;
@@ -4725,15 +4478,12 @@ input[type="number"] {
   cursor: pointer;
   padding: 0.15rem;
   font-size: 0.7rem;
-  transition: opacity 0.2s ease;
   flex-shrink: 0;
 }
-
 .journal-tip-close:hover {
   opacity: 1;
   color: var(--color-primary);
 }
-
 .journal-tip-refresh {
   display: inline-flex;
   align-items: center;
@@ -4747,13 +4497,10 @@ input[type="number"] {
   padding: 0.25rem 0;
   margin-top: 0.5rem;
   opacity: 0.7;
-  transition: opacity 0.2s ease;
 }
-
 .journal-tip-refresh:hover {
   opacity: 1;
 }
-
 /* Journal editor section */
 .journal-editor-section {
   flex: 1;
@@ -4761,7 +4508,6 @@ input[type="number"] {
   flex-direction: column;
   min-height: 0;
 }
-
 .journal-editor-header {
   display: flex;
   align-items: center;
@@ -4777,18 +4523,15 @@ input[type="number"] {
   border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
-
 .journal-editor-header i {
   font-size: 0.75rem;
 }
-
 /* Journal textarea */
 .journal-editor {
   flex: 1;
   width: 100%;
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.75rem;
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -4796,20 +4539,14 @@ input[type="number"] {
   line-height: 1.7;
   resize: none;
   outline: none;
-  transition: border-color 0.2s ease, background 0.2s ease;
   min-height: 200px;
 }
-
 .journal-editor:focus {
-  border-color: var(--color-primary);
   background: #ffffff0a;
-  box-shadow: 0 0 0 0.2rem rgba(0, 255, 166, 0.1);
 }
-
 .journal-editor::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }
-
 /* Journal editor footer */
 .journal-editor-footer {
   display: flex;
@@ -4818,13 +4555,11 @@ input[type="number"] {
   margin-top: 0.5rem;
   flex-shrink: 0;
 }
-
 .journal-editor-count {
   font-size: 0.65rem;
   color: var(--color-light);
   opacity: 0.5;
 }
-
 .journal-show-tips {
   display: inline-flex;
   align-items: center;
@@ -4836,38 +4571,30 @@ input[type="number"] {
   font-weight: 500;
   cursor: pointer;
   opacity: 0.7;
-  transition: opacity 0.2s ease;
 }
-
 .journal-show-tips:hover {
   opacity: 1;
 }
-
 /* Responsive adjustments for journal page */
 @media (max-width: 768px) {
   .journal-stats {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.4rem;
   }
-
   .journal-stat-value {
     font-size: 1rem;
   }
-
   .journal-top-bar {
     flex-direction: column;
     align-items: stretch;
   }
-
   .journal-top-bar .flex {
     justify-content: center;
   }
-
   .journal-autosave {
     justify-content: center;
   }
 }
-
 /* Random book modal title styling */
 .random-book-title {
   font-size: 1.1rem;
@@ -4879,7 +4606,6 @@ input[type="number"] {
   line-height: 1.4;
   text-align: center;
 }
-
 /* Random book pages text */
 .random-book-pages {
   font-size: 0.8rem;
@@ -4888,36 +4614,29 @@ input[type="number"] {
   text-align: center;
   margin-bottom: 1.25rem;
 }
-
 /* Responsive adjustments for notes page */
 @media (max-width: 768px) {
   .notes-stats {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.4rem;
   }
-
   .notes-stat-value {
     font-size: 1rem;
   }
-
   .notes-top-bar {
     flex-direction: column;
     align-items: stretch;
   }
-
   .notes-top-bar .flex {
     justify-content: center;
   }
-
   .notes-search {
     max-width: 100%;
   }
-
   .notes-grid {
     grid-template-columns: 1fr;
   }
 }
-
 /* Custom Checkbox Styling */
 .checkbox-label {
   display: flex !important;
@@ -4925,45 +4644,33 @@ input[type="number"] {
   gap: 0.6rem;
   cursor: pointer;
   padding: 0.35rem 0;
-  transition: opacity 0.2s;
   user-select: none;
 }
-
 .checkbox-label:hover {
   opacity: 0.85;
 }
-
 .checkbox-input {
   appearance: none;
   -webkit-appearance: none;
   width: 1.25rem;
   height: 1.25rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 0.35rem;
+  border-radius: 25px;
   background: transparent;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 .checkbox-label:hover .checkbox-input {
-  border-color: rgba(255, 255, 255, 0.5);
 }
-
 .checkbox-input:checked {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   animation: checkbox-pop 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 @keyframes checkbox-pop {
   0% { transform: scale(1); }
   40% { transform: scale(1.2); }
   100% { transform: scale(1); }
 }
-
 .checkbox-input:checked::after {
   content: '';
   position: absolute;
@@ -4971,16 +4678,12 @@ input[type="number"] {
   top: 0.1rem;
   width: 0.35rem;
   height: 0.6rem;
-  border: solid #000;
   border-width: 0 2.5px 2.5px 0;
   transform: rotate(45deg);
 }
-
 .checkbox-input:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 255, 166, 0.3);
 }
-
 /* Projects Checkbox List */
 .projects-checkbox-list {
   display: flex;
@@ -4990,32 +4693,25 @@ input[type="number"] {
   overflow-y: auto;
   padding: 0.5rem;
   background: rgba(0, 0, 0, 0.2);
-  border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
 }
-
 .projects-checkbox-list::-webkit-scrollbar {
   width: 6px;
 }
-
 .projects-checkbox-list::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  border-radius: 25px;
 }
-
 .projects-checkbox-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: 25px;
 }
-
 .projects-checkbox-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
-
 /* ============================================
    TOAST NOTIFICATIONS - Action Affirmations
    ============================================ */
-
 .toast-container {
   position: fixed;
   bottom: 5rem;
@@ -5028,50 +4724,38 @@ input[type="number"] {
   gap: 0.5rem;
   pointer-events: none;
 }
-
 .toast {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 1.2rem;
-  border-radius: 12px;
+  border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 500;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px);
   animation: toast-slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   pointer-events: auto;
-  border: 1px solid transparent;
 }
-
 .toast--success {
-  background: rgba(0, 255, 166, 0.15);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
-
 .toast--error {
-  background: rgba(219, 34, 42, 0.15);
-  border-color: rgba(219, 34, 42, 0.3);
+  background: var(--color-danger-dark);
   color: #ff6b70;
 }
-
 .toast--info {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
   color: var(--color-light);
 }
-
 .toast-icon {
   font-size: 0.85rem;
   flex-shrink: 0;
 }
-
 .toast-text {
   white-space: nowrap;
 }
-
 @keyframes toast-slide-up {
   0% {
     opacity: 0;
@@ -5082,11 +4766,9 @@ input[type="number"] {
     transform: translateY(0) scale(1);
   }
 }
-
 .toast-exit {
   animation: toast-slide-down 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
 @keyframes toast-slide-down {
   0% {
     opacity: 1;
@@ -5097,132 +4779,106 @@ input[type="number"] {
     transform: translateY(16px) scale(0.95);
   }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none !important; }
   .toast-exit { animation: none !important; display: none; }
 }
-
 /* Inline saved/affirmation message (used next to action buttons) */
 .action-feedback {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem 0.5rem;
-  border-radius: 6px;
+  border-radius: 25px;
   font-size: 0.7rem;
   font-weight: 500;
   animation: feedback-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
 .action-feedback--success {
   color: var(--color-primary);
   background: rgba(0, 255, 166, 0.1);
 }
-
 .action-feedback--error {
   color: #ff6b70;
   background: rgba(219, 34, 42, 0.1);
 }
-
 @keyframes feedback-pop {
   0% { opacity: 0; transform: scale(0.85); }
   100% { opacity: 1; transform: scale(1); }
 }
-
 /* Brief flash effect on button after click */
 .btn-action-flash {
   animation: btn-flash 0.4s ease;
 }
-
 @keyframes btn-flash {
-  0% { box-shadow: 0 0 0 0 rgba(0, 255, 166, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(0, 255, 166, 0.2); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 255, 166, 0); }
+  0% { }
+  50% { }
+  100% { }
 }
-
 .btn-form-submit-flash {
   animation: btn-submit-flash 0.4s ease;
 }
-
 @keyframes btn-submit-flash {
-  0% { box-shadow: 0 0 0 0 rgba(0, 255, 166, 0.5); }
-  50% { box-shadow: 0 0 16px 6px rgba(0, 255, 166, 0.25); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 255, 166, 0); }
+  0% { }
+  50% { }
+  100% { }
 }
-
 .btn-form-submit--danger-flash {
   animation: btn-danger-flash 0.4s ease;
 }
-
 @keyframes btn-danger-flash {
-  0% { box-shadow: 0 0 0 0 rgba(219, 34, 42, 0.5); }
-  50% { box-shadow: 0 0 16px 6px rgba(219, 34, 42, 0.25); }
-  100% { box-shadow: 0 0 0 0 rgba(219, 34, 42, 0); }
+  0% { }
+  50% { }
+  100% { }
 }
-
 /* Delete modal fade-in */
 .delete-modal-card {
   max-width: 420px;
   text-align: center;
 }
-
 .delete-modal-text {
   color: var(--color-light);
   opacity: 0.8;
   font-size: 0.85rem;
   line-height: 1.5;
 }
-
 /* Analysis Badges */
 .analysis-badge {
   display: inline-flex;
   align-items: center;
   padding: 0.35rem 0.6rem;
   background: rgba(0, 255, 166, 0.1);
-  border: 1px solid rgba(0, 255, 166, 0.25);
   border-radius: 0.375rem;
   font-size: 0.75rem;
   color: var(--color-light);
   white-space: nowrap;
-  transition: all 0.2s;
 }
-
 .analysis-badge:hover {
-  background: rgba(0, 255, 166, 0.15);
-  border-color: rgba(0, 255, 166, 0.4);
+  background: var(--accent-bg);
 }
-
 /* Stat Cards */
 .stat-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  transition: all 0.2s ease;
 }
-
 .stat-card:hover {
-  background: #ffffff0a;
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
   transform: translateY(-2px);
 }
-
 .stat-icon {
   font-size: 1.2rem;
   color: var(--color-primary);
   opacity: 0.8;
   flex-shrink: 0;
 }
-
 .stat-content {
   flex: 1;
   min-width: 0;
 }
-
 .stat-label {
   font-size: 0.65rem;
   color: var(--color-light);
@@ -5235,14 +4891,12 @@ input[type="number"] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .stat-value {
   font-size: 1.1rem;
   font-weight: 700;
   font-family: var(--font-mono);
   line-height: 1;
 }
-
 /* Styled Select Dropdowns */
 select.form-control {
   appearance: none;
@@ -5252,36 +4906,28 @@ select.form-control {
   background-position: right 0.75rem center;
   padding-right: 2.5rem;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   background-color: rgba(0, 0, 0, 0.3);
   color: var(--color-light);
-  border-radius: 0.5rem;
+  border-radius: 25px;
   padding: 0.5rem 2.5rem 0.5rem 0.75rem;
   font-size: 0.9rem;
-  transition: all 0.2s;
 }
-
 select.form-control:hover {
-  border-color: rgba(0, 255, 166, 0.5);
+  background: var(--accent-bg);
   background-color: rgba(0, 0, 0, 0.4);
 }
-
 select.form-control:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 select.form-control option {
   background: #1a1a1a;
   color: var(--color-light);
   padding: 0.5rem;
 }
-
 /* ============================================
    WORKOUT CHECK PAGE - Dedicated Styles
    ============================================ */
-
 /* Empty state styling */
 .empty-state {
   display: flex;
@@ -5292,21 +4938,18 @@ select.form-control option {
   text-align: center;
   color: var(--color-light);
 }
-
 .empty-state i {
   font-size: 3rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   opacity: 0.8;
 }
-
 .empty-state h3 {
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: var(--color-light);
 }
-
 .empty-state p {
   font-size: 0.95rem;
   color: var(--color-light);
@@ -5314,14 +4957,12 @@ select.form-control option {
   margin-bottom: 1.5rem;
   max-width: 400px;
 }
-
 /* Workouts main actions */
 .workouts-main-actions {
   display: flex;
   justify-content: center;
   margin-bottom: 2rem;
 }
-
 .workout-features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -5330,41 +4971,33 @@ select.form-control option {
   width: 100%;
   max-width: 800px;
 }
-
 .feature-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   text-align: center;
-  transition: all 0.3s ease;
 }
-
 .feature-card:hover {
-  border-color: rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
   transform: translateY(-2px);
 }
-
 .feature-card i {
   font-size: 2rem;
   color: var(--color-primary);
   margin-bottom: 0.75rem;
 }
-
 .feature-card h4 {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .feature-card p {
   font-size: 0.85rem;
   color: var(--color-light);
   opacity: 0.7;
   line-height: 1.4;
 }
-
 /* Workout info bar */
 .workout-info-bar {
   display: flex;
@@ -5374,11 +5007,9 @@ select.form-control option {
   gap: 1rem;
   padding: 1rem;
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   margin-bottom: 1.5rem;
 }
-
 .workout-date {
   display: flex;
   align-items: center;
@@ -5388,11 +5019,9 @@ select.form-control option {
   font-size: 0.9rem;
   font-weight: 500;
 }
-
 .workout-date i {
   color: var(--color-primary);
 }
-
 .workout-progress {
   display: flex;
   align-items: center;
@@ -5400,22 +5029,18 @@ select.form-control option {
   flex: 1;
   min-width: 200px;
 }
-
 .workout-progress-bar {
   flex: 1;
   height: 8px;
   background: #ffffff0a;
-  border-radius: 4px;
+  border-radius: 25px;
   overflow: hidden;
 }
-
 .workout-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
-  border-radius: 4px;
-  transition: width 0.3s ease;
+  border-radius: 25px;
 }
-
 .workout-progress span {
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -5423,7 +5048,6 @@ select.form-control option {
   font-weight: 600;
   white-space: nowrap;
 }
-
 .workout-save-status {
   display: flex;
   align-items: center;
@@ -5432,20 +5056,16 @@ select.form-control option {
   font-size: 0.85rem;
   opacity: 0.7;
 }
-
 .workout-save-status i {
   font-size: 0.8rem;
 }
-
 /* Workout intensity section */
 .workout-intensity-section {
   margin-bottom: 1.5rem;
   padding: 1rem;
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
 }
-
 .workout-intensity-label {
   display: flex;
   align-items: center;
@@ -5456,26 +5076,22 @@ select.form-control option {
   font-weight: 500;
   margin-bottom: 0.75rem;
 }
-
 .workout-intensity-label i {
   color: var(--color-primary);
 }
-
 .intensity-value {
   color: var(--color-primary);
   font-weight: 700;
 }
-
 .workout-intensity-slider {
   width: 100%;
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
   background: #ffffff0a;
-  border-radius: 3px;
+  border-radius: 25px;
   outline: none;
 }
-
 .workout-intensity-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -5484,13 +5100,10 @@ select.form-control option {
   background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.2s ease;
 }
-
 .workout-intensity-slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
 }
-
 .workout-intensity-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
@@ -5498,13 +5111,10 @@ select.form-control option {
   border-radius: 50%;
   cursor: pointer;
   border: none;
-  transition: transform 0.2s ease;
 }
-
 .workout-intensity-slider::-moz-range-thumb:hover {
   transform: scale(1.1);
 }
-
 /* Workout exercises list */
 .workout-exercises-list {
   display: flex;
@@ -5512,42 +5122,32 @@ select.form-control option {
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
-
 .workout-exercise-card {
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1rem;
-  transition: all 0.3s ease;
 }
-
 .workout-exercise-card:hover {
-  border-color: rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
 }
-
 .workout-exercise-card.completed {
-  border-color: rgba(0, 255, 166, 0.3);
   background: rgba(0, 255, 166, 0.05);
 }
-
 .exercise-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
 }
-
 .exercise-info {
   flex: 1;
 }
-
 .exercise-info h3 {
   font-size: 1.1rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .exercise-notes {
   font-size: 0.85rem;
   color: var(--color-light);
@@ -5555,7 +5155,6 @@ select.form-control option {
   margin-bottom: 0.5rem;
   font-style: italic;
 }
-
 .exercise-target {
   display: inline-block;
   font-size: 0.8rem;
@@ -5563,9 +5162,8 @@ select.form-control option {
   font-family: var(--font-mono);
   padding: 0.25rem 0.5rem;
   background: rgba(0, 255, 166, 0.1);
-  border-radius: 4px;
+  border-radius: 25px;
 }
-
 .exercise-complete-btn {
   background: transparent;
   border: none;
@@ -5574,38 +5172,31 @@ select.form-control option {
   cursor: pointer;
   padding: 0.5rem;
   font-size: 1.5rem;
-  transition: all 0.2s ease;
   flex-shrink: 0;
 }
-
 .exercise-complete-btn:hover {
   opacity: 0.7;
   transform: scale(1.1);
 }
-
 .exercise-complete-btn.completed {
   color: var(--color-primary);
   opacity: 1;
 }
-
 .exercise-details {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid #ffffff0a;
 }
-
 .exercise-inputs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 1rem;
 }
-
 .exercise-input-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .exercise-input-group label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -5614,37 +5205,28 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .exercise-input-group input {
   background: #ffffff0a;
-  border: 1px solid #ffffff14;
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.6rem;
   color: var(--color-light);
   font-family: var(--font-mono);
   font-size: 0.9rem;
   outline: none;
-  transition: all 0.2s ease;
 }
-
 .exercise-input-group input:focus {
-  border-color: var(--color-primary);
   background: #ffffff15;
 }
-
 .exercise-input-group input::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }
-
 /* Workout notes section */
 .workout-notes-section {
   margin-bottom: 1.5rem;
   padding: 1rem;
   background: #ffffff05;
-  border: 1px solid #ffffff0a;
-  border-radius: 12px;
+  border-radius: 25px;
 }
-
 .workout-notes-label {
   display: flex;
   align-items: center;
@@ -5655,17 +5237,14 @@ select.form-control option {
   font-weight: 500;
   margin-bottom: 0.75rem;
 }
-
 .workout-notes-label i {
   color: var(--color-primary);
 }
-
 .workout-notes-textarea {
   width: 100%;
   min-height: 100px;
   background: #ffffff0a;
-  border: 1px solid #ffffff14;
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 0.75rem;
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -5673,18 +5252,13 @@ select.form-control option {
   line-height: 1.6;
   resize: vertical;
   outline: none;
-  transition: all 0.2s ease;
 }
-
 .workout-notes-textarea:focus {
-  border-color: var(--color-primary);
   background: #ffffff15;
 }
-
 .workout-notes-textarea::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }
-
 /* Workout actions */
 .workout-actions {
   display: flex;
@@ -5692,30 +5266,25 @@ select.form-control option {
   gap: 1rem;
   flex-wrap: wrap;
 }
-
 .workout-actions .btn-primary.completed {
   background: var(--color-primary-dark);
   cursor: default;
   opacity: 0.8;
 }
-
 /* PR Modal */
 .pr-modal {
   max-width: 400px;
 }
-
 .pr-celebration {
   text-align: center;
   padding: 1rem;
 }
-
 .pr-celebration i {
   font-size: 3rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   animation: pulse 1s ease-in-out infinite;
 }
-
 @keyframes pulse {
   0%, 100% {
     transform: scale(1);
@@ -5724,36 +5293,30 @@ select.form-control option {
     transform: scale(1.1);
   }
 }
-
 .pr-celebration h4 {
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .pr-celebration p {
   font-size: 0.95rem;
   color: var(--color-light);
   opacity: 0.8;
   margin-bottom: 1.5rem;
 }
-
 .pr-celebration strong {
   color: var(--color-primary);
 }
-
 .pr-stats {
   display: flex;
   justify-content: center;
   gap: 2rem;
   margin-top: 1rem;
 }
-
 .pr-stat {
   text-align: center;
 }
-
 .pr-label {
   display: block;
   font-size: 0.75rem;
@@ -5763,7 +5326,6 @@ select.form-control option {
   letter-spacing: 0.5px;
   margin-bottom: 0.25rem;
 }
-
 .pr-value {
   display: block;
   font-size: 1.5rem;
@@ -5771,39 +5333,31 @@ select.form-control option {
   color: var(--color-primary);
   font-family: var(--font-mono);
 }
-
 /* Responsive adjustments for workout check page */
 @media (max-width: 768px) {
   .workout-info-bar {
     flex-direction: column;
     align-items: stretch;
   }
-
   .workout-progress {
     min-width: auto;
   }
-
   .workout-features {
     grid-template-columns: 1fr;
   }
-
   .exercise-inputs {
     grid-template-columns: 1fr;
   }
-
   .pr-stats {
     gap: 1rem;
   }
-
   .workout-actions {
     flex-direction: column;
   }
-
   .workout-actions button {
     width: 100%;
   }
 }
-
 /* Workout Sub Navigation */
 .workout-subnav {
   position: fixed;
@@ -5816,7 +5370,6 @@ select.form-control option {
   z-index: 99;
   height: 3rem;
 }
-
 .workout-subnav-inner {
   position: relative;
   display: flex;
@@ -5827,17 +5380,14 @@ select.form-control option {
   margin: 0 auto;
   padding: 0 1rem;
 }
-
 .workout-subnav-pill {
   position: absolute;
   bottom: 0;
   left: 0;
   height: 2px;
   background: var(--color-primary);
-  transition: transform var(--tabs-dur) var(--tabs-ease), width var(--tabs-dur) var(--tabs-ease);
-  border-radius: 2px;
+  border-radius: 25px;
 }
-
 .workout-subnav-link {
   position: relative;
   padding: 0.75rem 1rem;
@@ -5845,18 +5395,14 @@ select.form-control option {
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: color 0.2s ease;
   white-space: nowrap;
 }
-
 .workout-subnav-link:hover {
   color: var(--color-primary);
 }
-
 .workout-subnav-link.active {
   color: var(--color-primary);
 }
-
 /* Workout Dashboard Grid */
 .workout-dashboard-grid {
   display: grid;
@@ -5864,22 +5410,17 @@ select.form-control option {
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
-
 /* Workout Stats Cards */
 .workout-stats-card {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
-  transition: transform 0.2s ease, border-color 0.2s ease;
 }
-
 .workout-stats-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-stats-card__icon {
   width: 48px;
   height: 48px;
@@ -5887,12 +5428,11 @@ select.form-control option {
   align-items: center;
   justify-content: center;
   background: rgba(0, 255, 166, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   margin-bottom: 1rem;
   color: var(--color-primary);
   font-size: 1.25rem;
 }
-
 .workout-stats-card__value {
   font-size: 2rem;
   font-weight: 700;
@@ -5900,157 +5440,124 @@ select.form-control option {
   margin-bottom: 0.25rem;
   font-family: var(--font-mono);
 }
-
 .workout-stats-card__label {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-stats-card__trend {
   font-size: 0.75rem;
   color: var(--color-primary);
   margin-top: 0.5rem;
 }
-
 .workout-stats-card--clickable {
   cursor: pointer;
 }
-
 .workout-stats-card--clickable:hover {
   transform: translateY(-4px);
-  border-color: var(--color-primary);
-  box-shadow: 0 4px 20px rgba(0, 255, 166, 0.15);
+  background: var(--accent-bg);
 }
-
 /* Workout Template Cards */
 .workout-template-card {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
-  transition: transform 0.2s ease, border-color 0.2s ease;
   position: relative;
 }
-
 .workout-template-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-template-card.active {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 20px rgba(0, 255, 166, 0.1);
+  background: var(--accent-bg);
 }
-
 .workout-template-card__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1rem;
 }
-
 .workout-template-card__title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.25rem;
 }
-
 .workout-template-card__description {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 1rem;
 }
-
 .workout-template-card__badge {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 25px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-template-card__days {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
-
 .workout-template-card__day {
   background: rgba(255, 255, 255, 0.1);
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 25px;
   font-size: 0.75rem;
   color: var(--color-light);
 }
-
 .workout-template-card__actions {
   display: flex;
   gap: 0.5rem;
   margin-top: 1rem;
 }
-
 .workout-template-card__action {
   flex: 1;
   padding: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
   color: var(--color-light);
-  border-radius: 6px;
+  border-radius: 25px;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 0.875rem;
 }
-
 .workout-template-card__action:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-template-card__action.danger:hover {
-  background: rgba(219, 34, 42, 0.1);
-  border-color: var(--color-danger);
+  background: var(--color-danger-dark);
   color: var(--color-danger);
 }
-
 /* Exercise Editor */
 .exercise-editor {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
 }
-
 .exercise-editor__form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 1rem;
 }
-
 .exercise-editor__input {
   background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.75rem;
   color: var(--color-light);
   font-size: 0.875rem;
-  transition: border-color 0.2s ease;
 }
-
 .exercise-editor__input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .exercise-editor__label {
   display: block;
   font-size: 0.75rem;
@@ -6060,117 +5567,92 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .exercise-editor__list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-top: 1.5rem;
 }
-
 .exercise-editor__item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: border-color 0.2s ease;
 }
-
 .exercise-editor__item:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .exercise-editor__item-info {
   flex: 1;
 }
-
 .exercise-editor__item-name {
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.25rem;
 }
-
 .exercise-editor__item-details {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .exercise-editor__item-actions {
   display: flex;
   gap: 0.5rem;
 }
-
 .exercise-editor__item-action {
   padding: 0.5rem;
   border: none;
   background: transparent;
   color: var(--color-light);
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.2s ease;
+  border-radius: 25px;
 }
-
 .exercise-editor__item-action:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .exercise-editor__item-action.danger:hover {
   background: rgba(219, 34, 42, 0.1);
   color: var(--color-danger);
 }
-
 /* Workout Calendar */
 .workout-calendar {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
 }
-
 .workout-calendar__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
 }
-
 .workout-calendar__title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--color-light);
 }
-
 .workout-calendar__nav {
   display: flex;
   gap: 0.5rem;
 }
-
 .workout-calendar__nav-btn {
   padding: 0.5rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
   color: var(--color-light);
-  border-radius: 6px;
+  border-radius: 25px;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
-
 .workout-calendar__nav-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-calendar__grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 0.5rem;
 }
-
 .workout-calendar__day-label {
   text-align: center;
   font-size: 0.75rem;
@@ -6180,65 +5662,49 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-calendar__day {
   aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 25px;
   font-size: 0.875rem;
   color: var(--color-light);
   cursor: pointer;
-  transition: all 0.2s ease;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .workout-calendar__day:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-calendar__day.completed {
-  background: rgba(0, 255, 166, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
-
 .workout-calendar__day.today {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 10px rgba(0, 255, 166, 0.2);
+  background: var(--accent-bg);
 }
-
 .workout-calendar__day.other-month {
   opacity: 0.3;
 }
-
 /* PR List */
 .pr-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
-
 .pr-item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: transform 0.2s ease, border-color 0.2s ease;
 }
-
 .pr-item:hover {
   transform: translateY(-2px);
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .pr-item__icon {
   width: 48px;
   height: 48px;
@@ -6246,47 +5712,40 @@ select.form-control option {
   align-items: center;
   justify-content: center;
   background: rgba(0, 255, 166, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   color: var(--color-primary);
   font-size: 1.25rem;
   margin-right: 1rem;
 }
-
 .pr-item__info {
   flex: 1;
 }
-
 .pr-item__exercise {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.25rem;
 }
-
 .pr-item__date {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .pr-item__stats {
   display: flex;
   gap: 1.5rem;
   text-align: right;
 }
-
 .pr-item__stat {
   display: flex;
   flex-direction: column;
 }
-
 .pr-item__stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-primary);
   font-family: var(--font-mono);
 }
-
 .pr-item__stat-label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -6294,7 +5753,6 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 /* Workout section takes full width */
 .dashboard-section.workout-section {
   max-width: 100%;
@@ -6303,12 +5761,10 @@ select.form-control option {
   display: flex;
   flex-direction: column;
 }
-
 /* Workout card fills all vertical space */
 .workout-card {
   background: #ffffff08;
-  border: 1px solid #ffffff14;
-  border-radius: 16px;
+  border-radius: 25px;
   padding: 1.5rem;
   flex: 1;
   display: flex;
@@ -6316,137 +5772,109 @@ select.form-control option {
   overflow: hidden;
   backdrop-filter: blur(12px);
 }
-
 /* Workout empty state */
 .workout-empty-state {
   text-align: center;
   padding: 3rem 2rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   backdrop-filter: blur(10px);
 }
-
 .workout-empty-state__icon {
   font-size: 3rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
 }
-
 .workout-empty-state__title {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .workout-empty-state__description {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 1.5rem;
 }
-
 .workout-actions-header {
   display: flex;
   justify-content: center;
   margin-bottom: 1.5rem;
 }
-
 .workout-status {
   font-size: 0.875rem;
   opacity: 0.7;
 }
-
 .workout-status--completed {
   color: var(--color-primary);
 }
-
 .workout-status--incomplete {
   color: var(--color-danger);
 }
-
 .workout-detail-row {
   margin-bottom: 1rem;
   font-size: 0.875rem;
   opacity: 0.7;
 }
-
 .workout-recent-section {
   margin-top: 2rem;
 }
-
 .workout-recent-section h3 {
   margin-bottom: 1rem;
   font-size: 1.125rem;
   color: var(--color-light);
 }
-
 .exercise-editor__item--clickable {
   cursor: pointer;
 }
-
 .exercise-editor__item--clickable:hover {
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   transform: translateX(4px);
 }
-
 .exercise-editor__item-chevron {
   color: var(--color-light);
   opacity: 0.5;
 }
-
 .workout-calendar-wrapper {
   margin-bottom: 2rem;
 }
-
 .workout-pr-details {
   margin-top: 2rem;
 }
-
 .workout-pr-details__title {
   font-size: 1.125rem;
   margin-bottom: 0.5rem;
 }
-
 .workout-pr-details__title i {
   color: var(--color-primary);
 }
-
 .workout-pr-details__date {
   font-size: 0.875rem;
   opacity: 0.7;
 }
-
 .workout-pr-progression {
   margin-top: 1.5rem;
 }
-
 .workout-pr-progression h4 {
   margin-bottom: 1rem;
   font-size: 1rem;
   color: var(--color-light);
 }
-
 .exercise-editor__item--selected {
-  border-color: var(--color-primary) !important;
   background: rgba(0, 255, 166, 0.05);
 }
-
 .exercise-editor__item-trophy {
   color: var(--color-primary);
 }
-
 .workout-pr-exercises {
   margin-top: 2rem;
 }
-
 .workout-pr-exercises h3 {
   margin-bottom: 1rem;
   font-size: 1.125rem;
   color: var(--color-light);
 }
-
 /* Workout Top Bar */
 .workout-top-bar {
   display: flex;
@@ -6457,77 +5885,64 @@ select.form-control option {
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 /* Workout Main Content */
 .workout-main-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
-
 /* Workout Status Card */
 .workout-status-card {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.25rem;
   backdrop-filter: blur(10px);
 }
-
 .workout-status-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
 }
-
 .workout-status-card__title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0;
 }
-
 .workout-status-badge {
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 25px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-status-badge--completed {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
 }
-
 .workout-status-badge--pending {
   background: rgba(255, 165, 0, 0.1);
   color: #ffa500;
 }
-
 .workout-status-badge--none {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.6);
 }
-
 .workout-status-card__body {
   margin-top: 0.5rem;
 }
-
 .workout-status-card__text {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.8;
   margin: 0;
 }
-
 /* Workout Section */
 .workout-section {
   margin-top: 0.5rem;
 }
-
 .workout-section-header {
   display: flex;
   align-items: center;
@@ -6540,190 +5955,154 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-section-header i {
   color: var(--color-primary);
 }
-
 /* Workout Template Card Active */
 .workout-template-card-active {
   background: rgba(0, 255, 166, 0.05);
-  border: 1px solid rgba(0, 255, 166, 0.2);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   backdrop-filter: blur(10px);
 }
-
 .workout-template-card-active__info {
   flex: 1;
 }
-
 .workout-template-card-active__name {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0 0 0.25rem 0;
 }
-
 .workout-template-card-active__description {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0;
 }
-
 .workout-template-card-active__status {
   margin-left: 1rem;
 }
-
 .workout-template-card-active__badge {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 25px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 /* Workout Template Item */
 .workout-templates-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
-
 .workout-template-item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: border-color 0.2s ease;
 }
-
 .workout-template-item:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-template-item__info {
   flex: 1;
 }
-
 .workout-template-item__name {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0 0 0.25rem 0;
 }
-
 .workout-template-item__description {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0;
 }
-
 .workout-template-item__actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
 }
-
 .workout-template-item__btn {
   padding: 0.4rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
   color: var(--color-light);
-  border-radius: 6px;
+  border-radius: 25px;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 0.8rem;
 }
-
 .workout-template-item__btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-template-item__btn--activate:hover {
-  background: rgba(0, 255, 166, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
   color: var(--color-primary);
 }
-
 .workout-template-item__active-label {
   font-size: 0.8rem;
   color: var(--color-primary);
   font-weight: 600;
   padding: 0.4rem 0.75rem;
 }
-
 /* Workout Empty States */
 .workout-empty {
   text-align: center;
   padding: 3rem 2rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   backdrop-filter: blur(10px);
 }
-
 .workout-empty-icon {
   font-size: 2.5rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   opacity: 0.8;
 }
-
 .workout-empty-title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .workout-empty-text {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 1.5rem;
 }
-
 .workout-empty-simple {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 1rem;
   text-align: center;
 }
-
 .workout-empty-simple__text {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.6;
   margin: 0;
 }
-
 /* Workout Templates Page Styles */
 .workout-templates-stats {
   display: flex;
   gap: 2rem;
   margin-bottom: 1rem;
 }
-
 .workout-templates-stat-item {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .workout-templates-stat-label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -6731,14 +6110,12 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-templates-stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-light);
   font-family: var(--font-mono);
 }
-
 .workout-templates-top-bar {
   display: flex;
   justify-content: space-between;
@@ -6748,12 +6125,10 @@ select.form-control option {
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .workout-templates-search {
   flex: 1;
   max-width: 300px;
 }
-
 .workout-templates-scroll-area {
   display: flex;
   flex-direction: column;
@@ -6762,31 +6137,25 @@ select.form-control option {
   overflow-y: auto;
   padding-right: 0.5rem;
 }
-
 .workout-templates-scroll-area::-webkit-scrollbar {
   width: 6px;
 }
-
 .workout-templates-scroll-area::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  border-radius: 25px;
 }
-
 .workout-templates-scroll-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: 25px;
 }
-
 .workout-templates-scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
-
 .workout-templates-group {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
-
 .workout-templates-group-header {
   display: flex;
   align-items: center;
@@ -6798,29 +6167,22 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-templates-group-header i {
   color: var(--color-primary);
 }
-
 .workout-templates-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
 }
-
 .workout-template-card-item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
-  transition: border-color 0.2s ease;
 }
-
 .workout-template-card-item:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-template-card-item__top {
   display: flex;
   justify-content: space-between;
@@ -6828,12 +6190,10 @@ select.form-control option {
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
-
 .workout-template-card-item__title-section {
   flex: 1;
   cursor: pointer;
 }
-
 .workout-template-card-item__title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -6843,12 +6203,10 @@ select.form-control option {
   align-items: center;
   gap: 0.5rem;
 }
-
 .workout-template-card-item__pin {
   color: var(--color-primary);
   font-size: 0.8rem;
 }
-
 .workout-template-card-item__description {
   font-size: 0.8rem;
   color: var(--color-light);
@@ -6856,40 +6214,33 @@ select.form-control option {
   margin: 0;
   line-height: 1.4;
 }
-
 .workout-template-card-item__action {
   padding: 0.4rem;
   border: none;
   background: transparent;
   color: var(--color-light);
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.2s ease;
+  border-radius: 25px;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-
 .workout-template-card-item__action:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .workout-template-card-item__action--active {
   color: var(--color-primary);
   cursor: default;
 }
-
 .workout-template-card-item__action--active:hover {
   background: transparent;
 }
-
 .workout-template-card-item__action--danger:hover {
   background: rgba(219, 34, 42, 0.1);
   color: var(--color-danger);
 }
-
 .workout-template-card-item__footer {
   display: flex;
   justify-content: space-between;
@@ -6897,20 +6248,17 @@ select.form-control option {
   padding-top: 0.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
-
 .workout-template-card-item__meta {
   font-size: 0.75rem;
   color: var(--color-light);
   opacity: 0.6;
 }
-
 /* Workout Check Page Styles */
 .workout-check-status {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-
 .workout-check-status__saving,
 .workout-check-status__saved,
 .workout-check-status__auto {
@@ -6918,11 +6266,9 @@ select.form-control option {
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-check-status__saved {
   color: var(--color-primary);
 }
-
 .workout-check-info {
   display: flex;
   justify-content: space-between;
@@ -6930,17 +6276,14 @@ select.form-control option {
   gap: 1rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   margin-bottom: 1rem;
 }
-
 .workout-check-info__date {
   font-size: 0.9rem;
   color: var(--color-light);
   font-weight: 500;
 }
-
 .workout-check-info__progress {
   display: flex;
   align-items: center;
@@ -6948,37 +6291,30 @@ select.form-control option {
   flex: 1;
   max-width: 200px;
 }
-
 .workout-check-progress-bar {
   flex: 1;
   height: 6px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  border-radius: 25px;
   overflow: hidden;
 }
-
 .workout-check-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
-  border-radius: 3px;
-  transition: width 0.3s ease;
+  border-radius: 25px;
 }
-
 .workout-check-progress-text {
   font-size: 0.85rem;
   color: var(--color-light);
   font-weight: 600;
   white-space: nowrap;
 }
-
 .workout-check-intensity {
   margin-bottom: 1.5rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
 }
-
 .workout-check-intensity__label {
   display: flex;
   align-items: center;
@@ -6988,22 +6324,19 @@ select.form-control option {
   font-weight: 500;
   margin-bottom: 0.75rem;
 }
-
 .workout-check-intensity__value {
   color: var(--color-primary);
   font-weight: 700;
 }
-
 .workout-check-intensity__slider {
   width: 100%;
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  border-radius: 25px;
   outline: none;
 }
-
 .workout-check-intensity__slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -7012,64 +6345,50 @@ select.form-control option {
   background: var(--color-primary);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.2s ease;
 }
-
 .workout-check-intensity__slider::-webkit-slider-thumb:hover {
   transform: scale(1.1);
 }
-
 .workout-check-exercises {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
-
 .workout-check-exercise {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
-  transition: border-color 0.2s ease;
 }
-
 .workout-check-exercise--completed {
-  border-color: rgba(0, 255, 166, 0.3);
   background: rgba(0, 255, 166, 0.05);
 }
-
 .workout-check-exercise__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.75rem;
 }
-
 .workout-check-exercise__info {
   flex: 1;
 }
-
 .workout-check-exercise__name {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0 0 0.25rem 0;
 }
-
 .workout-check-exercise__notes {
   font-size: 0.85rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0 0 0.5rem 0;
 }
-
 .workout-check-exercise__target {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.6;
 }
-
 .workout-check-exercise__toggle {
   padding: 0.5rem;
   border: none;
@@ -7077,18 +6396,14 @@ select.form-control option {
   color: var(--color-light);
   cursor: pointer;
   border-radius: 50%;
-  transition: all 0.2s ease;
   font-size: 1.25rem;
 }
-
 .workout-check-exercise__toggle:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .workout-check-exercise--completed .workout-check-exercise__toggle {
   color: var(--color-primary);
 }
-
 .workout-check-exercise__inputs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -7097,13 +6412,11 @@ select.form-control option {
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .workout-check-input-group {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .workout-check-input-group label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -7111,26 +6424,20 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-check-input {
   background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
+  border-radius: 25px;
   padding: 0.5rem;
   color: var(--color-light);
   font-size: 0.9rem;
-  transition: border-color 0.2s ease;
 }
-
 .workout-check-input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-check-notes {
   margin-bottom: 1.5rem;
 }
-
 .workout-check-notes__label {
   display: flex;
   align-items: center;
@@ -7140,41 +6447,33 @@ select.form-control option {
   font-weight: 500;
   margin-bottom: 0.5rem;
 }
-
 .workout-check-notes__textarea {
   width: 100%;
   background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.75rem;
   color: var(--color-light);
   font-size: 0.9rem;
   font-family: var(--font-mono);
   resize: vertical;
   outline: none;
-  transition: border-color 0.2s ease;
 }
-
 .workout-check-notes__textarea:focus {
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-check-actions {
   display: flex;
   justify-content: center;
   gap: 1rem;
 }
-
 .workout-check-complete-btn {
   min-width: 200px;
 }
-
 .workout-check-complete-btn--completed {
   background: var(--color-primary-dark);
   cursor: default;
   opacity: 0.8;
 }
-
 /* Workout History Page Styles */
 .workout-history-top-bar {
   display: flex;
@@ -7183,113 +6482,93 @@ select.form-control option {
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .workout-history-search {
   max-width: 300px;
   flex: 1;
 }
-
 .workout-history-content {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
-
 .workout-history-calendar-section {
   margin-bottom: 1rem;
 }
-
 .workout-history-selected {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
 }
-
 .workout-history-selected__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
 }
-
 .workout-history-selected__header h3 {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0;
 }
-
 .workout-history-selected__status {
   font-size: 0.875rem;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 25px;
   font-weight: 600;
 }
-
 .workout-history-selected__status--completed {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
 }
-
 .workout-history-selected__status--incomplete {
   background: rgba(219, 34, 42, 0.1);
   color: var(--color-danger);
 }
-
 .workout-history-selected__meta {
   margin-bottom: 0.75rem;
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-history-selected__notes {
   margin-bottom: 1rem;
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-history-selected__exercises {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .workout-history-exercise-item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.75rem;
 }
-
 .workout-history-exercise-item__name {
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.25rem;
 }
-
 .workout-history-exercise-item__details {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-history-selected__empty {
   text-align: center;
   padding: 2rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-history-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
-
 .workout-history-section-header {
   display: flex;
   align-items: center;
@@ -7301,31 +6580,24 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-history-section-header i {
   color: var(--color-primary);
 }
-
 .workout-history-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
 }
-
 .workout-history-card {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s ease;
 }
-
 .workout-history-card:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   transform: translateY(-2px);
 }
-
 .workout-history-card__top {
   display: flex;
   justify-content: space-between;
@@ -7333,52 +6605,43 @@ select.form-control option {
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
-
 .workout-history-card__title-section {
   flex: 1;
 }
-
 .workout-history-card__title {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0 0 0.5rem 0;
 }
-
 .workout-history-card__meta {
   display: flex;
   gap: 0.75rem;
   align-items: center;
 }
-
 .workout-history-card__status {
   font-size: 0.75rem;
   padding: 0.2rem 0.5rem;
-  border-radius: 12px;
+  border-radius: 25px;
   font-weight: 600;
 }
-
 .workout-history-card__status--completed {
   background: rgba(0, 255, 166, 0.1);
   color: var(--color-primary);
 }
-
 .workout-history-card__status--incomplete {
   background: rgba(219, 34, 42, 0.1);
   color: var(--color-danger);
 }
-
 .workout-history-card__intensity {
   font-size: 0.75rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-history-card__chevron {
   color: var(--color-light);
   opacity: 0.5;
 }
-
 .workout-history-card__notes {
   font-size: 0.8rem;
   color: var(--color-light);
@@ -7386,67 +6649,56 @@ select.form-control option {
   margin: 0.5rem 0 0 0;
   line-height: 1.4;
 }
-
 .workout-history-empty {
   text-align: center;
   padding: 3rem 2rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   backdrop-filter: blur(10px);
 }
-
 .workout-history-empty__icon {
   font-size: 2.5rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   opacity: 0.8;
 }
-
 .workout-history-empty__title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .workout-history-empty__text {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0;
 }
-
 /* Workout Contribution Chart Styles */
 .workout-contribution-chart {
   margin-bottom: 1.5rem;
 }
-
 .workout-contribution-chart__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
 }
-
 .workout-contribution-chart__stats {
   display: flex;
   gap: 2rem;
 }
-
 .workout-contribution-chart__stat {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .workout-contribution-chart__stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-light);
   font-family: var(--font-mono);
 }
-
 .workout-contribution-chart__stat-label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -7454,22 +6706,18 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-contribution-chart__container {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
 }
-
 .workout-contribution-chart__months {
   display: flex;
   gap: 0.5rem;
   margin-left: 2rem;
   margin-bottom: 0.5rem;
 }
-
 .workout-contribution-chart__month {
   width: 3rem;
   font-size: 0.7rem;
@@ -7477,18 +6725,15 @@ select.form-control option {
   opacity: 0.6;
   text-align: center;
 }
-
 .workout-contribution-chart__grid {
   display: flex;
   gap: 0.5rem;
 }
-
 .workout-contribution-chart__days {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .workout-contribution-chart__day-label {
   font-size: 0.65rem;
   color: var(--color-light);
@@ -7497,42 +6742,32 @@ select.form-control option {
   width: 2rem;
   line-height: 1;
 }
-
 .workout-contribution-chart__weeks {
   display: flex;
   gap: 0.5rem;
 }
-
 .workout-contribution-chart__week {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .workout-contribution-chart__day {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 25px;
   background: rgba(255, 255, 255, 0.1);
   cursor: pointer;
-  transition: all 0.2s ease;
   position: relative;
 }
-
 .workout-contribution-chart__day:hover {
   transform: scale(1.3);
-  border: 1px solid var(--color-light);
 }
-
 .workout-contribution-chart__day--completed {
   background: var(--color-primary);
-  box-shadow: 0 0 4px rgba(0, 255, 166, 0.3);
 }
-
 .workout-contribution-chart__day--today {
   position: relative;
 }
-
 .workout-contribution-chart__today-indicator {
   position: absolute;
   top: 50%;
@@ -7543,20 +6778,17 @@ select.form-control option {
   background: #fff;
   border-radius: 50%;
 }
-
 .workout-contribution-chart__tooltip {
   position: fixed;
   background: rgba(0, 0, 0, 0.9);
   color: var(--color-light);
   padding: 0.5rem 0.75rem;
-  border-radius: 6px;
+  border-radius: 25px;
   font-size: 0.8rem;
   pointer-events: none;
   z-index: 1000;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
 }
-
 .workout-contribution-chart__legend {
   display: flex;
   align-items: center;
@@ -7567,36 +6799,30 @@ select.form-control option {
   color: var(--color-light);
   opacity: 0.6;
 }
-
 .workout-contribution-chart__legend-squares {
   display: flex;
   gap: 0.25rem;
 }
-
 .workout-contribution-chart__legend-square {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 25px;
   background: rgba(255, 255, 255, 0.1);
 }
-
 .workout-contribution-chart__legend-square--completed {
   background: var(--color-primary);
 }
-
 /* Workout PRs Page Styles */
 .workout-pr-stats {
   display: flex;
   gap: 2rem;
   margin-bottom: 1rem;
 }
-
 .workout-pr-stat-item {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .workout-pr-stat-label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -7604,14 +6830,12 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-pr-stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-light);
   font-family: var(--font-mono);
 }
-
 .workout-pr-top-bar {
   display: flex;
   justify-content: flex-end;
@@ -7619,78 +6843,62 @@ select.form-control option {
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 .workout-pr-search {
   max-width: 300px;
   flex: 1;
 }
-
 .workout-pr-content {
   display: flex;
   flex-direction: column;
 }
-
 .workout-pr-selected {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
 }
-
 .workout-pr-selected__header {
   display: flex;
   align-items: center;
   gap: 1rem;
   margin-bottom: 0.5rem;
 }
-
 .workout-pr-selected__back {
   padding: 0.4rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
   color: var(--color-light);
-  border-radius: 6px;
+  border-radius: 25px;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 0.875rem;
 }
-
 .workout-pr-selected__back:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
-
 .workout-pr-selected__header h3 {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin: 0;
 }
-
 .workout-pr-selected__header h3 i {
   color: var(--color-primary);
 }
-
 .workout-pr-selected__date {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin-bottom: 1.5rem;
 }
-
 .workout-pr-selected__stats {
   display: flex;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }
-
 .workout-pr-selected__stat {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .workout-pr-selected__stat-label {
   font-size: 0.75rem;
   color: var(--color-light);
@@ -7698,88 +6906,69 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-pr-selected__stat-value {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-primary);
   font-family: var(--font-mono);
 }
-
 .workout-pr-progression {
   margin-top: 1.5rem;
 }
-
 .workout-pr-progression h4 {
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 1rem;
 }
-
 .workout-pr-progression__list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .workout-pr-progression-item {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 25px;
   padding: 0.75rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  transition: border-color 0.2s ease;
 }
-
 .workout-pr-progression-item:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
 }
-
 .workout-pr-progression-item--selected {
-  border-color: var(--color-primary) !important;
   background: rgba(0, 255, 166, 0.05);
 }
-
 .workout-pr-progression-item__date {
   font-size: 0.875rem;
   color: var(--color-light);
   font-weight: 500;
 }
-
 .workout-pr-progression-item__stats {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
 }
-
 .workout-pr-progression-item__trophy {
   color: var(--color-primary);
 }
-
 .workout-pr-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0.75rem;
 }
-
 .workout-pr-card {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  border-radius: 25px;
   padding: 1rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.2s ease;
 }
-
 .workout-pr-card:hover {
-  border-color: rgba(0, 255, 166, 0.3);
+  background: var(--accent-bg);
   transform: translateY(-2px);
 }
-
 .workout-pr-card__top {
   display: flex;
   justify-content: space-between;
@@ -7787,11 +6976,9 @@ select.form-control option {
   gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
-
 .workout-pr-card__title-section {
   flex: 1;
 }
-
 .workout-pr-card__title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -7801,35 +6988,29 @@ select.form-control option {
   align-items: center;
   gap: 0.5rem;
 }
-
 .workout-pr-card__icon {
   color: var(--color-primary);
   font-size: 0.9rem;
 }
-
 .workout-pr-card__date {
   font-size: 0.8rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0;
 }
-
 .workout-pr-card__chevron {
   color: var(--color-light);
   opacity: 0.5;
 }
-
 .workout-pr-card__stats {
   display: flex;
   gap: 1rem;
 }
-
 .workout-pr-card__stat {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
-
 .workout-pr-card__stat-label {
   font-size: 0.7rem;
   color: var(--color-light);
@@ -7837,44 +7018,37 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
 .workout-pr-card__stat-value {
   font-size: 1rem;
   font-weight: 700;
   color: var(--color-primary);
   font-family: var(--font-mono);
 }
-
 .workout-pr-empty {
   text-align: center;
   padding: 3rem 2rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 25px;
   backdrop-filter: blur(10px);
 }
-
 .workout-pr-empty__icon {
   font-size: 2.5rem;
   color: var(--color-primary);
   margin-bottom: 1rem;
   opacity: 0.8;
 }
-
 .workout-pr-empty__title {
   font-size: 1.125rem;
   font-weight: 600;
   color: var(--color-light);
   margin-bottom: 0.5rem;
 }
-
 .workout-pr-empty__text {
   font-size: 0.875rem;
   color: var(--color-light);
   opacity: 0.7;
   margin: 0;
 }
-
 /* Page with workout subnav - needs top padding */
 .page-main-with-workout-subnav {
   min-height: 100vh;
@@ -7886,57 +7060,45 @@ select.form-control option {
   padding-top: calc(3rem + 3rem); /* Space for main navbar + workout subnav */
   padding-bottom: calc(2rem + 2.5rem); /* Space for bottom navbar */
 }
-
 /* Use books-page-wrapper for workout pages instead of workout-page-wrapper */
-
 /* Responsive adjustments for workout components */
 @media (max-width: 768px) {
   .workout-subnav-inner {
     padding: 0 0.5rem;
   }
-
   .workout-subnav-link {
     padding: 0.75rem 0.5rem;
     font-size: 0.75rem;
   }
-
   .workout-dashboard-grid {
     grid-template-columns: 1fr;
   }
-
   .workout-template-card__actions {
     flex-direction: column;
   }
-
   .exercise-editor__form {
     grid-template-columns: 1fr;
   }
-
   .workout-calendar__grid {
     gap: 0.25rem;
   }
-
   .workout-calendar__day {
     font-size: 0.75rem;
   }
-
   .pr-item {
     flex-direction: column;
     align-items: flex-start;
   }
-
   .pr-item__icon {
     margin-right: 0;
     margin-bottom: 1rem;
   }
-
   .pr-item__stats {
     width: 100%;
     justify-content: space-between;
     margin-top: 1rem;
     text-align: left;
   }
-
   .page-main-with-workout-subnav {
     padding-top: calc(3rem + 3rem);
     padding-left: 1rem;

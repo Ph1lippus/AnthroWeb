@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createDailyLog, updateDailyLog, getDailyLogByDate, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
+import { useNavigate, useParams } from 'react-router-dom';
+import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import { getUserHabits, toggleHabitForDate, createHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { getUserProjects } from '../services/projectService';
@@ -54,37 +54,7 @@ const formatSleepDuration = (duration: number | null): string => {
 
 // Calculate sleep duration match score (0-100)
 
-// Calculate BP score (0-100)
-const calculateBPScore = (systolic?: number, diastolic?: number): { points: number; status: string; color: string } => {
-    if (!systolic || !diastolic) return { points: 0, status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
-    if (systolic >= 180 || diastolic >= 120) return { points: 0, status: 'Hypertensive Crisis', color: 'var(--color-danger)' };
-    if (systolic >= 140 || diastolic >= 90) return { points: 25, status: 'High BP', color: 'var(--color-danger)' };
-    if (systolic >= 130 || diastolic >= 80) return { points: 50, status: 'Elevated', color: '#ffa500' };
-    if (systolic >= 90 && systolic < 130 && diastolic >= 60 && diastolic < 80) return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
-    if (systolic < 90 || diastolic < 60) return { points: 50, status: 'Low BP', color: '#ffa500' };
-    return { points: 75, status: 'Other', color: 'rgba(255, 255, 255, 0.6)' };
-};
-
-// Calculate temperature score (0-100)
-const calculateTempScore = (temp?: number): { points: number; status: string; color: string } => {
-    if (!temp) return { points: 0, status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
-    if (temp < 35) return { points: 0, status: 'Hypothermia', color: 'var(--color-danger)' };
-    if (temp >= 38.5) return { points: 0, status: 'High Fever', color: 'var(--color-danger)' };
-    if (temp >= 37.5) return { points: 50, status: 'Mild Fever', color: '#ffa500' };
-    if (temp >= 36.5 && temp <= 37.5) return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
-    if (temp >= 35 && temp < 36.5) return { points: 50, status: 'Cool', color: '#ffa500' };
-    return { points: 100, status: 'Normal', color: 'var(--color-primary)' };
-};
-
-// Analyze BPM
-const analyzeBPM = (bpm?: number): { status: string; color: string } => {
-    if (!bpm) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
-    if (bpm >= 60 && bpm <= 100) return { status: 'Normal', color: 'var(--color-primary)' };
-    if (bpm < 60) return { status: 'Low', color: '#ffa500' };
-    return { status: 'High', color: 'var(--color-danger)' };
-};
-
-// Analyze wake time
+// Calculate sleep duration from bedtime and wake time
 const analyzeWakeTime = (time: string | null, goalTime: string | null): { status: string; color: string } => {
     if (!time) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
     if (!goalTime) return { status: 'Set', color: 'rgba(255, 255, 255, 0.4)' };
@@ -115,15 +85,6 @@ const analyzeBedtime = (time: string | null, goalTime: string | null): { status:
 };
 
 // Analyze sleep quality
-const analyzeSleepQuality = (quality?: number): { status: string; color: string } => {
-    if (!quality) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
-    if (quality >= 8) return { status: 'Excellent', color: 'var(--color-primary)' };
-    if (quality >= 6) return { status: 'Good', color: 'var(--color-primary)' };
-    if (quality >= 4) return { status: 'Fair', color: '#ffa500' };
-    return { status: 'Poor', color: 'var(--color-danger)' };
-};
-
-// Analyze sleep duration
 const analyzeSleepDuration = (duration: number | null, goalHours?: number | null): { status: string; color: string } => {
     if (duration === null || duration === undefined || isNaN(duration)) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
     if (goalHours) {
@@ -141,100 +102,13 @@ const analyzeSleepDuration = (duration: number | null, goalHours?: number | null
 };
 
 // Analyze calories - uses user's goal from active_goals JSON
-const analyzeCalories = (calories?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!calories) return { status: 'No data - log your calories', color: 'rgba(255, 255, 255, 0.4)' };
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const targetCal = activeGoals?.nutrition?.calories;
-    if (!targetCal) return { status: 'Set a calorie goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    const diff = calories - targetCal;
-    if (Math.abs(diff) <= 200) return { status: `On Target (${targetCal} kcal) - great job!`, color: 'var(--color-primary)' };
-    if (diff < 0) return { status: `Under by ${Math.abs(diff)} kcal - add more food`, color: '#ffa500' };
-    return { status: `Over by ${diff} kcal - consider smaller portions`, color: 'var(--color-danger)' };
-};
-
-// Analyze protein - uses user's goal from active_goals JSON
-const analyzeProtein = (protein?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!protein) return { status: 'No data - log your protein', color: 'rgba(255, 255, 255, 0.4)' };
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const targetProtein = activeGoals?.nutrition?.protein;
-    if (!targetProtein) return { status: 'Set a protein goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    const diff = protein - targetProtein;
-    const ratio = protein / targetProtein;
-    if (ratio >= 0.85 && ratio <= 1.15) return { status: `Adequate (${targetProtein}g) - well done!`, color: 'var(--color-primary)' };
-    if (ratio < 0.85) return { status: `Low - need ${Math.max(0, targetProtein - protein)}g more`, color: '#ffa500' };
-    return { status: `High - ${diff}g over your ${targetProtein}g goal`, color: 'var(--color-danger)' };
-};
-
-// Analyze carbs - uses user's goal from active_goals JSON
-const analyzeCarbs = (carbs?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!carbs) return { status: 'No data - log your carbs', color: 'rgba(255, 255, 255, 0.4)' };
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const targetCarbs = activeGoals?.nutrition?.carbs;
-    if (!targetCarbs) return { status: 'Set a carb goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    const diff = carbs - targetCarbs;
-    const ratio = carbs / targetCarbs;
-    if (ratio >= 0.8 && ratio <= 1.2) return { status: `Adequate (${targetCarbs}g) - good job!`, color: 'var(--color-primary)' };
-    if (ratio < 0.8) return { status: `Low - need ${Math.max(0, targetCarbs - carbs)}g more`, color: '#ffa500' };
-    return { status: `High - ${diff}g over your ${targetCarbs}g goal`, color: 'var(--color-danger)' };
-};
-
-// Analyze fat - uses user's goal from active_goals JSON
-const analyzeFat = (fat?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!fat) return { status: 'No data - log your fat', color: 'rgba(255, 255, 255, 0.4)' };
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const targetFat = activeGoals?.nutrition?.fat;
-    if (!targetFat) return { status: 'Set a fat goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    const diff = fat - targetFat;
-    const ratio = fat / targetFat;
-    if (ratio >= 0.8 && ratio <= 1.2) return { status: `Adequate (${targetFat}g) - well done!`, color: 'var(--color-primary)' };
-    if (ratio < 0.8) return { status: `Low - need ${Math.max(0, targetFat - fat)}g more`, color: '#ffa500' };
-    return { status: `High - ${diff}g over your ${targetFat}g goal`, color: 'var(--color-danger)' };
-};
-
-// Analyze water - uses user's goal from active_goals JSON
-const analyzeWater = (water?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!water) return { status: 'No data - log your water', color: 'rgba(255, 255, 255, 0.4)' };
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const targetWater = activeGoals?.nutrition?.water;
-    if (!targetWater) return { status: 'Set a water goal in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    if (water >= targetWater) return { status: `Sufficient (${targetWater}ml) - great hydration!`, color: 'var(--color-primary)' };
-    if (water >= targetWater * 0.6) return { status: `Adequate - ${targetWater - water}ml to go`, color: '#ffa500' };
-    return { status: `Low - need ${targetWater - water}ml more`, color: 'var(--color-danger)' };
-};
-
-// Analyze weight - uses user's target_weight from settings
-const analyzeWeight = (weight?: number, settings?: UserSettings | null): { status: string; color: string } => {
-    if (!weight) return { status: 'No data - log your weight', color: 'rgba(255, 255, 255, 0.4)' };
-    if (!settings?.height_cm) return { status: 'Set your height in your profile', color: 'rgba(255, 255, 255, 0.4)' };
-    const bmi = weight / Math.pow((settings.height_cm / 100), 2);
-    if (bmi < 18.5) return { status: `Underweight (BMI ${bmi.toFixed(1)}) - consider gaining`, color: '#ffa500' };
-    if (bmi < 25) return { status: `Normal (BMI ${bmi.toFixed(1)}) - great!`, color: 'var(--color-primary)' };
-    if (bmi < 30) return { status: `Overweight (BMI ${bmi.toFixed(1)}) - consider losing`, color: '#ffa500' };
-    return { status: `Obese (BMI ${bmi.toFixed(1)}) - consult a professional`, color: 'var(--color-danger)' };
-};
-
-// Analyze body fat
-const analyzeBodyFat = (bodyFat?: number): { status: string; color: string } => {
-    if (!bodyFat) return { status: 'No data - log your body fat', color: 'rgba(255, 255, 255, 0.4)' };
-    if (bodyFat < 10) return { status: 'Low - below healthy range', color: '#ffa500' };
-    if (bodyFat <= 20) return { status: 'Athlete - excellent!', color: 'var(--color-primary)' };
-    if (bodyFat <= 30) return { status: 'Fitness - good range', color: '#ffa500' };
-    return { status: 'Obese - consider reducing body fat', color: 'var(--color-danger)' };
-};
-
-// Analyze mood
-const analyzeMood = (mood?: number): { status: string; color: string } => {
-    if (!mood) return { status: 'No data - log your mood', color: 'rgba(255, 255, 255, 0.4)' };
-    if (mood >= 8) return { status: 'Great - keep it up!', color: 'var(--color-primary)' };
-    if (mood >= 6) return { status: 'Good - nice!', color: 'var(--color-primary)' };
-    if (mood >= 4) return { status: 'Neutral - try to lift your spirits', color: '#ffa500' };
-    return { status: 'Low - consider rest or social connection', color: 'var(--color-danger)' };
-};
 
 
 const DailyLogPage: React.FC = () => {
     const navigate = useNavigate();
+    const { id } = useParams<{ id?: string }>();
     const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -246,7 +120,9 @@ const DailyLogPage: React.FC = () => {
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    const logDate = new Date().toISOString().split('T')[0];
+    const [logDate, setLogDate] = useState(() => {
+        return id ? '' : new Date().toISOString().split('T')[0];
+    });
 
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
@@ -284,6 +160,57 @@ const DailyLogPage: React.FC = () => {
     const [customHabitName, setCustomHabitName] = useState('');
     const [customHabitDesc, setCustomHabitDesc] = useState('');
     const [addingHabit, setAddingHabit] = useState(false);
+
+    const fillForm = (log: DailyLog) => {
+        setWakeTime(log.wake_time || '');
+        setBedtime(log.bedtime || '');
+        setSleepQuality(log.sleep_quality?.toString() || '');
+        setMorningSystolic(log.morning_systolic?.toString() || '');
+        setMorningDiastolic(log.morning_diastolic?.toString() || '');
+        setMorningBpm(log.morning_bpm?.toString() || '');
+        setEveningSystolic(log.evening_systolic?.toString() || '');
+        setEveningDiastolic(log.evening_diastolic?.toString() || '');
+        setEveningBpm(log.evening_bpm?.toString() || '');
+        setBodyTemperature(log.body_temperature?.toString() || '');
+        setCalories(log.calories?.toString() || '');
+        setProtein(log.protein?.toString() || '');
+        setCarbs(log.carbs?.toString() || '');
+        setFat(log.fat?.toString() || '');
+        setWater(log.water?.toString() || '');
+        setWeight(log.weight?.toString() || '');
+        setBodyFat(log.body_fat?.toString() || '');
+        setMood(log.mood?.toString() || '');
+        setJournalEntry(log.journal_entry || '');
+        setProjectWorkDone(log.project_work_done || false);
+        setMorningRoutine(log.morning_routine || false);
+        setEveningRoutine(log.evening_routine || false);
+        setFruitServing(log.fruit_serving || false);
+        setStudied(log.studied || false);
+        setJournal(log.journal || false);
+        setStretching(log.stretching || false);
+        setReading(log.reading || false);
+    };
+
+    // Load log by ID if in edit mode
+    useEffect(() => {
+        if (!id) return;
+        const loadLog = async () => {
+            setIsLoadingData(true);
+            const log = await getDailyLogById(id);
+            if (log) {
+                setExistingLog(log);
+                setIsEditing(true);
+                setLogDate(log.log_date);
+                fillForm(log);
+                const projectIds = await getDailyLogProjects(log.id!);
+                if (projectIds.length > 0) {
+                    setSelectedProjectIds(new Set(projectIds));
+                }
+            }
+            setIsLoadingData(false);
+        };
+        loadLog();
+    }, [id]);
 
     // Load user settings
     useEffect(() => {
@@ -327,7 +254,17 @@ const DailyLogPage: React.FC = () => {
     }, []);
 
     // Get active goals for placeholders
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const effectiveSettings = useMemo(() => {
+        if (id && existingLog?.goal_snapshot) {
+            return {
+                ...settings,
+                active_goals: existingLog.goal_snapshot
+            } as UserSettings;
+        }
+        return settings;
+    }, [id, existingLog, settings]);
+
+    const activeGoals = (effectiveSettings?.active_goals as ActiveGoals | undefined) || null;
     const nutritionGoals = activeGoals?.nutrition;
 
     // Compute sleep duration from wake/bed times
@@ -339,304 +276,350 @@ const DailyLogPage: React.FC = () => {
     const activeProjects = useMemo(() => {
         return projects.filter(p => p.status === 'active');
     }, [projects]);
+// Helper to score individual inputs (0-100)
+// Calculate score for a single metric (0-100)
 
-    // Helper to score individual inputs (0-100)
-    // Calculate score for a single metric (0-100)
+const calculateMetricScore = (type: string, value: string | number | boolean | null | undefined, currentSettings: UserSettings | null, computedSleepDuration: number | null): { score: number; logged: boolean } => {
 
-    const calculateMetricScore = (type: string, value: string | number | boolean | null | undefined): { score: number; logged: boolean } => {
+    if (value === null || value === undefined || value === '' || value === false) {
 
-        if (value === null || value === undefined || value === '' || value === false) {
+        return { score: 0, logged: false };
 
-            return { score: 0, logged: false };
+    }
+
+    
+
+
+
+    switch (type) {
+
+        /* eslint-disable no-fallthrough */
+        // === FIXED MEDICAL GUIDELINES (Range-Based) ===
+
+        case 'morningSystolic':
+
+        case 'eveningSystolic': {
+
+            const sys = parseFloat(value as string);
+
+            if (isNaN(sys)) return { score: 0, logged: false };
+
+            if (sys <= 120) return { score: 100, logged: true };
+
+            if (sys >= 140) return { score: 0, logged: true };
+
+            return { score: Math.round(((140 - sys) / 20) * 100), logged: true };
+
+        }
+
+        case 'morningDiastolic':
+
+        case 'eveningDiastolic': {
+
+            const dia = parseFloat(value as string);
+
+            if (isNaN(dia)) return { score: 0, logged: false };
+
+            if (dia <= 80) return { score: 100, logged: true };
+
+            if (dia >= 100) return { score: 0, logged: true };
+
+            return { score: Math.round(((100 - dia) / 20) * 100), logged: true };
+
+        }
+
+        case 'morningBpm':
+
+        case 'eveningBpm': {
+
+            const bpm = parseFloat(value as string);
+
+            if (isNaN(bpm)) return { score: 0, logged: false };
+
+            if (bpm >= 60 && bpm <= 100) return { score: 100, logged: true };
+
+            if (bpm < 40 || bpm > 120) return { score: 0, logged: true };
+
+            if (bpm < 60) return { score: Math.round(((bpm - 40) / 20) * 100), logged: true };
+
+            return { score: Math.round(((120 - bpm) / 20) * 100), logged: true };
+
+        }
+
+        case 'bodyTemperature': {
+
+            const temp = parseFloat(value as string);
+
+            if (isNaN(temp)) return { score: 0, logged: false };
+
+            if (temp >= 36.5 && temp <= 37.5) return { score: 100, logged: true };
+
+            if (temp < 35.5 || temp > 38.5) return { score: 0, logged: true };
+
+            if (temp < 36.5) return { score: Math.round(((temp - 35.5) / 1) * 100), logged: true };
+
+            return { score: Math.round(((38.5 - temp) / 1) * 100), logged: true };
 
         }
 
         
 
-        switch (type) {
+        /* eslint-enable no-fallthrough */
+        // === USER-DEFINED GOALS (Linear Tolerance) ===
 
-            /* eslint-disable no-fallthrough */
-            // === FIXED MEDICAL GUIDELINES (Range-Based) ===
+        case 'calories': {
 
-            case 'morningSystolic':
+            const cal = parseInt(value as string);
 
-            case 'eveningSystolic': {
+            if (isNaN(cal)) return { score: 0, logged: false };
 
-                const sys = parseFloat(value as string);
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
 
-                if (isNaN(sys)) return { score: 0, logged: false };
+            const targetCal = activeGoals?.nutrition?.calories;
 
-                if (sys <= 120) return { score: 100, logged: true };
+            if (!targetCal) return { score: 50, logged: true };
 
-                if (sys >= 140) return { score: 0, logged: true };
+            if (cal <= targetCal) return { score: 100, logged: true };
 
-                return { score: Math.round(((140 - sys) / 20) * 100), logged: true };
+            const tolerance = targetCal * 0.25;
 
-            }
+            const diff = cal - targetCal;
 
-            case 'morningDiastolic':
-
-            case 'eveningDiastolic': {
-
-                const dia = parseFloat(value as string);
-
-                if (isNaN(dia)) return { score: 0, logged: false };
-
-                if (dia <= 80) return { score: 100, logged: true };
-
-                if (dia >= 100) return { score: 0, logged: true };
-
-                return { score: Math.round(((100 - dia) / 20) * 100), logged: true };
-
-            }
-
-            case 'morningBpm':
-
-            case 'eveningBpm': {
-
-                const bpm = parseFloat(value as string);
-
-                if (isNaN(bpm)) return { score: 0, logged: false };
-
-                if (bpm >= 60 && bpm <= 100) return { score: 100, logged: true };
-
-                if (bpm < 40 || bpm > 120) return { score: 0, logged: true };
-
-                if (bpm < 60) return { score: Math.round(((bpm - 40) / 20) * 100), logged: true };
-
-                return { score: Math.round(((120 - bpm) / 20) * 100), logged: true };
-
-            }
-
-            case 'bodyTemperature': {
-
-                const temp = parseFloat(value as string);
-
-                if (isNaN(temp)) return { score: 0, logged: false };
-
-                if (temp >= 36.5 && temp <= 37.5) return { score: 100, logged: true };
-
-                if (temp < 35.5 || temp > 38.5) return { score: 0, logged: true };
-
-                if (temp < 36.5) return { score: Math.round(((temp - 35.5) / 1) * 100), logged: true };
-
-                return { score: Math.round(((38.5 - temp) / 1) * 100), logged: true };
-
-            }
-
-            
-
-            /* eslint-enable no-fallthrough */
-            // === USER-DEFINED GOALS (Linear Tolerance) ===
-
-            case 'calories': {
-
-                const cal = parseInt(value as string);
-
-                if (isNaN(cal)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const targetCal = activeGoals?.nutrition?.calories;
-
-                if (!targetCal) return { score: 50, logged: true };
-
-                if (cal <= targetCal) return { score: 100, logged: true };
-
-                const tolerance = targetCal * 0.25;
-
-                const diff = cal - targetCal;
-
-                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
-
-            }
-
-            case 'protein': {
-
-                const p = parseFloat(value as string);
-
-                if (isNaN(p)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const targetProtein = activeGoals?.nutrition?.protein;
-
-                if (!targetProtein) return { score: 50, logged: true };
-
-                if (p >= targetProtein) return { score: 100, logged: true };
-
-                const tolerance = targetProtein * 0.33;
-
-                const diff = targetProtein - p;
-
-                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
-
-            }
-
-            case 'carbs': {
-
-                const c = parseFloat(value as string);
-
-                if (isNaN(c)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const targetCarbs = activeGoals?.nutrition?.carbs;
-
-                if (!targetCarbs) return { score: 50, logged: true };
-
-                const tolerance = targetCarbs * 0.375;
-
-                const diff = Math.abs(c - targetCarbs);
-
-                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
-
-            }
-
-            case 'fat': {
-
-                const f = parseFloat(value as string);
-
-                if (isNaN(f)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const targetFat = activeGoals?.nutrition?.fat;
-
-                if (!targetFat) return { score: 50, logged: true };
-
-                const tolerance = targetFat * 0.33;
-
-                const diff = Math.abs(f - targetFat);
-
-                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
-
-            }
-
-            case 'water': {
-
-                const w = parseFloat(value as string);
-
-                if (isNaN(w)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const targetWater = activeGoals?.nutrition?.water;
-
-                if (!targetWater) return { score: 50, logged: true };
-
-                if (w >= targetWater) return { score: 100, logged: true };
-
-                const tolerance = targetWater * 0.3;
-
-                const diff = targetWater - w;
-
-                return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
-
-            }
-
-            case 'sleepQuality': {
-
-                const sq = parseInt(value as string);
-
-                if (isNaN(sq)) return { score: 0, logged: false };
-
-                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-
-                const goalHours = activeGoals?.sleep?.hours;
-
-                const qualityScore = Math.round((sq / 10) * 100);
-
-                if (goalHours && computedSleepDuration) {
-
-                    const diff = Math.abs(computedSleepDuration - goalHours);
-
-                    const durationScore = Math.max(0, Math.round(100 - ((diff / 2) * 100)));
-
-                    return { score: Math.round((qualityScore * 0.5) + (durationScore * 0.5)), logged: true };
-
-                }
-
-                // Cap quality-only score at 60 to avoid inflated scores when only sleep quality is logged
-                return { score: Math.min(60, qualityScore), logged: true };
-
-            }
-
-            
-
-            /* eslint-disable no-fallthrough */
-            // === BINARY HABITS ===
-
-            case 'morningRoutine':
-
-            case 'eveningRoutine':
-
-            case 'fruitServing':
-
-            case 'studied':
-
-            case 'journal':
-
-            case 'stretching':
-
-            case 'reading':
-
-            case 'projectWorkDone':
-
-                return { score: value ? 100 : 0, logged: true };
-
-            
-
-            /* eslint-enable no-fallthrough */
-            // === OPTIONAL FIELDS ===
-
-            case 'weight': {
-
-                const w = parseFloat(value as string);
-
-                if (isNaN(w)) return { score: 0, logged: false };
-
-                const targetWeight = settings?.target_weight;
-
-                if (!targetWeight) return { score: 50, logged: true };
-
-                const diff = Math.abs(w - targetWeight);
-
-                if (diff <= 2) return { score: 100, logged: true };
-
-                return { score: Math.max(0, Math.round(100 - ((diff - 2) / 2) * 100)), logged: true };
-
-            }
-
-            case 'bodyFat': {
-
-                const bf = parseFloat(value as string);
-
-                if (isNaN(bf)) return { score: 0, logged: false };
-
-                const targetBodyFat = settings?.target_bodyfat;
-
-                if (!targetBodyFat) return { score: 50, logged: true };
-
-                const diff = Math.abs(bf - targetBodyFat);
-
-                if (diff <= 3) return { score: 100, logged: true };
-
-                return { score: Math.max(0, Math.round(100 - ((diff - 3) / 3) * 100)), logged: true };
-
-            }
-
-            
-
-            default:
-
-                return { score: 0, logged: false };
+            return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
 
         }
 
-    };
+        case 'protein': {
 
+            const p = parseFloat(value as string);
 
+            if (isNaN(p)) return { score: 0, logged: false };
+
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
+
+            const targetProtein = activeGoals?.nutrition?.protein;
+
+            if (!targetProtein) return { score: 50, logged: true };
+
+            if (p >= targetProtein) return { score: 100, logged: true };
+
+            const tolerance = targetProtein * 0.33;
+
+            const diff = targetProtein - p;
+
+            return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+        }
+
+        case 'carbs': {
+
+            const c = parseFloat(value as string);
+
+            if (isNaN(c)) return { score: 0, logged: false };
+
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
+
+            const targetCarbs = activeGoals?.nutrition?.carbs;
+
+            if (!targetCarbs) return { score: 50, logged: true };
+
+            const tolerance = targetCarbs * 0.375;
+
+            const diff = Math.abs(c - targetCarbs);
+
+            return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+        }
+
+        case 'fat': {
+
+            const f = parseFloat(value as string);
+
+            if (isNaN(f)) return { score: 0, logged: false };
+
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
+
+            const targetFat = activeGoals?.nutrition?.fat;
+
+            if (!targetFat) return { score: 50, logged: true };
+
+            const tolerance = targetFat * 0.33;
+
+            const diff = Math.abs(f - targetFat);
+
+            return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+        }
+
+        case 'water': {
+
+            const w = parseFloat(value as string);
+
+            if (isNaN(w)) return { score: 0, logged: false };
+
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
+
+            const targetWater = activeGoals?.nutrition?.water;
+
+            if (!targetWater) return { score: 50, logged: true };
+
+            if (w >= targetWater) return { score: 100, logged: true };
+
+            const tolerance = targetWater * 0.3;
+
+            const diff = targetWater - w;
+
+            return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
+
+        }
+
+        case 'sleepQuality': {
+
+            const sq = parseInt(value as string);
+
+            if (isNaN(sq)) return { score: 0, logged: false };
+
+            const activeGoals = (currentSettings?.active_goals as ActiveGoals | undefined) || null;
+
+            const goalHours = activeGoals?.sleep?.hours;
+
+            const qualityScore = Math.round((sq / 10) * 100);
+
+            if (goalHours && computedSleepDuration) {
+
+                const diff = Math.abs(computedSleepDuration - goalHours);
+
+                const durationScore = Math.max(0, Math.round(100 - ((diff / 2) * 100)));
+
+                return { score: Math.round((qualityScore * 0.5) + (durationScore * 0.5)), logged: true };
+
+            }
+
+            // Cap quality-only score at 60 to avoid inflated scores when only sleep quality is logged
+
+            return { score: Math.min(60, qualityScore), logged: true };
+
+        }
+
+        
+
+        /* eslint-disable no-fallthrough */
+        // === BINARY HABITS ===
+
+        case 'morningRoutine':
+
+        case 'eveningRoutine':
+
+        case 'fruitServing':
+
+        case 'studied':
+
+        case 'journal':
+
+        case 'stretching':
+
+        case 'reading':
+
+        case 'projectWorkDone':
+
+            return { score: value ? 100 : 0, logged: true };
+
+        
+
+        /* eslint-enable no-fallthrough */
+        // === OPTIONAL FIELDS ===
+
+        case 'weight': {
+
+            const w = parseFloat(value as string);
+
+            if (isNaN(w)) return { score: 0, logged: false };
+
+            const targetWeight = currentSettings?.target_weight;
+
+            if (!targetWeight) return { score: 50, logged: true };
+
+            const diff = Math.abs(w - targetWeight);
+
+            if (diff <= 2) return { score: 100, logged: true };
+
+            return { score: Math.max(0, Math.round(100 - ((diff - 2) / 2) * 100)), logged: true };
+
+        }
+
+        case 'bodyFat': {
+
+            const bf = parseFloat(value as string);
+
+            if (isNaN(bf)) return { score: 0, logged: false };
+
+            const targetBodyFat = currentSettings?.target_bodyfat;
+
+            if (!targetBodyFat) return { score: 50, logged: true };
+
+            const diff = Math.abs(bf - targetBodyFat);
+
+            if (diff <= 3) return { score: 100, logged: true };
+
+            return { score: Math.max(0, Math.round(100 - ((diff - 3) / 3) * 100)), logged: true };
+
+        }
+
+        
+
+        default:
+
+            return { score: 0, logged: false };
+
+    }
+
+};
+
+const getInputScore = (type: string, value: string | number | null | undefined, activeGoals: ActiveGoals | null | undefined, computedSleepDuration: number | null): number => {
+    switch (type) {
+        case 'wakeTime': {
+            if (!value) return 0;
+            const analysis = analyzeWakeTime(value as string, activeGoals?.sleep?.wake_time || null);
+            if (analysis.status === 'On Time') return 100;
+            if (analysis.status === 'Close') return 70;
+            if (analysis.status === 'Off') return 30;
+            return 0;
+        }
+        case 'bedtime': {
+            if (!value) return 0;
+            const analysis = analyzeBedtime(value as string, activeGoals?.sleep?.bedtime || null);
+            if (analysis.status === 'On Time') return 100;
+            if (analysis.status === 'Close') return 70;
+            if (analysis.status === 'Off') return 30;
+            return 0;
+        }
+        case 'sleepDuration': {
+            const duration = value as number | null;
+            if (duration === null || duration === undefined || isNaN(duration)) return 0;
+            const analysis = analyzeSleepDuration(duration, activeGoals?.sleep?.hours);
+            if (analysis.status === 'On Target') return 100;
+            if (analysis.status === 'Close') return 70;
+            if (analysis.status === 'Under' || analysis.status === 'Over') return 30;
+            if (analysis.status === 'Good') return 80;
+            if (analysis.status === 'Fair') return 60;
+            if (analysis.status === 'Low' || analysis.status === 'High' || analysis.status === 'Very Low') return 30;
+            return 0;
+        }
+        case 'mood': {
+            if (!value) return 0;
+            const m = parseInt(value as string);
+            if (isNaN(m)) return 0;
+            if (m >= 8) return 100;
+            if (m >= 6) return 80;
+            if (m >= 4) return 50;
+            return 20;
+        }
+        default: {
+            const result = calculateMetricScore(type, value, settings, computedSleepDuration);
+            return result.score;
+        }
+    }
+};
 
     // Calculate overall daily score (average of all logged metrics)
 
@@ -644,51 +627,51 @@ const DailyLogPage: React.FC = () => {
 
         const metrics: { score: number; logged: boolean }[] = [
 
-            calculateMetricScore('morningSystolic', morningSystolic),
+            calculateMetricScore('morningSystolic', morningSystolic, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('morningDiastolic', morningDiastolic),
+            calculateMetricScore('morningDiastolic', morningDiastolic, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('morningBpm', morningBpm),
+            calculateMetricScore('morningBpm', morningBpm, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('eveningSystolic', eveningSystolic),
+            calculateMetricScore('eveningSystolic', eveningSystolic, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('eveningDiastolic', eveningDiastolic),
+            calculateMetricScore('eveningDiastolic', eveningDiastolic, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('eveningBpm', eveningBpm),
+            calculateMetricScore('eveningBpm', eveningBpm, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('bodyTemperature', bodyTemperature),
+            calculateMetricScore('bodyTemperature', bodyTemperature, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('calories', calories),
+            calculateMetricScore('calories', calories, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('protein', protein),
+            calculateMetricScore('protein', protein, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('carbs', carbs),
+            calculateMetricScore('carbs', carbs, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('fat', fat),
+            calculateMetricScore('fat', fat, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('water', water),
+            calculateMetricScore('water', water, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('weight', weight),
+            calculateMetricScore('weight', weight, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('bodyFat', bodyFat),
+            calculateMetricScore('bodyFat', bodyFat, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('sleepQuality', sleepQuality),
+            calculateMetricScore('sleepQuality', sleepQuality, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('morningRoutine', morningRoutine),
+            calculateMetricScore('morningRoutine', morningRoutine, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('eveningRoutine', eveningRoutine),
+            calculateMetricScore('eveningRoutine', eveningRoutine, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('fruitServing', fruitServing),
+            calculateMetricScore('fruitServing', fruitServing, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('studied', studied),
+            calculateMetricScore('studied', studied, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('journal', journal),
+            calculateMetricScore('journal', journal, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('stretching', stretching),
+            calculateMetricScore('stretching', stretching, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('reading', reading),
+            calculateMetricScore('reading', reading, effectiveSettings, computedSleepDuration),
 
-            calculateMetricScore('projectWorkDone', projectWorkDone),
+            calculateMetricScore('projectWorkDone', projectWorkDone, effectiveSettings, computedSleepDuration),
 
         ];
 
@@ -704,40 +687,10 @@ const DailyLogPage: React.FC = () => {
 
         return Math.round(avg);
 
-    }, [calculateMetricScore, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, sleepQuality, wakeTime, bedtime, computedSleepDuration, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, projectWorkDone, settings]);
-
-
-    const fillForm = (log: DailyLog) => {
-        setWakeTime(log.wake_time || '');
-        setBedtime(log.bedtime || '');
-        setSleepQuality(log.sleep_quality?.toString() || '');
-        setMorningSystolic(log.morning_systolic?.toString() || '');
-        setMorningDiastolic(log.morning_diastolic?.toString() || '');
-        setMorningBpm(log.morning_bpm?.toString() || '');
-        setEveningSystolic(log.evening_systolic?.toString() || '');
-        setEveningDiastolic(log.evening_diastolic?.toString() || '');
-        setEveningBpm(log.evening_bpm?.toString() || '');
-        setBodyTemperature(log.body_temperature?.toString() || '');
-        setCalories(log.calories?.toString() || '');
-        setProtein(log.protein?.toString() || '');
-        setCarbs(log.carbs?.toString() || '');
-        setFat(log.fat?.toString() || '');
-        setWater(log.water?.toString() || '');
-        setWeight(log.weight?.toString() || '');
-        setBodyFat(log.body_fat?.toString() || '');
-        setMood(log.mood?.toString() || '');
-        setJournalEntry(log.journal_entry || '');
-        setProjectWorkDone(log.project_work_done || false);
-        setMorningRoutine(log.morning_routine || false);
-        setEveningRoutine(log.evening_routine || false);
-        setFruitServing(log.fruit_serving || false);
-        setStudied(log.studied || false);
-        setJournal(log.journal || false);
-        setStretching(log.stretching || false);
-        setReading(log.reading || false);
-    };
+    }, [morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, sleepQuality, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, projectWorkDone, effectiveSettings, computedSleepDuration]);
 
     useEffect(() => {
+        if (id) return;
         const checkExisting = async () => {
             if (!logDate) return;
             setIsLoadingData(true);
@@ -758,29 +711,35 @@ const DailyLogPage: React.FC = () => {
             setIsLoadingData(false);
         };
         checkExisting();
-    }, [logDate]);
+    }, [logDate, id]);
 
     // Auto-save function
     const performSave = useCallback(async () => {
         if (!settings) return;
         
         setSaving(true);
+        setSaveError(null);
         try {
-            const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-            const goalSnapshot = activeGoals || settings ? {
-                nutrition: {
-                    calories: activeGoals?.nutrition?.calories ?? (settings?.target_weight != null ? Math.round(settings.target_weight * 30) : null),
-                    protein: activeGoals?.nutrition?.protein ?? (settings?.starting_weight != null ? Math.round(settings.starting_weight * 1.6) : null),
-                    carbs: activeGoals?.nutrition?.carbs ?? null,
-                    fat: activeGoals?.nutrition?.fat ?? null,
-                    water: activeGoals?.nutrition?.water ?? 2500,
-                },
-                sleep: {
-                    hours: activeGoals?.sleep?.hours ?? 8,
-                    wake_time: activeGoals?.sleep?.wake_time ?? null,
-                    bedtime: activeGoals?.sleep?.bedtime ?? null,
-                }
-            } : null;
+            let goalSnapshot: Record<string, unknown> | undefined | null;
+            if (id && existingLog?.goal_snapshot) {
+                goalSnapshot = existingLog.goal_snapshot;
+            } else {
+                const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+                goalSnapshot = activeGoals || settings ? {
+                    nutrition: {
+                        calories: activeGoals?.nutrition?.calories ?? (settings?.target_weight != null ? Math.round(settings.target_weight * 30) : null),
+                        protein: activeGoals?.nutrition?.protein ?? (settings?.starting_weight != null ? Math.round(settings.starting_weight * 1.6) : null),
+                        carbs: activeGoals?.nutrition?.carbs ?? null,
+                        fat: activeGoals?.nutrition?.fat ?? null,
+                        water: activeGoals?.nutrition?.water ?? 2500,
+                    },
+                    sleep: {
+                        hours: activeGoals?.sleep?.hours ?? 8,
+                        wake_time: activeGoals?.sleep?.wake_time ?? null,
+                        bedtime: activeGoals?.sleep?.bedtime ?? null,
+                    }
+                } : null;
+            }
 
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: logDate,
@@ -806,7 +765,7 @@ const DailyLogPage: React.FC = () => {
                 daily_score: calculatedScore,
                 journal_entry: journalEntry || undefined,
                 project_work_done: projectWorkDone,
-                goal_snapshot: goalSnapshot,
+                goal_snapshot: goalSnapshot ?? undefined,
                 morning_routine: morningRoutine,
                 evening_routine: eveningRoutine,
                 fruit_serving: fruitServing,
@@ -829,11 +788,20 @@ const DailyLogPage: React.FC = () => {
             }
             setLastSaved(new Date());
         } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to save. Please try again.';
+            setSaveError(message);
             console.error('Auto-save error:', err);
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog]);
+    }, [settings, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, id]);
+
+    useEffect(() => {
+        if (saveError) {
+            const timer = setTimeout(() => setSaveError(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [saveError]);
 
     // Debounced auto-save on any state change
     useEffect(() => {
@@ -905,7 +873,8 @@ const DailyLogPage: React.FC = () => {
 
     const getScoreColor = (score: number) => {
         if (score >= 80) return 'var(--color-primary)';
-        if (score >= 60) return '#ffa500';
+        if (score >= 60) return '#a8e600';
+        if (score >= 30) return '#ffa500';
         return 'var(--color-danger)';
     };
 
@@ -917,18 +886,24 @@ const DailyLogPage: React.FC = () => {
                         <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
                             <i className="i-lucide-history mr-1"></i>View History
                         </button>
-                        
+                        {id && (
+                            <button onClick={() => navigate('/Daily-Log')} className="btn-action">
+                                <i className="i-lucide-arrow-left mr-1"></i>Today's Log
+                            </button>
+                        )}
                     </div>
                     
 
                     {/* Auto-save indicator */}
-                    <div className="flex items-center justify-end gap-2 mb-2 text-xs opacity-60">
-                        {saving ? (
-                            <span><i className="i-lucide-loader animate-spin mr-1"></i>Saving...</span>
+                    <div className="flex items-center justify-end gap-2 mb-2 text-xs">
+                        {saveError ? (
+                            <span style={{ color: 'var(--color-danger)' }}><i className="i-lucide-alert-circle mr-1"></i>{saveError}</span>
+                        ) : saving ? (
+                            <span className="opacity-60"><i className="i-lucide-loader animate-spin mr-1"></i>Saving...</span>
                         ) : lastSaved ? (
-                            <span><i className="i-lucide-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved {lastSaved.toLocaleTimeString()}</span>
+                            <span className="opacity-60"><i className="i-lucide-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved {lastSaved.toLocaleTimeString()}</span>
                         ) : (
-                            <span>Auto-saves as you type</span>
+                            <span className="opacity-60">Auto-saves as you type</span>
                         )}
                     </div>
 
@@ -956,15 +931,7 @@ const DailyLogPage: React.FC = () => {
                                     <h3 className="card-title"><i className="i-lucide-sun mr-2"></i>Sleep</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Wake Time (24h format) 
-                                            {wakeTime && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).color }}>
-                                                    ({analyzeWakeTime(wakeTime || null, activeGoals?.sleep?.wake_time || null).status})
-                                                </span>
-                                            )}
-                                        </label>
+                                    <div className="scored-input-wrap">
                                         <input 
                                             type="text" 
                                             value={wakeTime || ''} 
@@ -987,20 +954,15 @@ const DailyLogPage: React.FC = () => {
                                                     setWakeTime(val.slice(0, 2) + ':' + val.slice(2));
                                                 }
                                             }}
-                                            className="form-control font-mono" 
-                                            placeholder="--:--" 
+                                            className="scored-input font-mono" 
+                                            placeholder=" "
                                             maxLength={5}
+                                            style={{ border: `2px solid ${getScoreColor(getInputScore('wakeTime', wakeTime, activeGoals, computedSleepDuration))}` }}
                                         />
+                                        <label className="scored-input-label">Wake Time (24h format)</label>
+                                        <span className="scored-input-goal">Goal: {activeGoals?.sleep?.wake_time || '--:--'}</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Bedtime (24h format)
-                                            {bedtime && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeBedtime(bedtime || null, activeGoals?.sleep?.bedtime || null).color }}>
-                                                    ({analyzeBedtime(bedtime || null, activeGoals?.sleep?.bedtime || null).status})
-                                                </span>
-                                            )}
-                                        </label>
+                                    <div className="scored-input-wrap">
                                         <input 
                                             type="text" 
                                             value={bedtime || ''} 
@@ -1023,32 +985,27 @@ const DailyLogPage: React.FC = () => {
                                                     setBedtime(val.slice(0, 2) + ':' + val.slice(2));
                                                 }
                                             }}
-                                            className="form-control font-mono" 
-                                            placeholder="--:--" 
+                                            className="scored-input font-mono" 
+                                            placeholder=" "
                                             maxLength={5}
+                                            style={{ border: `2px solid ${getScoreColor(getInputScore('bedtime', bedtime, activeGoals, computedSleepDuration))}` }}
                                         />
+                                        <label className="scored-input-label">Bedtime (24h format)</label>
+                                        <span className="scored-input-goal">Goal: {activeGoals?.sleep?.bedtime || '--:--'}</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Sleep Duration
-                                            {computedSleepDuration && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeSleepDuration(computedSleepDuration, activeGoals?.sleep?.hours).color }}>
-                                                    ({analyzeSleepDuration(computedSleepDuration, activeGoals?.sleep?.hours).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="text" value={formatSleepDuration(computedSleepDuration)} readOnly className="form-control font-mono" placeholder="--:--" style={{ opacity: 0.7, cursor: 'default' }} />
+                                    <div className="scored-input-wrap">
+                                        <input type="text" value={formatSleepDuration(computedSleepDuration)} readOnly className="scored-input font-mono" placeholder=" " style={{ opacity: 0.7, cursor: 'default', border: `2px solid ${getScoreColor(getInputScore('sleepDuration', computedSleepDuration, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Sleep Duration</label>
+                                        <span className="scored-input-goal">Goal: {activeGoals?.sleep?.hours || 8}h</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Sleep Quality (0-10)
-                                            {sleepQuality && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeSleepQuality(sleepQuality ? parseInt(sleepQuality) : undefined).color }}>
-                                                    ({analyzeSleepQuality(sleepQuality ? parseInt(sleepQuality) : undefined).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" min="0" max="10" step="1" value={sleepQuality} onChange={(e) => setSleepQuality(e.target.value)} className="form-control" placeholder="How well did you sleep?" />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" min="0" max="10" step="1" value={sleepQuality} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0 && val <= 10) setSleepQuality(e.target.value);
+                                            else if (e.target.value === '') setSleepQuality('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('sleepQuality', sleepQuality, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Sleep Quality (0-10)</label>
+                                        <span className="scored-input-goal">Goal: {activeGoals?.sleep?.hours || 8}h sleep</span>
                                     </div>
                                 </div>
                             </div>
@@ -1060,86 +1017,48 @@ const DailyLogPage: React.FC = () => {
                                 <div className="card-body">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="flex flex-col gap-3">
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Morning Systolic
-                                                {morningSystolic && morningDiastolic && (
-                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
-                                                        ({calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className="form-control" placeholder="120" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningSystolic', morningSystolic, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Morning Systolic</label>
+                                            <span className="scored-input-goal">Goal: 120</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Morning Diastolic
-                                                {morningSystolic && morningDiastolic && (
-                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).color }}>
-                                                        ({calculateBPScore(parseInt(morningSystolic), parseInt(morningDiastolic)).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="form-control" placeholder="80" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningDiastolic', morningDiastolic, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Morning Diastolic</label>
+                                            <span className="scored-input-goal">Goal: 80</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Morning BPM
-                                                {morningBpm && (
-                                                    <span className="text-xs ml-2" style={{ color: analyzeBPM(morningBpm ? parseInt(morningBpm) : undefined).color }}>
-                                                        ({analyzeBPM(morningBpm ? parseInt(morningBpm) : undefined).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="form-control" placeholder="60-100" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningBpm', morningBpm, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Morning BPM</label>
+                                            <span className="scored-input-goal">Goal: 60-100</span>
                                         </div>
                                         </div>
                                         <div className="flex flex-col gap-3">
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Evening Systolic
-                                                {eveningSystolic && eveningDiastolic && (
-                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
-                                                        ({calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className="form-control" placeholder="120" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningSystolic', eveningSystolic, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Evening Systolic</label>
+                                            <span className="scored-input-goal">Goal: 120</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Evening Diastolic
-                                                {eveningSystolic && eveningDiastolic && (
-                                                    <span className="text-xs ml-2" style={{ color: calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).color }}>
-                                                        ({calculateBPScore(parseInt(eveningSystolic), parseInt(eveningDiastolic)).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="form-control" placeholder="80" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningDiastolic', eveningDiastolic, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Evening Diastolic</label>
+                                            <span className="scored-input-goal">Goal: 80</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Evening BPM
-                                                {eveningBpm && (
-                                                    <span className="text-xs ml-2" style={{ color: analyzeBPM(eveningBpm ? parseInt(eveningBpm) : undefined).color }}>
-                                                        ({analyzeBPM(eveningBpm ? parseInt(eveningBpm) : undefined).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="form-control" placeholder="60-100" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningBpm', eveningBpm, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Evening BPM</label>
+                                            <span className="scored-input-goal">Goal: 60-100</span>
                                         </div>
                                         </div>
                                     </div>
-                                    <div className="form-group mt-3">
-                                        <label className="form-label">
-                                            Body Temperature (°C)
-                                            {bodyTemperature && (
-                                                <span className="text-xs ml-2" style={{ color: calculateTempScore(parseFloat(bodyTemperature)).color }}>
-                                                    ({calculateTempScore(parseFloat(bodyTemperature)).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" step="0.1" value={bodyTemperature} onChange={(e) => setBodyTemperature(e.target.value)} className="form-control" placeholder="36.5" />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" step="0.1" value={bodyTemperature} onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val) && val >= 35 && val <= 42) setBodyTemperature(e.target.value);
+                                            else if (e.target.value === '') setBodyTemperature('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('bodyTemperature', bodyTemperature, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Body Temperature (°C)</label>
+                                        <span className="scored-input-goal">Goal: 36.5</span>
                                     </div>
                                 </div>
                             </div>
@@ -1149,60 +1068,50 @@ const DailyLogPage: React.FC = () => {
                                     <h3 className="card-title"><i className="i-lucide-flame mr-2"></i>Nutrition</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Calories
-                                            {calories && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeCalories(calories ? parseInt(calories) : undefined, settings).color }}>
-                                                    ({analyzeCalories(calories ? parseInt(calories) : undefined, settings).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" value={calories} onChange={(e) => setCalories(e.target.value)} className="form-control" placeholder={nutritionGoals?.calories ? String(nutritionGoals.calories) : '2000'} />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" value={calories} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setCalories(e.target.value);
+                                            else if (e.target.value === '') setCalories('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('calories', calories, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Calories</label>
+                                        <span className="scored-input-goal">Goal: {nutritionGoals?.calories || 2000}</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Protein (g)
-                                            {protein && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeProtein(protein ? parseInt(protein) : undefined, settings).color }}>
-                                                    ({analyzeProtein(protein ? parseInt(protein) : undefined, settings).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" value={protein} onChange={(e) => setProtein(e.target.value)} className="form-control" placeholder={nutritionGoals?.protein ? String(nutritionGoals.protein) : '150'} />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" value={protein} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setProtein(e.target.value);
+                                            else if (e.target.value === '') setProtein('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('protein', protein, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Protein (g)</label>
+                                        <span className="scored-input-goal">Goal: {nutritionGoals?.protein || 150}g</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Carbs (g)
-                                            {carbs && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeCarbs(carbs ? parseInt(carbs) : undefined, settings).color }}>
-                                                    ({analyzeCarbs(carbs ? parseInt(carbs) : undefined, settings).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" value={carbs} onChange={(e) => setCarbs(e.target.value)} className="form-control" placeholder={nutritionGoals?.carbs ? String(nutritionGoals.carbs) : '200'} />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" value={carbs} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
+                                            else if (e.target.value === '') setCarbs('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('carbs', carbs, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Carbs (g)</label>
+                                        <span className="scored-input-goal">Goal: {nutritionGoals?.carbs || 200}g</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Fat (g)
-                                            {fat && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeFat(fat ? parseInt(fat) : undefined, settings).color }}>
-                                                    ({analyzeFat(fat ? parseInt(fat) : undefined, settings).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" value={fat} onChange={(e) => setFat(e.target.value)} className="form-control" placeholder={nutritionGoals?.fat ? String(nutritionGoals.fat) : '65'} />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" value={fat} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setFat(e.target.value);
+                                            else if (e.target.value === '') setFat('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('fat', fat, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Fat (g)</label>
+                                        <span className="scored-input-goal">Goal: {nutritionGoals?.fat || 65}g</span>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="form-label">
-                                            Water (ml)
-                                            {water && (
-                                                <span className="text-xs ml-2" style={{ color: analyzeWater(water ? parseInt(water) : undefined, settings).color }}>
-                                                    ({analyzeWater(water ? parseInt(water) : undefined, settings).status})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input type="number" value={water} onChange={(e) => setWater(e.target.value)} className="form-control" placeholder={nutritionGoals?.water ? String(nutritionGoals.water) : '2500'} />
+                                    <div className="scored-input-wrap">
+                                        <input type="number" value={water} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setWater(e.target.value);
+                                            else if (e.target.value === '') setWater('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('water', water, activeGoals, computedSleepDuration))}` }} />
+                                        <label className="scored-input-label">Water (ml)</label>
+                                        <span className="scored-input-goal">Goal: {nutritionGoals?.water || 2500}ml</span>
                                     </div>
                                 </div>
                             </div>
@@ -1212,38 +1121,32 @@ const DailyLogPage: React.FC = () => {
                                 </div>
                                 <div className="card-body">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Weight (kg)
-                                                {weight && (
-                                                    <span className="text-xs ml-2" style={{ color: analyzeWeight(weight ? parseFloat(weight) : undefined, settings).color }}>
-                                                        ({analyzeWeight(weight ? parseFloat(weight) : undefined, settings).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} className="form-control" placeholder="75.5" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" step="0.1" value={weight} onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setWeight(e.target.value);
+                                            else if (e.target.value === '') setWeight('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('weight', weight, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Weight (kg)</label>
+                                            <span className="scored-input-goal">Goal: {settings?.target_weight || '--'}kg</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Body Fat (%)
-                                                {bodyFat && (
-                                                    <span className="text-xs ml-2" style={{ color: analyzeBodyFat(bodyFat ? parseFloat(bodyFat) : undefined).color }}>
-                                                        ({analyzeBodyFat(bodyFat ? parseFloat(bodyFat) : undefined).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} className="form-control" placeholder="15.0" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" step="0.1" value={bodyFat} onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val) && val >= 0 && val <= 100) setBodyFat(e.target.value);
+                                            else if (e.target.value === '') setBodyFat('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('bodyFat', bodyFat, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Body Fat (%)</label>
+                                            <span className="scored-input-goal">Goal: {settings?.target_bodyfat || '--'}%</span>
                                         </div>
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Mood (1-10)
-                                                {mood && (
-                                                    <span className="text-xs ml-2" style={{ color: analyzeMood(mood ? parseInt(mood) : undefined).color }}>
-                                                        ({analyzeMood(mood ? parseInt(mood) : undefined).status})
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <input type="number" min="1" max="10" step="1" value={mood} onChange={(e) => setMood(e.target.value)} className="form-control" placeholder="7" />
+                                        <div className="scored-input-wrap">
+                                            <input type="number" min="1" max="10" step="1" value={mood} onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            if (!isNaN(val) && val >= 1 && val <= 10) setMood(e.target.value);
+                                            else if (e.target.value === '') setMood('');
+                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('mood', mood, activeGoals, computedSleepDuration))}` }} />
+                                            <label className="scored-input-label">Mood (1-10)</label>
+                                            <span className="scored-input-goal">Goal: 8+</span>
                                         </div>
                                     </div>
                                 </div>

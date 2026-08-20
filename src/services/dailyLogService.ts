@@ -27,7 +27,7 @@ export interface DailyLog {
     updated_at?: string;
     weight?: number;
     body_fat?: number;
-    goal_snapshot?: any;
+    goal_snapshot?: Record<string, unknown>;
     sleep_quality?: number;
     // Built-in habits from DB
     morning_routine?: boolean;
@@ -71,6 +71,7 @@ export const getDailyLogByDate = async (logDate: string): Promise<DailyLog | nul
         .single();
 
     if (error) {
+        console.error('Error fetching daily log by date:', error.message);
         return null;
     }
 

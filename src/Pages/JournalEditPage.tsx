@@ -1,98 +1,51 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Title from '../Components/Title';
-import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/dailyLogService';
+import { getDailyLogById, updateDailyLog } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 
-const JournalPage: React.FC = () => {
+const JournalEditPage: React.FC = () => {
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const [settings, setSettings] = useState<UserSettings | null>(null);
+    const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
+    const [journalEntry, setJournalEntry] = useState('');
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
-    const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
-    const [isEditing, setIsEditing] = useState(false);
-    const [settings, setSettings] = useState<UserSettings | null>(null);
-    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const logDate = new Date().toISOString().split('T')[0];
-    const [journalEntry, setJournalEntry] = useState('');
-    const [showTips, setShowTips] = useState(true);
-
-    const journalTips = [
-        "What's one thing you're grateful for today?",
-        "Describe a challenge you faced and how you handled it.",
-        "What did you learn about yourself today?",
-        "Write about a moment that made you smile.",
-        "What would you do differently tomorrow?",
-        "Describe your energy levels throughout the day.",
-        "What are you looking forward to tomorrow?",
-        "Did you stick to your habits? What helped or hindered you?",
-        "Write about your meals - what did you enjoy most?",
-        "How did your body feel today? Any aches, pains, or improvements?",
-        "What's one small win you had today?",
-        "Describe your sleep quality in detail.",
-        "Did you have any interesting dreams?",
-        "How did you manage stress today?",
-        "What's on your mind right now?",
-    ];
-
-    const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
-    const [randomTip, setRandomTip] = useState(getRandomTip);
-
-    const refreshTip = () => {
-        setRandomTip(getRandomTip());
-    };
-
-    // Load user settings
     useEffect(() => {
-        const loadSettings = async () => {
-            const userSettings = await getUserSettings();
-            setSettings(userSettings);
-        };
-        loadSettings();
-    }, []);
-
-    // Check for existing log
-    useEffect(() => {
-        const checkExisting = async () => {
-            if (!logDate) return;
-            const log = await getDailyLogByDate(logDate);
+        const load = async () => {
+            if (!id) return;
+            const [log, userSettings] = await Promise.all([
+                getDailyLogById(id),
+                getUserSettings()
+            ]);
             if (log) {
                 setExistingLog(log);
-                setIsEditing(true);
                 setJournalEntry(log.journal_entry || '');
-            } else {
-                setExistingLog(null);
-                setIsEditing(false);
             }
+            setSettings(userSettings);
         };
-        checkExisting();
-    }, [logDate]);
+        load();
+    }, [id]);
 
-    // Auto-save function
     const performSave = useCallback(async () => {
-        if (!settings) return;
+        if (!id || !settings) return;
 
         setSaving(true);
         setSaveError(null);
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
-                log_date: logDate,
+                log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
                 journal_entry: journalEntry || undefined,
-                daily_score: isEditing && existingLog?.daily_score != null ? existingLog.daily_score : (journalEntry.trim().length > 0 ? 100 : 0),
+                daily_score: existingLog?.daily_score != null ? existingLog.daily_score : (journalEntry.trim().length > 0 ? 100 : 0),
             };
 
-            if (isEditing && existingLog?.id) {
-                await updateDailyLog(existingLog.id, logData);
-            } else {
-                const newLog = await createDailyLog(logData);
-                if (newLog) {
-                    setExistingLog(newLog as DailyLog);
-                    setIsEditing(true);
-                }
-            }
+            await updateDailyLog(id, logData);
             setLastSaved(new Date());
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save. Please try again.';
@@ -101,7 +54,7 @@ const JournalPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, journalEntry, isEditing, existingLog]);
+    }, [id, settings, journalEntry, existingLog]);
 
     useEffect(() => {
         if (saveError) {
@@ -110,7 +63,6 @@ const JournalPage: React.FC = () => {
         }
     }, [saveError]);
 
-    // Debounced auto-save
     useEffect(() => {
         if (!settings) return;
 
@@ -129,10 +81,10 @@ const JournalPage: React.FC = () => {
         };
     }, [journalEntry, performSave, settings]);
 
-    if (!settings) {
+    if (!settings || !existingLog) {
         return (
             <>
-                <Title title="Journal" />
+                <Title title="Edit Journal" />
                 <div className="journal-page-wrapper">
                     <div className="dashboard-section journal-section">
                         <div className="journal-card">
@@ -147,18 +99,17 @@ const JournalPage: React.FC = () => {
         );
     }
 
-    const journalScore = journalEntry && journalEntry.trim().length > 0 ? 100 : 0;
     const wordCount = journalEntry.trim() ? journalEntry.trim().split(/\s+/).length : 0;
     const charCount = journalEntry.length;
-    const todayFormatted = new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const journalScore = journalEntry.trim().length > 0 ? 100 : 0;
+    const dateFormatted = new Date(existingLog.log_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
     return (
         <>
-            <Title title="Journal" />
+            <Title title="Edit Journal" />
             <div className="journal-page-wrapper">
                 <div className="dashboard-section journal-section">
                     <div className="journal-card">
-                        {/* Stats Bar */}
                         <div className="journal-stats">
                             <div className="journal-stat-item">
                                 <span className="journal-stat-label">Journal Score</span>
@@ -176,11 +127,10 @@ const JournalPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Top Bar */}
                         <div className="journal-top-bar">
                             <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => navigate('/Daily-Log')} className="btn-action">
-                                    <i className="i-lucide-arrow-left mr-1"></i>Daily Log
+                                <button onClick={() => navigate('/Journal')} className="btn-action">
+                                    <i className="i-lucide-arrow-left mr-1"></i>Journal
                                 </button>
                                 <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
                                     <i className="i-lucide-history mr-1"></i>History
@@ -199,38 +149,11 @@ const JournalPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Date Header */}
                         <div className="journal-date-header">
                             <i className="fa-regular fa-calendar"></i>
-                            {todayFormatted}
+                            {dateFormatted}
                         </div>
 
-                        {/* Writing Tip */}
-                        {showTips && (
-                            <div className="journal-tip-card">
-                                <div className="journal-tip-content">
-                                    <div className="flex items-start gap-2 flex-1">
-                                        <i className="fa-solid fa-lightbulb journal-tip-icon"></i>
-                                        <div>
-                                            <div className="journal-tip-title">Writing Tip</div>
-                                            <div className="journal-tip-text">{randomTip}</div>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => setShowTips(false)}
-                                        className="journal-tip-close"
-                                        aria-label="Dismiss tip"
-                                    >
-                                        <i className="fa-solid fa-xmark"></i>
-                                    </button>
-                                </div>
-                                <button onClick={refreshTip} className="journal-tip-refresh">
-                                    <i className="fa-solid fa-rotate-right mr-1"></i>Another tip
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Journal Editor */}
                         <div className="journal-editor-section">
                             <div className="journal-editor-header">
                                 <i className="fa-solid fa-pen-fancy"></i>
@@ -240,20 +163,12 @@ const JournalPage: React.FC = () => {
                                 value={journalEntry}
                                 onChange={(e) => setJournalEntry(e.target.value)}
                                 className="journal-editor"
-                                placeholder="Write your thoughts, reflections, or anything notable about today..."
+                                placeholder="Write your thoughts, reflections, or anything notable about this day..."
                             />
                             <div className="journal-editor-footer">
                                 <div className="journal-editor-count">
                                     {wordCount} words · {charCount} characters
                                 </div>
-                                {!showTips && (
-                                    <button
-                                        onClick={() => { setShowTips(true); refreshTip(); }}
-                                        className="journal-show-tips"
-                                    >
-                                        <i className="fa-solid fa-lightbulb mr-1"></i>Show tips
-                                    </button>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -263,4 +178,4 @@ const JournalPage: React.FC = () => {
     );
 };
 
-export default JournalPage;
+export default JournalEditPage;
