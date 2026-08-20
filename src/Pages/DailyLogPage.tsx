@@ -42,17 +42,7 @@ const calculateSleepDuration = (wakeTime: string, bedtime: string): number | nul
     return Math.round(duration * 10) / 10;
 };
 
-// Format sleep duration as HH:MM (e.g. 7.5 -> "07:30"), or "--:--" when no data
-const formatSleepDuration = (duration: number | null): string => {
-    if (duration === null || duration === undefined || isNaN(duration)) return '--:--';
-    const hours = Math.floor(duration);
-    const minutes = Math.round((duration - hours) * 60);
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-};
-
 // Calculate time match score (0-100) - how close actual is to goal
-
-// Calculate sleep duration match score (0-100)
 
 // Calculate sleep duration from bedtime and wake time
 const analyzeWakeTime = (time: string | null, goalTime: string | null): { status: string; color: string } => {
@@ -82,23 +72,6 @@ const analyzeBedtime = (time: string | null, goalTime: string | null): { status:
     if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
     if (diff <= 30) return { status: 'Close', color: '#ffa500' };
     return { status: 'Off', color: 'var(--color-danger)' };
-};
-
-// Analyze sleep quality
-const analyzeSleepDuration = (duration: number | null, goalHours?: number | null): { status: string; color: string } => {
-    if (duration === null || duration === undefined || isNaN(duration)) return { status: 'No data', color: 'rgba(255, 255, 255, 0.4)' };
-    if (goalHours) {
-        const diff = Math.abs(duration - goalHours);
-        if (diff <= 0.5) return { status: 'On Target', color: 'var(--color-primary)' };
-        if (diff <= 1) return { status: 'Close', color: '#ffa500' };
-        if (duration < goalHours) return { status: 'Under', color: 'var(--color-danger)' };
-        return { status: 'Over', color: 'var(--color-danger)' };
-    }
-    if (duration >= 7 && duration <= 9) return { status: 'Good', color: 'var(--color-primary)' };
-    if (duration >= 6 && duration < 7) return { status: 'Fair', color: '#ffa500' };
-    if (duration >= 5 && duration < 6) return { status: 'Low', color: 'var(--color-danger)' };
-    if (duration > 9) return { status: 'High', color: '#ffa500' };
-    return { status: 'Very Low', color: 'var(--color-danger)' };
 };
 
 // Analyze calories - uses user's goal from active_goals JSON
@@ -593,18 +566,6 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
             if (analysis.status === 'Off') return 30;
             return 0;
         }
-        case 'sleepDuration': {
-            const duration = value as number | null;
-            if (duration === null || duration === undefined || isNaN(duration)) return 0;
-            const analysis = analyzeSleepDuration(duration, activeGoals?.sleep?.hours);
-            if (analysis.status === 'On Target') return 100;
-            if (analysis.status === 'Close') return 70;
-            if (analysis.status === 'Under' || analysis.status === 'Over') return 30;
-            if (analysis.status === 'Good') return 80;
-            if (analysis.status === 'Fair') return 60;
-            if (analysis.status === 'Low' || analysis.status === 'High' || analysis.status === 'Very Low') return 30;
-            return 0;
-        }
         case 'mood': {
             if (!value) return 0;
             const m = parseInt(value as string);
@@ -929,6 +890,9 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                             <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title"><i className="i-lucide-sun mr-2"></i>Sleep</h3>
+                                    {computedSleepDuration != null && (
+                                        <span className="text-sm opacity-70 ml-2">{computedSleepDuration}h</span>
+                                    )}
                                 </div>
                                 <div className="card-body">
                                     <div className="scored-input-wrap">
@@ -957,7 +921,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             className="scored-input font-mono" 
                                             placeholder=" "
                                             maxLength={5}
-                                            style={{ border: `2px solid ${getScoreColor(getInputScore('wakeTime', wakeTime, activeGoals, computedSleepDuration))}` }}
+                                            style={{ border: `1px solid ${getScoreColor(getInputScore('wakeTime', wakeTime, activeGoals, computedSleepDuration))}` }}
                                         />
                                         <label className="scored-input-label">Wake Time (24h format)</label>
                                         <span className="scored-input-goal">Goal: {activeGoals?.sleep?.wake_time || '--:--'}</span>
@@ -988,22 +952,17 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             className="scored-input font-mono" 
                                             placeholder=" "
                                             maxLength={5}
-                                            style={{ border: `2px solid ${getScoreColor(getInputScore('bedtime', bedtime, activeGoals, computedSleepDuration))}` }}
+                                            style={{ border: `1px solid ${getScoreColor(getInputScore('bedtime', bedtime, activeGoals, computedSleepDuration))}` }}
                                         />
                                         <label className="scored-input-label">Bedtime (24h format)</label>
                                         <span className="scored-input-goal">Goal: {activeGoals?.sleep?.bedtime || '--:--'}</span>
-                                    </div>
-                                    <div className="scored-input-wrap">
-                                        <input type="text" value={formatSleepDuration(computedSleepDuration)} readOnly className="scored-input font-mono" placeholder=" " style={{ opacity: 0.7, cursor: 'default', border: `2px solid ${getScoreColor(getInputScore('sleepDuration', computedSleepDuration, activeGoals, computedSleepDuration))}` }} />
-                                        <label className="scored-input-label">Sleep Duration</label>
-                                        <span className="scored-input-goal">Goal: {activeGoals?.sleep?.hours || 8}h</span>
                                     </div>
                                     <div className="scored-input-wrap">
                                         <input type="number" min="0" max="10" step="1" value={sleepQuality} onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0 && val <= 10) setSleepQuality(e.target.value);
                                             else if (e.target.value === '') setSleepQuality('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('sleepQuality', sleepQuality, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('sleepQuality', sleepQuality, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Sleep Quality (0-10)</label>
                                         <span className="scored-input-goal">Goal: {activeGoals?.sleep?.hours || 8}h sleep</span>
                                     </div>
@@ -1018,34 +977,34 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="flex flex-col gap-3">
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningSystolic', morningSystolic, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('morningSystolic', morningSystolic, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Morning Systolic</label>
                                             <span className="scored-input-goal">Goal: 120</span>
                                         </div>
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningDiastolic', morningDiastolic, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('morningDiastolic', morningDiastolic, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Morning Diastolic</label>
                                             <span className="scored-input-goal">Goal: 80</span>
                                         </div>
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('morningBpm', morningBpm, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('morningBpm', morningBpm, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Morning BPM</label>
                                             <span className="scored-input-goal">Goal: 60-100</span>
                                         </div>
                                         </div>
                                         <div className="flex flex-col gap-3">
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningSystolic', eveningSystolic, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('eveningSystolic', eveningSystolic, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Evening Systolic</label>
                                             <span className="scored-input-goal">Goal: 120</span>
                                         </div>
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningDiastolic', eveningDiastolic, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('eveningDiastolic', eveningDiastolic, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Evening Diastolic</label>
                                             <span className="scored-input-goal">Goal: 80</span>
                                         </div>
                                         <div className="scored-input-wrap">
-                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('eveningBpm', eveningBpm, activeGoals, computedSleepDuration))}` }} />
+                                            <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('eveningBpm', eveningBpm, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Evening BPM</label>
                                             <span className="scored-input-goal">Goal: 60-100</span>
                                         </div>
@@ -1056,7 +1015,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseFloat(e.target.value);
                                             if (!isNaN(val) && val >= 35 && val <= 42) setBodyTemperature(e.target.value);
                                             else if (e.target.value === '') setBodyTemperature('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('bodyTemperature', bodyTemperature, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('bodyTemperature', bodyTemperature, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Body Temperature (°C)</label>
                                         <span className="scored-input-goal">Goal: 36.5</span>
                                     </div>
@@ -1073,7 +1032,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCalories(e.target.value);
                                             else if (e.target.value === '') setCalories('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('calories', calories, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('calories', calories, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Calories</label>
                                         <span className="scored-input-goal">Goal: {nutritionGoals?.calories || 2000}</span>
                                     </div>
@@ -1082,7 +1041,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setProtein(e.target.value);
                                             else if (e.target.value === '') setProtein('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('protein', protein, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('protein', protein, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Protein (g)</label>
                                         <span className="scored-input-goal">Goal: {nutritionGoals?.protein || 150}g</span>
                                     </div>
@@ -1091,7 +1050,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
                                             else if (e.target.value === '') setCarbs('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('carbs', carbs, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('carbs', carbs, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Carbs (g)</label>
                                         <span className="scored-input-goal">Goal: {nutritionGoals?.carbs || 200}g</span>
                                     </div>
@@ -1100,7 +1059,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setFat(e.target.value);
                                             else if (e.target.value === '') setFat('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('fat', fat, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('fat', fat, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Fat (g)</label>
                                         <span className="scored-input-goal">Goal: {nutritionGoals?.fat || 65}g</span>
                                     </div>
@@ -1109,7 +1068,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setWater(e.target.value);
                                             else if (e.target.value === '') setWater('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('water', water, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('water', water, activeGoals, computedSleepDuration))}` }} />
                                         <label className="scored-input-label">Water (ml)</label>
                                         <span className="scored-input-goal">Goal: {nutritionGoals?.water || 2500}ml</span>
                                     </div>
@@ -1126,7 +1085,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseFloat(e.target.value);
                                             if (!isNaN(val) && val >= 0) setWeight(e.target.value);
                                             else if (e.target.value === '') setWeight('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('weight', weight, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('weight', weight, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Weight (kg)</label>
                                             <span className="scored-input-goal">Goal: {settings?.target_weight || '--'}kg</span>
                                         </div>
@@ -1135,7 +1094,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseFloat(e.target.value);
                                             if (!isNaN(val) && val >= 0 && val <= 100) setBodyFat(e.target.value);
                                             else if (e.target.value === '') setBodyFat('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('bodyFat', bodyFat, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('bodyFat', bodyFat, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Body Fat (%)</label>
                                             <span className="scored-input-goal">Goal: {settings?.target_bodyfat || '--'}%</span>
                                         </div>
@@ -1144,7 +1103,7 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 1 && val <= 10) setMood(e.target.value);
                                             else if (e.target.value === '') setMood('');
-                                        }} className="scored-input" placeholder=" " style={{ border: `2px solid ${getScoreColor(getInputScore('mood', mood, activeGoals, computedSleepDuration))}` }} />
+                                        }} className="scored-input" placeholder=" " style={{ border: `1px solid ${getScoreColor(getInputScore('mood', mood, activeGoals, computedSleepDuration))}` }} />
                                             <label className="scored-input-label">Mood (1-10)</label>
                                             <span className="scored-input-goal">Goal: 8+</span>
                                         </div>

@@ -824,8 +824,7 @@ input[type="number"] {
   margin: 0 auto;
 }
 .card {
-  background: #ffffff08;
-  border-radius: 25px;
+  
   border: none;
 }
 .settings-card {
@@ -1609,8 +1608,8 @@ input[type="number"] {
   width: 100%;
   padding: 0.85rem 1rem;
   background: #ffffff0a;
-  border-radius: 25px;
-  border: 2px solid #ffffff14;
+  border-radius: 26px;
+  border: 1px solid #ffffff14;
   color: var(--color-light);
   font-family: var(--font-mono);
   font-size: 0.9rem;
