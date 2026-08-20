@@ -4133,6 +4133,8 @@ input[type="number"] {
   padding: 1.5rem;
 }
 .daily-log-form .card-header {
+  gap: 0.75rem;
+  display: flex;
   margin-bottom: 0.75rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid #ffffff14;

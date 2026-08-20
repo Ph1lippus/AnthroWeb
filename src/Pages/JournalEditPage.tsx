@@ -41,7 +41,7 @@ const JournalEditPage: React.FC = () => {
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
-                journal_entry: journalEntry || undefined,
+                journal_entry: journalEntry || null,
                 daily_score: existingLog?.daily_score != null ? existingLog.daily_score : (journalEntry.trim().length > 0 ? 100 : 0),
             };
 

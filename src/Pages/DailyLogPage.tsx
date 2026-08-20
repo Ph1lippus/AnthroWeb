@@ -462,9 +462,13 @@ const calculateMetricScore = (type: string, value: string | number | boolean | n
 
                 const diff = Math.abs(computedSleepDuration - goalHours);
 
-                const durationScore = Math.max(0, Math.round(100 - ((diff / 2) * 100)));
+                const durationScore = Math.max(0, Math.round(100 - ((diff / 1.5) * 100)));
 
-                return { score: Math.round((qualityScore * 0.5) + (durationScore * 0.5)), logged: true };
+                let combined = Math.round((qualityScore * 0.4) + (durationScore * 0.6));
+
+                if (diff > 2) combined = Math.min(combined, 30);
+
+                return { score: combined, logged: true };
 
             }
 
@@ -704,29 +708,29 @@ const getInputScore = (type: string, value: string | number | null | undefined, 
 
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: logDate,
-                wake_time: wakeTime || undefined,
-                bedtime: bedtime || undefined,
-                sleep_duration: computedSleepDuration || undefined,
-                sleep_quality: sleepQuality ? Math.round(parseFloat(sleepQuality)) : undefined,
-                morning_systolic: morningSystolic ? parseInt(morningSystolic) : undefined,
-                morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : undefined,
-                morning_bpm: morningBpm ? parseInt(morningBpm) : undefined,
-                evening_systolic: eveningSystolic ? parseInt(eveningSystolic) : undefined,
-                evening_diastolic: eveningDiastolic ? parseInt(eveningDiastolic) : undefined,
-                evening_bpm: eveningBpm ? parseInt(eveningBpm) : undefined,
-                body_temperature: bodyTemperature ? parseFloat(bodyTemperature) : undefined,
-                calories: calories ? parseInt(calories) : undefined,
-                protein: protein ? parseInt(protein) : undefined,
-                carbs: carbs ? parseInt(carbs) : undefined,
-                fat: fat ? parseInt(fat) : undefined,
-                water: water ? parseInt(water) : undefined,
-                weight: weight ? parseFloat(weight) : undefined,
-                body_fat: bodyFat ? parseFloat(bodyFat) : undefined,
-                mood: mood ? Math.round(parseFloat(mood)) : undefined,
+                wake_time: wakeTime || null,
+                bedtime: bedtime || null,
+                sleep_duration: computedSleepDuration || null,
+                sleep_quality: sleepQuality ? Math.round(parseFloat(sleepQuality)) : null,
+                morning_systolic: morningSystolic ? parseInt(morningSystolic) : null,
+                morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : null,
+                morning_bpm: morningBpm ? parseInt(morningBpm) : null,
+                evening_systolic: eveningSystolic ? parseInt(eveningSystolic) : null,
+                evening_diastolic: eveningDiastolic ? parseInt(eveningDiastolic) : null,
+                evening_bpm: eveningBpm ? parseInt(eveningBpm) : null,
+                body_temperature: bodyTemperature ? parseFloat(bodyTemperature) : null,
+                calories: calories ? parseInt(calories) : null,
+                protein: protein ? parseInt(protein) : null,
+                carbs: carbs ? parseInt(carbs) : null,
+                fat: fat ? parseInt(fat) : null,
+                water: water ? parseInt(water) : null,
+                weight: weight ? parseFloat(weight) : null,
+                body_fat: bodyFat ? parseFloat(bodyFat) : null,
+                mood: mood ? Math.round(parseFloat(mood)) : null,
                 daily_score: calculatedScore,
-                journal_entry: journalEntry || undefined,
+                journal_entry: journalEntry || null,
                 project_work_done: projectWorkDone,
-                goal_snapshot: goalSnapshot ?? undefined,
+                goal_snapshot: goalSnapshot ?? null,
                 morning_routine: morningRoutine,
                 evening_routine: eveningRoutine,
                 fruit_serving: fruitServing,
