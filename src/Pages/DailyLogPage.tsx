@@ -55,7 +55,7 @@ const analyzeWakeTime = (time: string | null, goalTime: string | null): { status
     let diff = Math.abs(actualMin - goalMin);
     if (diff > 12 * 60) diff = 24 * 60 - diff;
     if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
-    if (diff <= 30) return { status: 'Close', color: '#ffa500' };
+    if (diff <= 60) return { status: 'Close', color: '#ffa500' };
     return { status: 'Off', color: 'var(--color-danger)' };
 };
 
@@ -70,7 +70,7 @@ const analyzeBedtime = (time: string | null, goalTime: string | null): { status:
     let diff = Math.abs(actualMin - goalMin);
     if (diff > 12 * 60) diff = 24 * 60 - diff;
     if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
-    if (diff <= 30) return { status: 'Close', color: '#ffa500' };
+    if (diff <= 60) return { status: 'Close', color: '#ffa500' };
     return { status: 'Off', color: 'var(--color-danger)' };
 };
 
@@ -552,23 +552,21 @@ const calculateMetricScore = (type: string, value: string | number | boolean | n
 
 };
 
-const getInputScore = (type: string, value: string | number | null | undefined, activeGoals: ActiveGoals | null | undefined, computedSleepDuration: number | null): number => {
+    const getInputScore = (type: string, value: string | number | null | undefined, activeGoals: ActiveGoals | null | undefined, computedSleepDuration: number | null): number => {
     switch (type) {
         case 'wakeTime': {
             if (!value) return 0;
             const analysis = analyzeWakeTime(value as string, activeGoals?.sleep?.wake_time || null);
             if (analysis.status === 'On Time') return 100;
             if (analysis.status === 'Close') return 70;
-            if (analysis.status === 'Off') return 30;
-            return 0;
+            return 20;
         }
         case 'bedtime': {
             if (!value) return 0;
             const analysis = analyzeBedtime(value as string, activeGoals?.sleep?.bedtime || null);
             if (analysis.status === 'On Time') return 100;
             if (analysis.status === 'Close') return 70;
-            if (analysis.status === 'Off') return 30;
-            return 0;
+            return 20;
         }
         case 'mood': {
             if (!value) return 0;
