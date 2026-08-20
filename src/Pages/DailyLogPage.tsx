@@ -1006,7 +1006,7 @@ const calculateMetricScore = (type: string, value: string | number | boolean | n
                                     <div className="scored-input-wrap">
                                         <input type="number" step="0.1" value={bodyTemperature} onChange={(e) => {
                                             const val = parseFloat(e.target.value);
-                                            if (!isNaN(val) && val >= 35 && val <= 42) setBodyTemperature(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setBodyTemperature(e.target.value);
                                             else if (e.target.value === '') setBodyTemperature('');
                                         }} className={"scored-input" + (bodyTemperature ? '' : ' scored-input--empty')} placeholder=" " style={bodyTemperature ? { borderColor: getScoreColor(getInputScore('bodyTemperature', bodyTemperature, activeGoals, computedSleepDuration)) } : undefined} />
                                         <label className="scored-input-label">Body Temperature (°C) <span className="scored-input-goal-inline">36.5</span></label>
@@ -1078,7 +1078,7 @@ const calculateMetricScore = (type: string, value: string | number | boolean | n
                                         <div className="scored-input-wrap">
                                             <input type="number" step="0.1" value={bodyFat} onChange={(e) => {
                                             const val = parseFloat(e.target.value);
-                                            if (!isNaN(val) && val >= 0 && val <= 100) setBodyFat(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setBodyFat(e.target.value);
                                             else if (e.target.value === '') setBodyFat('');
                                         }} className={"scored-input" + (bodyFat ? '' : ' scored-input--empty')} placeholder=" " style={bodyFat ? { borderColor: getScoreColor(getInputScore('bodyFat', bodyFat, activeGoals, computedSleepDuration)) } : undefined} />
                                             <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
@@ -1086,7 +1086,7 @@ const calculateMetricScore = (type: string, value: string | number | boolean | n
                                         <div className="scored-input-wrap">
                                             <input type="number" min="1" max="10" step="1" value={mood} onChange={(e) => {
                                             const val = parseInt(e.target.value);
-                                            if (!isNaN(val) && val >= 1 && val <= 10) setMood(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setMood(e.target.value);
                                             else if (e.target.value === '') setMood('');
                                         }} className={"scored-input" + (mood ? '' : ' scored-input--empty')} placeholder=" " style={mood ? { borderColor: getScoreColor(getInputScore('mood', mood, activeGoals, computedSleepDuration)) } : undefined} />
                                             <label className="scored-input-label">Mood (1-10) <span className="scored-input-goal-inline">8+</span></label>
