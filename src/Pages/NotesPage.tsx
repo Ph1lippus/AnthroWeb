@@ -136,6 +136,48 @@ const NotesPage: React.FC = () => {
     const handleFormatStrikeThrough = () => execFormat('strikeThrough');
     const handleFormatOrderedList = () => execFormat('insertOrderedList');
     const handleFormatUnorderedList = () => execFormat('insertUnorderedList');
+    const insertCheckboxesAtSelection = (checked: boolean) => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+
+        const range = sel.getRangeAt(0);
+        const selectedText = sel.toString();
+
+        if (!selectedText || !selectedText.trim()) {
+            execFormat('insertHTML', `<input type="checkbox" class="note-checkbox-input" contenteditable="false"${checked ? ' checked' : ''}>`);
+            return;
+        }
+
+        const lines = selectedText.split('\n').filter(line => line.trim() !== '');
+        range.deleteContents();
+
+        lines.forEach((line, i) => {
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'note-checkbox-input';
+            checkbox.setAttribute('contenteditable', 'false');
+            if (checked) checkbox.checked = true;
+            range.insertNode(checkbox);
+            range.setStartAfter(checkbox);
+
+            const textNode = document.createTextNode(line.trim());
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+
+            if (i < lines.length - 1) {
+                const br = document.createElement('br');
+                range.insertNode(br);
+                range.setStartAfter(br);
+            }
+        });
+
+        if (editorRef.current) {
+            editorRef.current.focus();
+        }
+    };
+
+    const handleFormatCheckbox = () => insertCheckboxesAtSelection(false);
+    const handleFormatChecked = () => insertCheckboxesAtSelection(true);
     const handleFormatHeading = () => execFormat('formatBlock', 'h3');
     const handleFormatParagraph = () => execFormat('formatBlock', 'p');
     const handleFormatBlockquote = () => execFormat('formatBlock', 'blockquote');
@@ -155,14 +197,6 @@ const NotesPage: React.FC = () => {
         }
     };
 
-    const filteredNotes = notes.filter(n =>
-        n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.content.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const pinnedNotes = filteredNotes.filter(n => n.is_pinned);
-    const unpinnedNotes = filteredNotes.filter(n => !n.is_pinned);
-
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return '';
         const d = new Date(dateStr);
@@ -181,10 +215,16 @@ const NotesPage: React.FC = () => {
         return tmp.textContent || tmp.innerText || '';
     };
 
-    const renderNoteCard = (note: Note) => {
-        const plainText = stripHtml(note.content);
-        const preview = plainText.substring(0, 120);
+    const filteredNotes = notes.filter(n => {
+        const plainText = stripHtml(n.content);
+        return n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            plainText.toLowerCase().includes(searchQuery.toLowerCase())
+    });
 
+    const pinnedNotes = filteredNotes.filter(n => n.is_pinned);
+    const unpinnedNotes = filteredNotes.filter(n => !n.is_pinned);
+
+    const renderNoteCard = (note: Note) => {
         return (
             <div key={note.id} className="note-card">
                 <div className="note-card-top">
@@ -193,7 +233,6 @@ const NotesPage: React.FC = () => {
                             {note.is_pinned && <i className="fa-solid fa-thumbtack note-pin-icon"></i>}
                             {note.title}
                         </h3>
-                        {preview && <p className="note-card-preview">{preview}{plainText.length > 120 ? '...' : ''}</p>}
                     </div>
                     <div className="flex gap-1 shrink-0">
                         <button
@@ -377,6 +416,12 @@ const NotesPage: React.FC = () => {
                                     <button type="button" onClick={handleFormatUnorderedList} className="note-toolbar-btn" title="Unordered list">
                                         <i className="fa-solid fa-list-ul"></i>
                                     </button>
+                                    <button type="button" onClick={handleFormatCheckbox} className="note-toolbar-btn" title="Checkbox (todo)">
+                                        <i className="fa-solid fa-square"></i>
+                                    </button>
+                                    <button type="button" onClick={handleFormatChecked} className="note-toolbar-btn" title="Checked checkbox">
+                                        <i className="fa-solid fa-square-check"></i>
+                                    </button>
                                     <span className="note-toolbar-separator"></span>
                                     <button type="button" onClick={handleInsertLink} className="note-toolbar-btn" title="Insert link">
                                         <i className="fa-solid fa-link"></i>
@@ -447,6 +492,13 @@ const NotesPage: React.FC = () => {
                         <div
                             className="note-view-content"
                             dangerouslySetInnerHTML={{ __html: viewNote.content }}
+                            onClick={(e) => {
+                                const target = e.target as HTMLElement;
+                                if (target.classList.contains('note-checkbox-input')) {
+                                    const html = target.closest('.note-view-content')!.innerHTML;
+                                    updateNote(viewNote.id!, { content: html });
+                                }
+                            }}
                         />
                     </div>
                 </div>
