@@ -113,6 +113,24 @@ export const deleteHabit = async (id: string) => {
     }
 };
 
+// Fetch all habit logs for current user (used for charts)
+export const getAllHabitLogs = async (): Promise<DailyHabitLog[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('daily_habit_logs')
+        .select('*')
+        .eq('user_id', user.id);
+
+    if (error) {
+        console.error('Error fetching habit logs:', error.message);
+        return [];
+    }
+
+    return (data as DailyHabitLog[]) || [];
+};
+
 // Get completed habits for a date
 export const getCompletedHabitsForDate = async (logDate: string): Promise<Set<string>> => {
     const { data: { user } } = await supabase.auth.getUser();

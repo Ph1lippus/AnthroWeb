@@ -3,18 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import { getUserDailyLogs, deleteDailyLog } from '../services/dailyLogService';
 import type { DailyLog } from '../services/dailyLogService';
+import { getScoreColor } from '../utils/dailyScoring';
 
 const DailyLogHistoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const [logs, setLogs] = useState<DailyLog[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [logs, setLogs] = useState<DailyLog[] | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<DailyLog | null>(null);
 
     const loadLogs = async () => {
-        setLoading(true);
         const data = await getUserDailyLogs();
         setLogs(data);
-        setLoading(false);
     };
 
     const handleDelete = async () => {
@@ -24,106 +22,139 @@ const DailyLogHistoryPage: React.FC = () => {
         setDeleteTarget(null);
     };
 
+    useEffect(() => {
+        let active = true;
+        getUserDailyLogs().then(data => {
+            if (active) setLogs(data);
+        });
+        return () => {
+            active = false;
+        };
+    }, []);
+
     const formatDate = (dateStr: string) => {
         try {
             const d = new Date(dateStr);
-            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         } catch {
             return dateStr;
         }
     };
 
-    const renderLogSummary = (log: DailyLog) => {
-        const items: string[] = [];
-        if (log.sleep_duration) items.push(`Sleep: ${log.sleep_duration}h`);
-        if (log.calories) items.push(`Calories: ${log.calories}`);
-        if (log.morning_systolic && log.morning_diastolic) items.push(`BP: ${log.morning_systolic}/${log.morning_diastolic}`);
-        if (log.weight) items.push(`Weight: ${log.weight}kg`);
-        if (log.mood) items.push(`Mood: ${log.mood}/10`);
-        if (log.sleep_quality !== undefined) items.push(`Sleep Q: ${log.sleep_quality}/10`);
-
-        return items.length > 0 ? items.join(' • ') : 'No metrics recorded';
+    const renderLogChips = (log: DailyLog) => {
+        const chips: { label: string; value: string }[] = [];
+        if (log.wake_time) chips.push({ label: 'Wake', value: log.wake_time });
+        if (log.bedtime) chips.push({ label: 'Bed', value: log.bedtime });
+        if (log.sleep_duration) chips.push({ label: 'Sleep', value: `${log.sleep_duration}h` });
+        if (log.sleep_quality != null) chips.push({ label: 'Sleep Q', value: `${log.sleep_quality}/10` });
+        if (log.morning_systolic && log.morning_diastolic) chips.push({ label: 'AM BP', value: `${log.morning_systolic}/${log.morning_diastolic}` });
+        if (log.evening_systolic && log.evening_diastolic) chips.push({ label: 'PM BP', value: `${log.evening_systolic}/${log.evening_diastolic}` });
+        if (log.morning_bpm) chips.push({ label: 'AM BPM', value: String(log.morning_bpm) });
+        if (log.body_temperature) chips.push({ label: 'Temp', value: `${log.body_temperature}°C` });
+        if (log.calories) chips.push({ label: 'Calories', value: String(log.calories) });
+        if (log.protein) chips.push({ label: 'Protein', value: `${log.protein}g` });
+        if (log.carbs) chips.push({ label: 'Carbs', value: `${log.carbs}g` });
+        if (log.fat) chips.push({ label: 'Fat', value: `${log.fat}g` });
+        if (log.water) chips.push({ label: 'Water', value: `${log.water}ml` });
+        if (log.weight) chips.push({ label: 'Weight', value: `${log.weight}kg` });
+        if (log.body_fat) chips.push({ label: 'Body Fat', value: `${log.body_fat}%` });
+        if (log.mood) chips.push({ label: 'Mood', value: `${log.mood}/10` });
+        const habits = [
+            log.morning_routine, log.evening_routine, log.fruit_serving,
+            log.studied, log.stretching, log.reading, log.journal, log.project_work_done,
+        ].filter(Boolean).length;
+        if (habits > 0) chips.push({ label: 'Habits', value: `${habits}/8` });
+        return chips;
     };
-
-    useEffect(() => {
-        loadLogs();
-    }, []);
 
     return (
         <>
             <Title title="Daily Log History" />
-            <div style={{ width: '100%', padding: '0.75rem', paddingTop: '3rem', paddingBottom: 'calc(0.75rem + 3rem)' }}>
+            <div className="page-main-with-secondary">
                 <div className="dashboard-section">
                     <div className="dashboard-section__head">
                         <h2>Daily Log History</h2>
-                        <span>View, edit, and manage all your daily logs</span>
                     </div>
 
                     <div className="flex gap-2 mb-4">
-                        <button onClick={() => navigate('/Daily-Log')} className="btn-action">
-                            <i className="i-lucide-arrow-left mr-1"></i>Today's Log
-                        </button>
+                        <button onClick={() => navigate('/Daily-Log')} className="btn-action">Today's Log</button>
                     </div>
 
-                    {loading ? (
+                    {logs === null ? (
                         <div className="profile-loading">
                             <div className="profile-loading-spinner"></div>
                             <p>Loading logs...</p>
                         </div>
                     ) : logs.length === 0 ? (
                         <div className="projects-empty">
-                            <i className="i-lucide-file-x projects-empty-icon"></i>
                             <p className="projects-empty-title">No logs yet</p>
                             <p className="projects-empty-text">Start by creating your first daily log entry.</p>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-3 items-center">
-                            {logs.map((log) => (
-                                <div key={log.id} className="log-history-card">
-                                    <div className="log-history-top">
-                                        <div className="log-history-date">
-                                            <i className="i-lucide-calendar mr-2"></i>
-                                            {formatDate(log.log_date)}
+                            {logs.map((log) => {
+                                const chips = renderLogChips(log);
+                                return (
+                                    <div key={log.id} className="log-history-card">
+                                        <div className="log-history-top">
+                                            <div className="log-history-date">
+                                                {formatDate(log.log_date)}
+                                            </div>
+                                            {log.daily_score != null && (
+                                                <span
+                                                    className="log-history-score"
+                                                    style={{ color: getScoreColor(log.daily_score), borderColor: getScoreColor(log.daily_score) }}
+                                                >
+                                                    {log.daily_score}/100
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="flex gap-1 shrink-0">
+
+                                        {chips.length > 0 && (
+                                            <div className="log-history-chips">
+                                                {chips.map(chip => (
+                                                    <span key={chip.label} className="log-history-chip">
+                                                        <span className="log-history-chip-label">{chip.label}</span>
+                                                        <span className="log-history-chip-value">{chip.value}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {log.journal_entry && (
+                                            <p className="log-history-journal-preview">
+                                                {log.journal_entry.length > 160
+                                                    ? log.journal_entry.substring(0, 160) + '...'
+                                                    : log.journal_entry}
+                                            </p>
+                                        )}
+
+                                        <div className="log-history-actions">
                                             <button
                                                 onClick={() => navigate(`/Daily-Log/Edit/${log.id}`)}
-                                                className="project-action-btn"
+                                                className="log-history-action"
                                                 title="Edit log"
-                                                aria-label="Edit log"
                                             >
-                                                <i className="fa-solid fa-pen-to-square"></i>
+                                                Edit
                                             </button>
                                             <button
                                                 onClick={() => navigate(`/Journal/Edit/${log.id}`)}
-                                                className="project-action-btn"
+                                                className="log-history-action"
                                                 title="Edit journal"
-                                                aria-label="Edit journal"
                                             >
-                                                <i className="fa-solid fa-pen-fancy"></i>
+                                                Journal
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(log)}
-                                                className="project-action-btn project-action-btn--danger"
+                                                className="log-history-action log-history-action--danger"
                                                 title="Delete log"
-                                                aria-label="Delete log"
                                             >
-                                                <i className="fa-solid fa-trash"></i>
+                                                Delete
                                             </button>
                                         </div>
                                     </div>
-
-                                    <p className="log-history-summary">{renderLogSummary(log)}</p>
-
-                                    {log.journal_entry && (
-                                        <p className="log-history-journal-preview">
-                                            {log.journal_entry.length > 120
-                                                ? log.journal_entry.substring(0, 120) + '...'
-                                                : log.journal_entry}
-                                        </p>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>

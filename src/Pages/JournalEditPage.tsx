@@ -42,7 +42,7 @@ const JournalEditPage: React.FC = () => {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
                 journal_entry: journalEntry || null,
-                daily_score: existingLog?.daily_score != null ? existingLog.daily_score : (journalEntry.trim().length > 0 ? 100 : 0),
+                daily_score: existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 
             await updateDailyLog(id, logData);
@@ -130,19 +130,19 @@ const JournalEditPage: React.FC = () => {
                         <div className="journal-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Journal')} className="btn-action">
-                                    <i className="i-lucide-arrow-left mr-1"></i>Journal
+                                    Journal
                                 </button>
                                 <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
-                                    <i className="i-lucide-history mr-1"></i>History
+                                    History
                                 </button>
                             </div>
                             <div className="journal-autosave">
                                 {saveError ? (
-                                    <span style={{ color: 'var(--color-danger)' }}><i className="fa-solid fa-circle-exclamation mr-1"></i>{saveError}</span>
+                                    <span style={{ color: 'var(--color-danger)' }}>{saveError}</span>
                                 ) : saving ? (
-                                    <span><i className="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving...</span>
+                                    <span>Saving...</span>
                                 ) : lastSaved ? (
-                                    <span><i className="fa-solid fa-check mr-1" style={{ color: 'var(--color-primary)' }}></i>Saved {lastSaved.toLocaleTimeString()}</span>
+                                    <span>Saved {lastSaved.toLocaleTimeString()}</span>
                                 ) : (
                                     <span>Auto-saves as you type</span>
                                 )}
@@ -150,7 +150,6 @@ const JournalEditPage: React.FC = () => {
                         </div>
 
                         <div className="journal-date-header">
-                            <i className="fa-regular fa-calendar"></i>
                             {dateFormatted}
                         </div>
 

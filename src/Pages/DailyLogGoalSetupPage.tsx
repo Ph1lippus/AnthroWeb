@@ -248,7 +248,6 @@ const DailyLogGoalSetupPage: React.FC = () => {
             {toast && (
                 <div className="toast-container">
                     <div className={`toast toast--${toast.type}`}>
-                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
                         <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>

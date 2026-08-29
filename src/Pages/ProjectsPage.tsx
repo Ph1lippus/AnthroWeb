@@ -824,7 +824,6 @@ const ProjectsPage: React.FC = () => {
                                                         }}
                                                         className="checkbox-input"
                                                     />
-                                                    <span className="checkbox-custom"></span>
                                                     <span className={`project-plan-item-text ${item.is_completed ? 'line-through opacity-60' : ''}`}>
                                                         {item.title}
                                                     </span>
