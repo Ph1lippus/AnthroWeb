@@ -16,7 +16,14 @@ const JournalPage: React.FC = () => {
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-    const logDate = new Date().toISOString().split('T')[0];
+    const toDateString = (d: Date): string => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    const [logDate, setLogDate] = useState(() => toDateString(new Date()));
     const [journalEntry, setJournalEntry] = useState('');
     const [showTips, setShowTips] = useState(true);
 
@@ -66,14 +73,31 @@ const JournalPage: React.FC = () => {
             } else {
                 setExistingLog(null);
                 setIsEditing(false);
+                setJournalEntry('');
             }
         };
         checkExisting();
     }, [logDate]);
 
+    // Roll over to a new day when the tab regains focus
+    useEffect(() => {
+        const refreshIfNewDay = () => {
+            const today = toDateString(new Date());
+            setLogDate(prev => (prev !== today ? today : prev));
+        };
+        window.addEventListener('focus', refreshIfNewDay);
+        document.addEventListener('visibilitychange', refreshIfNewDay);
+        return () => {
+            window.removeEventListener('focus', refreshIfNewDay);
+            document.removeEventListener('visibilitychange', refreshIfNewDay);
+        };
+    }, []);
+
     // Auto-save function
     const performSave = useCallback(async () => {
         if (!settings) return;
+
+        if (!isEditing && !journalEntry) return;
 
         setSaving(true);
         setSaveError(null);

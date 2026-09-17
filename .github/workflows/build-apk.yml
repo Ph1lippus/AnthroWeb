@@ -1,0 +1,94 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to tag/release (e.g. 1.1.0). Leave blank to skip release creation.'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # Decode the base64 keystore if provided via secrets (required for auto-update to work)
+      - name: Decode signing key
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/keystore.jks
+
+      # Determine the version for tagging the release (from input or tag)
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          elif [ -n "${{ github.ref_name }}" ]; then
+            echo "VERSION=${github.ref_name#v}" >> $GITHUB_ENV
+          else
+            echo "VERSION=1.0.0" >> $GITHUB_ENV
+          fi
+
+      - name: Build release APK
+        env:
+          APP_VERSION: ${{ env.VERSION }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anthroweb-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        if: env.VERSION != '' && (github.event_name == 'push' || github.event.inputs.version != '')
+        env:
+          VERSION: ${{ env.VERSION }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${VERSION}" \
+            android/app/build/outputs/apk/release/*.apk \
+            --repo ${{ github.repository }} \
+            --title "AnthroWeb v${VERSION}" \
+            --notes "Auto-generated release for AnthroWeb Android app."

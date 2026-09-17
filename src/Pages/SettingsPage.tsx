@@ -1,9 +1,39 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
+import { fetchLatestUpdate } from '../services/updateService';
+import type { UpdateInfo } from '../services/updateService';
 
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
+    const [latestUpdate, setLatestUpdate] = useState<UpdateInfo | null>(null);
+    const [checkingUpdate, setCheckingUpdate] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            const update = await fetchLatestUpdate();
+            if (!cancelled) {
+                setLatestUpdate(update);
+                setCheckingUpdate(false);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleInstall = () => {
+        if (latestUpdate?.url) {
+            window.open(latestUpdate.url, '_blank');
+        }
+    };
+
+    const installItem = latestUpdate ? {
+        title: 'Install Android App',
+        description: `Download AnthroWeb v${latestUpdate.version} for Android`,
+        icon: 'fa-solid fa-download',
+        action: handleInstall
+    } : null;
 
     const settingsItems = [
         {
@@ -35,6 +65,10 @@ const SettingsPage: React.FC = () => {
             }
         }
     ];
+
+    if (installItem) {
+        settingsItems.push(installItem);
+    }
 
     return (
         <>
@@ -68,7 +102,7 @@ const SettingsPage: React.FC = () => {
                     </div>
 
                     <div className="settings-footer">
-                        <p className="settings-version">AnthroWeb v1.0</p>
+                        <p className="settings-version">AnthroWeb {latestUpdate ? `v${latestUpdate.version}` : checkingUpdate ? 'checking for updates...' : 'v1.0'}</p>
                     </div>
                 </div>
             </div>

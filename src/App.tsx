@@ -1,5 +1,7 @@
 import Navbar from './Components/Navbar'
 import SecondaryNavbar from './Components/SecondaryNavbar'
+import MobileNavbar from './Components/MobileNavbar'
+import UpdateModal from './Components/UpdateModal'
 import HomePage from './Pages/HomePage'
 import LoginPage from './Pages/LoginPage'
 import RegisterPage from './Pages/RegisterPage'
@@ -68,6 +70,8 @@ function App() {
       <ScrollToTop />
       <Navbar />
       <SecondaryNavbar />
+      <MobileNavbar />
+      <UpdateModal />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />

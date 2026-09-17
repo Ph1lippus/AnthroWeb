@@ -115,6 +115,37 @@ const DailyLogPage: React.FC = () => {
         setReading(log.reading || false);
     };
 
+    const resetForm = () => {
+        setWakeTime('');
+        setBedtime('');
+        setSleepQuality('');
+        setMorningSystolic('');
+        setMorningDiastolic('');
+        setMorningBpm('');
+        setEveningSystolic('');
+        setEveningDiastolic('');
+        setEveningBpm('');
+        setBodyTemperature('');
+        setCalories('');
+        setProtein('');
+        setCarbs('');
+        setFat('');
+        setWater('');
+        setWeight('');
+        setBodyFat('');
+        setMood('');
+        setJournalEntry('');
+        setProjectWorkDone(false);
+        setMorningRoutine(false);
+        setEveningRoutine(false);
+        setFruitServing(false);
+        setStudied(false);
+        setJournal(false);
+        setStretching(false);
+        setReading(false);
+        setSelectedProjectIds(new Set());
+    };
+
     // Load log by ID if in edit mode
     useEffect(() => {
         if (!id) return;
@@ -253,15 +284,45 @@ const DailyLogPage: React.FC = () => {
             } else {
                 setExistingLog(null);
                 setIsEditing(false);
+                resetForm();
             }
             setIsLoadingData(false);
         };
         checkExisting();
     }, [logDate, id]);
 
+    // Roll over to a new day when the tab regains focus (non-edit mode)
+    useEffect(() => {
+        if (id) return;
+        const refreshIfNewDay = () => {
+            const today = todayString();
+            setLogDate(prev => (prev !== today ? today : prev));
+        };
+        window.addEventListener('focus', refreshIfNewDay);
+        document.addEventListener('visibilitychange', refreshIfNewDay);
+        return () => {
+            window.removeEventListener('focus', refreshIfNewDay);
+            document.removeEventListener('visibilitychange', refreshIfNewDay);
+        };
+    }, [id]);
+
     // Auto-save function
     const performSave = useCallback(async () => {
         if (!settings) return;
+
+        // Don't create a brand-new log unless the user has actually entered something
+        if (!isEditing) {
+            const hasAnyData =
+                wakeTime || bedtime || sleepQuality ||
+                morningSystolic || morningDiastolic || morningBpm ||
+                eveningSystolic || eveningDiastolic || eveningBpm ||
+                bodyTemperature || calories || protein || carbs || fat ||
+                water || weight || bodyFat || mood || journalEntry ||
+                projectWorkDone || morningRoutine || eveningRoutine ||
+                fruitServing || studied || journal || stretching || reading ||
+                selectedProjectIds.size > 0;
+            if (!hasAnyData) return;
+        }
 
         setSaving(true);
         setSaveError(null);

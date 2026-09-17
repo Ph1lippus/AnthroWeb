@@ -23,3 +23,17 @@ dist-ssr
 *.sln
 *.sw?
 .env*.local
+
+# Android / Capacitor build outputs + signing key (never commit the keystore)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/keystore.jks
+*.jks
+*.keystore
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
