@@ -1,15 +1,15 @@
 name: Build Android APK
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to tag/release (e.g. 1.1.0). Leave blank to skip release creation.'
+        description: 'Version to release (e.g. 1.1.0). Leave blank to auto-bump from the latest release.'
         required: false
         type: string
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -45,7 +45,7 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # Decode the base64 keystore if provided via secrets (required for auto-update to work)
+      # Decode the base64 keystore if provided (production signing)
       - name: Decode signing key
         if: env.KEYSTORE_BASE64 != ''
         env:
@@ -53,17 +53,42 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > android/keystore.jks
 
-      # Determine the version for tagging the release (from input or tag)
+      # Without keystore secrets, generate a stable debug keystore so the
+      # release APK is still signed and installable on a device.
+      - name: Generate debug signing key
+        if: env.KEYSTORE_BASE64 == ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          KEYSTORE_DIR="$(mktemp -d)"
+          keytool -genkeypair -v \
+            -keystore "$KEYSTORE_DIR/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=AnthroWeb Debug, OU=AnthroWeb, O=AnthroWeb, L=Dev, ST=Dev, C=US" 2>/dev/null
+          echo "DEBUG_KEYSTORE=$KEYSTORE_DIR/debug.keystore" >> "$GITHUB_ENV"
+
+      # Determine the version for the release: manual input, else auto-bump the
+      # patch from the latest existing release (or 1.0.0 if none).
       - name: Determine version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          elif [ -n "${{ github.ref_name }}" ]; then
-            echo "VERSION=${github.ref_name#v}" >> $GITHUB_ENV
-          else
-            echo "VERSION=1.0.0" >> $GITHUB_ENV
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            LATEST=$(gh release list --repo "${{ github.repository }}" --limit 5 --json tagName,isDraft --jq '.[] | select(.isDraft == false) | .tagName' | head -n 1)
+            if [ -z "$LATEST" ]; then
+              VERSION="1.0.0"
+            else
+              BASE="${LATEST#v}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+              PATCH=$(( ${PATCH:-0} + 1 ))
+              VERSION="$MAJOR.$MINOR.$PATCH"
+            fi
+            echo "Auto-bumped version to $VERSION"
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build release APK
         env:
@@ -72,6 +97,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          DEBUG_KEYSTORE: ${{ env.DEBUG_KEYSTORE }}
         working-directory: android
         run: ./gradlew assembleRelease
 
@@ -81,14 +107,32 @@ jobs:
           name: anthroweb-apk
           path: android/app/build/outputs/apk/release/*.apk
 
+      - name: Create git tag
+        if: env.VERSION != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists, skipping."
+          else
+            git tag "v${VERSION}" "$GITHUB_SHA"
+            git push origin "v${VERSION}"
+          fi
+
       - name: Create GitHub Release
-        if: env.VERSION != '' && (github.event_name == 'push' || github.event.inputs.version != '')
+        if: env.VERSION != ''
         env:
           VERSION: ${{ env.VERSION }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${VERSION}" \
-            android/app/build/outputs/apk/release/*.apk \
-            --repo ${{ github.repository }} \
-            --title "AnthroWeb v${VERSION}" \
-            --notes "Auto-generated release for AnthroWeb Android app."
+          if gh release view "v${VERSION}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists, skipping."
+          else
+            gh release create "v${VERSION}" \
+              android/app/build/outputs/apk/release/*.apk \
+              --repo "${{ github.repository }}" \
+              --title "AnthroWeb v${VERSION}" \
+              --notes "Auto-generated release for AnthroWeb Android app."
+          fi

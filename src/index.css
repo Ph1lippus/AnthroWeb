@@ -1666,6 +1666,56 @@ input[type="number"] {
   color: rgba(255, 255, 255, 0.25);
   margin: 0;
 }
+.settings-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.settings-update-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: var(--accent-bg);
+  border-radius: 25px;
+}
+.settings-update-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.settings-update-title {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-light);
+}
+.settings-update-note {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.settings-update-btn {
+  background: var(--color-primary);
+  color: var(--color-dark);
+  border: none;
+  border-radius: 25px;
+  padding: 0.7rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.settings-update-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.settings-update-error {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin: 0;
+}
 /* ============================================
    DAILY LOG - Scored Inputs
    ============================================ */

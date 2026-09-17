@@ -91,6 +91,12 @@ const fileToBase64 = (blob: Blob): Promise<string> => {
 export const downloadAndInstall = async (url: string): Promise<void> => {
     const fileName = 'anthroweb-update.apk';
 
+    try {
+        await Filesystem.deleteFile({ path: fileName, directory: Directory.Cache });
+    } catch {
+        // No stale file to clean up
+    }
+
     const response = await fetch(url);
     if (!response.ok) throw new Error('Download failed');
     const blob = await response.blob();
@@ -104,5 +110,8 @@ export const downloadAndInstall = async (url: string): Promise<void> => {
     });
 
     const uri = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
-    await FileOpener.openFile({ path: uri.uri });
+    await FileOpener.openFile({
+        path: uri.uri,
+        mimeType: 'application/vnd.android.package-archive',
+    });
 };

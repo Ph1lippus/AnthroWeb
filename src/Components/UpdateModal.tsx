@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { App } from '@capacitor/app';
 import { checkForUpdate, downloadAndInstall, isCapacitorApp } from '../services/updateService';
 import type { UpdateInfo } from '../services/updateService';
 
@@ -18,7 +19,13 @@ const UpdateModal: React.FC = () => {
             setCurrent(result.current);
         };
         run();
-        return () => { cancelled = true; };
+        const resumeListener = App.addListener('resume', () => {
+            run();
+        });
+        return () => {
+            cancelled = true;
+            resumeListener.then(listener => listener.remove());
+        };
     }, []);
 
     const handleInstall = async () => {
