@@ -1,8 +1,8 @@
 apply plugin: 'com.android.application'
 
-def versionName = System.getenv("APP_VERSION") ?: "1.0.0"
-def versionParts = (versionName =~ /[0-9]+/).findAll()*.toInteger()
-def versionCode = versionParts.size() >= 2
+def appVersionName = System.getenv("APP_VERSION") ?: "1.0.0"
+def versionParts = (appVersionName =~ /[0-9]+/).findAll()*.toInteger()
+def appVersionCode = versionParts.size() >= 2
     ? versionParts[0] * 1000000 + versionParts[1] * 1000 + (versionParts.size() >= 3 ? versionParts[2] : 0)
     : 1
 
@@ -13,8 +13,8 @@ android {
         applicationId "com.anthroweb.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode versionCode
-        versionName versionName
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
