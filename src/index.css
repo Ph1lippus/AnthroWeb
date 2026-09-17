@@ -137,7 +137,7 @@ body {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -151,7 +151,7 @@ body {
   align-items: center;
   padding: 2rem;
   padding-top: 3rem;
-  padding-bottom: calc(2rem + 2.5rem); /* Space for bottom navbar (approx 48px) */
+  padding-bottom: calc(2rem + 2.5rem + env(safe-area-inset-bottom, 0px)); /* Space for bottom navbar (approx 48px) */
 }
 .container {
   width: 100%;
@@ -750,7 +750,7 @@ input[type="number"] {
 .legal-page {
   padding: 2rem;
   padding-top: 3rem;
-  padding-bottom: calc(2rem + 2.5rem);
+  padding-bottom: calc(2rem + 2.5rem + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -947,7 +947,7 @@ input[type="number"] {
   background: transparent;
   backdrop-filter: none;
   z-index: 100;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: center;
 }
@@ -1523,7 +1523,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -2591,7 +2591,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -3175,7 +3175,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -3624,7 +3624,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -4160,7 +4160,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
 }
 /* Daily Log section takes full width */
 .dashboard-section.daily-logs-section {
@@ -4406,7 +4406,7 @@ input[type="number"] {
   align-items: center;
   padding: 0.75rem;
   padding-top: 3rem;
-  padding-bottom: calc(0.75rem + 3rem);
+  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -7135,7 +7135,7 @@ select.form-control option {
   align-items: center;
   padding: 2rem;
   padding-top: calc(3rem + 3rem); /* Space for main navbar + workout subnav */
-  padding-bottom: calc(2rem + 2.5rem); /* Space for bottom navbar */
+  padding-bottom: calc(2rem + 2.5rem + env(safe-area-inset-bottom, 0px)); /* Space for bottom navbar */
 }
 /* Use books-page-wrapper for workout pages instead of workout-page-wrapper */
 /* Responsive adjustments for workout components */
