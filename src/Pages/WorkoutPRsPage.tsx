@@ -5,6 +5,7 @@ import {
     getAllPRs,
     type PRHistory
 } from '../services/workoutService';
+import { Trophy, ChevronRight, Dumbbell, ClipboardCheck, Layers, History, Search, X, ArrowLeft } from 'lucide-react';
 
 const WorkoutPRsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -70,13 +71,13 @@ const WorkoutPRsPage: React.FC = () => {
                 <div className="workout-pr-card__top">
                     <div className="workout-pr-card__title-section">
                         <h3 className="workout-pr-card__title">
-                            <i className="fa-solid fa-trophy workout-pr-card__icon"></i>
+                            <Trophy className="workout-pr-card__icon" />
                             {pr.exercise_name}
                         </h3>
                         <p className="workout-pr-card__date">{formatDate(pr.workout_date)}</p>
                     </div>
                     <div className="workout-pr-card__chevron">
-                        <i className="fa-solid fa-chevron-right"></i>
+                        <ChevronRight />
                     </div>
                 </div>
                 <div className="workout-pr-card__stats">
@@ -119,21 +120,21 @@ const WorkoutPRsPage: React.FC = () => {
                         <div className="workout-pr-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />Dashboard
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                    <ClipboardCheck className="mr-1" />Log Workout
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                             </div>
                             <div className="search-container workout-pr-search">
                                 <div className="search-input-wrapper">
-                                    <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                    <Search className="search-input-icon" />
                                     <input
                                         type="text"
                                         value={searchQuery}
@@ -147,7 +148,7 @@ const WorkoutPRsPage: React.FC = () => {
                                             onClick={() => setSearchQuery('')}
                                             aria-label="Clear search"
                                         >
-                                            <i className="fa-solid fa-xmark"></i>
+                                            <X />
                                         </button>
                                     )}
                                 </div>
@@ -169,10 +170,10 @@ const WorkoutPRsPage: React.FC = () => {
                                                 onClick={() => setSelectedPR(null)}
                                                 className="workout-pr-selected__back"
                                             >
-                                                <i className="fa-solid fa-arrow-left mr-1"></i>Back
+                                                <ArrowLeft className="mr-1" />Back
                                             </button>
                                             <h3>
-                                                <i className="fa-solid fa-trophy mr-1"></i>
+                                                <Trophy className="mr-1" />
                                                 {selectedPR.exercise_name}
                                             </h3>
                                         </div>
@@ -214,7 +215,7 @@ const WorkoutPRsPage: React.FC = () => {
                                                                 </div>
                                                                 {pr.id === selectedPR.id && (
                                                                     <div className="workout-pr-progression-item__trophy">
-                                                                        <i className="fa-solid fa-trophy"></i>
+                                                                        <Trophy />
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -231,7 +232,7 @@ const WorkoutPRsPage: React.FC = () => {
                                             </div>
                                         ) : (
                                             <div className="workout-pr-empty">
-                                                <i className="fa-solid fa-trophy workout-pr-empty__icon"></i>
+                                                <Trophy className="workout-pr-empty__icon" />
                                                 <p className="workout-pr-empty__title">No personal records yet</p>
                                                 <p className="workout-pr-empty__text">Start logging workouts to set your first PR!</p>
                                             </div>

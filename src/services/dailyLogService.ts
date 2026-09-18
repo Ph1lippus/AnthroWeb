@@ -36,6 +36,7 @@ export interface DailyLog {
     journal?: boolean;
     stretching?: boolean;
     reading?: boolean;
+    no_sleep?: boolean;
 }
 
 // Fetch all daily logs for current user
@@ -134,6 +135,7 @@ export const createDailyLog = async (log: DailyLog) => {
             journal: log.journal,
             stretching: log.stretching,
             reading: log.reading,
+            no_sleep: log.no_sleep,
         })
         .select()
         .single();

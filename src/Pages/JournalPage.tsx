@@ -5,6 +5,7 @@ import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/d
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
+import { Lightbulb, X, RotateCw, PenTool } from 'lucide-react';
 
 const JournalPage: React.FC = () => {
     const navigate = useNavigate();
@@ -233,7 +234,7 @@ const JournalPage: React.FC = () => {
                             <div className="journal-tip-card">
                                 <div className="journal-tip-content">
                                     <div className="flex items-start gap-2 flex-1">
-                                        <i className="fa-solid fa-lightbulb journal-tip-icon"></i>
+                                        <Lightbulb className="journal-tip-icon" />
                                         <div>
                                             <div className="journal-tip-title">Writing Tip</div>
                                             <div className="journal-tip-text">{randomTip}</div>
@@ -244,11 +245,11 @@ const JournalPage: React.FC = () => {
                                         className="journal-tip-close"
                                         aria-label="Dismiss tip"
                                     >
-                                        <i className="fa-solid fa-xmark"></i>
+                                        <X />
                                     </button>
                                 </div>
                                 <button onClick={refreshTip} className="journal-tip-refresh">
-                                    <i className="fa-solid fa-rotate-right mr-1"></i>Another tip
+                                    <RotateCw className="mr-1" />Another tip
                                 </button>
                             </div>
                         )}
@@ -256,7 +257,7 @@ const JournalPage: React.FC = () => {
                         {/* Journal Editor */}
                         <div className="journal-editor-section">
                             <div className="journal-editor-header">
-                                <i className="fa-solid fa-pen-fancy"></i>
+                                <PenTool />
                                 Journal Entry
                             </div>
                             <textarea
@@ -274,7 +275,7 @@ const JournalPage: React.FC = () => {
                                         onClick={() => { setShowTips(true); refreshTip(); }}
                                         className="journal-show-tips"
                                     >
-                                        <i className="fa-solid fa-lightbulb mr-1"></i>Show tips
+                                        <Lightbulb className="mr-1" />Show tips
                                     </button>
                                 )}
                             </div>

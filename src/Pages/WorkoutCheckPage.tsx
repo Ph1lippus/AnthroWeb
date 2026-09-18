@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutTemplateDay, PRHistory } from '../services/workoutService';
+import { Dumbbell, Plus, Layers, History, Trophy, Loader2, Check, Calendar, Flame, CircleCheck, Circle, StickyNote, Flag, X, Medal, Save } from 'lucide-react';
 
 interface ExerciseLog {
     templateDay: WorkoutTemplateDay;
@@ -256,14 +257,14 @@ const WorkoutCheckPage: React.FC = () => {
                             </div>
                             <div className="workout-empty-state">
                                 <div className="workout-empty-state__icon">
-                                    <i className="fa-solid fa-dumbbell"></i>
+                                    <Dumbbell />
                                 </div>
                                 <h3 className="workout-empty-state__title">No workout scheduled for {todayName}</h3>
                                 <p className="workout-empty-state__description">
                                     You haven't set up any exercises for {todayName}. Go to the Workouts page to create a workout template.
                                 </p>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-primary">
-                                    <i className="fa-solid fa-plus mr-1"></i>Setup Workout
+                                    <Plus className="mr-1" />Setup Workout
                                 </button>
                             </div>
                         </div>
@@ -283,26 +284,26 @@ const WorkoutCheckPage: React.FC = () => {
                         <div className="workout-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />Dashboard
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                                 <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
-                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                    <Trophy className="mr-1" />PRs
                                 </button>
                             </div>
                             <div className="workout-check-status">
                                 {saving ? (
                                     <span className="workout-check-status__saving">
-                                        <i className="fa-solid fa-circle-notch fa-spin mr-1"></i>Saving...
+                                        <Loader2 className="mr-1" />Saving...
                                     </span>
                                 ) : saved ? (
                                     <span className="workout-check-status__saved">
-                                        <i className="fa-solid fa-check mr-1"></i>Saved
+                                        <Check className="mr-1" />Saved
                                     </span>
                                 ) : (
                                     <span className="workout-check-status__auto">Auto-saves</span>
@@ -313,7 +314,7 @@ const WorkoutCheckPage: React.FC = () => {
                         {/* Workout Info */}
                         <div className="workout-check-info">
                             <div className="workout-check-info__date">
-                                <i className="fa-regular fa-calendar mr-1"></i>
+                                <Calendar className="mr-1" />
                                 {todayName}, {today.toLocaleDateString()}
                             </div>
                             <div className="workout-check-info__progress">
@@ -330,7 +331,7 @@ const WorkoutCheckPage: React.FC = () => {
                         {/* Intensity */}
                         <div className="workout-check-intensity">
                             <label className="workout-check-intensity__label">
-                                <i className="fa-solid fa-fire mr-1"></i>
+                                <Flame className="mr-1" />
                                 Intensity: <span className="workout-check-intensity__value">{intensity}/10</span>
                             </label>
                             <input
@@ -367,7 +368,7 @@ const WorkoutCheckPage: React.FC = () => {
                                             onClick={() => handleToggleComplete(index)}
                                             className="workout-check-exercise__toggle"
                                         >
-                                            <i className={`fa-solid ${exercise.completed ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                                            {exercise.completed ? <CircleCheck /> : <Circle />}
                                         </button>
                                     </div>
 
@@ -412,7 +413,7 @@ const WorkoutCheckPage: React.FC = () => {
                         {/* Notes */}
                         <div className="workout-check-notes">
                             <label className="workout-check-notes__label">
-                                <i className="fa-solid fa-note-sticky mr-1"></i>
+                                <StickyNote className="mr-1" />
                                 Notes (optional)
                             </label>
                             <textarea
@@ -433,11 +434,11 @@ const WorkoutCheckPage: React.FC = () => {
                             >
                                 {completionLog?.completed ? (
                                     <>
-                                        <i className="fa-solid fa-check mr-1"></i>Workout Completed
+                                        <Check className="mr-1" />Workout Completed
                                     </>
                                 ) : (
                                     <>
-                                        <i className="fa-solid fa-flag-checkered mr-1"></i>Complete Workout
+                                        <Flag className="mr-1" />Complete Workout
                                     </>
                                 )}
                             </button>
@@ -451,14 +452,14 @@ const WorkoutCheckPage: React.FC = () => {
                 <div className="modal-overlay" onClick={() => setShowPRModal(false)}>
                     <div className="modal-content pr-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h3><i className="fa-solid fa-trophy mr-1"></i>New Personal Record!</h3>
+                            <h3><Trophy className="mr-1" />New Personal Record!</h3>
                             <button onClick={() => setShowPRModal(false)} className="modal-close">
-                                <i className="fa-solid fa-times"></i>
+                                <X />
                             </button>
                         </div>
                         <div className="modal-body">
                             <div className="pr-celebration">
-                                <i className="fa-solid fa-medal"></i>
+                                <Medal />
                                 <h4>Great job!</h4>
                                 <p>You set a new PR for <strong>{selectedPR.exercise_name}</strong></p>
                                 <div className="pr-stats">
@@ -478,7 +479,7 @@ const WorkoutCheckPage: React.FC = () => {
                                 Skip
                             </button>
                             <button onClick={handleSavePR} className="btn-primary">
-                                <i className="fa-solid fa-save mr-1"></i>Save PR
+                                <Save className="mr-1" />Save PR
                             </button>
                         </div>
                     </div>

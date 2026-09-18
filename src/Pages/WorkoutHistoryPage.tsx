@@ -4,6 +4,7 @@ import Title from '../Components/Title';
 import WorkoutContributionChart from '../Components/Workout/WorkoutContributionChart';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutCompletionLog } from '../services/workoutService';
+import { CircleCheck, CircleX, Flame, ChevronRight, Dumbbell, ClipboardCheck, Layers, Trophy, Search, X, CalendarX, History, CalendarDays } from 'lucide-react';
 
 const WorkoutHistoryPage: React.FC = () => {
     const navigate = useNavigate();
@@ -72,22 +73,22 @@ const WorkoutHistoryPage: React.FC = () => {
                         <div className="workout-history-card__meta">
                             {workout.completed ? (
                                 <span className="workout-history-card__status workout-history-card__status--completed">
-                                    <i className="fa-solid fa-check-circle mr-1"></i>Completed
+                                    <CircleCheck className="mr-1" />Completed
                                 </span>
                             ) : (
                                 <span className="workout-history-card__status workout-history-card__status--incomplete">
-                                    <i className="fa-solid fa-times-circle mr-1"></i>Not Completed
+                                    <CircleX className="mr-1" />Not Completed
                                 </span>
                             )}
                             {workout.intensity && (
                                 <span className="workout-history-card__intensity">
-                                    <i className="fa-solid fa-fire mr-1"></i>{workout.intensity}/10
+                                    <Flame className="mr-1" />{workout.intensity}/10
                                 </span>
                             )}
                         </div>
                     </div>
                     <div className="workout-history-card__chevron">
-                        <i className="fa-solid fa-chevron-right"></i>
+                        <ChevronRight />
                     </div>
                 </div>
                 {workout.notes && (
@@ -107,21 +108,21 @@ const WorkoutHistoryPage: React.FC = () => {
                         <div className="workout-history-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />Dashboard
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                    <ClipboardCheck className="mr-1" />Log Workout
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
-                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                    <Trophy className="mr-1" />PRs
                                 </button>
                             </div>
                             <div className="search-container workout-history-search">
                                 <div className="search-input-wrapper">
-                                    <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                    <Search className="search-input-icon" />
                                     <input
                                         type="text"
                                         value={searchQuery}
@@ -135,7 +136,7 @@ const WorkoutHistoryPage: React.FC = () => {
                                             onClick={() => setSearchQuery('')}
                                             aria-label="Clear search"
                                         >
-                                            <i className="fa-solid fa-xmark"></i>
+                                            <X />
                                         </button>
                                     )}
                                 </div>
@@ -163,9 +164,9 @@ const WorkoutHistoryPage: React.FC = () => {
                                             <h3>{formatDate(selectedWorkout.workout_date)}</h3>
                                             <span className={`workout-history-selected__status ${selectedWorkout.completed ? 'workout-history-selected__status--completed' : 'workout-history-selected__status--incomplete'}`}>
                                                 {selectedWorkout.completed ? (
-                                                    <><i className="fa-solid fa-check-circle mr-1"></i>Completed</>
+                                                    <><CircleCheck className="mr-1" />Completed</>
                                                 ) : (
-                                                    <><i className="fa-solid fa-times-circle mr-1"></i>Not Completed</>
+                                                    <><CircleX className="mr-1" />Not Completed</>
                                                 )}
                                             </span>
                                         </div>
@@ -202,14 +203,14 @@ const WorkoutHistoryPage: React.FC = () => {
                                     </div>
                                 ) : selectedDate ? (
                                     <div className="workout-history-empty">
-                                        <i className="fa-solid fa-calendar-xmark workout-history-empty__icon"></i>
+                                        <CalendarX className="workout-history-empty__icon" />
                                         <p className="workout-history-empty__title">No Workout on {formatDate(selectedDate)}</p>
                                         <p className="workout-history-empty__text">Select a different date to view workout details.</p>
                                     </div>
                                 ) : (
                                     <div className="workout-history-list">
                                         <div className="workout-history-section-header">
-                                            <i className="fa-solid fa-clock-rotate-left"></i>
+                                            <History />
                                             Recent Workouts ({filteredHistory.length})
                                         </div>
                                         {filteredHistory.length > 0 ? (
@@ -218,7 +219,7 @@ const WorkoutHistoryPage: React.FC = () => {
                                             </div>
                                         ) : (
                                             <div className="workout-history-empty">
-                                                <i className="fa-solid fa-calendar-days workout-history-empty__icon"></i>
+                                                <CalendarDays className="workout-history-empty__icon" />
                                                 <p className="workout-history-empty__title">No workout history</p>
                                                 <p className="workout-history-empty__text">Start logging workouts to see your history here.</p>
                                             </div>

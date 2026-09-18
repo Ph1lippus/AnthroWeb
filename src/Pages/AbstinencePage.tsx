@@ -12,6 +12,7 @@ import {
     importAbstinenceFromCSV,
 } from '../services/abstinenceService';
 import type { AbstinenceGoal, AbstinenceHistory } from '../services/abstinenceService';
+import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flame, Check } from 'lucide-react';
 
 const AbstinencePage: React.FC = () => {
     const [goals, setGoals] = useState<AbstinenceGoal[]>([]);
@@ -385,7 +386,7 @@ const AbstinencePage: React.FC = () => {
                             title="Edit goal"
                             aria-label="Edit goal"
                         >
-                            <i className="fa-solid fa-pen-to-square"></i>
+                            <SquarePen />
                         </button>
                         <button
                             onClick={() => setEndTarget(goal)}
@@ -393,7 +394,7 @@ const AbstinencePage: React.FC = () => {
                             title="End streak (move to history)"
                             aria-label="End streak"
                         >
-                            <i className="fa-solid fa-flag-checkered"></i>
+                            <Flag />
                         </button>
                         <button
                             onClick={() => {
@@ -404,7 +405,7 @@ const AbstinencePage: React.FC = () => {
                             title="Delete goal"
                             aria-label="Delete goal"
                         >
-                            <i className="fa-solid fa-trash"></i>
+                            <Trash2 />
                         </button>
                     </div>
                 </div>
@@ -429,7 +430,7 @@ const AbstinencePage: React.FC = () => {
                 )}
                 <div className="abstinence-card-info">
                     <span className="abstinence-start-date">
-                        <i className="fa-regular fa-calendar"></i> {formatDate(goal.start_date)}
+                        <Calendar /> {formatDate(goal.start_date)}
                     </span>
                 </div>
             </div>
@@ -464,7 +465,7 @@ const AbstinencePage: React.FC = () => {
                         title="Delete history entry"
                         aria-label="Delete history entry"
                     >
-                        <i className="fa-solid fa-trash"></i>
+                        <Trash2 />
                     </button>
                 </div>
             </div>
@@ -473,7 +474,7 @@ const AbstinencePage: React.FC = () => {
             )}
             <div className="abstinence-card-info">
                 <span className="abstinence-start-date">
-                    <i className="fa-regular fa-calendar"></i> {formatDate(entry.start_date)} — {formatDate(entry.end_date)}
+                    <Calendar /> {formatDate(entry.start_date)} — {formatDate(entry.end_date)}
                 </span>
             </div>
         </div>
@@ -590,7 +591,7 @@ const AbstinencePage: React.FC = () => {
                             </div>
                         ) : goals.length === 0 && history.length === 0 ? (
                             <div className="abstinence-empty">
-                                <i className="fa-solid fa-shield-halved abstinence-empty-icon"></i>
+                                <ShieldHalf className="abstinence-empty-icon" />
                                 <p className="abstinence-empty-title">No abstinence goals yet</p>
                                 <p className="abstinence-empty-text">Add your first goal to start tracking your streaks!</p>
                             </div>
@@ -599,7 +600,7 @@ const AbstinencePage: React.FC = () => {
                                 <div className="abstinence-left-col">
                                     <div className="search-container">
                                         <div className="search-input-wrapper">
-                                            <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                            <Search className="search-input-icon" />
                                             <input
                                                 type="text"
                                                 value={searchQuery}
@@ -614,7 +615,7 @@ const AbstinencePage: React.FC = () => {
                                                     onClick={clearSearch}
                                                     aria-label="Clear search"
                                                 >
-                                                    <i className="fa-solid fa-xmark"></i>
+                                                    <X />
                                                 </button>
                                             )}
                                         </div>
@@ -641,7 +642,7 @@ const AbstinencePage: React.FC = () => {
                                         {!submittedSearch && history.length > 0 && (
                                             <div className="abstinence-status-group">
                                                 <div className="abstinence-section-header">
-                                                    <i className="fa-solid fa-clock-rotate-left"></i>
+                                                    <History />
                                                     History ({history.length})
                                                 </div>
                                                 <div className="flex flex-col gap-2">
@@ -662,7 +663,7 @@ const AbstinencePage: React.FC = () => {
 
                                 <div className="abstinence-right-col">
                                     <div className="abstinence-section-header">
-                                        <i className="fa-solid fa-fire"></i>
+                                        <Flame />
                                         Active Streaks ({goals.length})
                                     </div>
                                     <div className="abstinence-scroll-area">
@@ -775,14 +776,14 @@ const AbstinencePage: React.FC = () => {
                                     className="abstinence-action-btn"
                                     title="Edit"
                                 >
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button
                                     onClick={() => setViewGoal(null)}
                                     className="abstinence-action-btn"
                                     title="Close"
                                 >
-                                    <i className="fa-solid fa-xmark"></i>
+                                    <X />
                                 </button>
                             </div>
                         </div>
@@ -844,7 +845,7 @@ const AbstinencePage: React.FC = () => {
                                     </button>
                                     {notesSaved && (
                                         <span className="notes-saved-message">
-                                            <i className="fa-solid fa-check mr-1"></i>Saved!
+                                            <Check className="mr-1" />Saved!
                                         </span>
                                     )}
                                 </div>

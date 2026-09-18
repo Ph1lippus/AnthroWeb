@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Title from '../Components/Title';
 import { getUserNotes, createNote, updateNote, deleteNote, togglePinNote } from '../services/noteService';
 import type { Note } from '../services/noteService';
+import { Pin, SquarePen, Trash2, Search, X, StickyNote, Bold, Italic, Underline, Strikethrough, Heading, Pilcrow, Quote, Code, ListOrdered, List, Square, CheckSquare, Link, Image } from 'lucide-react';
 
 const NotesPage: React.FC = () => {
     const [notes, setNotes] = useState<Note[]>([]);
@@ -230,7 +231,7 @@ const NotesPage: React.FC = () => {
                 <div className="note-card-top">
                     <div className="note-card-title-section" onClick={() => setViewNote(note)}>
                         <h3 className="note-card-title">
-                            {note.is_pinned && <i className="fa-solid fa-thumbtack note-pin-icon"></i>}
+                            {note.is_pinned && <Pin className="note-pin-icon" />}
                             {note.title}
                         </h3>
                     </div>
@@ -241,7 +242,7 @@ const NotesPage: React.FC = () => {
                             title={note.is_pinned ? 'Unpin note' : 'Pin note'}
                             aria-label="Toggle pin"
                         >
-                            <i className="fa-solid fa-thumbtack"></i>
+                            <Pin />
                         </button>
                         <button
                             onClick={() => openEditModal(note)}
@@ -249,7 +250,7 @@ const NotesPage: React.FC = () => {
                             title="Edit note"
                             aria-label="Edit note"
                         >
-                            <i className="fa-solid fa-pen-to-square"></i>
+                            <SquarePen />
                         </button>
                         <button
                             onClick={() => setDeleteTarget(note)}
@@ -257,7 +258,7 @@ const NotesPage: React.FC = () => {
                             title="Delete note"
                             aria-label="Delete note"
                         >
-                            <i className="fa-solid fa-trash"></i>
+                            <Trash2 />
                         </button>
                     </div>
                 </div>
@@ -295,7 +296,7 @@ const NotesPage: React.FC = () => {
 
                             <div className="search-container notes-search">
                                 <div className="search-input-wrapper">
-                                    <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                    <Search className="search-input-icon" />
                                     <input
                                         type="text"
                                         value={searchQuery}
@@ -309,7 +310,7 @@ const NotesPage: React.FC = () => {
                                             onClick={() => setSearchQuery('')}
                                             aria-label="Clear search"
                                         >
-                                            <i className="fa-solid fa-xmark"></i>
+                                            <X />
                                         </button>
                                     )}
                                 </div>
@@ -324,7 +325,7 @@ const NotesPage: React.FC = () => {
                             </div>
                         ) : notes.length === 0 ? (
                             <div className="notes-empty">
-                                <i className="fa-solid fa-note-sticky notes-empty-icon"></i>
+                                <StickyNote className="notes-empty-icon" />
                                 <p className="notes-empty-title">No notes yet</p>
                                 <p className="notes-empty-text">Create your first note to get started!</p>
                             </div>
@@ -333,7 +334,7 @@ const NotesPage: React.FC = () => {
                                 {pinnedNotes.length > 0 && (
                                     <div className="notes-group">
                                         <div className="notes-group-header">
-                                            <i className="fa-solid fa-thumbtack"></i>
+                                            <Pin />
                                             Pinned ({pinnedNotes.length})
                                         </div>
                                         <div className="notes-grid">
@@ -344,7 +345,7 @@ const NotesPage: React.FC = () => {
                                 {unpinnedNotes.length > 0 && (
                                     <div className="notes-group">
                                         <div className="notes-group-header">
-                                            <i className="fa-regular fa-note-sticky"></i>
+                                            <StickyNote />
                                             All Notes ({unpinnedNotes.length})
                                         </div>
                                         <div className="notes-grid">
@@ -385,49 +386,49 @@ const NotesPage: React.FC = () => {
                                 <label className="form-label">Content</label>
                                 <div className="note-editor-toolbar">
                                     <button type="button" onClick={handleFormatBold} className="note-toolbar-btn" title="Bold (Ctrl+B)">
-                                        <i className="fa-solid fa-bold"></i>
+                                        <Bold />
                                     </button>
                                     <button type="button" onClick={handleFormatItalic} className="note-toolbar-btn" title="Italic (Ctrl+I)">
-                                        <i className="fa-solid fa-italic"></i>
+                                        <Italic />
                                     </button>
                                     <button type="button" onClick={handleFormatUnderline} className="note-toolbar-btn" title="Underline (Ctrl+U)">
-                                        <i className="fa-solid fa-underline"></i>
+                                        <Underline />
                                     </button>
                                     <button type="button" onClick={handleFormatStrikeThrough} className="note-toolbar-btn" title="Strikethrough">
-                                        <i className="fa-solid fa-strikethrough"></i>
+                                        <Strikethrough />
                                     </button>
                                     <span className="note-toolbar-separator"></span>
                                     <button type="button" onClick={handleFormatHeading} className="note-toolbar-btn" title="Heading">
-                                        <i className="fa-solid fa-heading"></i>
+                                        <Heading />
                                     </button>
                                     <button type="button" onClick={handleFormatParagraph} className="note-toolbar-btn" title="Paragraph">
-                                        <i className="fa-solid fa-paragraph"></i>
+                                        <Pilcrow />
                                     </button>
                                     <button type="button" onClick={handleFormatBlockquote} className="note-toolbar-btn" title="Blockquote">
-                                        <i className="fa-solid fa-quote-left"></i>
+                                        <Quote />
                                     </button>
                                     <button type="button" onClick={handleFormatCode} className="note-toolbar-btn" title="Code block">
-                                        <i className="fa-solid fa-code"></i>
+                                        <Code />
                                     </button>
                                     <span className="note-toolbar-separator"></span>
                                     <button type="button" onClick={handleFormatOrderedList} className="note-toolbar-btn" title="Ordered list">
-                                        <i className="fa-solid fa-list-ol"></i>
+                                        <ListOrdered />
                                     </button>
                                     <button type="button" onClick={handleFormatUnorderedList} className="note-toolbar-btn" title="Unordered list">
-                                        <i className="fa-solid fa-list-ul"></i>
+                                        <List />
                                     </button>
                                     <button type="button" onClick={handleFormatCheckbox} className="note-toolbar-btn" title="Checkbox (todo)">
-                                        <i className="fa-solid fa-square"></i>
+                                        <Square />
                                     </button>
                                     <button type="button" onClick={handleFormatChecked} className="note-toolbar-btn" title="Checked checkbox">
-                                        <i className="fa-solid fa-square-check"></i>
+                                        <CheckSquare />
                                     </button>
                                     <span className="note-toolbar-separator"></span>
                                     <button type="button" onClick={handleInsertLink} className="note-toolbar-btn" title="Insert link">
-                                        <i className="fa-solid fa-link"></i>
+                                        <Link />
                                     </button>
                                     <button type="button" onClick={handleInsertImage} className="note-toolbar-btn" title="Insert image">
-                                        <i className="fa-solid fa-image"></i>
+                                        <Image />
                                     </button>
                                 </div>
                                 <div
@@ -462,7 +463,7 @@ const NotesPage: React.FC = () => {
                     <div className="import-modal-card note-view-card">
                         <div className="note-view-header">
                             <h3>
-                                {viewNote.is_pinned && <i className="fa-solid fa-thumbtack note-pin-icon"></i>}
+                                {viewNote.is_pinned && <Pin className="note-pin-icon" />}
                                 {viewNote.title}
                             </h3>
                             <div className="flex gap-2">
@@ -475,14 +476,14 @@ const NotesPage: React.FC = () => {
                                     className="note-action-btn"
                                     title="Edit"
                                 >
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button
                                     onClick={() => setViewNote(null)}
                                     className="note-action-btn"
                                     title="Close"
                                 >
-                                    <i className="fa-solid fa-xmark"></i>
+                                    <X />
                                 </button>
                             </div>
                         </div>

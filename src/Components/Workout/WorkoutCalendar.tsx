@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface WorkoutCalendarProps {
     completedDates: string[]; // Array of date strings in YYYY-MM-DD format
@@ -73,7 +74,7 @@ const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ completedDates, onDat
                         onClick={previousMonth}
                         title="Previous month"
                     >
-                        <i className="fa-solid fa-chevron-left"></i>
+                        <ChevronLeft />
                     </button>
                     <button
                         className="workout-calendar__nav-btn"
@@ -87,7 +88,7 @@ const WorkoutCalendar: React.FC<WorkoutCalendarProps> = ({ completedDates, onDat
                         onClick={nextMonth}
                         title="Next month"
                     >
-                        <i className="fa-solid fa-chevron-right"></i>
+                        <ChevronRight />
                     </button>
                 </div>
             </div>

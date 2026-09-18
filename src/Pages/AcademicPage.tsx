@@ -37,6 +37,7 @@ import type {
     AcademicAssessment,
     StudySession,
 } from '../services/academicService';
+import { SquarePen, Trash2, CircleCheck, Circle, Search, X } from 'lucide-react';
 
 type TabType = 'semesters' | 'gradingScales' | 'grades' | 'goals' | 'assessments' | 'studySessions';
 
@@ -613,10 +614,10 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.name}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => openEditSemester(item)} className="book-action-btn" title="Edit semester">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteSemesterTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete semester">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -635,10 +636,10 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.name}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => openEditScale(item)} className="book-action-btn" title="Edit scale">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteScaleTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete scale">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -654,10 +655,10 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.course_name}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => openEditGrade(item)} className="book-action-btn" title="Edit grade">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteGradeTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete grade">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -676,10 +677,10 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.course_name}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => openEditGoal(item)} className="book-action-btn" title="Edit goal">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteGoalTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete goal">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -695,13 +696,13 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.name}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => handleToggleAssessmentComplete(item)} className={`book-action-btn ${item.is_completed ? 'book-action-btn--success' : ''}`} title={item.is_completed ? 'Mark incomplete' : 'Mark complete'}>
-                                    <i className={`fa-solid ${item.is_completed ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                                    {item.is_completed ? <CircleCheck /> : <Circle />}
                                 </button>
                                 <button onClick={() => openEditAssessment(item)} className="book-action-btn" title="Edit assessment">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteAssessmentTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete assessment">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -717,10 +718,10 @@ const AcademicPage: React.FC = () => {
                             <h3 className="book-title">{item.session_date}</h3>
                             <div className="flex gap-1 shrink-0">
                                 <button onClick={() => openEditSession(item)} className="book-action-btn" title="Edit session">
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button onClick={() => setDeleteSessionTarget(item)} className="book-action-btn book-action-btn--danger" title="Delete session">
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
@@ -801,7 +802,7 @@ const AcademicPage: React.FC = () => {
                         {/* Search */}
                         <div className="search-container">
                             <div className="search-input-wrapper">
-                                <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                <Search className="search-input-icon" />
                                 <input
                                     type="text"
                                     value={searchQuery}
@@ -812,7 +813,7 @@ const AcademicPage: React.FC = () => {
                                 />
                                 {(searchQuery || submittedSearch) && (
                                     <button className="search-clear-btn" onClick={clearSearch}>
-                                        <i className="fa-solid fa-xmark"></i>
+                                        <X />
                                     </button>
                                 )}
                             </div>

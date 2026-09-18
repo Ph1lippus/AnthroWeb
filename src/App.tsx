@@ -27,6 +27,8 @@ import AcademicPage from './Pages/AcademicPage'
 import StudyTimerPage from './Pages/StudyTimerPage'
 import NotesPage from './Pages/NotesPage'
 import SettingsPage from './Pages/SettingsPage'
+import AppPage from './Pages/AppPage'
+import AccountPage from './Pages/AccountPage'
 import ProfilePage from './Pages/ProfilePage'
 import EditProfilePage from './Pages/EditProfilePage'
 import CreditsPage from './Pages/CreditsPage'
@@ -35,7 +37,7 @@ import TermsOfServicePage from './Pages/TermsOfServicePage'
 import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { supabase } from './services/supabaseClient'
 import type { User } from '@supabase/supabase-js'
@@ -64,6 +66,28 @@ const AuthenticatedFooter: React.FC = () => {
     return <Footer loggedIn={!!user} />;
 };
 
+// Send signed-in users straight to their Daily Log; guests get the landing page.
+const DefaultRoute: React.FC = () => {
+    const [user, setUser] = useState<User | null>(null);
+    const [checked, setChecked] = useState(false);
+
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user || null);
+            setChecked(true);
+        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user || null);
+            setChecked(true);
+        });
+        return () => subscription.unsubscribe();
+    }, []);
+
+    if (!checked) return null;
+    if (user) return <Navigate to="/Daily-Log" replace />;
+    return <HomePage />;
+};
+
 function App() {
   return (
     <BrowserRouter>
@@ -73,7 +97,7 @@ function App() {
       <MobileNavbar />
       <UpdateModal />
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<DefaultRoute />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -103,9 +127,11 @@ function App() {
         <Route path="/Study-Timer" element={<StudyTimerPage />} />
         <Route path="/Notes" element={<NotesPage />} />
         <Route path="/Settings" element={<SettingsPage />} />
+        <Route path="/Settings/App" element={<AppPage />} />
+        <Route path="/Settings/Account" element={<AccountPage />} />
         <Route path="/Profile" element={<ProfilePage />} />
         <Route path="/Profile/Edit" element={<EditProfilePage />} />
-        <Route path="*" element={<HomePage />} />
+        <Route path="*" element={<DefaultRoute />} />
       </Routes>
       <AuthenticatedFooter />
     </BrowserRouter>

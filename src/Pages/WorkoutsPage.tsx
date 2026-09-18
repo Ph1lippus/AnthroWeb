@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { ClipboardCheck, Layers, History, Trophy, Dumbbell, Check, Pencil, Plus } from 'lucide-react';
 
 const WorkoutsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -61,16 +62,16 @@ const WorkoutsPage: React.FC = () => {
                         <div className="workout-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                    <ClipboardCheck className="mr-1" />Log Workout
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                                 <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
-                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                    <Trophy className="mr-1" />PRs
                                 </button>
                             </div>
                         </div>
@@ -105,7 +106,7 @@ const WorkoutsPage: React.FC = () => {
                                 {/* Active Template Section */}
                                 <div className="workout-section">
                                     <div className="workout-section-header">
-                                        <i className="fa-solid fa-layer-group"></i>
+                                        <Layers />
                                         Active Template
                                     </div>
                                     {activeTemplate ? (
@@ -131,7 +132,7 @@ const WorkoutsPage: React.FC = () => {
                                 {templates.length > 0 && (
                                     <div className="workout-section">
                                         <div className="workout-section-header">
-                                            <i className="fa-solid fa-dumbbell"></i>
+                                            <Dumbbell />
                                             All Templates ({templates.length})
                                         </div>
                                         <div className="workout-templates-list">
@@ -149,7 +150,7 @@ const WorkoutsPage: React.FC = () => {
                                                                 onClick={() => handleActivateTemplate(template.id!)}
                                                                 className="workout-template-item__btn workout-template-item__btn--activate"
                                                             >
-                                                                <i className="fa-solid fa-check mr-1"></i>Activate
+                                                                <Check className="mr-1" />Activate
                                                             </button>
                                                         ) : (
                                                             <span className="workout-template-item__active-label">Current</span>
@@ -158,7 +159,7 @@ const WorkoutsPage: React.FC = () => {
                                                             onClick={() => navigate(`/Workouts/Template/${template.id}`)}
                                                             className="workout-template-item__btn workout-template-item__btn--edit"
                                                         >
-                                                            <i className="fa-solid fa-pen mr-1"></i>Edit
+                                                            <Pencil className="mr-1" />Edit
                                                         </button>
                                                     </div>
                                                 </div>
@@ -169,11 +170,11 @@ const WorkoutsPage: React.FC = () => {
 
                                 {templates.length === 0 && (
                                     <div className="workout-empty">
-                                        <i className="fa-solid fa-dumbbell workout-empty-icon"></i>
+                                        <Dumbbell className="workout-empty-icon" />
                                         <p className="workout-empty-title">No workout templates</p>
                                         <p className="workout-empty-text">Create your first workout template to start tracking your exercises.</p>
                                         <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                            <i className="fa-solid fa-plus mr-1"></i>Create Template
+                                            <Plus className="mr-1" />Create Template
                                         </button>
                                     </div>
                                 )}

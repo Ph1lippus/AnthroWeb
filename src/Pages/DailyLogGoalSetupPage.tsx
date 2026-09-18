@@ -98,6 +98,15 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!settings) return;
+
+        const hasAnyGoal = [calories, protein, carbs, fat, water, wakeTime, bedtime]
+            .some(v => v.trim() !== '');
+        if (!hasAnyGoal) {
+            setMessage({ text: 'Set at least one goal before saving.', type: 'error' });
+            showToast('error', 'Set at least one goal');
+            return;
+        }
+
         setSaving(true);
         setMessage(null);
         try {

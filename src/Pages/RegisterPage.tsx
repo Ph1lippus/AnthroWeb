@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signUpWithEmail } from '../services/profileService';
+import { EyeOff, Eye } from 'lucide-react';
 
 const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
@@ -163,7 +164,7 @@ const RegisterPage: React.FC = () => {
                                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         onClick={() => setShowPassword((prev) => !prev)}
                                     >
-                                        <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                        {showPassword ? <EyeOff /> : <Eye />}
                                     </button>
                                 </div>
                             </div>
@@ -193,7 +194,7 @@ const RegisterPage: React.FC = () => {
                                         aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                                         onClick={() => setShowConfirmPassword((prev) => !prev)}
                                     >
-                                        <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                        {showConfirmPassword ? <EyeOff /> : <Eye />}
                                     </button>
                                 </div>
                             </div>

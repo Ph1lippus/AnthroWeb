@@ -1,13 +1,35 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
+import { Settings, LogOut } from 'lucide-react';
+import ConfirmModal from './ConfirmModal';
+
+const ROUTE_TITLES: { prefix: string; label: string }[] = [
+    { prefix: '/Daily-Log', label: 'Daily Log' },
+    { prefix: '/Dashboard', label: 'Dashboard' },
+    { prefix: '/Measurements', label: 'Measurements' },
+    { prefix: '/Books', label: 'Books' },
+    { prefix: '/Journal', label: 'Journal' },
+    { prefix: '/Projects', label: 'Projects' },
+    { prefix: '/Abstinence', label: 'Abstinence' },
+    { prefix: '/Academic', label: 'Academic' },
+    { prefix: '/Study-Timer', label: 'Study Timer' },
+    { prefix: '/Notes', label: 'Notes' },
+    { prefix: '/Workouts', label: 'Workouts' },
+    { prefix: '/Settings', label: 'Settings' },
+    { prefix: '/Profile', label: 'Profile' },
+    { prefix: '/Credits', label: 'Credits' },
+];
 
 const Navbar: React.FC = () => {
+    const location = useLocation();
     const navigate = useNavigate();
     const [user, setUser] = useState<User | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [closing, setClosing] = useState(false);
+    const [logoutConfirm, setLogoutConfirm] = useState(false);
+    const [signingOut, setSigningOut] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -57,13 +79,15 @@ const Navbar: React.FC = () => {
         }
     }, [menuOpen, closeMenu]);
 
-    const handleLogout = async () => {
+    const handleLogout = () => {
         closeMenu();
-        // Ask for confirmation before logout
-        if (window.confirm('Are you sure you want to logout?')) {
-            await supabase.auth.signOut();
-            navigate('/login');
-        }
+        setLogoutConfirm(true);
+    };
+
+    const doSignOut = async () => {
+        setSigningOut(true);
+        await supabase.auth.signOut();
+        navigate('/login');
     };
 
     const nickname = user?.user_metadata?.username 
@@ -72,10 +96,14 @@ const Navbar: React.FC = () => {
         || user?.email?.split('@')[0] 
         || 'Viewer';
 
+    const mobileTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix))?.label
+        || (location.pathname === '/' ? 'Home' : 'AnthroWeb');
+
     return (
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
                 <div className="navbar-brand-centered">
+                    <span className="navbar-mobile-title">{mobileTitle}</span>
                     <NavLink className="navbar-brand" to="/">AnthroWeb</NavLink>
                 </div>
                 <div className="navbar-actions">
@@ -114,15 +142,25 @@ const Navbar: React.FC = () => {
                                         closeMenu();
                                         navigate('/Settings');
                                     }}>
-                                        <i className="fa-solid fa-gear"></i>
+                                        <Settings />
                                         Settings
                                     </button>
-                                    <button className="t-dropdown-item" onClick={handleLogout}>
-                                        <i className="fa-solid fa-right-from-bracket"></i>
+                                    <button className="t-dropdown-item" onClick={() => handleLogout()}>
+                                        <LogOut />
                                         Logout
                                     </button>
                                 </div>
                             </div>
+                            <ConfirmModal
+                                open={logoutConfirm}
+                                title="Sign out"
+                                message={`Are you sure you want to sign out of "${nickname}"?`}
+                                confirmLabel="Sign Out"
+                                danger
+                                onConfirm={() => { doSignOut(); }}
+                                onCancel={() => setLogoutConfirm(false)}
+                                busy={signingOut}
+                            />
                         </>
                     ) : (
                         <>

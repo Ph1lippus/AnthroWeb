@@ -317,15 +317,21 @@ export interface DailyScoringInput {
     activeGoals: ActiveGoals | null | undefined;
     settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
     computedSleepDuration: number | null;
+    noSleep: boolean;
 }
 
 export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult => {
-    const { activeGoals, settings, computedSleepDuration } = input;
+    const { activeGoals, settings, computedSleepDuration, noSleep } = input;
+
+    // "No sleep" nights: mark the tracked night as score 0 (penalised). The three
+    // sleep metrics count as logged so a bad night drags the daily average down.
+    const noSleepMetric: MetricScore = { score: 0, logged: true };
+    const sleep = (metric: MetricScore): MetricScore => (noSleep ? noSleepMetric : metric);
 
     const metrics: Record<string, MetricScore> = {
-        wakeTime: getInputScore('wakeTime', input.wakeTime, activeGoals),
-        bedtime: getInputScore('bedtime', input.bedtime, activeGoals),
-        sleepQuality: calculateMetricScore('sleepQuality', input.sleepQuality, settings, computedSleepDuration),
+        wakeTime: sleep(getInputScore('wakeTime', input.wakeTime, activeGoals)),
+        bedtime: sleep(getInputScore('bedtime', input.bedtime, activeGoals)),
+        sleepQuality: sleep(calculateMetricScore('sleepQuality', input.sleepQuality, settings, computedSleepDuration)),
         morningSystolic: calculateMetricScore('morningSystolic', input.morningSystolic, settings, computedSleepDuration),
         morningDiastolic: calculateMetricScore('morningDiastolic', input.morningDiastolic, settings, computedSleepDuration),
         morningBpm: calculateMetricScore('morningBpm', input.morningBpm, settings, computedSleepDuration),

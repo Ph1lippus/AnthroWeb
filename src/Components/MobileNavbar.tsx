@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { ClipboardList, FolderKanban, StickyNote, User } from 'lucide-react';
+import { ClipboardList, LayoutDashboard, Dumbbell, NotebookPen, User } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import type { User as AuthUser } from '@supabase/supabase-js';
 
@@ -22,8 +22,9 @@ const MobileNavbar: React.FC = () => {
 
     const items = [
         { to: '/Daily-Log', label: 'Daily Logs', icon: ClipboardList },
-        { to: '/Projects', label: 'Projects', icon: FolderKanban },
-        { to: '/Notes', label: 'Notes', icon: StickyNote },
+        { to: '/Dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/Workouts', label: 'Workouts', icon: Dumbbell },
+        { to: '/Notes', label: 'Notes', icon: NotebookPen },
         { to: '/Profile', label: 'Profile', icon: User },
     ];
 
@@ -36,8 +37,7 @@ const MobileNavbar: React.FC = () => {
         <nav className="mobile-navbar" aria-label="Mobile navigation">
             {items.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} className={`mobile-navbar-link${isActive(to) ? ' active' : ''}`} aria-label={label}>
-                    <Icon className="mobile-navbar-icon" size={22} strokeWidth={2} />
-                    <span className="mobile-navbar-label">{label}</span>
+                    <Icon className="mobile-navbar-icon" size={24} strokeWidth={2} />
                 </NavLink>
             ))}
         </nav>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkoutTemplate } from '../../services/workoutService';
+import { Pencil, Check, Copy, Trash2 } from 'lucide-react';
 
 interface WorkoutTemplateCardProps {
     template: WorkoutTemplate;
@@ -49,7 +50,7 @@ const WorkoutTemplateCard: React.FC<WorkoutTemplateCardProps> = ({
                     onClick={handleEdit}
                     title="Edit template"
                 >
-                    <i className="fa-solid fa-pen"></i> Edit
+                    <Pencil /> Edit
                 </button>
                 <button
                     className="workout-template-card__action"
@@ -57,21 +58,21 @@ const WorkoutTemplateCard: React.FC<WorkoutTemplateCardProps> = ({
                     title={isActive ? 'Already active' : 'Set as active'}
                     disabled={isActive}
                 >
-                    <i className="fa-solid fa-check"></i> {isActive ? 'Active' : 'Activate'}
+                    <Check /> {isActive ? 'Active' : 'Activate'}
                 </button>
                 <button
                     className="workout-template-card__action"
                     onClick={() => onDuplicate(template.id!)}
                     title="Duplicate template"
                 >
-                    <i className="fa-solid fa-copy"></i> Copy
+                    <Copy /> Copy
                 </button>
                 <button
                     className="workout-template-card__action danger"
                     onClick={() => onDelete(template.id!)}
                     title="Delete template"
                 >
-                    <i className="fa-solid fa-trash"></i> Delete
+                    <Trash2 /> Delete
                 </button>
             </div>
         </div>

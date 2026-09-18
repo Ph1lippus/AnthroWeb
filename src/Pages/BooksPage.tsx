@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Title from '../Components/Title';
 import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
+import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
 
 interface DuplicateGroup {
     title: string;
@@ -564,7 +565,7 @@ const BooksPage: React.FC = () => {
                         title="Edit book details"
                         aria-label="Edit book"
                     >
-                        <i className="fa-solid fa-pen-to-square"></i>
+                        <SquarePen />
                     </button>
                     <button
                         onClick={() => setDeleteTarget(book)}
@@ -572,7 +573,7 @@ const BooksPage: React.FC = () => {
                         title="Delete book"
                         aria-label="Delete book"
                     >
-                        <i className="fa-solid fa-trash"></i>
+                        <Trash2 />
                     </button>
                 </div>
             </div>
@@ -655,7 +656,7 @@ const BooksPage: React.FC = () => {
                                             <i className="i-lucide-pause mr-1"></i>Stop
                                         </button>
                                         <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
-                                            <i className="fa-solid fa-rotate-right"></i>
+                                            <RotateCw />
                                         </button>
                                     </>
                                 ) : (
@@ -664,7 +665,7 @@ const BooksPage: React.FC = () => {
                                             <i className="i-lucide-play mr-1"></i>Start
                                         </button>
                                         <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
-                                            <i className="fa-solid fa-rotate-right"></i>
+                                            <RotateCw />
                                         </button>
                                     </>
                                 )}
@@ -745,7 +746,7 @@ const BooksPage: React.FC = () => {
                                     <div className="books-left-col">
                                         <div className="search-container">
                                             <div className="search-input-wrapper">
-                                                <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                                <Search className="search-input-icon" />
                                                 <input
                                                     type="text"
                                                     value={searchQuery}
@@ -760,7 +761,7 @@ const BooksPage: React.FC = () => {
                                                         onClick={clearSearch}
                                                         aria-label="Clear search"
                                                     >
-                                                        <i className="fa-solid fa-xmark"></i>
+                                                        <X />
                                                     </button>
                                                 )}
                                             </div>
@@ -782,7 +783,7 @@ const BooksPage: React.FC = () => {
                                                                         {grouped.map((group) => (
                                                                             <div key={group.groupName} className="book-group">
                                                                                 <div className="book-group-header">
-                                                                                    <i className="fa-solid fa-layer-group"></i>
+                                                                                    <Layers />
                                                                                     {group.groupName}
                                                                                     <span className="book-group-count">{group.books.length}</span>
                                                                                 </div>
@@ -792,7 +793,7 @@ const BooksPage: React.FC = () => {
                                                                         {ungrouped.length > 0 && (
                                                                             <div className="book-group">
                                                                                 <div className="book-group-header">
-                                                                                    <i className="fa-regular fa-bookmark"></i>
+                                                                                    <Bookmark />
                                                                                     Other Books
                                                                                     <span className="book-group-count">{ungrouped.length}</span>
                                                                                 </div>
@@ -1004,7 +1005,7 @@ const BooksPage: React.FC = () => {
 
                         {duplicateGroups.length === 0 ? (
                             <div className="duplicates-empty">
-                                <i className="fa-solid fa-check-circle duplicates-empty-icon"></i>
+                                <CircleCheck className="duplicates-empty-icon" />
                                 <p>No duplicate titles found! All books have unique titles.</p>
                             </div>
                         ) : (
@@ -1026,7 +1027,7 @@ const BooksPage: React.FC = () => {
                                         return (
                                             <div key={groupIdx} className="duplicate-group">
                                                 <div className="duplicate-group-header">
-                                                    <i className="fa-solid fa-copy"></i>
+                                                    <Copy />
                                                     <span>"{group.title}"</span>
                                                     <span className="duplicate-count">{sorted.length} copies</span>
                                                 </div>

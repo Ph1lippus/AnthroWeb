@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { getUserSettings, signOutUser, getLatestBodyMeasurements } from '../services/profileService';
 import { getDailyLogByDate } from '../services/dailyLogService';
 import { supabase } from '../services/supabaseClient';
+import { Pencil, Ruler, Cake, Target, Weight, Calendar, History, LogOut } from 'lucide-react';
 import Title from '../Components/Title';
 
 interface UserSettingsData {
@@ -181,7 +182,7 @@ const ProfilePage: React.FC = () => {
                             <p className="profile-email">{userEmail}</p>
                         </div>
                         <Link to="/profile/edit" className="profile-edit-btn">
-                            <i className="fa-solid fa-pen"></i>
+                            <Pencil />
                         </Link>
                     </div>
 
@@ -189,7 +190,7 @@ const ProfilePage: React.FC = () => {
                     <div className="profile-stats">
                         <div className="profile-stat-card">
                             <div className="profile-stat-icon">
-                                <i className="fa-solid fa-ruler-vertical"></i>
+                                <Ruler />
                             </div>
                             <div className="profile-stat-content">
                                 <span className="profile-stat-label">Height</span>
@@ -198,7 +199,7 @@ const ProfilePage: React.FC = () => {
                         </div>
                         <div className="profile-stat-card">
                             <div className="profile-stat-icon">
-                                <i className="fa-solid fa-cake-candles"></i>
+                                <Cake />
                             </div>
                             <div className="profile-stat-content">
                                 <span className="profile-stat-label">Age</span>
@@ -207,7 +208,7 @@ const ProfilePage: React.FC = () => {
                         </div>
                         <div className="profile-stat-card">
                             <div className="profile-stat-icon">
-                                <i className="fa-solid fa-bullseye"></i>
+                                <Target />
                             </div>
                             <div className="profile-stat-content">
                                 <span className="profile-stat-label">Goal</span>
@@ -216,7 +217,7 @@ const ProfilePage: React.FC = () => {
                         </div>
                         <div className="profile-stat-card">
                             <div className="profile-stat-icon">
-                                <i className="fa-solid fa-weight-scale"></i>
+                                <Weight />
                             </div>
                             <div className="profile-stat-content">
                                 <span className="profile-stat-label">Latest Weight</span>
@@ -356,7 +357,7 @@ const ProfilePage: React.FC = () => {
                                         onClick={() => navigate('/Daily-Log/Setup')}
                                         className="profile-btn profile-btn-primary"
                                     >
-                                        <i className="fa-solid fa-pen"></i>
+                                        <Pencil />
                                         Edit Goals
                                     </button>
                                 </div>
@@ -369,7 +370,7 @@ const ProfilePage: React.FC = () => {
                                     <div className="profile-activity-card">
                                         <div className="profile-activity-header">
                                             <span className="profile-activity-date">
-                                                <i className="fa-regular fa-calendar"></i>
+                                                <Calendar />
                                                 {new Date(latestLog.log_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                                             </span>
                                             {latestLog.daily_score != null && (
@@ -392,14 +393,14 @@ const ProfilePage: React.FC = () => {
                                     onClick={() => navigate('/Daily-Log/History')}
                                     className="profile-btn profile-btn-secondary"
                                 >
-                                    <i className="i-lucide-history"></i>
+                                    <History />
                                     View History
                                 </button>
                                 <button 
                                     onClick={handleSignOut}
                                     className="profile-btn profile-btn-danger"
                                 >
-                                    <i className="fa-solid fa-right-from-bracket"></i>
+                                    <LogOut />
                                     Sign Out
                                 </button>
                             </div>

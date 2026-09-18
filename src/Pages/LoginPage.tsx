@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmail, getUserSettings } from '../services/profileService';
+import { EyeOff, Eye } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -53,7 +54,7 @@ const LoginPage: React.FC = () => {
             if (!settings) {
                 navigate('/profile/edit');
             } else {
-                navigate('/dashboard');
+                navigate('/Daily-Log');
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to login. Please try again.';
@@ -129,7 +130,7 @@ const LoginPage: React.FC = () => {
                                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         onClick={() => setShowPassword((prev) => !prev)}
                                     >
-                                        <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                        {showPassword ? <EyeOff /> : <Eye />}
                                     </button>
                                 </div>
                             </div>

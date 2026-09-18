@@ -6,6 +6,7 @@ import WorkoutStatsCards from '../Components/Workout/WorkoutStatsCards';
 import WorkoutCalendar from '../Components/Workout/WorkoutCalendar';
 import PRList from '../Components/Workout/PRList';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
+import { ClipboardCheck, Layers, History, Trophy, Calendar, LineChart } from 'lucide-react';
 
 const WorkoutDashboardPage: React.FC = () => {
     const navigate = useNavigate();
@@ -101,16 +102,16 @@ const WorkoutDashboardPage: React.FC = () => {
                         <div className="workout-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                    <ClipboardCheck className="mr-1" />Log Workout
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                                 <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
-                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                    <Trophy className="mr-1" />PRs
                                 </button>
                             </div>
                         </div>
@@ -136,7 +137,7 @@ const WorkoutDashboardPage: React.FC = () => {
                                 {/* Calendar View */}
                                 <div className="workout-dashboard-section">
                                     <h3 className="workout-dashboard-section__title">
-                                        <i className="fa-solid fa-calendar mr-1"></i>
+                                        <Calendar className="mr-1" />
                                         Workout Calendar
                                     </h3>
                                     <WorkoutCalendar
@@ -148,7 +149,7 @@ const WorkoutDashboardPage: React.FC = () => {
                                 {/* Contribution Chart */}
                                 <div className="workout-dashboard-section">
                                     <h3 className="workout-dashboard-section__title">
-                                        <i className="fa-solid fa-chart-line mr-1"></i>
+                                        <LineChart className="mr-1" />
                                         Activity Overview
                                     </h3>
                                     <WorkoutContributionChart
@@ -160,7 +161,7 @@ const WorkoutDashboardPage: React.FC = () => {
                                 {/* Recent PRs */}
                                 <div className="workout-dashboard-section">
                                     <h3 className="workout-dashboard-section__title">
-                                        <i className="fa-solid fa-trophy mr-1"></i>
+                                        <Trophy className="mr-1" />
                                         Recent Personal Records
                                     </h3>
                                     <PRList prs={prHistory.slice(0, 5)} />

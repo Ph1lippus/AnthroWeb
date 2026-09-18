@@ -76,7 +76,8 @@ const TodayScoreCard: React.FC<TodayScoreCardProps> = ({ logs, habits, settings 
             customTotal: habits?.length || 0,
             activeGoals: (settings?.active_goals as ActiveGoals | undefined) || null,
             settings,
-            computedSleepDuration: calculateSleepDuration(log.wake_time || '', log.bedtime || ''),
+            computedSleepDuration: log.no_sleep ? null : calculateSleepDuration(log.wake_time || '', log.bedtime || ''),
+            noSleep: log.no_sleep || false,
         };
 
         return computeDailyScore(input);

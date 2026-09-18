@@ -4,6 +4,7 @@ import Title from '../Components/Title';
 import ExerciseEditor from '../Components/Workout/ExerciseEditor';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutTemplateDay } from '../services/workoutService';
+import { Dumbbell, Layers, Play } from 'lucide-react';
 
 const WorkoutTemplateEditorPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -146,13 +147,13 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                         <div className="workout-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />Dashboard
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate(`/Workouts/Start/${currentTemplate.id}`)} className="btn-action">
-                                    <i className="fa-solid fa-play mr-1"></i>Start Workout
+                                    <Play className="mr-1" />Start Workout
                                 </button>
                             </div>
                         </div>

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import type { WorkoutTemplateDay } from '../../services/workoutService';
+import { Plus, SquarePen, Trash2 } from 'lucide-react';
+import ConfirmModal from '../ConfirmModal';
 
 interface ExerciseEditorProps {
     exercises: WorkoutTemplateDay[];
@@ -21,6 +23,8 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         target_weight: '',
         notes: ''
     });
+    const [deleteTarget, setDeleteTarget] = useState<WorkoutTemplateDay | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -110,7 +114,7 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                 </div>
                 <div>
                     <button type="submit" className="btn-primary" style={{ marginTop: '1.5rem' }}>
-                        <i className="fa-solid fa-plus mr-1"></i> Add Exercise
+                        <Plus className="mr-1" /> Add Exercise
                     </button>
                 </div>
             </form>
@@ -144,24 +148,36 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                                     }}
                                     title="Edit notes"
                                 >
-                                    <i className="fa-solid fa-pen"></i>
+                                    <SquarePen />
                                 </button>
                                 <button
                                     className="exercise-editor__item-action danger"
-                                    onClick={() => {
-                                        if (window.confirm(`Delete ${exercise.exercise_name}?`)) {
-                                            onDeleteExercise(exercise.id!);
-                                        }
-                                    }}
+                                    onClick={() => setDeleteTarget(exercise)}
                                     title="Delete exercise"
                                 >
-                                    <i className="fa-solid fa-trash"></i>
+                                    <Trash2 />
                                 </button>
                             </div>
                         </div>
                     ))
                 )}
             </div>
+
+            <ConfirmModal
+                open={!!deleteTarget}
+                title="Delete exercise"
+                message={<>Delete <strong>{deleteTarget?.exercise_name}</strong>? This can't be undone.</>}
+                confirmLabel="Delete"
+                danger
+                busy={deleting}
+                onConfirm={() => {
+                    setDeleting(true);
+                    onDeleteExercise(deleteTarget!.id!);
+                    setDeleting(false);
+                    setDeleteTarget(null);
+                }}
+                onCancel={() => setDeleteTarget(null)}
+            />
         </div>
     );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Title from '../Components/Title';
 import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete } from '../services/projectService';
 import type { Project, ProjectPlanItem } from '../services/projectService';
+import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
 
 const priorityColors: Record<string, string> = {
     low: '#43b67d',
@@ -378,7 +379,7 @@ const ProjectsPage: React.FC = () => {
                             title="Edit project details"
                             aria-label="Edit project"
                         >
-                            <i className="fa-solid fa-pen-to-square"></i>
+                            <SquarePen />
                         </button>
                         <button
                             onClick={() => setDeleteTarget(project)}
@@ -386,7 +387,7 @@ const ProjectsPage: React.FC = () => {
                             title="Delete project"
                             aria-label="Delete project"
                         >
-                            <i className="fa-solid fa-trash"></i>
+                            <Trash2 />
                         </button>
                     </div>
                 </div>
@@ -402,7 +403,7 @@ const ProjectsPage: React.FC = () => {
                                 title="Mark as completed"
                                 aria-label="Mark as completed"
                             >
-                                <i className="fa-solid fa-check"></i>
+                                <Check />
                             </button>
                         )}
                         {project.deadline && (
@@ -517,7 +518,7 @@ const ProjectsPage: React.FC = () => {
                                 <div className="projects-left-col">
                                     <div className="search-container">
                                         <div className="search-input-wrapper">
-                                            <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                            <Search className="search-input-icon" />
                                             <input
                                                 type="text"
                                                 value={searchQuery}
@@ -532,7 +533,7 @@ const ProjectsPage: React.FC = () => {
                                                     onClick={clearSearch}
                                                     aria-label="Clear search"
                                                 >
-                                                    <i className="fa-solid fa-xmark"></i>
+                                                    <X />
                                                 </button>
                                             )}
                                         </div>
@@ -708,14 +709,14 @@ const ProjectsPage: React.FC = () => {
                                     className="project-action-btn"
                                     title="Edit"
                                 >
-                                    <i className="fa-solid fa-pen-to-square"></i>
+                                    <SquarePen />
                                 </button>
                                 <button
                                     onClick={() => setViewProject(null)}
                                     className="project-action-btn"
                                     title="Close"
                                 >
-                                    <i className="fa-solid fa-xmark"></i>
+                                    <X />
                                 </button>
                             </div>
                         </div>
@@ -740,7 +741,7 @@ const ProjectsPage: React.FC = () => {
                                     </button>
                                     {notesSaved && (
                                         <span className="notes-saved-message">
-                                            <i className="fa-solid fa-check mr-1"></i>Saved!
+                                            <Check className="mr-1" />Saved!
                                         </span>
                                     )}
                                 </div>
@@ -793,7 +794,7 @@ const ProjectsPage: React.FC = () => {
                                         className="btn-action"
                                         disabled={!newPlanTitle.trim()}
                                     >
-                                        <i className="fa-solid fa-plus"></i>
+                                        <Plus />
                                     </button>
                                 </div>
 
@@ -842,7 +843,7 @@ const ProjectsPage: React.FC = () => {
                                                         }}
                                                         className="project-plan-delete-btn"
                                                     >
-                                                        <i className="fa-solid fa-trash"></i>
+                                                        <Trash2 />
                                                     </button>
                                                 </label>
                                             ))}

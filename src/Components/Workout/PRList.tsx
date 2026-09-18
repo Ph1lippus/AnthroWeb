@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PRHistory } from '../../services/workoutService';
+import { Trophy } from 'lucide-react';
 
 interface PRListProps {
     prs: PRHistory[];
@@ -20,7 +21,7 @@ const PRList: React.FC<PRListProps> = ({ prs, onPRClick }) => {
         return (
             <div className="workout-empty-state">
                 <div className="workout-empty-state__icon">
-                    <i className="fa-solid fa-trophy"></i>
+                    <Trophy />
                 </div>
                 <h3 className="workout-empty-state__title">No PRs Yet</h3>
                 <p className="workout-empty-state__description">
@@ -40,7 +41,7 @@ const PRList: React.FC<PRListProps> = ({ prs, onPRClick }) => {
                     style={{ cursor: onPRClick ? 'pointer' : 'default' }}
                 >
                     <div className="pr-item__icon">
-                        <i className="fa-solid fa-trophy"></i>
+                        <Trophy />
                     </div>
                     <div className="pr-item__info">
                         <div className="pr-item__exercise">{pr.exercise_name}</div>

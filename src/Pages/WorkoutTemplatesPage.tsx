@@ -4,6 +4,7 @@ import Title from '../Components/Title';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import { getWorkoutTemplateDays } from '../services/workoutService';
 import type { WorkoutTemplate } from '../services/workoutService';
+import { Dumbbell, ClipboardCheck, History, Trophy, Plus, Search, X, Layers, Pin, Play, Pencil, Check, Copy, Trash2 } from 'lucide-react';
 
 const WorkoutTemplatesPage: React.FC = () => {
     const navigate = useNavigate();
@@ -110,7 +111,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                 <div className="workout-template-card-item__top">
                     <div className="workout-template-card-item__title-section">
                         <h3 className="workout-template-card-item__title">
-                            {isActive && <i className="fa-solid fa-thumbtack workout-template-card-item__pin"></i>}
+                            {isActive && <Pin className="workout-template-card-item__pin" />}
                             {template.name}
                         </h3>
                         {template.description && (
@@ -123,14 +124,14 @@ const WorkoutTemplatesPage: React.FC = () => {
                             className="workout-template-card-item__action"
                             title="Start workout"
                         >
-                            <i className="fa-solid fa-play"></i>
+                            <Play />
                         </button>
                         <button
                             onClick={() => navigate(`/Workouts/Template/${template.id}`)}
                             className="workout-template-card-item__action"
                             title="Edit template"
                         >
-                            <i className="fa-solid fa-pen"></i>
+                            <Pencil />
                         </button>
                         <button
                             onClick={() => handleActivate(template.id!)}
@@ -138,21 +139,21 @@ const WorkoutTemplatesPage: React.FC = () => {
                             title={isActive ? 'Currently active' : 'Set as active'}
                             disabled={isActive}
                         >
-                            <i className="fa-solid fa-check"></i>
+                            <Check />
                         </button>
                         <button
                             onClick={() => handleDuplicate(template.id!)}
                             className="workout-template-card-item__action"
                             title="Duplicate template"
                         >
-                            <i className="fa-solid fa-copy"></i>
+                            <Copy />
                         </button>
                         <button
                             onClick={() => setDeleteTarget(template)}
                             className="workout-template-card-item__action workout-template-card-item__action--danger"
                             title="Delete template"
                         >
-                            <i className="fa-solid fa-trash"></i>
+                            <Trash2 />
                         </button>
                     </div>
                 </div>
@@ -184,25 +185,25 @@ const WorkoutTemplatesPage: React.FC = () => {
                         <div className="workout-templates-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>Log Workout
+                                    <ClipboardCheck className="mr-1" />
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                                 <button onClick={() => navigate('/Workouts/PRs')} className="btn-action">
-                                    <i className="fa-solid fa-trophy mr-1"></i>PRs
+                                    <Trophy className="mr-1" />PRs
                                 </button>
                                 <button onClick={() => setShowCreateModal(true)} className="btn-action">
-                                    <i className="fa-solid fa-plus mr-1"></i>New Template
+                                    <Plus className="mr-1" />New Template
                                 </button>
                             </div>
 
                             <div className="search-container workout-templates-search">
                                 <div className="search-input-wrapper">
-                                    <i className="search-input-icon fa-solid fa-magnifying-glass"></i>
+                                    <Search className="search-input-icon" />
                                     <input
                                         type="text"
                                         value={searchQuery}
@@ -216,7 +217,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                                             onClick={() => setSearchQuery('')}
                                             aria-label="Clear search"
                                         >
-                                            <i className="fa-solid fa-xmark"></i>
+                                            <X />
                                         </button>
                                     )}
                                 </div>
@@ -231,7 +232,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                             </div>
                         ) : templates.length === 0 ? (
                             <div className="workout-empty">
-                                <i className="fa-solid fa-layer-group workout-empty-icon"></i>
+                                <Layers className="workout-empty-icon" />
                                 <p className="workout-empty-title">No workout templates</p>
                                 <p className="workout-empty-text">Create your first workout template to start organizing your exercise routines.</p>
                             </div>
@@ -240,7 +241,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                                 {activeTemplate && (
                                     <div className="workout-templates-group">
                                         <div className="workout-templates-group-header">
-                                            <i className="fa-solid fa-thumbtack"></i>
+                                            <Pin />
                                             Active Template
                                         </div>
                                         <div className="workout-templates-grid">
@@ -251,7 +252,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                                 {inactiveTemplates.length > 0 && (
                                     <div className="workout-templates-group">
                                         <div className="workout-templates-group-header">
-                                            <i className="fa-solid fa-layer-group"></i>
+                                            <Layers />
                                             All Templates ({inactiveTemplates.length})
                                         </div>
                                         <div className="workout-templates-grid">

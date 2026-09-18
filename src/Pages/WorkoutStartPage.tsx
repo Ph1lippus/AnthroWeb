@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import { useWorkoutStore } from '../stores/useWorkoutStore';
 import type { WorkoutTemplateDay, PRHistory } from '../services/workoutService';
+import { Dumbbell, Layers, History, Flame, CircleCheck, Circle, StickyNote } from 'lucide-react';
 
 interface ExerciseLog {
     templateDay: WorkoutTemplateDay;
@@ -196,13 +197,13 @@ const WorkoutStartPage: React.FC = () => {
                         <div className="workout-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <i className="fa-solid fa-dumbbell mr-1"></i>Dashboard
+                                    <Dumbbell className="mr-1" />Dashboard
                                 </button>
                                 <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <i className="fa-solid fa-layer-group mr-1"></i>Templates
+                                    <Layers className="mr-1" />Templates
                                 </button>
                                 <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <i className="fa-solid fa-clock-rotate-left mr-1"></i>History
+                                    <History className="mr-1" />History
                                 </button>
                             </div>
                         </div>
@@ -231,7 +232,7 @@ const WorkoutStartPage: React.FC = () => {
                         {/* Intensity */}
                         <div className="workout-check-intensity">
                             <label className="workout-check-intensity__label">
-                                <i className="fa-solid fa-fire mr-1"></i>
+                                <Flame className="mr-1" />
                                 Intensity: <span className="workout-check-intensity__value">{intensity}/10</span>
                             </label>
                             <input
@@ -262,7 +263,7 @@ const WorkoutStartPage: React.FC = () => {
                                             onClick={() => handleToggleComplete(index)}
                                             className={`workout-check-exercise__toggle ${exercise.completed ? 'workout-check-exercise__toggle--completed' : ''}`}
                                         >
-                                            <i className={`fa-solid ${exercise.completed ? 'fa-check-circle' : 'fa-circle'}`}></i>
+                                            {exercise.completed ? <CircleCheck /> : <Circle />}
                                         </button>
                                     </div>
                                     
@@ -307,7 +308,7 @@ const WorkoutStartPage: React.FC = () => {
                         {/* Notes */}
                         <div className="workout-check-notes">
                             <label className="workout-check-notes__label">
-                                <i className="fa-solid fa-sticky-note mr-1"></i>
+                                <StickyNote className="mr-1" />
                                 Notes
                             </label>
                             <textarea

@@ -34,7 +34,7 @@ const DailyLogHistoryPage: React.FC = () => {
 
     const formatDate = (dateStr: string) => {
         try {
-            const d = new Date(dateStr);
+            const d = new Date(dateStr + 'T00:00:00');
             return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
         } catch {
             return dateStr;
@@ -43,6 +43,7 @@ const DailyLogHistoryPage: React.FC = () => {
 
     const renderLogChips = (log: DailyLog) => {
         const chips: { label: string; value: string }[] = [];
+        if (log.no_sleep) chips.push({ label: 'Sleep', value: 'No sleep' });
         if (log.wake_time) chips.push({ label: 'Wake', value: log.wake_time });
         if (log.bedtime) chips.push({ label: 'Bed', value: log.bedtime });
         if (log.sleep_duration) chips.push({ label: 'Sleep', value: `${log.sleep_duration}h` });

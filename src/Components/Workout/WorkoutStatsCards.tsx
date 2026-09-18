@@ -1,4 +1,5 @@
 import React from 'react';
+import { CalendarCheck, Dumbbell, Calendar, LineChart } from 'lucide-react';
 
 interface WorkoutStatsCardsProps {
     weeklyStats: {
@@ -25,7 +26,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
         <div className="workout-dashboard-grid">
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-calendar-check"></i>
+                    <CalendarCheck />
                 </div>
                 <div className="workout-stats-card__value">{weeklyStats.completedWorkouts}</div>
                 <div className="workout-stats-card__label">Workouts This Week</div>
@@ -36,7 +37,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
 
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-dumbbell"></i>
+                    <Dumbbell />
                 </div>
                 <div className="workout-stats-card__value">{weeklyStats.totalVolume}</div>
                 <div className="workout-stats-card__label">Weekly Volume</div>
@@ -47,7 +48,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
 
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-calendar"></i>
+                    <Calendar />
                 </div>
                 <div className="workout-stats-card__value">{monthlyStats.completedWorkouts}</div>
                 <div className="workout-stats-card__label">Workouts This Month</div>
@@ -58,7 +59,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
 
             <div className="workout-stats-card">
                 <div className="workout-stats-card__icon">
-                    <i className="fa-solid fa-chart-line"></i>
+                    <LineChart />
                 </div>
                 <div className="workout-stats-card__value">{monthlyCompletionRate.toFixed(0)}%</div>
                 <div className="workout-stats-card__label">Monthly Completion Rate</div>

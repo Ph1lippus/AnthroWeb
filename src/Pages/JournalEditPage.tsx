@@ -5,6 +5,7 @@ import { getDailyLogById, updateDailyLog } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
+import { PenTool } from 'lucide-react';
 
 const JournalEditPage: React.FC = () => {
     const navigate = useNavigate();
@@ -155,7 +156,7 @@ const JournalEditPage: React.FC = () => {
 
                         <div className="journal-editor-section">
                             <div className="journal-editor-header">
-                                <i className="fa-solid fa-pen-fancy"></i>
+                                <PenTool />
                                 Journal Entry
                             </div>
                             <textarea
