@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { FileOpener } from '@capawesome-team/capacitor-file-opener';
@@ -76,18 +76,6 @@ export const checkForUpdate = async (): Promise<{ update: UpdateInfo; current: s
     return { update: latest, current };
 };
 
-const fileToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const result = (reader.result as string) || '';
-            resolve(result.split(',')[1] || result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-};
-
 export const downloadAndInstall = async (url: string): Promise<void> => {
     const fileName = 'anthroweb-update.apk';
 
@@ -97,11 +85,17 @@ export const downloadAndInstall = async (url: string): Promise<void> => {
         // No stale file to clean up
     }
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Download failed');
-    const blob = await response.blob();
-    const data = await fileToBase64(blob);
+    const response = await CapacitorHttp.get({
+        url,
+        responseType: 'blob',
+        connectTimeout: 60000,
+        readTimeout: 120000,
+    });
+    if (response.status < 200 || response.status >= 300) {
+        throw new Error('Download failed');
+    }
 
+    const data = typeof response.data === 'string' ? response.data : '';
     await Filesystem.writeFile({
         path: fileName,
         data,
