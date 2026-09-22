@@ -7589,7 +7589,7 @@ select.form-control option {
   background: #161616ee;
   backdrop-filter: blur(14px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: env(safe-area-inset-bottom) 0 0.35rem;
+  padding: 0.55rem 0 calc(0.55rem + env(safe-area-inset-bottom, 0px));
   justify-content: space-around;
 }
 .mobile-navbar-link {
@@ -7598,7 +7598,7 @@ select.form-control option {
   align-items: center;
   justify-content: center;
   gap: 0.2rem;
-  padding: 0.4rem 0.4rem;
+  padding: 0.45rem 0.4rem;
   color: rgba(193, 193, 193, 0.7);
   text-decoration: none;
   min-width: 0;
@@ -7663,7 +7663,7 @@ select.form-control option {
   .journal-page-wrapper,
   .page-main,
   .dashboard-page-wrapper {
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }
 
   /* Mobile: scroll the page itself instead of nested containers */
@@ -7780,4 +7780,32 @@ select.form-control option {
   margin: 0.7rem 0 0;
   font-size: 0.72rem;
   opacity: 0.6;
+}
+
+/* ============================================
+   GLOBAL SCROLL & OVERSCROLL FIXES
+   ============================================ */
+/* Remove the end-of-scroll jump / bounce on the whole site */
+html {
+  overscroll-behavior: none;
+  scroll-behavior: auto;
+}
+body {
+  overscroll-behavior-y: none;
+  overflow-anchor: none;
+}
+
+/* Force-hide scrollbars site-wide (scrolls still work) */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-thumb {
+  background: transparent !important;
 }

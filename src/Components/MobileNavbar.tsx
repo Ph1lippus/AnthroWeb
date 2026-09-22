@@ -37,7 +37,7 @@ const MobileNavbar: React.FC = () => {
         <nav className="mobile-navbar" aria-label="Mobile navigation">
             {items.map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} className={`mobile-navbar-link${isActive(to) ? ' active' : ''}`} aria-label={label}>
-                    <Icon className="mobile-navbar-icon" size={24} strokeWidth={2} />
+                    <Icon className="mobile-navbar-icon" size={26} strokeWidth={2} />
                 </NavLink>
             ))}
         </nav>
