@@ -258,6 +258,7 @@ const DailyLogPage: React.FC = () => {
         activeGoals,
         settings: effectiveSettings,
         computedSleepDuration,
+        noSleep: false,
     }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration]);
 
     const calculatedScore = scoreResult.score;
@@ -380,6 +381,7 @@ const DailyLogPage: React.FC = () => {
                 journal: journal,
                 stretching: stretching,
                 reading: reading,
+                no_sleep: false,
             };
 
             if (isEditing && existingLog?.id) {
