@@ -35,14 +35,26 @@ const AppPage: React.FC = () => {
     const handleCheck = async () => {
         setCheckStatus('checking');
         setInstallError(null);
+        const latest = await fetchLatestUpdate();
+        if (!latest) {
+            setLatestUpdate(null);
+            setCheckedUpdate(null);
+            setCheckStatus('unavailable');
+            return;
+        }
+        setLatestUpdate(latest);
+        if (!isCapacitorApp()) {
+            setCheckedUpdate(latest);
+            setCheckStatus('available');
+            return;
+        }
         const result = await checkForUpdate();
         if (result) {
             setCheckedUpdate(result.update);
             setCheckStatus('available');
         } else {
             setCheckedUpdate(null);
-            const latest = await fetchLatestUpdate();
-            setCheckStatus(latest ? 'up-to-date' : 'unavailable');
+            setCheckStatus('up-to-date');
         }
     };
 
@@ -126,7 +138,7 @@ const AppPage: React.FC = () => {
                                 disabled={installing}
                             >
                                 <Download />
-                                {installing ? 'Downloading...' : 'Update & Install'}
+                                {installing ? 'Downloading...' : isCapacitorApp() ? 'Update & Install' : 'Download APK'}
                             </button>
                             {installError && <p className="settings-update-error">{installError}</p>}
                         </div>
