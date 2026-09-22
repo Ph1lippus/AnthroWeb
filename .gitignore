@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 .env*.local
 
-# Android / Capacitor build outputs + signing key (never commit the keystore)
+# Android / Capacitor build outputs + signing key (never commit the production keystore)
 android/.gradle/
 android/app/build/
 android/build/
@@ -32,6 +32,7 @@ android/local.properties
 android/keystore.jks
 *.jks
 *.keystore
+!android/debug.keystore
 captures/
 .externalNativeBuild/
 .cxx/
