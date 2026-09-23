@@ -47,7 +47,7 @@ jobs:
 
       # Decode the base64 keystore if provided (production signing)
       - name: Decode signing key
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: env.KEYSTORE_BASE64 != ''
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
@@ -57,7 +57,9 @@ jobs:
       # every release APK uses the SAME key. A per-build random key would make
       # Android refuse updates ("package conflicts with an existing package").
       - name: Use fixed debug signing key
-        if: ${{ secrets.KEYSTORE_BASE64 == '' }}
+        if: env.KEYSTORE_BASE64 == ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "DEBUG_KEYSTORE=$GITHUB_WORKSPACE/android/debug.keystore" >> "$GITHUB_ENV"
 
       # Determine the version for the release: manual input, else auto-bump the
