@@ -2,25 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
-import { Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
-
-const ROUTE_TITLES: { prefix: string; label: string }[] = [
-    { prefix: '/Daily-Log', label: 'Daily Log' },
-    { prefix: '/Dashboard', label: 'Dashboard' },
-    { prefix: '/Measurements', label: 'Measurements' },
-    { prefix: '/Books', label: 'Books' },
-    { prefix: '/Journal', label: 'Journal' },
-    { prefix: '/Projects', label: 'Projects' },
-    { prefix: '/Abstinence', label: 'Abstinence' },
-    { prefix: '/Academic', label: 'Academic' },
-    { prefix: '/Study-Timer', label: 'Study Timer' },
-    { prefix: '/Notes', label: 'Notes' },
-    { prefix: '/Workouts', label: 'Workouts' },
-    { prefix: '/Settings', label: 'Settings' },
-    { prefix: '/Profile', label: 'Profile' },
-    { prefix: '/Credits', label: 'Credits' },
-];
+import { publishDailyLogNav } from '../utils/dailyLogNav';
 
 const Navbar: React.FC = () => {
     const location = useLocation();
@@ -90,35 +74,55 @@ const Navbar: React.FC = () => {
         navigate('/login');
     };
 
-    const nickname = user?.user_metadata?.username 
-        || user?.user_metadata?.nickname 
-        || user?.user_metadata?.full_name 
-        || user?.email?.split('@')[0] 
-        || 'Viewer';
-
-    const mobileTitle = ROUTE_TITLES.find(({ prefix }) => location.pathname.startsWith(prefix))?.label
-        || (location.pathname === '/' ? 'Home' : 'AnthroWeb');
+    // Show day navigation only on the main daily log page (not edit/history/setup)
+    const onDailyLog = location.pathname.toLowerCase() === '/daily-log';
 
     return (
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
-                <div className="navbar-brand-centered">
-                    <span className="navbar-mobile-title">{mobileTitle}</span>
-                    <NavLink className="navbar-brand" to="/">AnthroWeb</NavLink>
-                </div>
+                {user && onDailyLog && (
+                    <div className="navbar-day-nav">
+                        <button
+                            type="button"
+                            onClick={() => publishDailyLogNav('prev')}
+                            className="navbar-day-btn"
+                            title="Previous day"
+                            aria-label="Previous day"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => publishDailyLogNav('today')}
+                            className="navbar-day-btn"
+                            title="Today"
+                            aria-label="Today"
+                        >
+                            <Calendar size={15} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => publishDailyLogNav('next')}
+                            className="navbar-day-btn"
+                            title="Next day"
+                            aria-label="Next day"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/Daily-Log/History')}
+                            className="navbar-day-btn"
+                            title="View History"
+                            aria-label="View History"
+                        >
+                            <History size={15} />
+                        </button>
+                    </div>
+                )}
                 <div className="navbar-actions">
                     {user ? (
                         <>
-                            <div className="navbar-user-wrap">
-                                <NavLink 
-                                    className="navbar-user" 
-                                    to="/Profile"
-                                    title={nickname}
-                                >
-                                    {nickname}
-                                </NavLink>
-                            </div>
-                            
                             <div className="t-dropdown-wrap">
                                 <button
                                     ref={buttonRef}
@@ -154,7 +158,6 @@ const Navbar: React.FC = () => {
                             <ConfirmModal
                                 open={logoutConfirm}
                                 title="Sign out"
-                                message={`Are you sure you want to sign out of "${nickname}"?`}
                                 confirmLabel="Sign Out"
                                 danger
                                 onConfirm={() => { doSignOut(); }}
@@ -166,19 +169,23 @@ const Navbar: React.FC = () => {
                         <>
                             <NavLink
                                 className={({ isActive }) =>
-                                    `navbar-action-link navbar-auth-link${isActive ? ' active' : ''}`
+                                    `navbar-action-link navbar-auth-link navbar-icon-link${isActive ? ' active' : ''}`
                                 }
                                 to="/login"
+                                title="Login"
+                                aria-label="Login"
                             >
-                                Login
+                                <LogIn size={18} />
                             </NavLink>
                             <NavLink
                                 className={({ isActive }) =>
-                                    `navbar-action-link navbar-auth-link${isActive ? ' active' : ''}`
+                                    `navbar-action-link navbar-auth-link navbar-icon-link${isActive ? ' active' : ''}`
                                 }
                                 to="/register"
+                                title="Register"
+                                aria-label="Register"
                             >
-                                Register
+                                <UserPlus size={18} />
                             </NavLink>
                         </>
                     )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
-import { getUserHabits, toggleHabitForDate, createHabit, getCompletedHabitsForDate } from '../services/habitService';
+import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { getUserProjects } from '../services/projectService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
@@ -11,6 +11,8 @@ import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
+import ConfirmModal from '../Components/ConfirmModal';
+import { subscribeDailyLogNav } from '../utils/dailyLogNav';
 
 const toDateString = (d: Date): string => {
     const y = d.getFullYear();
@@ -20,6 +22,13 @@ const toDateString = (d: Date): string => {
 };
 
 const todayString = (): string => toDateString(new Date());
+
+const addDays = (dateStr: string, delta: number): string => {
+    if (!dateStr) return dateStr;
+    const base = new Date(dateStr + 'T00:00:00');
+    base.setDate(base.getDate() + delta);
+    return toDateString(base);
+};
 
 const getScoreColor = (score: number): string => {
     if (score >= 80) return 'var(--color-primary)';
@@ -84,6 +93,8 @@ const DailyLogPage: React.FC = () => {
     const [customHabitName, setCustomHabitName] = useState('');
     const [customHabitDesc, setCustomHabitDesc] = useState('');
     const [addingHabit, setAddingHabit] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<Habit | null>(null);
+    const [deletingHabit, setDeletingHabit] = useState(false);
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
@@ -465,12 +476,33 @@ const DailyLogPage: React.FC = () => {
         setShowCustomHabit(false);
     };
 
-    const changeDay = (delta: number) => {
-        if (id || !logDate) return;
-        const base = new Date(logDate + 'T00:00:00');
-        base.setDate(base.getDate() + delta);
-        setLogDate(toDateString(base));
+    const handleDeleteHabit = async (id: string) => {
+        setDeletingHabit(true);
+        try {
+            await deleteHabit(id);
+            setHabits(prev => prev.filter(h => h.id !== id));
+            setCompletedHabits(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+            setDeleteTarget(null);
+        } catch (err) {
+            console.error('Error deleting habit:', err);
+        } finally {
+            setDeletingHabit(false);
+        }
     };
+
+    // Day navigation is now controlled from the primary navbar via pub/sub
+    useEffect(() => {
+        return subscribeDailyLogNav((action) => {
+            if (id) return;
+            if (action === 'prev') setLogDate(prev => addDays(prev, -1));
+            else if (action === 'next') setLogDate(prev => addDays(prev, 1));
+            else if (action === 'today') setLogDate(todayString());
+        });
+    }, [id]);
 
     if (!settings) {
         return (
@@ -540,35 +572,23 @@ const DailyLogPage: React.FC = () => {
         <div className="daily-logs-page-wrapper">
             <div className="dashboard-section daily-logs-section">
                 <div className="daily-logs-card">
-                    {/* Top bar */}
-                    <div className="flex gap-2 mb-4 flex-wrap">
-                        {!id && (
-                            <div className="flex gap-1 items-center">
-                                <button onClick={() => changeDay(-1)} className="btn-action" title="Previous day" aria-label="Previous day">←</button>
-                                <button onClick={() => setLogDate(todayString())} className="btn-action" title="Go to today">Today</button>
-                                <button onClick={() => changeDay(1)} className="btn-action" title="Next day" aria-label="Next day">→</button>
-                            </div>
-                        )}
-                        <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">View History</button>
-                        {id && (
+                    {id && (
+                        <div className="flex gap-2 mb-4 flex-wrap">
                             <button onClick={() => navigate('/Daily-Log')} className="btn-action">Today's Log</button>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
-                    {/* Date + auto-save indicator */}
-                    <div className="flex items-center justify-between gap-2 mb-2 text-xs">
-                        <span className="opacity-60">{dateLabel}</span>
-                        <span className="text-right">
-                            {saveError ? (
-                                <span style={{ color: 'var(--color-danger)' }}>{saveError}</span>
-                            ) : saving ? (
-                                <span className="opacity-60">Saving...</span>
-                            ) : lastSaved ? (
-                                <span className="opacity-60">Saved {lastSaved.toLocaleTimeString()}</span>
-                            ) : (
-                                <span className="opacity-60">Auto-saves as you type</span>
-                            )}
-                        </span>
+                    {/* Auto-save indicator */}
+                    <div className="text-center text-xs mb-4">
+                        {saveError ? (
+                            <span style={{ color: 'var(--color-danger)' }}>{saveError}</span>
+                        ) : saving ? (
+                            <span className="opacity-60">Saving...</span>
+                        ) : lastSaved ? (
+                            <span className="opacity-60">Saved {lastSaved.toLocaleTimeString()}</span>
+                        ) : (
+                            <span className="opacity-60">Auto-save on</span>
+                        )}
                     </div>
 
                     <ScoreCard
@@ -828,25 +848,48 @@ const DailyLogPage: React.FC = () => {
                                     ) : habits.length > 0 && (
                                         <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-3">
                                             <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                                            <div className="grid gap-1">
                                                 {habits.map((habit) => (
-                                                    <label key={habit.id} className="checkbox-label">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={completedHabits.has(habit.id!)}
-                                                            onChange={async () => {
-                                                                const result = await toggleHabitForDate(habit.id!, logDate);
-                                                                setCompletedHabits(prev => {
-                                                                    const next = new Set(prev);
-                                                                    if (result) next.add(habit.id!);
-                                                                    else next.delete(habit.id!);
-                                                                    return next;
-                                                                });
-                                                            }}
-                                                            className="checkbox-input"
-                                                        />
-                                                        <span className="text-sm opacity-90">{habit.name}</span>
-                                                    </label>
+                                                    <div key={habit.id} className="flex items-center gap-1">
+                                                        <label className="checkbox-label flex-1 min-w-0">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={completedHabits.has(habit.id!)}
+                                                                onChange={async () => {
+                                                                    const id = habit.id!;
+                                                                    const wasChecked = completedHabits.has(id);
+                                                                    setCompletedHabits(prev => {
+                                                                        const next = new Set(prev);
+                                                                        if (wasChecked) next.delete(id);
+                                                                        else next.add(id);
+                                                                        return next;
+                                                                    });
+                                                                    try {
+                                                                        await toggleHabitForDate(id, logDate);
+                                                                    } catch (err) {
+                                                                        console.error('Error toggling habit:', err);
+                                                                        setCompletedHabits(prev => {
+                                                                            const next = new Set(prev);
+                                                                            if (wasChecked) next.add(id);
+                                                                            else next.delete(id);
+                                                                            return next;
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="checkbox-input"
+                                                            />
+                                                            <span className="text-sm opacity-90 truncate">{habit.name}</span>
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeleteTarget(habit)}
+                                                            className="text-xs opacity-40 hover:opacity-100 hover:text-[var(--color-danger)] shrink-0"
+                                                            title="Remove habit"
+                                                            aria-label={`Remove ${habit.name}`}
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
                                                 ))}
                                             </div>
                                         </div>
@@ -876,6 +919,16 @@ const DailyLogPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <ConfirmModal
+                open={!!deleteTarget}
+                title={deleteTarget ? `Remove "${deleteTarget.name}"?` : ''}
+                confirmLabel="Remove"
+                danger
+                busy={deletingHabit}
+                onConfirm={() => { if (deleteTarget?.id) handleDeleteHabit(deleteTarget.id); }}
+                onCancel={() => { if (!deletingHabit) setDeleteTarget(null); }}
+            />
         </div>
     );
 };

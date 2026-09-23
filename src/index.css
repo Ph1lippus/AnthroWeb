@@ -1,5 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rubik+Glitch&display=swap');
 @import "tailwindcss";
+
+@media (max-width: 768px) {
+  .card-header {
+    place-self: anchor-center;
+  }
+  .daily-score-card {
+    background: transparent !important; 
+  }
+  .navbar-mobile-title{
+    display: none !important;
+  }
+  .navbar-brand-row{
+    backdrop-filter: blur(0px) !important;
+  }
+  .daily-logs-page-wrapper {
+    padding: 0rem !important;
+    padding-top: calc(var(--navbar-height) + env(safe-area-inset-top, 0px)) !important;
+  }
+  .daily-log-form .card {
+    padding: 0.5rem !important; 
+  }
+}
+
+
+
 :root {
   --color-primary: #00ffa6;
   --color-primary-dark: #43b67d;
@@ -211,15 +236,6 @@ body::before {
   z-index: 100;
   padding-top: env(safe-area-inset-top, 0px);
 }
-.navbar-brand-row::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.12), transparent);
-}
 .navbar-inner {
   display: flex;
   justify-content: flex-end;
@@ -296,6 +312,36 @@ body::before {
   justify-content: center;
 }
 .navbar-menu-btn:hover { color: var(--color-primary); }
+.navbar-day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: auto;
+}
+.navbar-day-btn {
+  background: #ffffff0a;
+  border: none;
+  color: var(--color-light);
+  width: 1.9rem;
+  height: 1.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.navbar-day-btn:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+.navbar-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .navbar-menu-icon {
   display: inline-block;
 }
@@ -4218,7 +4264,7 @@ input[type="number"] {
   flex-direction: column;
   align-items: center;
   padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+  padding-top: calc(var(--navbar-height) + env(safe-area-inset-top, 0px));
   padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
 }
 /* Daily Log section takes full width */
@@ -4426,7 +4472,7 @@ input[type="number"] {
 /* Responsive adjustments for daily log page */
 @media (max-width: 768px) {
   .daily-logs-card {
-    padding: 0.85rem;
+    padding: 1.5rem 0rem;
   }
   .daily-log-form .grid {
     grid-template-columns: 1fr !important;
@@ -4436,7 +4482,7 @@ input[type="number"] {
 .daily-log-puzzle {
   column-count: 3;
   column-gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 5rem;
 }
 .daily-log-puzzle-3 {
   column-count: 3;
@@ -7448,6 +7494,29 @@ select.form-control option {
 .metric-chip-value {
   margin-left: 0.15rem;
   font-weight: 700;
+}
+/* Mobile: compact, centered score card */
+@media (max-width: 600px) {
+  .daily-score-card {
+    text-align: center;
+    padding: 1rem;
+  }
+  .daily-score-main {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .daily-score-info {
+    align-items: center;
+  }
+  .daily-score-heading,
+  .daily-score-based {
+    display: none;
+  }
+  .daily-score-toggle {
+    align-self: center;
+    margin-top: 0.2rem;
+  }
 }
 /* ============================================
    DASHBOARD - METRICS CHARTS (recharts)

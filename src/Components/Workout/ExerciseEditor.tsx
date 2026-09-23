@@ -166,7 +166,6 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             <ConfirmModal
                 open={!!deleteTarget}
                 title="Delete exercise"
-                message={<>Delete <strong>{deleteTarget?.exercise_name}</strong>? This can't be undone.</>}
                 confirmLabel="Delete"
                 danger
                 busy={deleting}

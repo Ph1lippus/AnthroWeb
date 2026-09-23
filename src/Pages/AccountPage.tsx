@@ -71,9 +71,7 @@ const AccountPage: React.FC = () => {
             <ConfirmModal
                 open={confirmOpen}
                 title="Sign Out"
-                message={<>Are you sure you want to sign out of <strong>{email || 'your account'}</strong>?</>}
                 confirmLabel="Sign Out"
-                cancelLabel="Cancel"
                 danger
                 busy={signingOut}
                 onConfirm={handleSignOut}
