@@ -4357,7 +4357,7 @@ input[type="number"] {
     padding: 1.2rem 0.75rem 0.5rem;
     background: #ffffff0a;
     color: var(--color-light);
-    border-radius: 20px;
+    border-radius: 25px;
     font-family: var(--font-mono);
     font-size: 0.9rem;
     outline: none;
@@ -4387,7 +4387,7 @@ input[type="number"] {
 }
 .scored-input:focus + .scored-input-label,
 .scored-input:not(:placeholder-shown) + .scored-input-label {
-    top: 0.45rem;
+    top: 0.2rem;
     transform: translateY(0);
     font-size: 0.6rem;
     letter-spacing: 0.3px;
