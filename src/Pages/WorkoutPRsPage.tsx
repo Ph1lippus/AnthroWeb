@@ -1,59 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import Title from '../Components/Title';
-import {
-    getAllPRs,
-    type PRHistory
-} from '../services/workoutService';
-import { Trophy, ChevronRight, Dumbbell, ClipboardCheck, Layers, History, Search, X, ArrowLeft } from 'lucide-react';
+import WorkoutsNav from '../Components/Workout/WorkoutsNav';
+import PRList from '../Components/Workout/PRList';
+import { usePRs } from '../hooks/useWorkouts';
+import { useUserSettings } from '../hooks/useUserSettings';
+import { fromKg } from '../utils/units';
+import type { PRHistory } from '../services/workoutService';
+import { Trophy, ArrowLeft, Search, X } from 'lucide-react';
 
 const WorkoutPRsPage: React.FC = () => {
-    const navigate = useNavigate();
-    const [prs, setPrs] = useState<PRHistory[]>([]);
-    const [loading, setLoading] = useState(true);
+    const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
+    const { data: prs = [], isLoading } = usePRs();
     const [selectedPR, setSelectedPR] = useState<PRHistory | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    useEffect(() => {
-        loadPRs();
-    }, []);
-
-    const loadPRs = async () => {
-        try {
-            setLoading(true);
-            const allPRs = await getAllPRs();
-            setPrs(allPRs);
-        } catch (error) {
-            console.error('Error loading PRs:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePRClick = (pr: PRHistory) => {
-        setSelectedPR(pr);
-    };
-
-    const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-            weekday: 'long',
-            month: 'long', 
-            day: 'numeric', 
-            year: 'numeric' 
-        });
-    };
-
-    // Group PRs by exercise name
     const groupedPRs = prs.reduce((acc, pr) => {
-        if (!acc[pr.exercise_name]) {
-            acc[pr.exercise_name] = [];
-        }
+        if (!acc[pr.exercise_name]) acc[pr.exercise_name] = [];
         acc[pr.exercise_name].push(pr);
         return acc;
     }, {} as Record<string, PRHistory[]>);
-
-    // Get unique exercise names
     const exerciseNames = Object.keys(groupedPRs).sort();
 
     const filteredPRs = prs.filter(pr =>
@@ -61,42 +26,15 @@ const WorkoutPRsPage: React.FC = () => {
         pr.workout_date.includes(searchQuery)
     );
 
-    const renderPRCard = (pr: PRHistory) => {
-        return (
-            <div 
-                key={pr.id} 
-                className="workout-pr-card"
-                onClick={() => handlePRClick(pr)}
-            >
-                <div className="workout-pr-card__top">
-                    <div className="workout-pr-card__title-section">
-                        <h3 className="workout-pr-card__title">
-                            <Trophy className="workout-pr-card__icon" />
-                            {pr.exercise_name}
-                        </h3>
-                        <p className="workout-pr-card__date">{formatDate(pr.workout_date)}</p>
-                    </div>
-                    <div className="workout-pr-card__chevron">
-                        <ChevronRight />
-                    </div>
-                </div>
-                <div className="workout-pr-card__stats">
-                    {pr.weight !== undefined && (
-                        <div className="workout-pr-card__stat">
-                            <span className="workout-pr-card__stat-label">Weight</span>
-                            <span className="workout-pr-card__stat-value">{pr.weight}kg</span>
-                        </div>
-                    )}
-                    {pr.reps !== undefined && (
-                        <div className="workout-pr-card__stat">
-                            <span className="workout-pr-card__stat-label">Reps</span>
-                            <span className="workout-pr-card__stat-value">{pr.reps}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
+    const formatDate = (dateString: string) =>
+        new Date(dateString).toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+        });
+
+    const formatWeight = (w?: number) => (w != null ? `${fromKg(w, weightUnit).toFixed(1)} ${weightUnit}` : '');
 
     return (
         <>
@@ -104,7 +42,8 @@ const WorkoutPRsPage: React.FC = () => {
             <div className="books-page-wrapper">
                 <div className="dashboard-section workout-section">
                     <div className="workout-card">
-                        {/* Stats */}
+                        <WorkoutsNav />
+
                         <div className="workout-pr-stats">
                             <div className="workout-pr-stat-item">
                                 <span className="workout-pr-stat-label">Total PRs</span>
@@ -116,22 +55,7 @@ const WorkoutPRsPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Top Bar */}
                         <div className="workout-pr-top-bar">
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => navigate('/Workouts')} className="btn-action">
-                                    <Dumbbell className="mr-1" />Dashboard
-                                </button>
-                                <button onClick={() => navigate('/Workouts/Check')} className="btn-action">
-                                    <ClipboardCheck className="mr-1" />Log Workout
-                                </button>
-                                <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                    <Layers className="mr-1" />Templates
-                                </button>
-                                <button onClick={() => navigate('/Workouts/History')} className="btn-action">
-                                    <History className="mr-1" />History
-                                </button>
-                            </div>
                             <div className="search-container workout-pr-search">
                                 <div className="search-input-wrapper">
                                     <Search className="search-input-icon" />
@@ -143,11 +67,7 @@ const WorkoutPRsPage: React.FC = () => {
                                         placeholder="Search PRs..."
                                     />
                                     {searchQuery && (
-                                        <button
-                                            className="search-clear-btn"
-                                            onClick={() => setSearchQuery('')}
-                                            aria-label="Clear search"
-                                        >
+                                        <button className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
                                             <X />
                                         </button>
                                     )}
@@ -155,8 +75,7 @@ const WorkoutPRsPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Content */}
-                        {loading ? (
+                        {isLoading ? (
                             <div className="profile-loading">
                                 <div className="profile-loading-spinner"></div>
                                 <p>Loading PRs...</p>
@@ -166,10 +85,7 @@ const WorkoutPRsPage: React.FC = () => {
                                 {selectedPR ? (
                                     <div className="workout-pr-selected">
                                         <div className="workout-pr-selected__header">
-                                            <button 
-                                                onClick={() => setSelectedPR(null)}
-                                                className="workout-pr-selected__back"
-                                            >
+                                            <button onClick={() => setSelectedPR(null)} className="workout-pr-selected__back">
                                                 <ArrowLeft className="mr-1" />Back
                                             </button>
                                             <h3>
@@ -183,7 +99,7 @@ const WorkoutPRsPage: React.FC = () => {
                                             {selectedPR.weight !== undefined && (
                                                 <div className="workout-pr-selected__stat">
                                                     <span className="workout-pr-selected__stat-label">Weight</span>
-                                                    <span className="workout-pr-selected__stat-value">{selectedPR.weight}kg</span>
+                                                    <span className="workout-pr-selected__stat-value">{formatWeight(selectedPR.weight)}</span>
                                                 </div>
                                             )}
                                             {selectedPR.reps !== undefined && (
@@ -194,22 +110,21 @@ const WorkoutPRsPage: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {/* Exercise History */}
-                                        {groupedPRs[selectedPR.exercise_name] && groupedPRs[selectedPR.exercise_name].length > 1 && (
+                                        {(groupedPRs[selectedPR.exercise_name]?.length ?? 0) > 1 && (
                                             <div className="workout-pr-progression">
                                                 <h4>Progression for {selectedPR.exercise_name}</h4>
                                                 <div className="workout-pr-progression__list">
-                                                    {groupedPRs[selectedPR.exercise_name]
+                                                    {(groupedPRs[selectedPR.exercise_name] ?? [])
                                                         .sort((a, b) => new Date(b.workout_date).getTime() - new Date(a.workout_date).getTime())
                                                         .map((pr) => (
-                                                            <div 
-                                                                key={pr.id} 
+                                                            <div
+                                                                key={pr.id}
                                                                 className={`workout-pr-progression-item ${pr.id === selectedPR.id ? 'workout-pr-progression-item--selected' : ''}`}
                                                                 onClick={() => setSelectedPR(pr)}
                                                             >
                                                                 <div className="workout-pr-progression-item__date">{formatDate(pr.workout_date)}</div>
                                                                 <div className="workout-pr-progression-item__stats">
-                                                                    {pr.weight !== undefined && `${pr.weight}kg`}
+                                                                    {pr.weight !== undefined && formatWeight(pr.weight)}
                                                                     {pr.weight !== undefined && pr.reps !== undefined && ' • '}
                                                                     {pr.reps !== undefined && `${pr.reps} reps`}
                                                                 </div>
@@ -227,9 +142,7 @@ const WorkoutPRsPage: React.FC = () => {
                                 ) : (
                                     <>
                                         {filteredPRs.length > 0 ? (
-                                            <div className="workout-pr-grid">
-                                                {filteredPRs.map(renderPRCard)}
-                                            </div>
+                                            <PRList prs={filteredPRs} onPRClick={setSelectedPR} weightUnit={weightUnit} />
                                         ) : (
                                             <div className="workout-pr-empty">
                                                 <Trophy className="workout-pr-empty__icon" />

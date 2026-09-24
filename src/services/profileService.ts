@@ -71,7 +71,8 @@ export interface UserSettings {
     target_weight: number | null;
     target_bodyfat: number | null;
     last_measurement_date: string | null;
-    active_goals?: Record<string, any> | null;
+    active_goals?: Record<string, unknown> | null;
+    weight_unit?: 'kg' | 'lbs';
     created_at?: string;
     updated_at?: string;
 }
@@ -109,6 +110,7 @@ export const createUserSettings = async (settings: UserSettings) => {
             target_weight: settings.target_weight,
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
+            weight_unit: settings.weight_unit || 'kg',
         })
         .select()
         .single();
@@ -138,7 +140,8 @@ export const updateUserSettings = async (settings: UserSettings) => {
             target_weight: settings.target_weight,
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
-            active_goals: (settings as any).active_goals,
+            weight_unit: settings.weight_unit || 'kg',
+            active_goals: settings.active_goals,
             updated_at: new Date().toISOString(),
         }, {
             onConflict: 'user_id'

@@ -19,8 +19,8 @@ const WorkoutContributionChart: React.FC<WorkoutContributionChartProps> = ({ com
         const dayOfWeek = startDate.getDay();
         startDate.setDate(startDate.getDate() - dayOfWeek);
 
-        let currentDate = new Date(startDate);
-        let week = [];
+        const currentDate = new Date(startDate);
+        let week = [] as Array<{ date: string; isCompleted: boolean; isToday: boolean }>;
 
         for (let i = 0; i < 364; i++) {
             const dateString = currentDate.toISOString().split('T')[0];

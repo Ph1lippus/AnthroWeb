@@ -2,19 +2,23 @@ import React, { useState } from 'react';
 import type { WorkoutTemplateDay } from '../../services/workoutService';
 import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import ExerciseNameInput from './ExerciseNameInput';
+import { toKg, fromKg, type WeightUnit } from '../../utils/units';
 
 interface ExerciseEditorProps {
     exercises: WorkoutTemplateDay[];
     onAddExercise: (exercise: Omit<WorkoutTemplateDay, 'id' | 'created_at'>) => void;
     onUpdateExercise: (id: string, updates: Partial<WorkoutTemplateDay>) => void;
     onDeleteExercise: (id: string) => void;
+    weightUnit?: WeightUnit;
 }
 
 const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     exercises,
     onAddExercise,
     onUpdateExercise,
-    onDeleteExercise
+    onDeleteExercise,
+    weightUnit = 'kg',
 }) => {
     const [newExercise, setNewExercise] = useState({
         exercise_name: '',
@@ -37,7 +41,7 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             exercise_name: newExercise.exercise_name,
             target_sets: newExercise.target_sets ? parseInt(newExercise.target_sets) : undefined,
             target_reps: newExercise.target_reps ? parseInt(newExercise.target_reps) : undefined,
-            target_weight: newExercise.target_weight ? parseFloat(newExercise.target_weight) : undefined,
+            target_weight: newExercise.target_weight ? toKg(parseFloat(newExercise.target_weight), weightUnit) : undefined,
             notes: newExercise.notes || undefined
         });
 
@@ -59,13 +63,10 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
             <form className="exercise-editor__form" onSubmit={handleSubmit}>
                 <div>
                     <label className="exercise-editor__label">Exercise Name *</label>
-                    <input
-                        type="text"
-                        className="exercise-editor__input"
-                        placeholder="e.g., Bench Press"
+                    <ExerciseNameInput
                         value={newExercise.exercise_name}
-                        onChange={(e) => handleInputChange('exercise_name', e.target.value)}
-                        required
+                        onChange={(v) => handleInputChange('exercise_name', v)}
+                        className="exercise-editor__input"
                     />
                 </div>
                 <div>
@@ -91,7 +92,7 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                     />
                 </div>
                 <div>
-                    <label className="exercise-editor__label">Target Weight (kg)</label>
+                    <label className="exercise-editor__label">Target Weight ({weightUnit})</label>
                     <input
                         type="number"
                         className="exercise-editor__input"
@@ -133,7 +134,7 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                                     {exercise.target_sets && `${exercise.target_sets} sets`}
                                     {exercise.target_sets && exercise.target_reps && ' • '}
                                     {exercise.target_reps && `${exercise.target_reps} reps`}
-                                    {exercise.target_weight && ` • ${exercise.target_weight}kg`}
+                                    {exercise.target_weight && ` • ${fromKg(exercise.target_weight, weightUnit).toFixed(1)} ${weightUnit}`}
                                     {exercise.notes && ` • ${exercise.notes}`}
                                 </div>
                             </div>

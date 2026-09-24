@@ -68,7 +68,7 @@ const DailyLogGoalSetupPage: React.FC = () => {
             setSettings(userSettings);
             setLoading(false);
             if (userSettings?.active_goals) {
-                const goals = userSettings.active_goals as ActiveGoals;
+                const goals = userSettings.active_goals as unknown as ActiveGoals;
                 if (goals.nutrition) {
                     setCalories(goals.nutrition.calories?.toString() || '');
                     setProtein(goals.nutrition.protein?.toString() || '');
@@ -126,7 +126,7 @@ const DailyLogGoalSetupPage: React.FC = () => {
             };
             const updatedSettings: UserSettings = {
                 ...settings,
-                active_goals: goals,
+                active_goals: goals as unknown as Record<string, unknown>,
             };
             await updateUserSettings(updatedSettings);
             setMessage({ text: 'Goals saved successfully! Redirecting...', type: 'success' });

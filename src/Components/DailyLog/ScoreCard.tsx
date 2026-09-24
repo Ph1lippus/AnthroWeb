@@ -47,6 +47,7 @@ const METRIC_META: ScoreMetricMeta[] = [
     { key: 'water', label: 'Water', cat: 'nutrition' },
     { key: 'weight', label: 'Weight', cat: 'body' },
     { key: 'bodyFat', label: 'Body Fat', cat: 'body' },
+    { key: 'measurementRecency', label: 'Measurements Recency', cat: 'body' },
     { key: 'mood', label: 'Mood', cat: 'body' },
     { key: 'habits', label: 'Habits', cat: 'habits' },
 ];

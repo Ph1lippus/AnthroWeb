@@ -7983,3 +7983,378 @@ body {
 *::-webkit-scrollbar-thumb {
   background: transparent !important;
 }
+
+/* ============================================
+   WORKOUT STATUS CARD (landing) helpers
+   ============================================ */
+.workout-status-card__btn {
+  margin-top: 0.75rem;
+  align-self: flex-start;
+}
+
+/* ============================================
+   WORKOUT TEMPLATE LIST (landing page)
+   ============================================ */
+.workout-template-item__count {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--color-primary);
+  background: rgba(0, 255, 166, 0.12);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.workout-template-item__btn--edit {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-light);
+}
+.workout-template-item__btn--edit:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ============================================
+   WGER EXERCISE NAME AUTOCOMPLETE
+   ============================================ */
+.exercise-name-input {
+  position: relative;
+}
+.exercise-name-input__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(22, 22, 30, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+.exercise-name-input__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.exercise-name-input__item:hover,
+.exercise-name-input__item--active {
+  background: rgba(0, 255, 166, 0.12);
+}
+.exercise-name-input__item-local {
+  font-size: 0.68rem;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.exercise-name-input__empty {
+  padding: 0.6rem;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  text-align: center;
+}
+.exercise-name-input__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-left: 0.5rem;
+}
+
+/* ============================================
+   MEASUREMENTS
+   ============================================ */
+.measurement-navbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0.5rem;
+  flex-wrap: wrap;
+}
+.measurement-navbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-light);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.measurement-navbar__btn:hover {
+  background: rgba(0, 255, 166, 0.14);
+}
+.measurement-navbar__date {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: var(--color-light);
+  padding: 0.4rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.measurement-navbar__date::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+.measurement-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.measurement-history__chip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-light);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.measurement-history__chip:hover {
+  border-color: rgba(0, 255, 166, 0.5);
+}
+.measurement-history__chip--active {
+  background: rgba(0, 255, 166, 0.16);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.measurement-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+@media (min-width: 1024px) {
+  .measurement-layout {
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%);
+    align-items: start;
+  }
+}
+
+/* Recency callout */
+.measurement-due {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+}
+.measurement-due__icon {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+.measurement-due h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
+}
+.measurement-due p {
+  margin: 0;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+.measurement-due--none {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.measurement-due--ok {
+  background: rgba(0, 255, 166, 0.08);
+  border: 1px solid rgba(0, 255, 166, 0.25);
+}
+.measurement-due--ok .measurement-due__icon {
+  color: var(--color-primary);
+}
+.measurement-due--late {
+  background: rgba(255, 111, 97, 0.1);
+  border: 1px solid rgba(255, 111, 97, 0.4);
+}
+.measurement-due--late .measurement-due__icon {
+  color: var(--color-danger);
+}
+
+/* Editor */
+.measurement-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.measurement-group__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  margin: 0 0 0.6rem;
+}
+.measurement-group__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+@media (min-width: 480px) {
+  .measurement-group__fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.measurement-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.measurement-field__label {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+.measurement-field__unit {
+  opacity: 0.5;
+}
+.measurement-field__input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: var(--color-light);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  width: 100%;
+}
+.measurement-field__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Derived preview */
+.measurement-derived {
+  margin-top: 1.25rem;
+  background: rgba(0, 255, 166, 0.04);
+  border: 1px solid rgba(0, 255, 166, 0.15);
+  border-radius: 10px;
+  padding: 1rem;
+}
+.measurement-derived__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+  color: var(--color-primary);
+}
+.measurement-derived__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 1rem;
+}
+@media (min-width: 480px) {
+  .measurement-derived__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.measurement-derived__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
+}
+.measurement-derived__label {
+  opacity: 0.7;
+}
+.measurement-derived__value {
+  color: var(--color-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.measurement-derived__note {
+  margin: 0.75rem 0 0;
+  font-size: 0.72rem;
+  opacity: 0.55;
+}
+
+/* Actions */
+.measurement-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+.btn-danger-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid rgba(255, 111, 97, 0.5);
+  background: transparent;
+  color: var(--color-danger);
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-danger-inline:hover {
+  background: rgba(255, 111, 97, 0.12);
+}
+.measurement-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.measurement-delete-confirm__text {
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+/* Charts */
+.measurement-chart-section + .measurement-chart-section {
+  margin-top: 1.5rem;
+}
+.measurement-chart-section__title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  margin: 0 0 0.75rem;
+}
+.measurement-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+.measurement-chart-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.6rem;
+}
+.measurement-chart-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 0.25rem 0.25rem;
+}
+.measurement-chart-card__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.measurement-chart-card__unit {
+  font-size: 0.68rem;
+  opacity: 0.55;
+}

@@ -1,13 +1,15 @@
 import React from 'react';
 import type { PRHistory } from '../../services/workoutService';
 import { Trophy } from 'lucide-react';
+import { fromKg, type WeightUnit } from '../../utils/units';
 
 interface PRListProps {
     prs: PRHistory[];
     onPRClick?: (pr: PRHistory) => void;
+    weightUnit?: WeightUnit;
 }
 
-const PRList: React.FC<PRListProps> = ({ prs, onPRClick }) => {
+const PRList: React.FC<PRListProps> = ({ prs, onPRClick, weightUnit = 'kg' }) => {
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', { 
@@ -50,8 +52,8 @@ const PRList: React.FC<PRListProps> = ({ prs, onPRClick }) => {
                     <div className="pr-item__stats">
                         {pr.weight !== undefined && (
                             <div className="pr-item__stat">
-                                <span className="pr-item__stat-value">{pr.weight}kg</span>
-                                <span className="pr-item__stat-label">Weight</span>
+                                <span className="pr-item__stat-value">{fromKg(pr.weight, weightUnit).toFixed(1)}</span>
+                                <span className="pr-item__stat-label">{weightUnit}</span>
                             </div>
                         )}
                         {pr.reps !== undefined && (

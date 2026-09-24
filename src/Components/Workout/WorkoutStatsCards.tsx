@@ -1,5 +1,6 @@
 import React from 'react';
 import { CalendarCheck, Dumbbell, Calendar, LineChart } from 'lucide-react';
+import { fromKg, type WeightUnit } from '../../utils/units';
 
 interface WorkoutStatsCardsProps {
     weeklyStats: {
@@ -12,14 +13,16 @@ interface WorkoutStatsCardsProps {
         completedWorkouts: number;
         totalVolume: number;
     };
+    weightUnit?: WeightUnit;
 }
 
 const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
     weeklyStats,
-    monthlyStats
+    monthlyStats,
+    weightUnit = 'kg',
 }) => {
-    const monthlyCompletionRate = monthlyStats.totalWorkouts > 0 
-        ? (monthlyStats.completedWorkouts / monthlyStats.totalWorkouts) * 100 
+    const monthlyCompletionRate = monthlyStats.totalWorkouts > 0
+        ? (monthlyStats.completedWorkouts / monthlyStats.totalWorkouts) * 100
         : 0;
 
     return (
@@ -31,7 +34,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
                 <div className="workout-stats-card__value">{weeklyStats.completedWorkouts}</div>
                 <div className="workout-stats-card__label">Workouts This Week</div>
                 <div className="workout-stats-card__trend">
-                    {weeklyStats.completedWorkouts >= 3 ? 'On track! 🎯' : 'Keep going! 💪'}
+                    {weeklyStats.completedWorkouts >= 3 ? 'On track' : 'Keep going'}
                 </div>
             </div>
 
@@ -39,10 +42,12 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
                 <div className="workout-stats-card__icon">
                     <Dumbbell />
                 </div>
-                <div className="workout-stats-card__value">{weeklyStats.totalVolume}</div>
-                <div className="workout-stats-card__label">Weekly Volume</div>
+                <div className="workout-stats-card__value">
+                    {fromKg(weeklyStats.totalVolume, weightUnit).toFixed(0)}
+                </div>
+                <div className="workout-stats-card__label">Weekly Volume ({weightUnit})</div>
                 <div className="workout-stats-card__trend">
-                    {weeklyStats.totalVolume > 1000 ? 'Great volume! 💪' : 'Keep pushing! ⚡'}
+                    {weeklyStats.totalVolume > 1000 ? 'Great volume' : 'Keep pushing'}
                 </div>
             </div>
 
@@ -53,7 +58,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
                 <div className="workout-stats-card__value">{monthlyStats.completedWorkouts}</div>
                 <div className="workout-stats-card__label">Workouts This Month</div>
                 <div className="workout-stats-card__trend">
-                    {monthlyStats.completedWorkouts >= 12 ? 'Excellent! 🏆' : 'Building consistency 📈'}
+                    {monthlyStats.completedWorkouts >= 12 ? 'Excellent' : 'Building consistency'}
                 </div>
             </div>
 
@@ -64,7 +69,7 @@ const WorkoutStatsCards: React.FC<WorkoutStatsCardsProps> = ({
                 <div className="workout-stats-card__value">{monthlyCompletionRate.toFixed(0)}%</div>
                 <div className="workout-stats-card__label">Monthly Completion Rate</div>
                 <div className="workout-stats-card__trend">
-                    {monthlyCompletionRate >= 80 ? 'Excellent! 📈' : 'Room to improve 📊'}
+                    {monthlyCompletionRate >= 80 ? 'Excellent' : 'Room to improve'}
                 </div>
             </div>
         </div>

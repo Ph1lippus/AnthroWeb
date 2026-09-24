@@ -11,6 +11,7 @@ import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
+import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import ConfirmModal from '../Components/ConfirmModal';
@@ -246,6 +247,9 @@ const DailyLogPage: React.FC = () => {
     const activeGoals = (effectiveSettings?.active_goals as ActiveGoals | undefined) || null;
     const nutritionGoals = activeGoals?.nutrition;
 
+    // Latest body-measurement date drives the measurement-recent-worthy daily metric.
+    const { data: lastMeasurementDate } = useLatestMeasurement();
+
     // Compute sleep duration from wake/bed times (null on "no sleep" nights)
     const computedSleepDuration = useMemo(() => {
         return noSleep ? null : calculateSleepDuration(wakeTime, bedtime);
@@ -283,7 +287,8 @@ const DailyLogPage: React.FC = () => {
         settings: effectiveSettings,
         computedSleepDuration,
         noSleep,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration, noSleep]);
+        lastMeasurementDate,
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration, noSleep, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     const scoreOf = (key: string): number | null => {

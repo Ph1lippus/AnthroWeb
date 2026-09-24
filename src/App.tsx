@@ -19,7 +19,6 @@ import WorkoutTemplatesPage from './Pages/WorkoutTemplatesPage'
 import WorkoutTemplateEditorPage from './Pages/WorkoutTemplateEditorPage'
 import WorkoutHistoryPage from './Pages/WorkoutHistoryPage'
 import WorkoutPRsPage from './Pages/WorkoutPRsPage'
-import WorkoutStartPage from './Pages/WorkoutStartPage'
 import WorkoutDashboardPage from './Pages/WorkoutDashboardPage'
 import ProjectsPage from './Pages/ProjectsPage'
 import AbstinencePage from './Pages/AbstinencePage'
@@ -117,7 +116,6 @@ function App() {
         <Route path="/Workouts/Dashboard" element={<WorkoutDashboardPage />} />
         <Route path="/Workouts/Templates" element={<WorkoutTemplatesPage />} />
         <Route path="/Workouts/Template/:id" element={<WorkoutTemplateEditorPage />} />
-        <Route path="/Workouts/Start/:templateId" element={<WorkoutStartPage />} />
         <Route path="/Workouts/Check" element={<WorkoutCheckPage />} />
         <Route path="/Workouts/History" element={<WorkoutHistoryPage />} />
         <Route path="/Workouts/PRs" element={<WorkoutPRsPage />} />

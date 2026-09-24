@@ -68,6 +68,7 @@ const EditProfilePage: React.FC = () => {
     const [targetWeight, setTargetWeight] = useState<number | ''>('');
     const [targetBodyfat, setTargetBodyfat] = useState<number | ''>('');
     const [lastMeasurementDate, setLastMeasurementDate] = useState<string>('');
+    const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
 
     // Field errors and shake animation
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -95,6 +96,7 @@ const EditProfilePage: React.FC = () => {
                 setTargetWeight(existingSettings.target_weight || '');
                 setTargetBodyfat(existingSettings.target_bodyfat || '');
                 setLastMeasurementDate(convertToDisplayFormat(existingSettings.last_measurement_date || ''));
+                if (existingSettings.weight_unit) setWeightUnit(existingSettings.weight_unit);
             }
             
             // Get username from Supabase auth user metadata
@@ -181,6 +183,7 @@ const validateForm = () => {
                 starting_bodyfat: typeof startingBodyfat === 'number' ? startingBodyfat : null,
                 target_weight: typeof targetWeight === 'number' ? targetWeight : null,
                 target_bodyfat: typeof targetBodyfat === 'number' ? targetBodyfat : null,
+                weight_unit: weightUnit,
             };
 
             if (isNewUser) {
@@ -334,6 +337,10 @@ const validateForm = () => {
                         {/* Last Measurement Date */}
                         <div className="form-grid">
                             {renderInput('last_measurement_date', 'Last Measurement Date', lastMeasurementDate, setLastMeasurementDate, 'text', 'DD/MM/YYYY', false, undefined, true)}
+                            {renderSelect('weight_unit', 'Weight Unit', weightUnit, [
+                                { value: 'kg', label: 'Kilograms (kg)' },
+                                { value: 'lbs', label: 'Pounds (lbs)' }
+                            ], false, (v) => setWeightUnit(v as 'kg' | 'lbs'))}
                         </div>
 
                         <button type="submit" className="btn btn-primary w-100" disabled={loading}>

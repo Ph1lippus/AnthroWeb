@@ -31,6 +31,7 @@ export interface WorkoutCompletionLog {
     day_of_week?: number;
     completed: boolean;
     intensity?: number; // 1-10
+    duration_minutes?: number;
     notes?: string;
     created_at?: string;
     updated_at?: string;
@@ -260,6 +261,7 @@ export const createWorkoutCompletionLog = async (log: Omit<WorkoutCompletionLog,
             day_of_week: log.day_of_week,
             completed: log.completed,
             intensity: log.intensity,
+            duration_minutes: log.duration_minutes,
             notes: log.notes,
         })
         .select()
@@ -601,4 +603,24 @@ export const getActiveTemplate = async (): Promise<WorkoutTemplate | null> => {
     }
 
     return data as WorkoutTemplate;
+};
+
+// Total tonnage for a single exercise log: sets x reps x weight (kg).
+export const computeExerciseVolume = (log: WorkoutExerciseLog): number =>
+    (log.sets || 0) * (log.reps || 0) * (log.weight || 0);
+
+// Workout history enriched with per-session tonnage (sum of sets x reps x kg).
+export const getWorkoutHistoryWithVolume = async (limit: number = 120) => {
+    const logs = await getWorkoutHistory(limit);
+    const enriched = await Promise.all(
+        logs.map(async (log) => {
+            let volume = 0;
+            if (log.completed && log.id) {
+                const exercises = await getWorkoutExerciseLogs(log.id);
+                volume = exercises.reduce((acc, e) => acc + computeExerciseVolume(e), 0);
+            }
+            return { ...log, volume };
+        })
+    );
+    return enriched;
 };

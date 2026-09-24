@@ -276,6 +276,22 @@ export const habitGroupScore = (
     return { score: Math.round((done / total) * 100), logged: true };
 };
 
+// Recency of body measurements. A measurement earns a full week at 100; on the
+// 8th day the score drops 10 points per day unless you measure again.
+// Untracked entirely -> not logged (does not drag the daily average).
+export const calculateMeasurementRecency = (
+    lastMeasurementDate: string | null | undefined
+): MetricScore => {
+    if (!lastMeasurementDate) return { score: 0, logged: false };
+    const last = new Date(lastMeasurementDate + 'T00:00:00').getTime();
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const daysSince = Math.floor((today - last) / 86400000);
+    if (daysSince < 0) return { score: 100, logged: true };
+    if (daysSince <= 7) return { score: 100, logged: true };
+    return { score: Math.max(0, 170 - daysSince * 10), logged: true };
+};
+
 export interface DailyScoreResult {
     score: number;
     loggedCount: number;
@@ -318,6 +334,7 @@ export interface DailyScoringInput {
     settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
     computedSleepDuration: number | null;
     noSleep: boolean;
+    lastMeasurementDate?: string | null;
 }
 
 export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult => {
@@ -346,6 +363,7 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         water: calculateMetricScore('water', input.water, settings, computedSleepDuration),
         weight: calculateMetricScore('weight', input.weight, settings, computedSleepDuration),
         bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings, computedSleepDuration),
+        measurementRecency: calculateMeasurementRecency(input.lastMeasurementDate),
         mood: getInputScore('mood', input.mood, activeGoals),
         habits: habitGroupScore(input.habits, input.customCompleted, input.customTotal),
     };
