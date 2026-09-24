@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Title from '../Components/Title';
 import WorkoutsNav from '../Components/Workout/WorkoutsNav';
-import WorkoutContributionChart from '../Components/Workout/WorkoutContributionChart';
 import { useWorkoutLogsWithVolume, useWorkoutExercises } from '../hooks/useWorkouts';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { fromKg } from '../utils/units';
@@ -16,8 +15,6 @@ const WorkoutHistoryPage: React.FC = () => {
 
     const selectedWorkout = workoutHistory.find(w => w.workout_date === selectedDate) ?? null;
     const { data: exerciseLogs = [], isLoading: exercisesLoading } = useWorkoutExercises(selectedWorkout?.id);
-
-    const completedDates = workoutHistory.filter(w => w.completed).map(w => w.workout_date);
 
     const formatDate = (dateString: string) =>
         new Date(dateString).toLocaleDateString('en-US', {
@@ -79,10 +76,6 @@ const WorkoutHistoryPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="workout-history-content">
-                                <div className="workout-history-calendar-section">
-                                    <WorkoutContributionChart completedDates={completedDates} onDateClick={handleDateClick} />
-                                </div>
-
                                 {selectedWorkout ? (
                                     <div className="workout-history-selected">
                                         <div className="workout-history-selected__header">

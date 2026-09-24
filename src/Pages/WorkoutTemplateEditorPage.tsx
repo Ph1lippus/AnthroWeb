@@ -127,7 +127,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                         </div>
 
                         {/* Template Info */}
-                        <div className="exercise-editor" style={{ marginBottom: '2rem' }}>
+                        <div className="exercise-editor workout-editor-block">
                             <div style={{ marginBottom: '1rem' }}>
                                 <label className="exercise-editor__label">Template Name</label>
                                 <input
@@ -154,30 +154,14 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                         </div>
 
                         {/* Day Selector */}
-                        <div style={{ marginBottom: '2rem' }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Select Day</h3>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div className="workout-editor-block">
+                            <h3 className="workout-editor-heading">Select Day</h3>
+                            <div className="workout-editor-days">
                                 {dayNames.map((day, index) => (
                                     <button
                                         key={day}
-                                        className={`workout-template-card__day ${selectedDay === index ? 'active' : ''}`}
+                                        className={`workout-editor-day ${selectedDay === index ? 'workout-editor-day--active' : ''}`}
                                         onClick={() => setSelectedDay(index)}
-                                        style={{
-                                            background: selectedDay === index
-                                                ? 'rgba(0, 255, 166, 0.2)'
-                                                : 'rgba(255, 255, 255, 0.1)',
-                                            border: selectedDay === index
-                                                ? '1px solid var(--color-primary)'
-                                                : '1px solid rgba(255, 255, 255, 0.2)',
-                                            color: selectedDay === index
-                                                ? 'var(--color-primary)'
-                                                : 'var(--color-light)',
-                                            padding: '0.5rem 1rem',
-                                            borderRadius: '6px',
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s ease',
-                                            fontSize: '0.875rem'
-                                        }}
                                     >
                                         {day} ({getExerciseCountForDay(index)})
                                     </button>
@@ -186,8 +170,8 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                         </div>
 
                         {/* Exercise Editor for Selected Day */}
-                        <div>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>
+                        <div className="workout-editor-block">
+                            <h3 className="workout-editor-heading">
                                 Exercises for {dayNames[selectedDay]}
                             </h3>
                             <ExerciseEditor
@@ -200,8 +184,8 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                         </div>
 
                         {/* Template Overview */}
-                        <div style={{ marginTop: '2rem' }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem' }}>Template Overview</h3>
+                        <div className="workout-editor-block">
+                            <h3 className="workout-editor-heading">Template Overview</h3>
                             <div className="exercise-editor__list">
                                 {dayNames.map((day, index) => {
                                     const dayExercises = getExercisesForDay(index);
@@ -214,14 +198,14 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                                                     {dayExercises.map(ex => ex.exercise_name).join(', ')}
                                                 </div>
                                             </div>
-                                            <div style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+                                            <div className="workout-editor-overview-count">
                                                 {dayExercises.length} exercise{dayExercises.length !== 1 ? 's' : ''}
                                             </div>
                                         </div>
                                     );
                                 })}
                                 {templateExercises.length === 0 && (
-                                    <p style={{ textAlign: 'center', opacity: 0.7, padding: '2rem' }}>
+                                    <p className="workout-editor-empty">
                                         No exercises added to this template yet.
                                     </p>
                                 )}

@@ -193,3 +193,23 @@ const round2 = (value: number): number => Math.round(value * 100) / 100;
 const round1 = (value: number): number => Math.round(value * 10) / 10;
 const round2OrNull = (value: number | null): number | null => (value == null ? null : round2(value));
 const round1OrNull = (value: number | null): number | null => (value == null ? null : round1(value));
+
+// Whole years from a YYYY-MM-DD birth date (null when missing/invalid).
+export const ageFromDob = (dob?: string | null): number | null => {
+    if (!dob) return null;
+    const birth = new Date(dob + 'T00:00:00');
+    if (isNaN(birth.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    return age;
+};
+
+// Full value from an ISO date used by forms (mirrors the document `toDateString`).
+export const measureDateToInput = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};

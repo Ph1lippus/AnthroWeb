@@ -347,7 +347,7 @@ const WorkoutCheckPage: React.FC = () => {
                             <button
                                 onClick={handleComplete}
                                 disabled={saving || completed || completedCount === 0}
-                                className={`btn-action workout-check-complete-btn ${completed ? 'workout-check-complete-btn--completed' : ''}`}>
+                                className={`btn-action btn-action--primary workout-check-complete-btn ${completed ? 'workout-check-complete-btn--completed' : ''}`}>
                                 {completed ? <><Check className="mr-1" />Workout Completed</> : <><Flag className="mr-1" />Complete Workout</>}
                             </button>
                         </div>

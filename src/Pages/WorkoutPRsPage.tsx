@@ -44,6 +44,11 @@ const WorkoutPRsPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
+                        <div className="dashboard-section__head">
+                            <h2>Personal Records</h2>
+                            <span>Your all-time best lifts, ranked</span>
+                        </div>
+
                         <div className="workout-pr-stats">
                             <div className="workout-pr-stat-item">
                                 <span className="workout-pr-stat-label">Total PRs</span>

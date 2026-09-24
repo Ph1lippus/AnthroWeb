@@ -51,6 +51,11 @@ const WorkoutTemplatesPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
+                        <div className="dashboard-section__head">
+                            <h2>Templates</h2>
+                            <span>Build and manage your weekly workout routines</span>
+                        </div>
+
                         <div className="workout-templates-stats">
                             <div className="workout-templates-stat-item">
                                 <span className="workout-templates-stat-label">Total Templates</span>
@@ -63,7 +68,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                         </div>
 
                         <div className="workout-templates-top-bar">
-                            <button onClick={() => setShowCreateModal(true)} className="btn-action">
+                            <button onClick={() => setShowCreateModal(true)} className="btn-action btn-action--primary">
                                 <Plus className="mr-1" />New Template
                             </button>
                             <div className="search-container workout-templates-search">

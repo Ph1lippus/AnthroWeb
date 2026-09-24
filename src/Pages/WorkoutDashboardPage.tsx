@@ -6,17 +6,22 @@ import WorkoutContributionChart from '../Components/Workout/WorkoutContributionC
 import WorkoutStatsCards from '../Components/Workout/WorkoutStatsCards';
 import WorkoutCalendar from '../Components/Workout/WorkoutCalendar';
 import PRList from '../Components/Workout/PRList';
+import MeasurementCharts from '../Components/Measurement/MeasurementCharts';
 import { useWorkoutLogsWithVolume, usePRs } from '../hooks/useWorkouts';
+import { useBodyMeasurements } from '../hooks/useMeasurements';
 import { useUserSettings } from '../hooks/useUserSettings';
+import { ageFromDob } from '../utils/measurementCalculations';
 import type { WorkoutCompletionLog } from '../services/workoutService';
-import { Calendar, LineChart, Trophy } from 'lucide-react';
+import { Calendar, LineChart, Trophy, Ruler, ArrowRight } from 'lucide-react';
 
 const WorkoutDashboardPage: React.FC = () => {
     const navigate = useNavigate();
-    const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
+    const { settings } = useUserSettings();
+    const weightUnit = settings?.weight_unit ?? 'kg';
 
     const { data: workoutHistory = [], isLoading } = useWorkoutLogsWithVolume(120);
     const { data: prHistory = [] } = usePRs();
+    const { data: measurements = [] } = useBodyMeasurements();
 
     const completedDates = workoutHistory.filter(w => w.completed).map(w => w.workout_date);
 
@@ -43,18 +48,28 @@ const WorkoutDashboardPage: React.FC = () => {
         totalVolume: volumeSum(monthly),
     };
 
+    const measurementContext = React.useMemo(() => {
+        const maxPRWeight = prHistory.reduce((max, p) => (p.weight != null && p.weight > max ? p.weight : max), 0);
+        return {
+            gender: settings?.gender ?? '',
+            height_cm: settings?.height_cm ?? null,
+            age: ageFromDob(settings?.date_of_birth),
+            relativeBestLift: maxPRWeight > 0 ? maxPRWeight : null,
+        };
+    }, [settings, prHistory]);
+
     const handleDateClick = () => navigate('/Workouts/History');
 
     return (
         <>
-            <Title title="Workout Dashboard" />
+            <Title title="Workouts Dashboard" />
             <div className="books-page-wrapper">
                 <div className="dashboard-section workout-section">
                     <div className="workout-card">
                         <WorkoutsNav />
 
                         <div className="dashboard-section__head">
-                            <h2>Workout Dashboard</h2>
+                            <h2>Workouts Dashboard</h2>
                             <span>Track your fitness journey</span>
                         </div>
 
@@ -81,6 +96,28 @@ const WorkoutDashboardPage: React.FC = () => {
                                         Activity Overview
                                     </h3>
                                     <WorkoutContributionChart completedDates={completedDates} onDateClick={handleDateClick} />
+                                </div>
+
+                                <div className="workout-dashboard-section">
+                                    <div className="workout-dashboard-section__head">
+                                        <h3 className="workout-dashboard-section__title">
+                                            <Ruler className="mr-1" />
+                                            Body Measurements
+                                        </h3>
+                                        <button onClick={() => navigate('/Measurements')} className="btn-action">
+                                            Log Measurements
+                                            <ArrowRight className="ml-1" />
+                                        </button>
+                                    </div>
+                                    {measurements.length < 2 ? (
+                                        <div className="workout-empty">
+                                            <Ruler className="workout-empty-icon" />
+                                            <p className="workout-empty-title">Charts appear after 2 measurements</p>
+                                            <p className="workout-empty-text">Save measurements on different dates to see your trends here.</p>
+                                        </div>
+                                    ) : (
+                                        <MeasurementCharts records={measurements} context={measurementContext} />
+                                    )}
                                 </div>
 
                                 <div className="workout-dashboard-section">

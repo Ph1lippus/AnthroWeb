@@ -1,18 +1,14 @@
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import MeasurementEditor from '../Components/Measurement/MeasurementEditor';
-import MeasurementCharts from '../Components/Measurement/MeasurementCharts';
 import { useBodyMeasurements, useLatestMeasurement } from '../hooks/useMeasurements';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { usePRs } from '../hooks/useWorkouts';
-import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock } from 'lucide-react';
+import { ageFromDob, measureDateToInput } from '../utils/measurementCalculations';
+import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock, LineChart, ArrowRight } from 'lucide-react';
 
-const toDateString = (d: Date): string => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-};
+const toDateString = measureDateToInput;
 
 const addDays = (dateStr: string, delta: number): string => {
     const base = new Date(dateStr + 'T00:00:00');
@@ -20,18 +16,8 @@ const addDays = (dateStr: string, delta: number): string => {
     return toDateString(base);
 };
 
-const ageFromDob = (dob?: string | null): number | null => {
-    if (!dob) return null;
-    const birth = new Date(dob + 'T00:00:00');
-    if (isNaN(birth.getTime())) return null;
-    const now = new Date();
-    let age = now.getFullYear() - birth.getFullYear();
-    const m = now.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-    return age;
-};
-
 const MeasurementsPage: React.FC = () => {
+    const navigate = useNavigate();
     const today = toDateString(new Date());
     const [date, setDate] = useState(today);
 
@@ -75,6 +61,13 @@ const MeasurementsPage: React.FC = () => {
                     <div className="dashboard-section__head">
                         <h2>Measurements</h2>
                         <span>Track your body measurements and progress</span>
+                    </div>
+
+                    <div className="dashboard-section__head-action">
+                        <button onClick={() => navigate('/Workouts/Dashboard')} className="btn-action">
+                            <LineChart className="mr-1" />View Trends on Dashboard
+                            <ArrowRight className="ml-1" />
+                        </button>
                     </div>
 
                     {/* Recency callout */}
@@ -140,42 +133,27 @@ const MeasurementsPage: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="measurement-layout">
-                        <div className="dashboard-section measurement-layout__editor">
-                            <div className="card">
-                                <div className="card-header">
-                                    <h3 className="card-title">
-                                        {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                                        {initial ? ' — saved' : ''}
-                                    </h3>
-                                </div>
-                                <div className="card-body">
-                                    {isLoading ? (
-                                        <div className="profile-loading">
-                                            <div className="profile-loading-spinner"></div>
-                                            <p>Loading measurements...</p>
-                                        </div>
-                                    ) : (
-                                        <MeasurementEditor
-                                            key={date}
-                                            date={date}
-                                            initial={initial}
-                                            context={context}
-                                            fallbackWeight={null}
-                                        />
-                                    )}
-                                </div>
-                            </div>
+                    <div className="card">
+                        <div className="card-header">
+                            <h3 className="card-title">
+                                {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                                {initial ? ' — saved' : ''}
+                            </h3>
                         </div>
-
-                        <div className="measurement-layout__charts">
-                            <MeasurementCharts records={records} context={context} />
-                            {records.length < 2 && (
-                                <div className="workout-empty">
-                                    <Ruler className="workout-empty-icon" />
-                                    <p className="workout-empty-title">Charts appear after 2 measurements</p>
-                                    <p className="workout-empty-text">Save measurements on different dates to see trends.</p>
+                        <div className="card-body">
+                            {isLoading ? (
+                                <div className="profile-loading">
+                                    <div className="profile-loading-spinner"></div>
+                                    <p>Loading measurements...</p>
                                 </div>
+                            ) : (
+                                <MeasurementEditor
+                                    key={date}
+                                    date={date}
+                                    initial={initial}
+                                    context={context}
+                                    fallbackWeight={null}
+                                />
                             )}
                         </div>
                     </div>
