@@ -1,19 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getUserDailyLogs } from '../services/dailyLogService';
 import type { DailyLog } from '../services/dailyLogService';
+import { queryKeys } from '../utils/queryKeys';
 
 export const useDailyLogs = (): { logs: DailyLog[] | null } => {
-    const [logs, setLogs] = useState<DailyLog[] | null>(null);
-
-    useEffect(() => {
-        let active = true;
-        getUserDailyLogs().then(data => {
-            if (active) setLogs(data);
-        });
-        return () => {
-            active = false;
-        };
-    }, []);
-
-    return { logs };
+    const { data } = useQuery({
+        queryKey: queryKeys.dailyLogs,
+        queryFn: getUserDailyLogs,
+    });
+    return { logs: data ?? null };
 };

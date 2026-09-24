@@ -1,19 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getUserSettings } from '../services/profileService';
 import type { UserSettings } from '../services/profileService';
+import { queryKeys } from '../utils/queryKeys';
 
 export const useUserSettings = (): { settings: UserSettings | null } => {
-    const [settings, setSettings] = useState<UserSettings | null>(null);
-
-    useEffect(() => {
-        let active = true;
-        getUserSettings().then(s => {
-            if (active) setSettings(s);
-        });
-        return () => {
-            active = false;
-        };
-    }, []);
-
-    return { settings };
+    const { data } = useQuery({
+        queryKey: queryKeys.userSettings,
+        queryFn: getUserSettings,
+    });
+    return { settings: data ?? null };
 };

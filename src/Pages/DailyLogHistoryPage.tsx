@@ -1,36 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Title from '../Components/Title';
-import { getUserDailyLogs, deleteDailyLog } from '../services/dailyLogService';
+import { deleteDailyLog } from '../services/dailyLogService';
 import type { DailyLog } from '../services/dailyLogService';
+import { useDailyLogs } from '../hooks/useDailyLogs';
+import { queryKeys } from '../utils/queryKeys';
 import { getScoreColor } from '../utils/dailyScoring';
 
 const DailyLogHistoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const [logs, setLogs] = useState<DailyLog[] | null>(null);
+    const queryClient = useQueryClient();
+    const { logs } = useDailyLogs();
     const [deleteTarget, setDeleteTarget] = useState<DailyLog | null>(null);
-
-    const loadLogs = async () => {
-        const data = await getUserDailyLogs();
-        setLogs(data);
-    };
 
     const handleDelete = async () => {
         if (!deleteTarget?.id) return;
         await deleteDailyLog(deleteTarget.id);
-        await loadLogs();
+        queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
         setDeleteTarget(null);
     };
-
-    useEffect(() => {
-        let active = true;
-        getUserDailyLogs().then(data => {
-            if (active) setLogs(data);
-        });
-        return () => {
-            active = false;
-        };
-    }, []);
 
     const formatDate = (dateStr: string) => {
         try {

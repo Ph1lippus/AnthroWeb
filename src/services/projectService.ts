@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 // Project types
 export interface Project {
@@ -18,8 +18,8 @@ export interface Project {
 
 // Fetch all projects for current user
 export const getUserProjects = async (): Promise<Project[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const allProjects: Project[] = [];
     const pageSize = 1000;
@@ -33,7 +33,7 @@ export const getUserProjects = async (): Promise<Project[]> => {
         const { data, error } = await supabase
             .from('projects')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .range(from, to);
 

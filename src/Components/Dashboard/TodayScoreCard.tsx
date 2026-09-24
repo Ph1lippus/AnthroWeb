@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getCompletedHabitsForDate } from '../../services/habitService';
 import type { Habit } from '../../services/habitService';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { UserSettings } from '../../services/profileService';
 import { computeDailyScore, calculateSleepDuration } from '../../utils/dailyScoring';
 import type { ActiveGoals, DailyScoringInput } from '../../utils/dailyScoring';
+import { queryKeys } from '../../utils/queryKeys';
 import ScoreCard from '../DailyLog/ScoreCard';
 import ScoreRing from '../DailyLog/ScoreRing';
 
@@ -24,24 +26,19 @@ interface TodayScoreCardProps {
 
 const TodayScoreCard: React.FC<TodayScoreCardProps> = ({ logs, habits, settings }) => {
     const navigate = useNavigate();
-    const [completedHabits, setCompletedHabits] = useState<Set<string>>(new Set());
 
     const today = toDateString(new Date());
 
-    useEffect(() => {
-        let active = true;
-        getCompletedHabitsForDate(today).then(completed => {
-            if (active) setCompletedHabits(completed);
-        });
-        return () => {
-            active = false;
-        };
-    }, [today]);
+    const { data: completedHabits } = useQuery({
+        queryKey: queryKeys.completedHabits(today),
+        queryFn: () => getCompletedHabitsForDate(today),
+    });
 
     const result = useMemo(() => {
         if (!logs || !settings) return null;
         const log = logs.find(l => l.log_date === today);
         if (!log) return null;
+        const completedSet = completedHabits ?? new Set<string>();
 
         const input: DailyScoringInput = {
             wakeTime: log.wake_time || '',
@@ -72,7 +69,7 @@ const TodayScoreCard: React.FC<TodayScoreCardProps> = ({ logs, habits, settings 
                 reading: log.reading || false,
                 projectWorkDone: log.project_work_done || false,
             },
-            customCompleted: completedHabits.size,
+            customCompleted: completedSet.size,
             customTotal: habits?.length || 0,
             activeGoals: (settings?.active_goals as ActiveGoals | undefined) || null,
             settings,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
@@ -10,6 +11,7 @@ import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
+import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import ConfirmModal from '../Components/ConfirmModal';
 import { subscribeDailyLogNav } from '../utils/dailyLogNav';
@@ -40,6 +42,7 @@ const getScoreColor = (score: number): string => {
 const DailyLogPage: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id?: string }>();
+    const queryClient = useQueryClient();
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
@@ -88,6 +91,7 @@ const DailyLogPage: React.FC = () => {
     const [journal, setJournal] = useState(false);
     const [stretching, setStretching] = useState(false);
     const [reading, setReading] = useState(false);
+    const [noSleep, setNoSleep] = useState(false);
 
     const [showCustomHabit, setShowCustomHabit] = useState(false);
     const [customHabitName, setCustomHabitName] = useState('');
@@ -124,6 +128,7 @@ const DailyLogPage: React.FC = () => {
         setJournal(log.journal || false);
         setStretching(log.stretching || false);
         setReading(log.reading || false);
+        setNoSleep(log.no_sleep || false);
     };
 
     const resetForm = () => {
@@ -154,6 +159,7 @@ const DailyLogPage: React.FC = () => {
         setJournal(false);
         setStretching(false);
         setReading(false);
+        setNoSleep(false);
         setSelectedProjectIds(new Set());
     };
 
@@ -199,14 +205,21 @@ const DailyLogPage: React.FC = () => {
         loadHabits();
     }, []);
 
-    // Load completed habits for the current date
+    // Load completed habits for the current date (cached per date, so revisiting
+    // a day renders instantly and background-refreshes)
+    const { data: completedHabitSet, isPlaceholderData: completedHabitsPlaceholder } = useQuery({
+        queryKey: queryKeys.completedHabits(logDate || 'no-date'),
+        queryFn: () => getCompletedHabitsForDate(logDate),
+        enabled: !!logDate && !id,
+        placeholderData: keepPreviousData,
+    });
+    const lastHabitDateRef = useRef<string | null>(null);
     useEffect(() => {
-        const loadCompletedHabits = async () => {
-            const completed = await getCompletedHabitsForDate(logDate);
-            setCompletedHabits(completed);
-        };
-        loadCompletedHabits();
-    }, [logDate]);
+        if (completedHabitsPlaceholder || completedHabitSet === undefined) return;
+        if (lastHabitDateRef.current === logDate) return;
+        lastHabitDateRef.current = logDate;
+        setCompletedHabits(completedHabitSet);
+    }, [completedHabitSet, completedHabitsPlaceholder, logDate]);
 
     // Load projects
     useEffect(() => {
@@ -233,10 +246,10 @@ const DailyLogPage: React.FC = () => {
     const activeGoals = (effectiveSettings?.active_goals as ActiveGoals | undefined) || null;
     const nutritionGoals = activeGoals?.nutrition;
 
-    // Compute sleep duration from wake/bed times
+    // Compute sleep duration from wake/bed times (null on "no sleep" nights)
     const computedSleepDuration = useMemo(() => {
-        return calculateSleepDuration(wakeTime, bedtime);
-    }, [wakeTime, bedtime]);
+        return noSleep ? null : calculateSleepDuration(wakeTime, bedtime);
+    }, [noSleep, wakeTime, bedtime]);
 
     // Get only active projects (NOT planned or paused)
     const activeProjects = useMemo(() => {
@@ -269,8 +282,8 @@ const DailyLogPage: React.FC = () => {
         activeGoals,
         settings: effectiveSettings,
         computedSleepDuration,
-        noSleep: false,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration]);
+        noSleep,
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration, noSleep]);
 
     const calculatedScore = scoreResult.score;
     const scoreOf = (key: string): number | null => {
@@ -278,30 +291,42 @@ const DailyLogPage: React.FC = () => {
         return m && m.logged ? m.score : null;
     };
 
-    // Check for existing log by date (non-edit mode)
+    // Check for existing log by date (non-edit mode). Cached per date via React
+    // Query so navigating between previously-viewed days is instant; each date
+    // refreshes in the background while the previous data is shown.
+    const { data: dayLog, isPlaceholderData: dayLogPlaceholder } = useQuery({
+        queryKey: queryKeys.dailyLogByDate(logDate || 'no-date'),
+        queryFn: () => getDailyLogByDate(logDate),
+        enabled: !!logDate && !id,
+        placeholderData: keepPreviousData,
+    });
+    const lastAppliedLogDateRef = useRef<string | null>(null);
     useEffect(() => {
         if (id) return;
-        const checkExisting = async () => {
-            if (!logDate) return;
-            setIsLoadingData(true);
-            const log = await getDailyLogByDate(logDate);
-            if (log) {
-                setExistingLog(log);
-                setIsEditing(true);
-                fillForm(log);
-                const projectIds = await getDailyLogProjects(log.id!);
-                if (projectIds.length > 0) {
-                    setSelectedProjectIds(new Set(projectIds));
-                }
-            } else {
-                setExistingLog(null);
-                setIsEditing(false);
-                resetForm();
-            }
-            setIsLoadingData(false);
-        };
-        checkExisting();
-    }, [logDate, id]);
+        if (dayLogPlaceholder || dayLog === undefined) return;
+        if (lastAppliedLogDateRef.current === logDate) return;
+        lastAppliedLogDateRef.current = logDate;
+        if (dayLog) {
+            // Populating the form from the fetched log is an external-system
+            // sync (server data -> local state), which is what effects are for.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setExistingLog(dayLog);
+            setIsEditing(true);
+            fillForm(dayLog);
+            getDailyLogProjects(dayLog.id!).then(projectIds => {
+                setSelectedProjectIds(projectIds.length > 0 ? new Set(projectIds) : new Set());
+            });
+        } else {
+            setExistingLog(null);
+            setIsEditing(false);
+            resetForm();
+        }
+    }, [dayLog, dayLogPlaceholder, logDate, id]);
+
+    // True while the current day's log is still being fetched (non-edit mode).
+    // Uses query flags instead of a state toggle so the auto-save guard below
+    // stays derived and doesn't trigger cascading renders.
+    const dayLogLoading = !id && (dayLogPlaceholder || dayLog === undefined);
 
     // Roll over to a new day when the tab regains focus (non-edit mode)
     useEffect(() => {
@@ -330,7 +355,7 @@ const DailyLogPage: React.FC = () => {
                 eveningSystolic || eveningDiastolic || eveningBpm ||
                 bodyTemperature || calories || protein || carbs || fat ||
                 water || weight || bodyFat || mood || journalEntry ||
-                projectWorkDone || morningRoutine || eveningRoutine ||
+                noSleep || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
@@ -362,10 +387,10 @@ const DailyLogPage: React.FC = () => {
 
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: logDate,
-                wake_time: wakeTime || null,
-                bedtime: bedtime || null,
-                sleep_duration: computedSleepDuration || null,
-                sleep_quality: sleepQuality ? Math.round(parseFloat(sleepQuality)) : null,
+                wake_time: noSleep ? null : (wakeTime || null),
+                bedtime: noSleep ? null : (bedtime || null),
+                sleep_duration: noSleep ? null : computedSleepDuration,
+                sleep_quality: noSleep ? null : (sleepQuality ? Math.round(parseFloat(sleepQuality)) : null),
                 morning_systolic: morningSystolic ? parseInt(morningSystolic) : null,
                 morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : null,
                 morning_bpm: morningBpm ? parseInt(morningBpm) : null,
@@ -392,7 +417,7 @@ const DailyLogPage: React.FC = () => {
                 journal: journal,
                 stretching: stretching,
                 reading: reading,
-                no_sleep: false,
+                no_sleep: noSleep,
             };
 
             if (isEditing && existingLog?.id) {
@@ -406,6 +431,8 @@ const DailyLogPage: React.FC = () => {
                     await saveDailyLogProjects(newLog.id, Array.from(selectedProjectIds));
                 }
             }
+            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
             setLastSaved(new Date());
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save. Please try again.';
@@ -414,7 +441,7 @@ const DailyLogPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, id]);
+    }, [settings, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, id, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -425,7 +452,9 @@ const DailyLogPage: React.FC = () => {
 
     // Debounced auto-save on any state change
     useEffect(() => {
-        if (!settings || isLoadingData) return;
+        // Block auto-saving until the current log has finished loading
+        // (edit mode uses isLoadingData, non-edit mode derives from the query).
+        if (!settings || (id ? isLoadingData : dayLogLoading)) return;
 
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
@@ -440,7 +469,7 @@ const DailyLogPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, customHabitName, customHabitDesc, performSave, settings, isLoadingData]);
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, customHabitName, customHabitDesc, performSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -461,6 +490,7 @@ const DailyLogPage: React.FC = () => {
             });
             const userHabits = await getUserHabits();
             setHabits(userHabits);
+            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
             closeCustomHabitForm();
         } catch (err) {
             console.error('Error creating habit:', err);
@@ -486,6 +516,8 @@ const DailyLogPage: React.FC = () => {
                 next.delete(id);
                 return next;
             });
+            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
+            queryClient.invalidateQueries({ queryKey: queryKeys.habitLogs });
             setDeleteTarget(null);
         } catch (err) {
             console.error('Error deleting habit:', err);
@@ -606,20 +638,32 @@ const DailyLogPage: React.FC = () => {
                             <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Sleep</h3>
-                                    {computedSleepDuration != null && (
+                                    {noSleep ? (
+                                        <span className="text-sm ml-2" style={{ color: 'var(--color-danger)' }}>No sleep — score 0</span>
+                                    ) : computedSleepDuration != null && (
                                         <span className="text-sm opacity-70 ml-2">{computedSleepDuration}h</span>
                                     )}
                                 </div>
                                 <div className="card-body">
+                                    <label className="checkbox-label mb-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={noSleep}
+                                            onChange={(e) => setNoSleep(e.target.checked)}
+                                            className="checkbox-input"
+                                        />
+                                        <span className="text-sm opacity-90">No Sleep (didn't sleep this night)</span>
+                                    </label>
                                     <div className="scored-input-wrap">
                                         <input
                                             type="text"
                                             value={wakeTime || ''}
                                             {...timeInputHandlers(setWakeTime)}
-                                            className={"scored-input font-mono" + (wakeTime ? '' : ' scored-input--empty')}
+                                            disabled={noSleep}
+                                            className={"scored-input font-mono" + (wakeTime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
                                             maxLength={5}
-                                            style={wakeTime ? { borderColor: getScoreColor(scoreOf('wakeTime')! ?? 0) } : undefined}
+                                            style={wakeTime && !noSleep ? { borderColor: getScoreColor(scoreOf('wakeTime')! ?? 0) } : undefined}
                                         />
                                         <label className="scored-input-label">Wake Time (24h format) <span className="scored-input-goal-inline">{activeGoals?.sleep?.wake_time || '--:--'}</span></label>
                                     </div>
@@ -628,10 +672,11 @@ const DailyLogPage: React.FC = () => {
                                             type="text"
                                             value={bedtime || ''}
                                             {...timeInputHandlers(setBedtime)}
-                                            className={"scored-input font-mono" + (bedtime ? '' : ' scored-input--empty')}
+                                            disabled={noSleep}
+                                            className={"scored-input font-mono" + (bedtime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
                                             maxLength={5}
-                                            style={bedtime ? { borderColor: getScoreColor(scoreOf('bedtime')! ?? 0) } : undefined}
+                                            style={bedtime && !noSleep ? { borderColor: getScoreColor(scoreOf('bedtime')! ?? 0) } : undefined}
                                         />
                                         <label className="scored-input-label">Bedtime (24h format) <span className="scored-input-goal-inline">{activeGoals?.sleep?.bedtime || '--:--'}</span></label>
                                     </div>
@@ -642,14 +687,15 @@ const DailyLogPage: React.FC = () => {
                                             max="10"
                                             step="1"
                                             value={sleepQuality}
+                                            disabled={noSleep}
                                             onChange={(e) => {
                                                 const val = parseInt(e.target.value);
                                                 if (!isNaN(val) && val >= 0 && val <= 10) setSleepQuality(e.target.value);
                                                 else if (e.target.value === '') setSleepQuality('');
                                             }}
-                                            className={"scored-input" + (sleepQuality ? '' : ' scored-input--empty')}
+                                            className={"scored-input" + (sleepQuality ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
-                                            style={sleepQuality ? { borderColor: getScoreColor(scoreOf('sleepQuality')! ?? 0) } : undefined}
+                                            style={sleepQuality && !noSleep ? { borderColor: getScoreColor(scoreOf('sleepQuality')! ?? 0) } : undefined}
                                         />
                                         <label className="scored-input-label">Sleep Quality (0-10) <span className="scored-input-goal-inline">{activeGoals?.sleep?.hours || 8}h sleep</span></label>
                                     </div>
@@ -866,6 +912,8 @@ const DailyLogPage: React.FC = () => {
                                                                     });
                                                                     try {
                                                                         await toggleHabitForDate(id, logDate);
+                                                                        queryClient.invalidateQueries({ queryKey: queryKeys.completedHabits(logDate) });
+                                                                        queryClient.invalidateQueries({ queryKey: queryKeys.habitLogs });
                                                                     } catch (err) {
                                                                         console.error('Error toggling habit:', err);
                                                                         setCompletedHabits(prev => {

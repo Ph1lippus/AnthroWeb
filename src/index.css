@@ -4367,6 +4367,10 @@ input[type="number"] {
 .scored-input--empty {
     border-color: rgba(255, 255, 255, 0.2) !important;
 }
+.scored-input--disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
 .scored-input::placeholder {
     color: transparent;
 }

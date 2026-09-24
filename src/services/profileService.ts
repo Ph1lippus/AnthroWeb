@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 export const signOutUser = async () => {
     const { error } = await supabase.auth.signOut();
@@ -78,13 +78,13 @@ export interface UserSettings {
 
 // Fetch user settings
 export const getUserSettings = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
     
     const { data, error } = await supabase
         .from('user_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single();
     
     if (error && error.code !== 'PGRST116') {
@@ -122,13 +122,13 @@ export const createUserSettings = async (settings: UserSettings) => {
 
 // Update user settings
 export const updateUserSettings = async (settings: UserSettings) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
     
     const { data, error } = await supabase
         .from('user_settings')
         .upsert({
-            user_id: settings.user_id || user.id,
+            user_id: settings.user_id || userId,
             gender: settings.gender,
             height_cm: settings.height_cm,
             date_of_birth: settings.date_of_birth,
@@ -155,13 +155,13 @@ export const updateUserSettings = async (settings: UserSettings) => {
 
 // Get latest body measurements for progress calculation
 export const getLatestBodyMeasurements = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
     
     const { data, error } = await supabase
         .from('daily_logs')
         .select('weight, body_fat, log_date')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .not('weight', 'is', null)
         .order('log_date', { ascending: false })
         .limit(1);

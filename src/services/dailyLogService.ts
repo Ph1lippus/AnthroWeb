@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 export interface DailyLog {
     id?: string;
@@ -41,13 +41,13 @@ export interface DailyLog {
 
 // Fetch all daily logs for current user
 export const getUserDailyLogs = async (): Promise<DailyLog[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const { data, error } = await supabase
         .from('daily_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('log_date', { ascending: false });
 
     if (error) {
@@ -60,13 +60,13 @@ export const getUserDailyLogs = async (): Promise<DailyLog[]> => {
 
 // Fetch a single daily log by date for current user
 export const getDailyLogByDate = async (logDate: string): Promise<DailyLog | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
 
     const { data, error } = await supabase
         .from('daily_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('log_date', logDate)
         .single();
 
@@ -96,13 +96,13 @@ export const getDailyLogById = async (id: string): Promise<DailyLog | null> => {
 
 // Create a new daily log
 export const createDailyLog = async (log: DailyLog) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
 
     const { data, error } = await supabase
         .from('daily_logs')
         .insert({
-            user_id: user.id,
+            user_id: userId,
             log_date: log.log_date,
             wake_time: log.wake_time,
             bedtime: log.bedtime,
@@ -189,8 +189,8 @@ export const deleteDailyLog = async (id: string) => {
 
 // Save project associations for a daily log (replaces existing associations)
 export const saveDailyLogProjects = async (dailyLogId: string, projectIds: string[]) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
 
     // Delete existing associations
     const { error: deleteError } = await supabase
@@ -211,7 +211,7 @@ export const saveDailyLogProjects = async (dailyLogId: string, projectIds: strin
                 projectIds.map(projectId => ({
                     daily_log_id: dailyLogId,
                     project_id: projectId,
-                    user_id: user.id,
+                    user_id: userId,
                 }))
             );
 

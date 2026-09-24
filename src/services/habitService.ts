@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 export interface Habit {
     id?: string;
@@ -20,13 +20,13 @@ export interface DailyHabitLog {
 
 // Fetch all habits for current user
 export const getUserHabits = async (): Promise<Habit[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const { data, error } = await supabase
         .from('habits')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -40,14 +40,14 @@ export const getUserHabits = async (): Promise<Habit[]> => {
 
 // Toggle habit completion for a specific date
 export const toggleHabitForDate = async (habitId: string, logDate: string): Promise<boolean> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
 
     // Check if already logged
     const { data: existing } = await supabase
         .from('daily_habit_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('habit_id', habitId)
         .eq('log_date', logDate)
         .single();
@@ -66,7 +66,7 @@ export const toggleHabitForDate = async (habitId: string, logDate: string): Prom
         const { error } = await supabase
             .from('daily_habit_logs')
             .insert({
-                user_id: user.id,
+                user_id: userId,
                 habit_id: habitId,
                 log_date: logDate,
                 completed: true,
@@ -79,14 +79,48 @@ export const toggleHabitForDate = async (habitId: string, logDate: string): Prom
 
 // Create a new habit
 export const createHabit = async (habit: { name: string; description?: string }) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
+
+    const name = habit.name;
+
+    // Deletion is a soft delete (is_active=false), so a removed habit still
+    // occupies the unique_user_habit (user_id, name) slot. If the user is
+    // re-adding that name, reactivate the existing row instead of inserting a
+    // duplicate (which would hit the unique constraint and return a 409).
+    const { data: existing } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('name', name)
+        .eq('is_active', false)
+        .maybeSingle();
+
+    if (existing) {
+        const { data, error } = await supabase
+            .from('habits')
+            .update({
+                name,
+                description: habit.description ?? existing.description,
+                is_active: true,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error restoring habit:', error.message);
+            throw error;
+        }
+        return data;
+    }
 
     const { data, error } = await supabase
         .from('habits')
         .insert({
-            user_id: user.id,
-            name: habit.name,
+            user_id: userId,
+            name,
             description: habit.description,
             is_active: true,
         })
@@ -115,13 +149,13 @@ export const deleteHabit = async (id: string) => {
 
 // Fetch all habit logs for current user (used for charts)
 export const getAllHabitLogs = async (): Promise<DailyHabitLog[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const { data, error } = await supabase
         .from('daily_habit_logs')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
     if (error) {
         console.error('Error fetching habit logs:', error.message);
@@ -133,13 +167,13 @@ export const getAllHabitLogs = async (): Promise<DailyHabitLog[]> => {
 
 // Get completed habits for a date
 export const getCompletedHabitsForDate = async (logDate: string): Promise<Set<string>> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return new Set();
+    const userId = await getCurrentUserId();
+    if (!userId) return new Set();
 
     const { data, error } = await supabase
         .from('daily_habit_logs')
         .select('habit_id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('log_date', logDate)
         .eq('completed', true);
 
