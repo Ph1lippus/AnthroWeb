@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ResponsiveContainer,
     ComposedChart,
@@ -15,6 +15,7 @@ import {
     Line,
     Bar,
 } from 'recharts';
+import { Maximize2, X } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
@@ -125,18 +126,111 @@ const ChartTip: React.FC = () => (
     <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.15)' }} />
 );
 
-const ChartCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const AVG_STROKE = 'rgba(255, 255, 255, 0.55)';
+
+const AvgLine: React.FC<{ y: number | null; stroke?: string }> = ({ y, stroke }) => {
+    if (y == null) return null;
+    return (
+        <ReferenceLine
+            y={y}
+            stroke={stroke ?? AVG_STROKE}
+            strokeDasharray="6 4"
+            strokeOpacity={0.85}
+            label={{
+                value: 'Avg',
+                position: 'insideBottomRight',
+                fill: stroke ?? AVG_STROKE,
+                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+            }}
+        />
+    );
+};
+
+interface ExpandedChart {
+    title: string;
+    chart: React.ReactNode;
+    height: number;
+}
+
+interface ChartCardProps {
+    title: string;
+    chart?: React.ReactNode;
+    height?: number;
+    expandHeight?: number;
+    onExpand?: (expanded: ExpandedChart) => void;
+    empty?: boolean;
+}
+
+const ChartCard: React.FC<ChartCardProps> = ({ title, chart, height = 150, expandHeight, onExpand, empty }) => (
     <div className="metrics-chart-card">
         <div className="metrics-chart-head">
             <h3>{title}</h3>
+            {!empty && onExpand && chart && (
+                <button
+                    type="button"
+                    className="metrics-chart-expand"
+                    aria-label={`Enlarge ${title} chart`}
+                    title="Enlarge chart"
+                    onClick={() => onExpand({ title, chart, height: expandHeight ?? 560 })}
+                >
+                    <Maximize2 size={14} />
+                </button>
+            )}
         </div>
-        {children}
+        {empty ? (
+            <ChartEmpty />
+        ) : (
+            <ResponsiveContainer width="100%" height={height}>{chart}</ResponsiveContainer>
+        )}
     </div>
 );
 
 const ChartEmpty: React.FC = () => (
     <div className="metrics-chart-empty">No data in this range</div>
 );
+
+const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void }> = ({ expanded, onClose }) => {
+    useEffect(() => {
+        if (!expanded) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', onKey);
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [expanded, onClose]);
+
+    if (!expanded) return null;
+
+    return (
+        <div className="chart-modal-overlay" onClick={onClose}>
+            <div
+                className="chart-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${expanded.title} chart`}
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="chart-modal-head">
+                    <h3>{expanded.title}</h3>
+                    <button type="button" className="chart-modal-close" aria-label="Close chart" title="Close" onClick={onClose}>
+                        <X size={18} />
+                    </button>
+                </div>
+                <div className="chart-modal-body">
+                    <ResponsiveContainer width="100%" height={expanded.height}>
+                        {expanded.chart}
+                    </ResponsiveContainer>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 interface MetricsChartsProps {
     logs: DailyLog[] | null;
@@ -147,6 +241,9 @@ interface MetricsChartsProps {
 
 const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings }) => {
     const [range, setRange] = useState<{ label: string; days: number | null }>(RANGES[0]);
+    const [expanded, setExpanded] = useState<ExpandedChart | null>(null);
+
+    const openChart = useCallback((e: ExpandedChart) => setExpanded(e), []);
 
     const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
     const caloriesGoal = activeGoals?.nutrition?.calories ?? null;
@@ -156,6 +253,16 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     const fatGoal = activeGoals?.nutrition?.fat ?? null;
     const targetWeight = settings?.target_weight ?? null;
     const targetBodyFat = settings?.target_bodyfat ?? null;
+
+    const completedByDate = useMemo(() => {
+        const map = new Map<string, number>();
+        if (!habitLogs) return map;
+        for (const l of habitLogs) {
+            if (!l.completed) continue;
+            map.set(l.log_date, (map.get(l.log_date) ?? 0) + 1);
+        }
+        return map;
+    }, [habitLogs]);
 
     const chartData = useMemo<ChartPoint[]>(() => {
         if (!logs) return [];
@@ -168,7 +275,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     [l.morning_routine, l.evening_routine, l.fruit_serving, l.studied, l.journal, l.stretching, l.reading, l.project_work_done]
                         .filter(Boolean).length;
                 const customTotal = habits?.length || 0;
-                const customDone = (habitLogs || []).filter(h => h.log_date === l.log_date && h.completed).length;
+                const customDone = completedByDate.get(l.log_date) ?? 0;
                 const habitTotal = 8 + customTotal;
                 return {
                     date: l.log_date,
@@ -194,21 +301,74 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     habitPct: habitTotal > 0 ? Math.round(((builtinDone + customDone) / habitTotal) * 100) : null,
                 };
             });
-    }, [logs, range.days, habits, habitLogs]);
+    }, [logs, range.days, habits, completedByDate]);
+
+    const completedByHabit = useMemo(() => {
+        const map = new Map<string, number>();
+        if (!habitLogs) return map;
+        const inRangeDates = new Set(chartData.map(d => d.date));
+        for (const l of habitLogs) {
+            if (!l.completed || !inRangeDates.has(l.log_date)) continue;
+            map.set(l.habit_id, (map.get(l.habit_id) ?? 0) + 1);
+        }
+        return map;
+    }, [habitLogs, chartData]);
 
     const customHabitData = useMemo(() => {
         if (!habits || habits.length === 0) return [];
         const logDates = new Set(chartData.map(d => d.date));
-        return habits.map(h => {
-            const done = (habitLogs || []).filter(x => x.habit_id === h.id && x.completed && logDates.has(x.log_date)).length;
-            return {
+        return habits
+            .map(h => ({
                 name: h.name,
-                pct: logDates.size > 0 ? Math.round((done / logDates.size) * 100) : 0,
-            };
-        });
-    }, [habits, habitLogs, chartData]);
+                pct: logDates.size > 0 ? Math.round(((completedByHabit.get(h.id ?? '') ?? 0) / logDates.size) * 100) : 0,
+            }))
+            .sort((a, b) => b.pct - a.pct);
+    }, [habits, completedByHabit, chartData]);
 
     const hasAny = (...keys: (keyof ChartPoint)[]): boolean => chartData.some(p => keys.some(k => p[k] != null));
+
+    const averages = useMemo(() => {
+        const avg = (key: keyof ChartPoint): number | null => {
+            let sum = 0;
+            let n = 0;
+            for (const p of chartData) {
+                const v = p[key];
+                if (typeof v === 'number') {
+                    sum += v;
+                    n++;
+                }
+            }
+            return n > 0 ? Math.round((sum / n) * 10) / 10 : null;
+        };
+        return {
+            score: avg('score'),
+            sleepDuration: avg('sleepDuration'),
+            sleepQuality: avg('sleepQuality'),
+            morningSystolic: avg('morningSystolic'),
+            eveningSystolic: avg('eveningSystolic'),
+            morningDiastolic: avg('morningDiastolic'),
+            eveningDiastolic: avg('eveningDiastolic'),
+            morningBpm: avg('morningBpm'),
+            eveningBpm: avg('eveningBpm'),
+            bodyTemperature: avg('bodyTemperature'),
+            calories: avg('calories'),
+            protein: avg('protein'),
+            carbs: avg('carbs'),
+            fat: avg('fat'),
+            water: avg('water'),
+            weight: avg('weight'),
+            bodyFat: avg('bodyFat'),
+            mood: avg('mood'),
+            habitPct: avg('habitPct'),
+        };
+    }, [chartData]);
+
+    const customHabitAvg = customHabitData.length > 0
+        ? Math.round(customHabitData.reduce((sum, h) => sum + h.pct, 0) / customHabitData.length)
+        : null;
+
+    const habitChartHeight = Math.max(160, customHabitData.length * 28);
+    const habitExpandHeight = Math.max(320, customHabitData.length * 34);
 
     return (
         <div className="dashboard-metrics">
@@ -240,8 +400,11 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             ) : (
                 <div className="metrics-track">
                     {/* Score */}
-                    <ChartCard title="Score">
-                        <ResponsiveContainer width="100%" height={180}>
+                    <ChartCard
+                        title="Score"
+                        height={180}
+                        onExpand={openChart}
+                        chart={
                             <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
@@ -254,261 +417,288 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <ChartY domain={[0, 100]} />
                                 <ChartTip />
                                 <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />
+                                <AvgLine y={averages.score} />
                                 <Area type="monotone" dataKey="score" name="Score" stroke={C.primary} strokeWidth={2} fill="url(#scoreFill)" dot={false} connectNulls />
                             </ComposedChart>
-                        </ResponsiveContainer>
-                    </ChartCard>
+                        }
+                    />
 
                     {/* Sleep */}
                     <div className="metrics-columns">
-                        {hasAny('sleepDuration') ? (
-                            <ChartCard title="Sleep Duration">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY domain={[0, 12]} />
-                                        <ChartTip />
-                                        <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2} fill="rgba(0, 255, 166, 0.15)" dot={false} connectNulls />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Sleep Duration"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('sleepQuality') ? (
-                            <ChartCard title="Sleep Quality">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY domain={[0, 10]} />
-                                        <ChartTip />
-                                        <Line type="monotone" dataKey="sleepQuality" name="Quality" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Sleep Quality"><ChartEmpty /></ChartCard>
-                        )}
+                        <ChartCard
+                            title="Sleep Duration"
+                            empty={!hasAny('sleepDuration')}
+                            onExpand={openChart}
+                            chart={
+                                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY domain={[0, 12]} />
+                                    <ChartTip />
+                                    <AvgLine y={averages.sleepDuration} />
+                                    <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2} fill="rgba(0, 255, 166, 0.15)" dot={false} connectNulls />
+                                </AreaChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Sleep Quality"
+                            empty={!hasAny('sleepQuality')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY domain={[0, 10]} />
+                                    <ChartTip />
+                                    <AvgLine y={averages.sleepQuality} stroke={C.blue} />
+                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
                     </div>
 
                     {/* Vitals & BP */}
                     <div className="metrics-columns">
-                        {hasAny('morningSystolic', 'eveningSystolic') ? (
-                            <ChartCard title="Systolic">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
-                                        <ReferenceLine y={120} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
-                                        <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                        <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Systolic"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('morningDiastolic', 'eveningDiastolic') ? (
-                            <ChartCard title="Diastolic">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
-                                        <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
-                                        <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                        <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Diastolic"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('morningBpm', 'eveningBpm') ? (
-                            <ChartCard title="Heart Rate">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
-                                        <Line type="monotone" dataKey="morningBpm" name="AM BPM" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                        <Line type="monotone" dataKey="eveningBpm" name="PM BPM" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Heart Rate"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('bodyTemperature') ? (
-                            <ChartCard title="Body Temperature">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        <ReferenceLine y={37} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
-                                        <Line type="monotone" dataKey="bodyTemperature" name="°C" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Body Temperature"><ChartEmpty /></ChartCard>
-                        )}
+                        <ChartCard
+                            title="Systolic"
+                            empty={!hasAny('morningSystolic', 'eveningSystolic')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
+                                    <ReferenceLine y={120} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
+                                    <AvgLine y={averages.morningSystolic} stroke={C.blue} />
+                                    <AvgLine y={averages.eveningSystolic} stroke={C.pink} />
+                                    <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Diastolic"
+                            empty={!hasAny('morningDiastolic', 'eveningDiastolic')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
+                                    <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
+                                    <AvgLine y={averages.morningDiastolic} stroke={C.blue} />
+                                    <AvgLine y={averages.eveningDiastolic} stroke={C.pink} />
+                                    <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Heart Rate"
+                            empty={!hasAny('morningBpm', 'eveningBpm')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
+                                    <AvgLine y={averages.morningBpm} stroke={C.blue} />
+                                    <AvgLine y={averages.eveningBpm} stroke={C.pink} />
+                                    <Line type="monotone" dataKey="morningBpm" name="AM BPM" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningBpm" name="PM BPM" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Body Temperature"
+                            empty={!hasAny('bodyTemperature')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <ReferenceLine y={37} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
+                                    <AvgLine y={averages.bodyTemperature} stroke={C.amber} />
+                                    <Line type="monotone" dataKey="bodyTemperature" name="°C" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
                     </div>
 
                     {/* Nutrition */}
                     <div className="metrics-columns">
-                        {hasAny('calories') ? (
-                            <ChartCard title="Calories">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        {caloriesGoal != null && <ReferenceLine y={caloriesGoal} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
-                                        <Bar dataKey="calories" name="Calories" fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Calories"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('protein', 'carbs', 'fat') ? (
-                            <ChartCard title="Macros">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
-                                        {proteinGoal != null && <ReferenceLine y={proteinGoal} stroke={C.blue} strokeDasharray="4 4" strokeOpacity={0.4} />}
+                        <ChartCard
+                            title="Calories"
+                            empty={!hasAny('calories')}
+                            onExpand={openChart}
+                            chart={
+                                <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    {caloriesGoal != null && <ReferenceLine y={caloriesGoal} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
+                                    <AvgLine y={averages.calories} />
+                                    <Bar dataKey="calories" name="Calories" fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                                </ComposedChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Macros"
+                            empty={!hasAny('protein', 'carbs', 'fat')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
+{proteinGoal != null && <ReferenceLine y={proteinGoal} stroke={C.blue} strokeDasharray="4 4" strokeOpacity={0.4} />}
                                         {carbsGoal != null && <ReferenceLine y={carbsGoal} stroke={C.purple} strokeDasharray="4 4" strokeOpacity={0.4} />}
                                         {fatGoal != null && <ReferenceLine y={fatGoal} stroke={C.amber} strokeDasharray="4 4" strokeOpacity={0.4} />}
+                                        <AvgLine y={averages.protein} stroke={C.blue} />
+                                        <AvgLine y={averages.carbs} stroke={C.purple} />
+                                        <AvgLine y={averages.fat} stroke={C.amber} />
                                         <Line type="monotone" dataKey="protein" name="Protein" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                        <Line type="monotone" dataKey="carbs" name="Carbs" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
-                                        <Line type="monotone" dataKey="fat" name="Fat" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Macros"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('water') ? (
-                            <ChartCard title="Water">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        {waterGoal != null && <ReferenceLine y={waterGoal} stroke={C.cyan} strokeDasharray="4 4" strokeOpacity={0.5} />}
-                                        <Bar dataKey="water" name="ml" fill={C.cyan} radius={[3, 3, 0, 0]} maxBarSize={18} />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Water"><ChartEmpty /></ChartCard>
-                        )}
+                                    <Line type="monotone" dataKey="carbs" name="Carbs" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="fat" name="Fat" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Water"
+                            empty={!hasAny('water')}
+                            onExpand={openChart}
+                            chart={
+                                <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    {waterGoal != null && <ReferenceLine y={waterGoal} stroke={C.cyan} strokeDasharray="4 4" strokeOpacity={0.5} />}
+                                    <AvgLine y={averages.water} stroke={C.cyan} />
+                                    <Bar dataKey="water" name="ml" fill={C.cyan} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                                </ComposedChart>
+                            }
+                        />
                     </div>
 
                     {/* Body & Mood */}
                     <div className="metrics-columns">
-                        {hasAny('weight') ? (
-                            <ChartCard title="Weight">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
-                                        <Line type="monotone" dataKey="weight" name="kg" stroke={C.primary} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Weight"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('bodyFat') ? (
-                            <ChartCard title="Body Fat">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY />
-                                        <ChartTip />
-                                        {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
-                                        <Line type="monotone" dataKey="bodyFat" name="%" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Body Fat"><ChartEmpty /></ChartCard>
-                        )}
-                        {hasAny('mood') ? (
-                            <ChartCard title="Mood">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY domain={[0, 10]} />
-                                        <ChartTip />
-                                        <Line type="monotone" dataKey="mood" name="Mood" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Mood"><ChartEmpty /></ChartCard>
-                        )}
+                        <ChartCard
+                            title="Weight"
+                            empty={!hasAny('weight')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
+                                    <AvgLine y={averages.weight} />
+                                    <Line type="monotone" dataKey="weight" name="kg" stroke={C.primary} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Body Fat"
+                            empty={!hasAny('bodyFat')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
+                                    <AvgLine y={averages.bodyFat} stroke={C.pink} />
+                                    <Line type="monotone" dataKey="bodyFat" name="%" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Mood"
+                            empty={!hasAny('mood')}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY domain={[0, 10]} />
+                                    <ChartTip />
+                                    <AvgLine y={averages.mood} stroke={C.purple} />
+                                    <Line type="monotone" dataKey="mood" name="Mood" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
                     </div>
 
                     {/* Habits */}
                     <div className="metrics-columns">
-                        {hasAny('habitPct') ? (
-                            <ChartCard title="Habit Completion">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <ChartX />
-                                        <ChartY domain={[0, 100]} />
-                                        <ChartTip />
-                                        <Area type="monotone" dataKey="habitPct" name="Done %" stroke={C.greenDark} strokeWidth={2} fill="rgba(67, 182, 125, 0.16)" dot={false} connectNulls />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Habit Completion"><ChartEmpty /></ChartCard>
-                        )}
-                        {customHabitData.length > 0 ? (
-                            <ChartCard title="Custom Habit Completion">
-                                <ResponsiveContainer width="100%" height={150}>
-                                    <BarChart data={customHabitData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                        <ChartGrid />
-                                        <XAxis dataKey="name" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }} interval={0} height={40} />
-                                        <ChartY domain={[0, 100]} />
-                                        <ChartTip />
-                                        <Bar dataKey="pct" name="Done %" fill={C.blue} radius={[3, 3, 0, 0]} maxBarSize={22} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </ChartCard>
-                        ) : (
-                            <ChartCard title="Custom Habit Completion"><ChartEmpty /></ChartCard>
-                        )}
+                        <ChartCard
+                            title="Habit Completion"
+                            empty={!hasAny('habitPct')}
+                            onExpand={openChart}
+                            chart={
+                                <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY domain={[0, 100]} />
+                                    <ChartTip />
+                                    <AvgLine y={averages.habitPct} stroke={C.greenDark} />
+                                    <Area type="monotone" dataKey="habitPct" name="Done %" stroke={C.greenDark} strokeWidth={2} fill="rgba(67, 182, 125, 0.16)" dot={false} connectNulls />
+                                </AreaChart>
+                            }
+                        />
+                        <ChartCard
+                            title="Custom Habit Completion"
+                            empty={customHabitData.length === 0}
+                            height={habitChartHeight}
+                            expandHeight={habitExpandHeight}
+                            onExpand={openChart}
+                            chart={
+                                <BarChart data={customHabitData} layout="vertical" margin={{ top: 2, right: 12, left: 0, bottom: 0 }}>
+                                    <CartesianGrid stroke="rgba(255, 255, 255, 0.06)" horizontal={false} />
+                                    <XAxis type="number" domain={[0, 100]} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }} allowDecimals={false} />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="name"
+                                        width={130}
+                                        tick={{ ...AXIS_TICK, fontSize: 10 }}
+                                        tickLine={false}
+                                        axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }}
+                                        interval={0}
+                                        tickFormatter={(v: string) => (v.length > 18 ? v.slice(0, 16) + '…' : v)}
+                                    />
+                                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }} />
+                                    {customHabitAvg != null && (
+                                        <ReferenceLine
+                                            x={customHabitAvg}
+                                            stroke={AVG_STROKE}
+                                            strokeDasharray="6 4"
+                                            strokeOpacity={0.85}
+                                            label={{ value: 'Avg', position: 'top', fill: AVG_STROKE, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                                        />
+                                    )}
+                                    <Bar dataKey="pct" name="Done %" fill={C.blue} radius={[0, 3, 3, 0]} barSize={14} />
+                                </BarChart>
+                            }
+                        />
                     </div>
                 </div>
             )}
+
+            <ChartModal expanded={expanded} onClose={() => setExpanded(null)} />
         </div>
     );
 };

@@ -232,7 +232,6 @@ body::before {
   left: 0;
   right: 0;
   background: transparent;
-  backdrop-filter: blur(12px);
   z-index: 100;
   padding-top: env(safe-area-inset-top, 0px);
 }
@@ -7300,6 +7299,7 @@ select.form-control option {
   border-radius: 25px;
   padding: 1.25rem;
   text-align: left;
+  margin-bottom: 1rem;
 }
 .dashboard-daily-topbar {
   display: flex;
@@ -7571,15 +7571,45 @@ select.form-control option {
   background: #ffffff08;
   border-radius: 25px;
   padding: 1rem 1rem 0.75rem;
+  min-width: 0;
+}
+.metrics-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 .metrics-chart-head h3 {
   font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 600;
-  margin: 0 0 0.75rem;
+  margin: 0;
   color: var(--color-light);
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+.metrics-chart-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff0a;
+  border: 1px solid transparent;
+  color: var(--color-light);
+  opacity: 0.55;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+.metrics-chart-expand:hover {
+  opacity: 1;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--accent-bg);
 }
 .metrics-chart-empty {
   display: flex;
@@ -7626,6 +7656,77 @@ select.form-control option {
   margin-left: auto;
   padding-left: 1rem;
   font-weight: 700;
+}
+/* ============================================
+   METRICS CHART MODAL - enlarged chart view
+   ============================================ */
+.chart-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.chart-modal {
+  width: 100%;
+  max-width: 1100px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 1.1rem 1.1rem 0.5rem;
+  color: var(--color-light);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.chart-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+.chart-modal-head h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.chart-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff0a;
+  border: 1px solid transparent;
+  color: var(--color-light);
+  opacity: 0.7;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+.chart-modal-close:hover {
+  opacity: 1;
+  color: var(--color-danger, #ff5a60);
+  border-color: var(--color-danger, #ff5a60);
+  background: rgba(255, 90, 96, 0.1);
+}
+.chart-modal-body {
+  max-height: 82vh;
+  overflow: auto;
+  width: 100%;
 }
 /* ============================================
    DASHBOARD - wide layout (charts fill the page)
