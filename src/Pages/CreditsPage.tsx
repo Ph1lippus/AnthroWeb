@@ -41,9 +41,8 @@ const Credits: React.FC = () => {
             <Title title="Credits" />
             <section className="credits-page">
                 <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Credits</h2>
-                        <span>Tools and services that helped shape AnthroWeb</span>
+                    <div className="dashboard-section__subtitle">
+                        Tools and services that helped shape AnthroWeb
                     </div>
 
                     <div className="credits-grid">

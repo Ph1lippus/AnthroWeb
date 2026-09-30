@@ -58,9 +58,8 @@ const MeasurementsPage: React.FC = () => {
             <Title title="Measurements" />
             <div className="books-page-wrapper">
                 <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Measurements</h2>
-                        <span>Track your body measurements and progress</span>
+                    <div className="dashboard-section__subtitle">
+                        Track your body measurements and progress
                     </div>
 
                     <div className="dashboard-section__head-action">

@@ -67,9 +67,8 @@ const TermsOfServicePage: React.FC = () => {
             <Title title="Terms of Service" />
             <div className="legal-page">
                 <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Terms of Service</h2>
-                        <span>Terms and conditions for using AnthroWeb</span>
+                    <div className="dashboard-section__subtitle">
+                        Terms and conditions for using AnthroWeb
                     </div>
                     <div className="legal-content">
                         {sections.map((section, index) => (

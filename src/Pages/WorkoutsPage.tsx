@@ -81,10 +81,9 @@ const WorkoutsPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
-                        <div className="dashboard-section__head">
-                            <h2>Workouts</h2>
-                            <span>Your weekly routine at a glance</span>
-                        </div>
+                        <div className="dashboard-section__subtitle">
+                        Your weekly routine at a glance
+                    </div>
 
                         {templates.length === 0 ? (
                             <div className="workout-onboard">

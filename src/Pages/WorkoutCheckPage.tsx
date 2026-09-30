@@ -227,9 +227,8 @@ const WorkoutCheckPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
-                        <div className="dashboard-section__head">
-                            <h2>{completed ? 'Today\u2019s Session' : 'Log Today\u2019s Session'}</h2>
-                            <span>Deviations are saved to this session only — your template stays untouched.</span>
+                        <div className="dashboard-section__subtitle">
+                            Deviations are saved to this session only — your template stays untouched.
                         </div>
 
                         <div className="workout-check-info">

@@ -3,10 +3,10 @@ import { getUserDailyLogs } from '../services/dailyLogService';
 import type { DailyLog } from '../services/dailyLogService';
 import { queryKeys } from '../utils/queryKeys';
 
-export const useDailyLogs = (): { logs: DailyLog[] | null } => {
-    const { data } = useQuery({
+export const useDailyLogs = (): { logs: DailyLog[] | null; isLoading: boolean } => {
+    const { data, isLoading } = useQuery({
         queryKey: queryKeys.dailyLogs,
         queryFn: getUserDailyLogs,
     });
-    return { logs: data ?? null };
+    return { logs: data ?? null, isLoading };
 };

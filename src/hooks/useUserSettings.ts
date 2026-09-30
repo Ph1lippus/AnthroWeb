@@ -3,10 +3,10 @@ import { getUserSettings } from '../services/profileService';
 import type { UserSettings } from '../services/profileService';
 import { queryKeys } from '../utils/queryKeys';
 
-export const useUserSettings = (): { settings: UserSettings | null } => {
-    const { data } = useQuery({
+export const useUserSettings = (): { settings: UserSettings | null; isLoading: boolean } => {
+    const { data, isLoading } = useQuery({
         queryKey: queryKeys.userSettings,
         queryFn: getUserSettings,
     });
-    return { settings: data ?? null };
+    return { settings: data ?? null, isLoading };
 };

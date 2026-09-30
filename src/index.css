@@ -11,6 +11,20 @@
   .navbar-mobile-title{
     display: none !important;
   }
+  .navbar-page-title {
+    font-size: 0.85rem;
+  }
+  .navbar-day-label {
+    display: none;
+  }
+  .navbar-save-status {
+    max-width: 7rem;
+    margin-right: 0.25rem;
+    font-size: 0.6rem;
+  }
+  .navbar-inner {
+    gap: 0.4rem;
+  }
   .navbar-brand-row{
     backdrop-filter: blur(0px) !important;
   }
@@ -19,7 +33,22 @@
     padding-top: calc(var(--navbar-height) + env(safe-area-inset-top, 0px)) !important;
   }
   .daily-log-form .card {
-    padding: 0.5rem !important; 
+    padding: 0.5rem !important;
+  }
+  /* iOS zooms the viewport on focus for any input under 16px, so the value text
+     stays large on phones while the padding stays tight. */
+  .daily-log-form .scored-input {
+    font-size: 16px;
+    padding: 0.85rem 0.7rem 0.3rem;
+  }
+  .daily-log-form .scored-input-label {
+    font-size: 0.75rem;
+  }
+  .daily-log-form .scored-input:not(:placeholder-shown) + .scored-input-label {
+    font-size: 0.65rem;
+  }
+  .mood-scale-btn {
+    height: 2.5rem;
   }
 }
 
@@ -32,6 +61,18 @@
   --color-danger-dark: #451a1c;
   --color-dark: #343434;
   --color-light: #fffbfb;
+  /* Chart series palette. One place to retune every dashboard graph so a new
+     chart can never introduce a colour that clashes with the existing set. */
+  --chart-primary: #00ffa6;
+  --chart-green: #43b67d;
+  --chart-blue: #4da6ff;
+  --chart-amber: #ffb84d;
+  --chart-pink: #ff7ba9;
+  --chart-purple: #b48dff;
+  --chart-cyan: #4dd8e0;
+  --chart-red: #ff5a60;
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-axis: rgba(255, 255, 255, 0.55);
   --font-mono: 'JetBrains Mono', monospace;
   --font-logo: 'Rubik Glitch', cursive;
   --text: #ffffff;
@@ -47,7 +88,7 @@
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
-  --navbar-height: 4.5rem;
+  --navbar-height: 3rem;
   --shake-distance: 6px;
   --shake-overshoot: 4px;
   --shake-dur-a: 80ms;
@@ -236,12 +277,42 @@ body::before {
   padding-top: env(safe-area-inset-top, 0px);
 }
 .navbar-inner {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
+  gap: 0.75rem;
   padding: 0.5rem 0;
   position: relative;
   min-width: 98%;
+}
+.navbar-slot--start {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  justify-content: flex-start;
+}
+.navbar-slot--start .navbar-day-nav,
+.navbar-slot--start .navbar-save-status {
+  margin-right: 0;
+}
+.navbar-page-title {
+  justify-self: center;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-light);
+  margin: 0;
+  padding: 0 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
 }
 .navbar-brand {
   font-family: var(--font-logo);
@@ -255,6 +326,11 @@ body::before {
   display: flex;
   gap: 1rem;
   align-items: center;
+  /* The top bar is a 3-column grid: [left content] [centered title] [right content].
+     Only the left slot and these actions are rendered, so anchor the actions to the
+     rightmost column instead of letting them auto-place into the middle. */
+  grid-column: 3;
+  justify-content: flex-end;
 }
 .navbar-brand-centered {
   position: absolute;
@@ -317,6 +393,17 @@ body::before {
   gap: 0.35rem;
   margin-right: auto;
 }
+.navbar-day-label {
+  color: var(--color-light);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  min-width: 4.5rem;
+  text-align: center;
+  opacity: 0.9;
+  user-select: none;
+}
 .navbar-day-btn {
   background: #ffffff0a;
   border: none;
@@ -335,6 +422,59 @@ body::before {
   background: var(--accent-bg);
   color: var(--color-primary);
   opacity: 1;
+}
+.navbar-day-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.navbar-day-btn:disabled:hover {
+  background: #ffffff0a;
+  color: var(--color-light);
+  opacity: 0.25;
+}
+/* The calendar button is a label wrapping a real date input, so the native
+   picker opens on click while the button keeps the round navbar styling. */
+.navbar-day-btn--picker {
+  position: relative;
+  overflow: hidden;
+}
+.navbar-day-picker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+.navbar-save-status {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: 0.75rem;
+  font-size: 0.68rem;
+  color: var(--color-light);
+  opacity: 0.75;
+  white-space: nowrap;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.navbar-save-status--saved {
+  color: var(--color-primary);
+  opacity: 0.9;
+}
+.navbar-save-status--error {
+  color: var(--color-danger);
+  opacity: 1;
+}
+.navbar-save-status-spinner {
+  animation: navbar-save-spin 1s linear infinite;
+}
+@keyframes navbar-save-spin {
+  to { transform: rotate(360deg); }
 }
 .navbar-icon-link {
   display: inline-flex;
@@ -877,6 +1017,14 @@ input[type="number"] {
   font-family: var(--font-mono);
   margin-bottom: 0.5rem;
 }
+.dashboard-section__subtitle {
+  text-align: center;
+  margin-bottom: 1.25rem;
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
 .dashboard-section__head span {
   color: var(--color-light);
   opacity: 0.7;
@@ -1056,6 +1204,151 @@ input[type="number"] {
 }
 @media (prefers-reduced-motion: reduce) {
   .secondary-tabs-pill, .secondary-navbar-link { }
+}
+.secondary-navbar-external-icon {
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+/* ============================================
+   SIDEBAR NAV - full-height left icon rail (>=1024px)
+   Replaces the bottom pill bar on large screens. Runs the full height of the
+   viewport, above the top bar, so the top bar has to start after it.
+   ============================================ */
+.sidebar-nav {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3.75rem;
+  z-index: 110;
+  display: none;
+  background: #161616f2;
+  backdrop-filter: blur(14px);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sidebar-nav-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Centre the icons vertically in the full-height rail and keep the spacing
+     between them even, with a gap that breathes on taller screens. */
+  justify-content: center;
+  /* Where supported, keep the first icon reachable if the list overflows a
+     short window instead of centring it off the top of the rail. */
+  justify-content: safe center;
+  flex: 1;
+  gap: clamp(0.25rem, 1.1vh, 0.7rem);
+}
+.sidebar-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  color: rgba(193, 193, 193, 0.75);
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sidebar-nav-link:hover {
+  background: #ffffff0f;
+  color: var(--color-light);
+}
+.sidebar-nav-link.active {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+/* Accent bar on the left edge marks the current section. */
+.sidebar-nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: -0.28rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 1.25rem;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-primary);
+}
+.sidebar-nav-icon {
+  font-size: 1.4rem;
+}
+
+/* Portalled to <body> so the rail's `overflow-y: auto` cannot clip it. */
+.sidebar-tooltip {
+  position: fixed;
+  left: 4.5rem;
+  z-index: 200;
+  transform: translateY(-50%);
+  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
+  background: #1e1e1ef7;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: sidebar-tooltip-in 0.14s ease-out;
+}
+.sidebar-tooltip-arrow {
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateY(-50%) rotate(45deg);
+  background: #1e1e1ef7;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+@keyframes sidebar-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-tooltip {
+    animation: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+  }
+  /* Offset every page at once instead of touching 33 wrappers. */
+  #root {
+    padding-left: 3.75rem;
+  }
+  /* The rail occupies the top-left corner, so the top bar starts after it. */
+  .navbar-brand-row {
+    left: 3.75rem;
+  }
+  /* The bottom pill bar is gone at this width, so reclaim its reserved space. */
+  .page-main,
+  .page-main-with-secondary,
+  .daily-logs-page-wrapper,
+  .books-page-wrapper {
+    padding-bottom: 2rem;
+  }
+  .secondary-navbar {
+    display: none;
+  }
 }
 /* Edit Profile Form Styles - extends auth-card */
 .auth-card.profile-form-card {
@@ -1787,10 +2080,10 @@ input[type="number"] {
 }
 .scored-input-label {
   position: absolute;
-  left: 1rem;
+  left: 0.8rem;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.4);
   pointer-events: none;
   transition: all 0.15s ease;
@@ -1799,9 +2092,9 @@ input[type="number"] {
 }
 .scored-input:focus + .scored-input-label,
 .scored-input:not(:placeholder-shown) + .scored-input-label {
-  top: -0.35rem;
-  left: 0.75rem;
-  font-size: 0.65rem;
+  top: -0.3rem;
+  left: 0.6rem;
+  font-size: 0.6rem;
   color: var(--color-primary);
   padding: 0 0.4rem;
 }
@@ -4273,25 +4566,76 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
 }
-/* Daily Log card fills content height (page scrolls, not the container) */
+/* Daily Log card fills content height (page scrolls, not the container).
+   On wide screens this is a 2-column grid: a sticky score panel plus the form.
+   Below 1280px it collapses back to a single stacked column. */
 .daily-logs-card {
   width: 100%;
   padding: 1rem;
   text-align: left;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+/* Desktop split: score | column 2 | habits.
+   The score column is the smallest at roughly 70% of the width it had when all
+   three were equal, and columns 2 and 3 stay the same size as each other. The
+   form spans tracks 2 and 3 and splits them evenly, so those two match
+   exactly. 0.61fr rather than 0.7fr because fr units divide the whole free
+   space: 0.7fr of 2.7 total would only be 78% of the old track, whereas
+   0.61fr of 2.61 lands on 70%. Below this width the score drops to the top and
+   habits goes last. */
+@media (min-width: 1280px) {
+  .daily-logs-card {
+    grid-template-columns: minmax(0, 0.61fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "score form form";
+  }
+  .daily-log-score-col { grid-area: score; }
+  .daily-log-form { grid-area: form; }
+}
+/* The score panel sticks so the ring and its breakdown stay in view while
+   scrolling the cards beside it. Only useful in the split layout. */
+.daily-log-score-col {
+  min-width: 0;
+}
+.daily-log-score-col .daily-score-card {
+  margin-bottom: 0;
+}
+.daily-logs-edit-row,
+.daily-logs-card > .profile-loading {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1280px) {
+  .daily-log-score-col {
+    position: sticky;
+    top: calc(var(--navbar-height) + 1rem);
+  }
+}
+.daily-log-form {
+  min-width: 0;
 }
 /* Daily log form spacing */
 .daily-log-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+/* Wide screens: the form covers tracks 2 and 3 of the three-column grid, so
+   splitting it into two equal tracks makes column 2 and the habits column the
+   same width as the score column. */
+@media (min-width: 1280px) {
+  .daily-log-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .daily-log-form .card {
-  background: transparent;
+  background: #ffffff08;
   box-shadow: none;
-  border-radius: 25px;
-  padding: 1.5rem;
+  border-radius: 20px;
+  padding: 1rem;
 }
 .daily-log-form .card-header {
   gap: 0.75rem;
@@ -4312,13 +4656,19 @@ input[type="number"] {
   align-items: center;
   gap: 0.4rem;
 }
+.grid.grid-cols-2 {
+    gap: 0.3rem;
+}
+
+.Custom-habit-text {
+  padding: 0.5rem 0rem;
+}
 .daily-log-form .card-title i {
   font-size: 0.75rem;
 }
 .daily-log-form .card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
 }
 .daily-log-form .form-group {
   display: flex;
@@ -4350,18 +4700,19 @@ input[type="number"] {
 /* Scored Input Styles - Floating Labels */
 .scored-input-wrap {
     position: relative;
+    margin-bottom: 0.6rem ;
 }
 .scored-input {
     width: 100%;
-    padding: 1.2rem 0.75rem 0.5rem;
+    padding: 0.95rem 0.7rem 0.35rem;
     background: #ffffff0a;
     color: var(--color-light);
-    border-radius: 25px;
+    border-radius: 14px;
     font-family: var(--font-mono);
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     outline: none;
     transition: background 0.15s ease, border-color 0.15s ease;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
 }
 .scored-input--empty {
     border-color: rgba(255, 255, 255, 0.2) !important;
@@ -4398,13 +4749,67 @@ input[type="number"] {
 }
 .scored-input-goal-inline {
     opacity: 0.5;
-    font-size: 0.75rem;
-    margin-left: 0.35rem;
+    font-size: 0.68rem;
+    margin-left: 0.3rem;
     font-weight: 400;
+}
+/* Denser daily-log typography. Grouped here so the scale can be tuned in one
+   place: cards pack more metrics per screen without shrinking the touch
+   targets that matter on a phone. */
+.daily-log-form .card-title {
+  font-size: 0.8rem;
+}
+.daily-log-form .scored-input-wrap {
+  gap: 0.3rem;
+}
+.daily-log-form .checkbox-label {
+  padding: 0.28rem 0;
+  font-size: 0.8rem;
+}
+.daily-log-form .mood-scale-btn {
+  height: 1.85rem;
+  font-size: 0.65rem;
 }
 .daily-log-form textarea.form-control {
   resize: vertical;
   min-height: 70px;
+}
+/* ============================================
+   MOOD SCALE - 1-10 segmented rating
+   ============================================ */
+.mood-scale {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.25rem;
+}
+.mood-scale-btn {
+  height: 2rem;
+  background: #ffffff0a;
+  color: var(--color-light);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.mood-scale-btn:hover {
+  opacity: 1;
+}
+.mood-scale-btn--active {
+  color: #000;
+  font-weight: 700;
+  opacity: 1;
+}
+.mood-scale-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  color: var(--color-light);
+  font-size: 0.58rem;
+  opacity: 0.45;
 }
 /* History card */
 .log-history-card {
@@ -4481,27 +4886,69 @@ input[type="number"] {
     grid-template-columns: 1fr !important;
   }
 }
-/* Puzzle/Masonry layout for daily log - each card only uses the height it needs */
+/* Daily log card layout. An explicit grid (not masonry) so the placement the
+   user asked for is deterministic.
+
+   .daily-logs-card is the outer three-column split:
+        [ score | column 2 | habits ]
+   The score column is deliberately the narrowest; columns 2 and 3 are the same
+   width as each other.
+
+   .daily-log-form splits into:
+        [ .daily-log-main | .daily-log-habits ]
+   .daily-log-main is column 2: a two-up puzzle grid above a full-width blood
+   pressure card.
+        left sub-column:  Sleep, then Body Metrics underneath
+        right sub-column: Nutrition, then Mood underneath
+        then Blood Pressure & HR spanning both sub-columns
+   .daily-log-habits is column 3: habit checkboxes with Projects beside them.
+
+   Below 1280px everything stacks - score first, habits last - and on phones
+   the cards fall to one per row. */
+.daily-log-main {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
+}
 .daily-log-puzzle {
-  column-count: 3;
-  column-gap: 1rem;
-  margin-bottom: 5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
 }
-.daily-log-puzzle-3 {
-  column-count: 3;
+/* Each column flows independently so the cards pack like puzzle pieces - a
+   short card does not leave a hole waiting for the taller one beside it. */
+.daily-log-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
 }
-.daily-log-puzzle-2 {
-  column-count: 2;
+.daily-log-wide {
+  min-width: 0;
+}
+/* Column 3. The card's own two-up split (habit checkboxes on the left,
+   Projects on the right) comes from grid-cols-1 md:grid-cols-2 in the markup;
+   phone widths are forced back to one column by .daily-log-form .grid above. */
+.daily-log-habits {
+  min-width: 0;
 }
 .puzzle-card {
-  break-inside: avoid;
-  margin-bottom: 1rem;
   display: block;
+  min-width: 0;
 }
-/* Responsive adjustments for puzzle layout */
+/* Stacked layout: keep the original bottom clearance after the last card. */
+@media (max-width: 1279px) {
+  .daily-log-habits {
+    margin-bottom: 5rem;
+  }
+}
+/* Responsive: single column of cards */
 @media (max-width: 768px) {
   .daily-log-puzzle {
-    column-count: 1;
+    grid-template-columns: 1fr;
   }
 }
 /* ============================================
@@ -7364,13 +7811,19 @@ select.form-control option {
   border-radius: 25px;
   padding: 1.25rem;
   margin-bottom: 1rem;
-  text-align: left;
+  text-align: center;
 }
+/* Date and score sit side by side as one centred group, with the breakdown
+   toggle centred directly underneath. */
 .daily-score-main {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.daily-score-main > .daily-score-info-date {
+  order: -1;
 }
 .score-ring {
   position: relative;
@@ -7397,34 +7850,17 @@ select.form-control option {
   color: var(--color-light);
   opacity: 0.5;
 }
-.daily-score-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
 .daily-score-info-date {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   color: var(--color-light);
-  opacity: 0.55;
+  opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-.daily-score-heading {
-  font-family: var(--font-mono);
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--color-light);
-}
-.daily-score-based {
-  font-size: 0.75rem;
-  color: var(--color-light);
-  opacity: 0.6;
-}
 .daily-score-toggle {
-  align-self: flex-start;
-  margin-top: 0.4rem;
+  align-self: center;
+  margin-top: 0.15rem;
   background: #ffffff0a;
   border: none;
   cursor: pointer;
@@ -7525,11 +7961,114 @@ select.form-control option {
 /* ============================================
    DASHBOARD - METRICS CHARTS (recharts)
    ============================================ */
+.dashboard-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.skeleton-block {
+  background: #ffffff08;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+}
+.skeleton-pill {
+  width: 5rem;
+  height: 1.55rem;
+  border-radius: 25px;
+  background: #ffffff08;
+}
+.skeleton-block,
+.skeleton-pill {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block,
+  .skeleton-pill {
+    animation: none;
+  }
+}
 .dashboard-metrics {
   margin-top: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+/* Insight cards sit above the charts. More than three fit on a wide screen. */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.analysis-card {
+  background: #ffffff08;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 0.85rem 0.95rem;
+  min-width: 0;
+}
+.analysis-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-light);
+  opacity: 0.65;
+  margin-bottom: 0.45rem;
+}
+.analysis-card-icon {
+  flex-shrink: 0;
+}
+.analysis-card-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.analysis-card-value {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--color-light);
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.analysis-card-unit {
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.5;
+}
+.analysis-card-hint {
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--color-light);
+  opacity: 0.55;
+  line-height: 1.35;
+}
+.analysis-card--good .analysis-card-icon,
+.analysis-card--good .analysis-card-hint {
+  color: var(--color-primary);
+  opacity: 0.8;
+}
+.analysis-card--warn .analysis-card-icon,
+.analysis-card--warn .analysis-card-hint {
+  color: #ffb84d;
+  opacity: 0.9;
+}
+@media (max-width: 480px) {
+  .analysis-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
 }
 .metric-range-pills {
   display: flex;
@@ -7567,11 +8106,19 @@ select.form-control option {
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 1rem;
 }
+.metrics-columns--single {
+  grid-template-columns: 1fr;
+}
 .metrics-chart-card {
-  background: #ffffff08;
-  border-radius: 25px;
+  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
   padding: 1rem 1rem 0.75rem;
   min-width: 0;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.metrics-chart-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 .metrics-chart-head {
   display: flex;
@@ -7664,12 +8211,13 @@ select.form-control option {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(5px);
+  background: rgba(8, 8, 8, 0.66);
+  backdrop-filter: blur(10px) saturate(120%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  animation: chart-modal-fade 0.16s ease-out;
 }
 .chart-modal {
   width: 100%;
@@ -7677,12 +8225,27 @@ select.form-control option {
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(165deg, #1e1e1e, #141414);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 20px;
-  padding: 1.1rem 1.1rem 0.5rem;
+  padding: 1.15rem 1.2rem 0.6rem;
   color: var(--color-light);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+  animation: chart-modal-rise 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes chart-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes chart-modal-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-modal-overlay,
+  .chart-modal {
+    animation: none;
+  }
 }
 .chart-modal-head {
   display: flex;
@@ -7727,6 +8290,32 @@ select.form-control option {
   max-height: 82vh;
   overflow: auto;
   width: 100%;
+}
+/* Dashboard on a phone: the 2-up chart grids already collapse to one column via
+   auto-fit, so only the cramped heights and the expanded view need help. */
+@media (max-width: 768px) {
+  .metrics-chart-card {
+    padding: 0.85rem 0.8rem 0.6rem;
+    border-radius: 18px;
+  }
+  .metrics-chart-card .recharts-responsive-container {
+    min-height: 170px;
+  }
+  .metric-range-pills {
+    gap: 0.3rem;
+  }
+  .metric-range-pill {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.65rem;
+  }
+  .chart-modal {
+    max-height: 94vh;
+    padding: 0.9rem 0.85rem 0.4rem;
+    border-radius: 16px;
+  }
+  .chart-modal-body {
+    max-height: 80vh;
+  }
 }
 /* ============================================
    DASHBOARD - wide layout (charts fill the page)
@@ -7777,6 +8366,12 @@ select.form-control option {
   text-decoration: none;
   min-width: 0;
   flex: 1;
+  /* The "More" trigger is a <button>; drop the UA chrome. */
+  appearance: none;
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  cursor: pointer;
 }
 .mobile-navbar-link.active {
   color: var(--color-primary);
@@ -7788,6 +8383,90 @@ select.form-control option {
   font-size: 0.6rem;
   font-weight: 500;
   display: none;
+}
+
+/* ============================================
+   MOBILE "MORE" SHEET - the pages without a tab
+   ============================================ */
+.mobile-more-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 118;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+.mobile-more-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 119;
+  background: #161616f2;
+  backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px 20px 0 0;
+  padding: 0.85rem 0.85rem calc(0.85rem + 4.5rem + env(safe-area-inset-bottom, 0px));
+  max-height: 78vh;
+  overflow-y: auto;
+  animation: mobile-more-in var(--dropdown-open-dur) var(--dropdown-ease);
+}
+@keyframes mobile-more-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.mobile-more-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.mobile-more-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-light);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  opacity: 0.7;
+}
+.mobile-more-close {
+  appearance: none;
+  background: #ffffff0a;
+  border: none;
+  color: var(--color-light);
+  font-size: 1.1rem;
+  line-height: 1;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.mobile-more-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+}
+.mobile-more-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  background: #ffffff08;
+  border: none;
+  border-radius: 14px;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.mobile-more-link.active {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.mobile-more-icon {
+  font-size: 0.95rem;
+  flex-shrink: 0;
 }
 
 @media (max-width: 767px) {
@@ -7826,6 +8505,21 @@ select.form-control option {
   .navbar-brand-row .navbar-inner {
     padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
     padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+  }
+
+  /* Mobile: the day nav competes with the centered page title, so drop the
+     History shortcut, tighten the label, and shorten the save status to an
+     icon + time. */
+  .navbar-day-nav .navbar-day-btn:last-child {
+    display: none;
+  }
+  .navbar-day-label {
+    min-width: 0;
+    font-size: 0.68rem;
+  }
+  .navbar-save-status {
+    margin-right: 0.5rem;
+    max-width: 6.5rem;
   }
 
   .navbar-user-wrap {

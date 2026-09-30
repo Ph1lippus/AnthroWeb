@@ -62,11 +62,7 @@ const DailyLogHistoryPage: React.FC = () => {
             <Title title="Daily Log History" />
             <div className="page-main-with-secondary">
                 <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Daily Log History</h2>
-                    </div>
-
-                    <div className="flex gap-2 mb-4">
+                                        <div className="flex gap-2 mb-4">
                         <button onClick={() => navigate('/Daily-Log')} className="btn-action">Today's Log</button>
                     </div>
 

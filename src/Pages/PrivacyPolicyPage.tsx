@@ -63,9 +63,8 @@ const PrivacyPolicyPage: React.FC = () => {
             <Title title="Privacy Policy" />
             <div className="legal-page">
                 <div className="dashboard-section">
-                    <div className="dashboard-section__head">
-                        <h2>Privacy Policy</h2>
-                        <span>Your privacy is important to us</span>
+                    <div className="dashboard-section__subtitle">
+                        Your privacy is important to us
                     </div>
                     <div className="legal-content">
                         {sections.map((section, index) => (

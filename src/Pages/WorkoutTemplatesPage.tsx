@@ -51,10 +51,9 @@ const WorkoutTemplatesPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
-                        <div className="dashboard-section__head">
-                            <h2>Templates</h2>
-                            <span>Build and manage your weekly workout routines</span>
-                        </div>
+                        <div className="dashboard-section__subtitle">
+                        Build and manage your weekly workout routines
+                    </div>
 
                         <div className="workout-templates-stats">
                             <div className="workout-templates-stat-item">

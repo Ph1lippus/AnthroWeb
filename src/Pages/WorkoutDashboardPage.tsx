@@ -68,10 +68,9 @@ const WorkoutDashboardPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
-                        <div className="dashboard-section__head">
-                            <h2>Workouts Dashboard</h2>
-                            <span>Track your fitness journey</span>
-                        </div>
+                        <div className="dashboard-section__subtitle">
+                        Track your fitness journey
+                    </div>
 
                         {isLoading ? (
                             <div className="profile-loading">

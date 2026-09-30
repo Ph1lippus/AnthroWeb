@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
@@ -15,23 +15,8 @@ import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import ConfirmModal from '../Components/ConfirmModal';
-import { subscribeDailyLogNav } from '../utils/dailyLogNav';
-
-const toDateString = (d: Date): string => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-};
-
-const todayString = (): string => toDateString(new Date());
-
-const addDays = (dateStr: string, delta: number): string => {
-    if (!dateStr) return dateStr;
-    const base = new Date(dateStr + 'T00:00:00');
-    base.setDate(base.getDate() + delta);
-    return toDateString(base);
-};
+import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
+import { isDateString, todayString } from '../utils/dates';
 
 const getScoreColor = (score: number): string => {
     if (score >= 80) return 'var(--color-primary)';
@@ -43,6 +28,7 @@ const getScoreColor = (score: number): string => {
 const DailyLogPage: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id?: string }>();
+    const [searchParams, setSearchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -57,9 +43,23 @@ const DailyLogPage: React.FC = () => {
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
-    const [logDate, setLogDate] = useState(() => {
-        return id ? '' : todayString();
-    });
+    // The day being edited lives in the URL (?date=YYYY-MM-DD) so a refresh, a
+    // shared link, and the browser's back/forward buttons all keep you on it.
+    // In edit-by-id mode the loaded log owns the date instead and we never
+    // write the param. An absent or malformed ?date= falls back to today.
+    const dateParam = searchParams.get('date');
+    const logDate = id
+        ? (existingLog?.log_date ?? '')
+        : (isDateString(dateParam) ? dateParam : todayString());
+
+    const setLogDate = useCallback((date: string) => {
+        if (!isDateString(date)) return;
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('date', date);
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
 
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
@@ -173,7 +173,6 @@ const DailyLogPage: React.FC = () => {
             if (log) {
                 setExistingLog(log);
                 setIsEditing(true);
-                setLogDate(log.log_date);
                 fillForm(log);
                 const projectIds = await getDailyLogProjects(log.id!);
                 if (projectIds.length > 0) {
@@ -333,20 +332,34 @@ const DailyLogPage: React.FC = () => {
     // stays derived and doesn't trigger cascading renders.
     const dayLogLoading = !id && (dayLogPlaceholder || dayLog === undefined);
 
-    // Roll over to a new day when the tab regains focus (non-edit mode)
+    // Follow the calendar day forward, but only when the user was already
+    // looking at "today". Switching tabs/windows to copy a value fires `focus`
+    // and `visibilitychange` constantly, and an unconditional reset to today
+    // here used to silently move every edit onto today's log. The 60s interval
+    // covers a tab left open across midnight without a focus event.
+    const lastKnownTodayRef = useRef<string>(todayString());
     useEffect(() => {
         if (id) return;
-        const refreshIfNewDay = () => {
+        const rollForwardIfNewDay = () => {
             const today = todayString();
-            setLogDate(prev => (prev !== today ? today : prev));
+            const previousToday = lastKnownTodayRef.current;
+            lastKnownTodayRef.current = today;
+            if (today !== previousToday && logDate === previousToday) {
+                setLogDate(today);
+            }
         };
-        window.addEventListener('focus', refreshIfNewDay);
-        document.addEventListener('visibilitychange', refreshIfNewDay);
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') rollForwardIfNewDay();
+        };
+        window.addEventListener('focus', rollForwardIfNewDay);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        const intervalId = window.setInterval(rollForwardIfNewDay, 60_000);
         return () => {
-            window.removeEventListener('focus', refreshIfNewDay);
-            document.removeEventListener('visibilitychange', refreshIfNewDay);
+            window.removeEventListener('focus', rollForwardIfNewDay);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.clearInterval(intervalId);
         };
-    }, [id]);
+    }, [id, logDate, setLogDate]);
 
     // Auto-save function
     const performSave = useCallback(async () => {
@@ -531,15 +544,22 @@ const DailyLogPage: React.FC = () => {
         }
     };
 
-    // Day navigation is now controlled from the primary navbar via pub/sub
+    // The primary navbar owns the save indicator, so mirror the save lifecycle
+    // into a tiny external store instead of rendering it on this page. While the
+    // save errors it auto-clears; a completed save keeps showing its timestamp.
+    // The published `date` lets the navbar ignore a stale timestamp after a day
+    // switch rather than imply the new day was saved.
     useEffect(() => {
-        return subscribeDailyLogNav((action) => {
-            if (id) return;
-            if (action === 'prev') setLogDate(prev => addDays(prev, -1));
-            else if (action === 'next') setLogDate(prev => addDays(prev, 1));
-            else if (action === 'today') setLogDate(todayString());
-        });
-    }, [id]);
+        if (saveError) {
+            publishDailyLogSaveState({ status: 'error', savedAt: null, error: saveError, date: logDate || null });
+        } else if (saving) {
+            publishDailyLogSaveState({ status: 'saving', savedAt: null, error: null, date: logDate || null });
+        } else if (lastSaved) {
+            publishDailyLogSaveState({ status: 'saved', savedAt: lastSaved, error: null, date: logDate || null });
+        }
+    }, [saving, saveError, lastSaved, logDate]);
+
+    useEffect(() => resetDailyLogSaveState, []);
 
     if (!settings) {
         return (
@@ -593,15 +613,11 @@ const DailyLogPage: React.FC = () => {
     const habitCheckbox = (
         checked: boolean,
         onChange: (checked: boolean) => void,
-        label: string,
-        showDone = true
+        label: string
     ) => (
         <label className="checkbox-label">
             <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="checkbox-input" />
             <span className="text-sm opacity-90">{label}</span>
-            {showDone && checked && (
-                <span className="text-xs ml-2" style={{ color: 'var(--color-primary)' }}>(Done)</span>
-            )}
         </label>
     );
 
@@ -610,41 +626,35 @@ const DailyLogPage: React.FC = () => {
             <div className="dashboard-section daily-logs-section">
                 <div className="daily-logs-card">
                     {id && (
-                        <div className="flex gap-2 mb-4 flex-wrap">
+                        <div className="flex gap-2 mb-4 flex-wrap daily-logs-edit-row">
                             <button onClick={() => navigate('/Daily-Log')} className="btn-action">Today's Log</button>
                         </div>
                     )}
 
-                    {/* Auto-save indicator */}
-                    <div className="text-center text-xs mb-4">
-                        {saveError ? (
-                            <span style={{ color: 'var(--color-danger)' }}>{saveError}</span>
-                        ) : saving ? (
-                            <span className="opacity-60">Saving...</span>
-                        ) : lastSaved ? (
-                            <span className="opacity-60">Saved {lastSaved.toLocaleTimeString()}</span>
-                        ) : (
-                            <span className="opacity-60">Auto-save on</span>
-                        )}
+                    {/* Sticky score panel. On wide screens it is the first of the three
+                        columns; below the breakpoint the card grid collapses and it sits
+                        above the form again. */}
+                    <div className="daily-log-score-col">
+                        <ScoreCard
+                            score={scoreResult.score}
+                            dateLabel={dateLabel}
+                            metrics={scoreResult.metrics}
+                        />
                     </div>
 
-                    <ScoreCard
-                        score={scoreResult.score}
-                        loggedCount={scoreResult.loggedCount}
-                        totalMetrics={scoreResult.totalMetrics}
-                        dateLabel={dateLabel}
-                        metrics={scoreResult.metrics}
-                    />
-
                     <div className="daily-log-form">
-                        {/* Puzzle/Masonry layout - each card only uses the height it needs */}
-                        <div className="daily-log-puzzle daily-log-puzzle-3">
+                        {/* Column 2. Holds the two-up card grid plus the full-width
+                            blood pressure card beneath it. */}
+                        <div className="daily-log-main">
+                        {/* Two-column grid: sleep | nutrition, then body metrics | mood */}
+                        <div className="daily-log-puzzle">
+                            <div className="daily-log-col">
                             {/* Sleep */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Sleep</h3>
                                     {noSleep ? (
-                                        <span className="text-sm ml-2" style={{ color: 'var(--color-danger)' }}>No sleep — score 0</span>
+                                        <span className="text-sm opacity-70 ml-2" style={{ color: 'var(--color-danger)' }}>0h</span>
                                     ) : computedSleepDuration != null && (
                                         <span className="text-sm opacity-70 ml-2">{computedSleepDuration}h</span>
                                     )}
@@ -657,7 +667,7 @@ const DailyLogPage: React.FC = () => {
                                             onChange={(e) => setNoSleep(e.target.checked)}
                                             className="checkbox-input"
                                         />
-                                        <span className="text-sm opacity-90">No Sleep (didn't sleep this night)</span>
+                                        <span className="text-sm opacity-90">Didn't Sleep</span>
                                     </label>
                                     <div className="scored-input-wrap">
                                         <input
@@ -707,61 +717,34 @@ const DailyLogPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Blood Pressure & Heart Rate */}
+                            {/* Left column of the second row: body metrics stacked
+                                one field per row. */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Blood Pressure & Heart Rate</h3>
+                                    <h3 className="card-title">Body Metrics</h3>
                                 </div>
                                 <div className="card-body">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="flex flex-col gap-3">
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className={"scored-input" + (morningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={morningSystolic ? { borderColor: getScoreColor(scoreOf('morningSystolic')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Morning Systolic <span className="scored-input-goal-inline">120</span></label>
-                                            </div>
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className={"scored-input" + (morningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={morningDiastolic ? { borderColor: getScoreColor(scoreOf('morningDiastolic')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Morning Diastolic <span className="scored-input-goal-inline">80</span></label>
-                                            </div>
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className={"scored-input" + (morningBpm ? '' : ' scored-input--empty')} placeholder=" " style={morningBpm ? { borderColor: getScoreColor(scoreOf('morningBpm')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Morning BPM <span className="scored-input-goal-inline">60-100</span></label>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col gap-3">
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className={"scored-input" + (eveningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningSystolic ? { borderColor: getScoreColor(scoreOf('eveningSystolic')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Evening Systolic <span className="scored-input-goal-inline">120</span></label>
-                                            </div>
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className={"scored-input" + (eveningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningDiastolic ? { borderColor: getScoreColor(scoreOf('eveningDiastolic')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Evening Diastolic <span className="scored-input-goal-inline">80</span></label>
-                                            </div>
-                                            <div className="scored-input-wrap">
-                                                <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className={"scored-input" + (eveningBpm ? '' : ' scored-input--empty')} placeholder=" " style={eveningBpm ? { borderColor: getScoreColor(scoreOf('eveningBpm')! ?? 0) } : undefined} />
-                                                <label className="scored-input-label">Evening BPM <span className="scored-input-goal-inline">60-100</span></label>
-                                            </div>
-                                        </div>
+                                    <div className="scored-input-wrap">
+                                        <input type="number" step="0.1" value={weight} onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setWeight(e.target.value);
+                                            else if (e.target.value === '') setWeight('');
+                                        }} className={"scored-input" + (weight ? '' : ' scored-input--empty')} placeholder=" " style={weight ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
+                                        <label className="scored-input-label">Weight (kg) <span className="scored-input-goal-inline">{settings?.target_weight || '--'}kg</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={bodyTemperature}
-                                            onChange={(e) => {
-                                                const val = parseFloat(e.target.value);
-                                                if (!isNaN(val) && val >= 0) setBodyTemperature(e.target.value);
-                                                else if (e.target.value === '') setBodyTemperature('');
-                                            }}
-                                            className={"scored-input" + (bodyTemperature ? '' : ' scored-input--empty')}
-                                            placeholder=" "
-                                            style={bodyTemperature ? { borderColor: getScoreColor(scoreOf('bodyTemperature')! ?? 0) } : undefined}
-                                        />
-                                        <label className="scored-input-label">Body Temperature (°C) <span className="scored-input-goal-inline">36.5</span></label>
+                                        <input type="number" step="0.1" value={bodyFat} onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val) && val >= 0) setBodyFat(e.target.value);
+                                            else if (e.target.value === '') setBodyFat('');
+                                        }} className={"scored-input" + (bodyFat ? '' : ' scored-input--empty')} placeholder=" " style={bodyFat ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
+                                        <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
                                     </div>
+                                </div>
                                 </div>
                             </div>
 
+                            <div className="daily-log-col">
                             {/* Nutrition */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
@@ -811,43 +794,109 @@ const DailyLogPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Body Metrics */}
+
+                                {/* Mood - a subjective daily rating, so it gets its own card
+                                    and a 1-10 scale instead of a text box. */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Body Metrics</h3>
+                                    <h3 className="card-title">Mood</h3>
+                                    {mood && (
+                                        <span className="text-sm opacity-70 ml-2">{mood}/10</span>
+                                    )}
                                 </div>
                                 <div className="card-body">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div className="scored-input-wrap">
-                                            <input type="number" step="0.1" value={weight} onChange={(e) => {
-                                                const val = parseFloat(e.target.value);
-                                                if (!isNaN(val) && val >= 0) setWeight(e.target.value);
-                                                else if (e.target.value === '') setWeight('');
-                                            }} className={"scored-input" + (weight ? '' : ' scored-input--empty')} placeholder=" " style={weight ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
-                                            <label className="scored-input-label">Weight (kg) <span className="scored-input-goal-inline">{settings?.target_weight || '--'}kg</span></label>
-                                        </div>
-                                        <div className="scored-input-wrap">
-                                            <input type="number" step="0.1" value={bodyFat} onChange={(e) => {
-                                                const val = parseFloat(e.target.value);
-                                                if (!isNaN(val) && val >= 0) setBodyFat(e.target.value);
-                                                else if (e.target.value === '') setBodyFat('');
-                                            }} className={"scored-input" + (bodyFat ? '' : ' scored-input--empty')} placeholder=" " style={bodyFat ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
-                                            <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
-                                        </div>
-                                        <div className="scored-input-wrap">
-                                            <input type="number" min="1" max="10" step="1" value={mood} onChange={(e) => {
-                                                const val = parseInt(e.target.value);
-                                                if (!isNaN(val) && val >= 0) setMood(e.target.value);
-                                                else if (e.target.value === '') setMood('');
-                                            }} className={"scored-input" + (mood ? '' : ' scored-input--empty')} placeholder=" " style={mood ? { borderColor: getScoreColor(scoreOf('mood')! ?? 0) } : undefined} />
-                                            <label className="scored-input-label">Mood (1-10) <span className="scored-input-goal-inline">8+</span></label>
-                                        </div>
+                                    <div className="mood-scale" role="group" aria-label="Mood from 1 to 10">
+                                        {Array.from({ length: 10 }, (_, i) => i + 1).map(step => {
+                                            const active = Boolean(mood) && Number(mood) >= step;
+                                            return (
+                                                <button
+                                                    key={step}
+                                                    type="button"
+                                                    className={'mood-scale-btn' + (active ? ' mood-scale-btn--active' : '')}
+                                                    style={active ? { background: getScoreColor(scoreOf('mood')! ?? 0), borderColor: getScoreColor(scoreOf('mood')! ?? 0) } : undefined}
+                                                    onClick={() => setMood(String(step))}
+                                                    title={`${step}/10`}
+                                                    aria-label={`Mood ${step} out of 10`}
+                                                    aria-pressed={active}
+                                                >
+                                                    {step}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
+                                    <span className="mood-scale-caption">
+                                        <span>1 - rough</span>
+                                        <span>goal 8+</span>
+                                        <span>10 - great</span>
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Habits */}
-                            <div className="card puzzle-card mb-4">
+                            </div>
+                        </div>
+
+                        {/* Blood Pressure & Heart Rate spans the full width of this
+                            column only - it does not extend into the habits column. */}
+                        <div className="daily-log-wide">
+                            <div className="card puzzle-card">
+                                <div className="card-header">
+                                    <h3 className="card-title">Blood Pressure & Heart Rate</h3>
+                                </div>
+                                <div className="card-body">
+                                    <div className="grid grid-cols-2">
+                                        <div className="flex flex-col">
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className={"scored-input" + (morningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={morningSystolic ? { borderColor: getScoreColor(scoreOf('morningSystolic')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Morning Systolic <span className="scored-input-goal-inline">120</span></label>
+                                            </div>
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className={"scored-input" + (morningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={morningDiastolic ? { borderColor: getScoreColor(scoreOf('morningDiastolic')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Morning Diastolic <span className="scored-input-goal-inline">80</span></label>
+                                            </div>
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className={"scored-input" + (morningBpm ? '' : ' scored-input--empty')} placeholder=" " style={morningBpm ? { borderColor: getScoreColor(scoreOf('morningBpm')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Morning BPM <span className="scored-input-goal-inline">60-100</span></label>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className={"scored-input" + (eveningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningSystolic ? { borderColor: getScoreColor(scoreOf('eveningSystolic')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Evening Systolic <span className="scored-input-goal-inline">120</span></label>
+                                            </div>
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className={"scored-input" + (eveningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningDiastolic ? { borderColor: getScoreColor(scoreOf('eveningDiastolic')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Evening Diastolic <span className="scored-input-goal-inline">80</span></label>
+                                            </div>
+                                            <div className="scored-input-wrap">
+                                                <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className={"scored-input" + (eveningBpm ? '' : ' scored-input--empty')} placeholder=" " style={eveningBpm ? { borderColor: getScoreColor(scoreOf('eveningBpm')! ?? 0) } : undefined} />
+                                                <label className="scored-input-label">Evening BPM <span className="scored-input-goal-inline">60-100</span></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="scored-input-wrap">
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={bodyTemperature}
+                                            onChange={(e) => {
+                                                const val = parseFloat(e.target.value);
+                                                if (!isNaN(val) && val >= 0) setBodyTemperature(e.target.value);
+                                                else if (e.target.value === '') setBodyTemperature('');
+                                            }}
+                                            className={"scored-input" + (bodyTemperature ? '' : ' scored-input--empty')}
+                                            placeholder=" "
+                                            style={bodyTemperature ? { borderColor: getScoreColor(scoreOf('bodyTemperature')! ?? 0) } : undefined}
+                                        />
+                                        <label className="scored-input-label">Body Temperature (°C) <span className="scored-input-goal-inline">36.5</span></label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                        {/* Habits occupies its own right-hand column, outside column 2. */}
+                        <div className="daily-log-habits">
+                            <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Habits</h3>
                                     <span className="text-xs opacity-60 ml-auto">{builtinHabitDone + completedHabits.size}/{habitTotal}</span>
@@ -865,7 +914,7 @@ const DailyLogPage: React.FC = () => {
                                         </div>
 
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(projectWorkDone, setProjectWorkDone, 'Project Work Done')}
+                                            {habitCheckbox(projectWorkDone, setProjectWorkDone, 'Projects')}
 
                                             {projectWorkDone && (
                                                 <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
@@ -895,10 +944,10 @@ const DailyLogPage: React.FC = () => {
                                     </div>
 
                                     {loadingHabits ? (
-                                        <p className="text-xs opacity-60 mt-3">Loading custom habits...</p>
+                                        <p className="Custom-habit-text text-xs opacity-60 mt-3">Loading custom habits...</p>
                                     ) : habits.length > 0 && (
-                                        <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-3">
-                                            <p className="text-xs opacity-50 mb-1">Custom Habits:</p>
+                                        <div>
+                                            <p className="Custom-habit-text text-xs opacity-50 mb-1">Custom Habits:</p>
                                             <div className="grid gap-1">
                                                 {habits.map((habit) => (
                                                     <div key={habit.id} className="flex items-center gap-1">

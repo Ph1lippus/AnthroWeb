@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
-import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History } from 'lucide-react';
+import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History, Check, Loader2, AlertTriangle } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
-import { publishDailyLogNav } from '../utils/dailyLogNav';
+import { useDailyLogSaveState } from '../utils/dailyLogStatus';
+import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
 
 const Navbar: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const saveState = useDailyLogSaveState();
     const [user, setUser] = useState<User | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
     const [closing, setClosing] = useState(false);
@@ -74,52 +77,115 @@ const Navbar: React.FC = () => {
         navigate('/login');
     };
 
-    // Show day navigation only on the main daily log page (not edit/history/setup)
-    const onDailyLog = location.pathname.toLowerCase() === '/daily-log';
+    // Show day navigation only on the main daily log page (not edit/history/setup).
+    // Matching on segments rather than raw equality keeps a trailing slash or
+    // the ?date= param from hiding the controls.
+    const pathname = location.pathname.toLowerCase().replace(/\/+$/, '');
+    const onDailyLog = pathname === '/daily-log';
+    const showDayNav = Boolean(user) && onDailyLog;
+
+    const logDateParam = searchParams.get('date');
+    const today = todayString();
+    // Before the page hydrates the param, mirror today's date so the label
+    // never renders empty. An invalid ?date= is ignored the same way.
+    const logDate = isDateString(logDateParam) ? logDateParam : today;
+
+    // Drop a stale "Saved HH:MM" after a day switch — it describes the previous
+    // day and must not read as confirmation that the newly-selected day landed.
+    const saveStatus = saveState.status === 'saved' && saveState.date !== logDate
+        ? 'idle'
+        : saveState.status;
+
+    const goToDate = useCallback((date: string) => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set('date', date);
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
 
     return (
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
-                {user && onDailyLog && (
-                    <div className="navbar-day-nav">
-                        <button
-                            type="button"
-                            onClick={() => publishDailyLogNav('prev')}
-                            className="navbar-day-btn"
-                            title="Previous day"
-                            aria-label="Previous day"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => publishDailyLogNav('today')}
-                            className="navbar-day-btn"
-                            title="Today"
-                            aria-label="Today"
-                        >
-                            <Calendar size={15} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => publishDailyLogNav('next')}
-                            className="navbar-day-btn"
-                            title="Next day"
-                            aria-label="Next day"
-                        >
-                            <ChevronRight size={16} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/Daily-Log/History')}
-                            className="navbar-day-btn"
-                            title="View History"
-                            aria-label="View History"
-                        >
-                            <History size={15} />
-                        </button>
-                    </div>
+                <div className="navbar-slot navbar-slot--start">
+                {showDayNav && (
+                    <>
+                        <div className="navbar-day-nav">
+                            <button
+                                type="button"
+                                onClick={() => goToDate(addDays(logDate, -1))}
+                                className="navbar-day-btn"
+                                title="Previous day"
+                                aria-label="Previous day"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <span className="navbar-day-label" aria-live="polite">
+                                {formatDayLabel(logDate)}
+                            </span>
+                            <label className="navbar-day-btn navbar-day-btn--picker" title="Pick a day">
+                                <Calendar size={15} aria-hidden="true" />
+                                <span className="sr-only">Pick a day</span>
+                                <input
+                                    type="date"
+                                    className="navbar-day-picker-input"
+                                    value={logDate}
+                                    max={today}
+                                    onChange={(e) => {
+                                        const next = e.target.value;
+                                        if (isDateString(next)) goToDate(next);
+                                    }}
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => goToDate(addDays(logDate, 1))}
+                                className="navbar-day-btn"
+                                title="Next day"
+                                aria-label="Next day"
+                                disabled={logDate >= today}
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/Daily-Log/History')}
+                                className="navbar-day-btn"
+                                title="View History"
+                                aria-label="View History"
+                            >
+                                <History size={15} />
+                            </button>
+                        </div>
+                        {saveStatus !== 'idle' && (
+                            <div
+                                className={`navbar-save-status navbar-save-status--${saveStatus}`}
+                                role="status"
+                                aria-live="polite"
+                            >
+                                {saveStatus === 'saving' && (
+                                    <>
+                                        <Loader2 size={12} className="navbar-save-status-spinner" aria-hidden="true" />
+                                        Saving&hellip;
+                                    </>
+                                )}
+                                {saveStatus === 'saved' && (
+                                    <>
+                                        <Check size={12} aria-hidden="true" />
+                                        {saveState.savedAt ? `Saved ${saveState.savedAt.toLocaleTimeString()}` : 'Saved'}
+                                    </>
+                                )}
+                                {saveStatus === 'error' && (
+                                    <>
+                                        <AlertTriangle size={12} aria-hidden="true" />
+                                        {saveState.error || 'Save failed'}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </>
                 )}
+                </div>
                 <div className="navbar-actions">
                     {user ? (
                         <>

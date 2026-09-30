@@ -6,6 +6,7 @@ import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import { Lightbulb, X, RotateCw, PenTool } from 'lucide-react';
+import { todayString } from '../utils/dates';
 
 const JournalPage: React.FC = () => {
     const navigate = useNavigate();
@@ -17,14 +18,7 @@ const JournalPage: React.FC = () => {
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-    const toDateString = (d: Date): string => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-    };
-
-    const [logDate, setLogDate] = useState(() => toDateString(new Date()));
+    const [logDate, setLogDate] = useState(() => todayString());
     const [journalEntry, setJournalEntry] = useState('');
     const [showTips, setShowTips] = useState(true);
 
@@ -80,19 +74,31 @@ const JournalPage: React.FC = () => {
         checkExisting();
     }, [logDate]);
 
-    // Roll over to a new day when the tab regains focus
+    // Follow the calendar day forward when the tab is brought back to the
+    // foreground. Only react once the day has genuinely changed — focus fires
+    // for any tab or window switch, which used to re-trigger this constantly.
+    const lastKnownTodayRef = useRef<string>(todayString());
     useEffect(() => {
-        const refreshIfNewDay = () => {
-            const today = toDateString(new Date());
-            setLogDate(prev => (prev !== today ? today : prev));
+        const rollForwardIfNewDay = () => {
+            const today = todayString();
+            const previousToday = lastKnownTodayRef.current;
+            lastKnownTodayRef.current = today;
+            if (today !== previousToday && logDate === previousToday) {
+                setLogDate(today);
+            }
         };
-        window.addEventListener('focus', refreshIfNewDay);
-        document.addEventListener('visibilitychange', refreshIfNewDay);
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') rollForwardIfNewDay();
+        };
+        window.addEventListener('focus', rollForwardIfNewDay);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        const intervalId = window.setInterval(rollForwardIfNewDay, 60_000);
         return () => {
-            window.removeEventListener('focus', refreshIfNewDay);
-            document.removeEventListener('visibilitychange', refreshIfNewDay);
+            window.removeEventListener('focus', rollForwardIfNewDay);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.clearInterval(intervalId);
         };
-    }, []);
+    }, [logDate]);
 
     // Auto-save function
     const performSave = useCallback(async () => {

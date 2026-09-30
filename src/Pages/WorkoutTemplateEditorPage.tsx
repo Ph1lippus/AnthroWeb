@@ -104,9 +104,8 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                     <div className="workout-card">
                         <WorkoutsNav />
 
-                        <div className="dashboard-section__head">
-                            <h2>Edit Template</h2>
-                            <span>Configure your weekly routine — past workouts are never changed.</span>
+                        <div className="dashboard-section__subtitle">
+                            Configure your weekly routine — past workouts are never changed.
                         </div>
 
                         <div className="workout-template-editor__actions flex gap-2 mb-4">

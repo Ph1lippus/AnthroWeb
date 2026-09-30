@@ -1,5 +1,6 @@
 import Navbar from './Components/Navbar'
 import SecondaryNavbar from './Components/SecondaryNavbar'
+import SidebarNav from './Components/SidebarNav'
 import MobileNavbar from './Components/MobileNavbar'
 import UpdateModal from './Components/UpdateModal'
 import HomePage from './Pages/HomePage'
@@ -92,6 +93,7 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <Navbar />
+      <SidebarNav />
       <SecondaryNavbar />
       <MobileNavbar />
       <UpdateModal />

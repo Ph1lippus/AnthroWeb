@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ResponsiveContainer,
     ComposedChart,
@@ -20,24 +20,22 @@ import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
+import type { DateRange } from './dateRange';
+
+// Resolved from CSS variables so the palette lives in one place in index.css.
+const cssVar = (name: string): string =>
+    `var(${name})`;
 
 const C = {
-    primary: '#00ffa6',
-    greenDark: '#43b67d',
-    blue: '#4da6ff',
-    pink: '#ff7ba9',
-    amber: '#ffb84d',
-    purple: '#b48dff',
-    cyan: '#4dd8e0',
-    red: '#ff5a60',
+    primary: cssVar('--chart-primary'),
+    greenDark: cssVar('--chart-green'),
+    blue: cssVar('--chart-blue'),
+    pink: cssVar('--chart-pink'),
+    amber: cssVar('--chart-amber'),
+    purple: cssVar('--chart-purple'),
+    cyan: cssVar('--chart-cyan'),
+    red: cssVar('--chart-red'),
 };
-
-const RANGES: { label: string; days: number | null }[] = [
-    { label: '14 Days', days: 14 },
-    { label: '30 Days', days: 30 },
-    { label: '90 Days', days: 90 },
-    { label: 'All Time', days: null },
-];
 
 const fmtDate = (d: string): string =>
     new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -48,12 +46,36 @@ const inRange = (date: string, days: number | null): boolean => {
     return diff >= 0 && diff < days;
 };
 
+// "23:30" / "23:30:00" -> 23.5 so a clock time can share a numeric axis with the
+// rest of the metrics. Bedtimes before 12:00 are shifted to the evening half of
+// the day, which is where someone who sleeps at 00:30 actually belongs.
+const clockToHours = (value: string | null | undefined): number | null => {
+    if (!value) return null;
+    const match = /^(\d{1,2}):(\d{2})/.exec(value);
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    const total = hours + minutes / 60;
+    return hours < 12 ? total + 24 : total;
+};
+
+const hoursToClock = (hours: number | null): string => {
+    if (hours === null) return '--';
+    const wrapped = ((hours % 24) + 24) % 24;
+    const h = Math.floor(wrapped);
+    const m = Math.round((wrapped - h) * 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
 interface ChartPoint {
     date: string;
     label: string;
     score: number | null;
     sleepDuration: number | null;
     sleepQuality: number | null;
+    bedtime: number | null;
+    wakeTime: number | null;
     weight: number | null;
     bodyFat: number | null;
     mood: number | null;
@@ -107,12 +129,12 @@ const ChartTooltip: React.FC<ChartTooltipProps> = ({ active, label, payload }) =
 };
 
 const AXIS_TICK = {
-    fill: 'rgba(255, 255, 255, 0.4)',
+    fill: 'var(--chart-axis)',
     fontSize: 10,
     fontFamily: 'var(--font-mono)',
 };
 
-const ChartGrid: React.FC = () => <CartesianGrid stroke="rgba(255, 255, 255, 0.06)" vertical={false} />;
+const ChartGrid: React.FC = () => <CartesianGrid stroke="var(--chart-grid)" vertical={false} />;
 
 const ChartX: React.FC = () => (
     <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }} minTickGap={36} interval="preserveStartEnd" />
@@ -160,10 +182,12 @@ interface ChartCardProps {
     expandHeight?: number;
     onExpand?: (expanded: ExpandedChart) => void;
     empty?: boolean;
+    /** Span the whole row instead of sitting in a 2-up column. */
+    fullWidth?: boolean;
 }
 
-const ChartCard: React.FC<ChartCardProps> = ({ title, chart, height = 150, expandHeight, onExpand, empty }) => (
-    <div className="metrics-chart-card">
+const ChartCard: React.FC<ChartCardProps> = ({ title, chart, height = 150, expandHeight, onExpand, empty, fullWidth }) => (
+    <div className={`metrics-chart-card${fullWidth ? ' metrics-chart-card--full' : ''}`}>
         <div className="metrics-chart-head">
             <h3>{title}</h3>
             {!empty && onExpand && chart && (
@@ -191,14 +215,26 @@ const ChartEmpty: React.FC = () => (
 );
 
 const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void }> = ({ expanded, onClose }) => {
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const closeRef = useRef<HTMLButtonElement>(null);
+
     useEffect(() => {
         if (!expanded) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') {
+                onClose();
+                return;
+            }
+            // Keep Tab inside the dialog; it is the only focusable content here.
+            if (e.key === 'Tab' && dialogRef.current) {
+                e.preventDefault();
+                closeRef.current?.focus();
+            }
         };
         window.addEventListener('keydown', onKey);
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
+        closeRef.current?.focus();
         return () => {
             window.removeEventListener('keydown', onKey);
             document.body.style.overflow = prevOverflow;
@@ -207,9 +243,14 @@ const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void
 
     if (!expanded) return null;
 
+    // The caller passes a preferred pixel height; cap it against the viewport so
+    // tall charts (custom habits) never push the header off screen.
+    const height = Math.max(260, Math.min(expanded.height, window.innerHeight * 0.68));
+
     return (
         <div className="chart-modal-overlay" onClick={onClose}>
             <div
+                ref={dialogRef}
                 className="chart-modal"
                 role="dialog"
                 aria-modal="true"
@@ -218,12 +259,12 @@ const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void
             >
                 <div className="chart-modal-head">
                     <h3>{expanded.title}</h3>
-                    <button type="button" className="chart-modal-close" aria-label="Close chart" title="Close" onClick={onClose}>
+                    <button ref={closeRef} type="button" className="chart-modal-close" aria-label="Close chart" title="Close" onClick={onClose}>
                         <X size={18} />
                     </button>
                 </div>
                 <div className="chart-modal-body">
-                    <ResponsiveContainer width="100%" height={expanded.height}>
+                    <ResponsiveContainer width="100%" height={height}>
                         {expanded.chart}
                     </ResponsiveContainer>
                 </div>
@@ -237,10 +278,10 @@ interface MetricsChartsProps {
     habits: Habit[] | null;
     habitLogs: DailyHabitLog[] | null;
     settings: UserSettings | null;
+    range: DateRange;
 }
 
-const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings }) => {
-    const [range, setRange] = useState<{ label: string; days: number | null }>(RANGES[0]);
+const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings, range }) => {
     const [expanded, setExpanded] = useState<ExpandedChart | null>(null);
 
     const openChart = useCallback((e: ExpandedChart) => setExpanded(e), []);
@@ -283,6 +324,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     score: l.daily_score ?? null,
                     sleepDuration: l.sleep_duration ?? null,
                     sleepQuality: l.sleep_quality ?? null,
+                    bedtime: clockToHours(l.bedtime),
+                    wakeTime: clockToHours(l.wake_time),
                     weight: l.weight ?? null,
                     bodyFat: l.body_fat ?? null,
                     mood: l.mood ?? null,
@@ -344,6 +387,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             score: avg('score'),
             sleepDuration: avg('sleepDuration'),
             sleepQuality: avg('sleepQuality'),
+            bedtime: avg('bedtime'),
+            wakeTime: avg('wakeTime'),
             morningSystolic: avg('morningSystolic'),
             eveningSystolic: avg('eveningSystolic'),
             morningDiastolic: avg('morningDiastolic'),
@@ -367,24 +412,12 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
         ? Math.round(customHabitData.reduce((sum, h) => sum + h.pct, 0) / customHabitData.length)
         : null;
 
-    const habitChartHeight = Math.max(160, customHabitData.length * 28);
-    const habitExpandHeight = Math.max(320, customHabitData.length * 34);
+    // Full-width card: one row per habit with room for the full name.
+    const habitChartHeight = Math.max(180, customHabitData.length * 36);
+    const habitExpandHeight = Math.max(340, customHabitData.length * 40);
 
     return (
         <div className="dashboard-metrics">
-            <div className="metric-range-pills">
-                {RANGES.map(r => (
-                    <button
-                        key={r.label}
-                        type="button"
-                        onClick={() => setRange(r)}
-                        className={'metric-range-pill' + (range.label === r.label ? ' metric-range-pill--active' : '')}
-                    >
-                        {r.label}
-                    </button>
-                ))}
-            </div>
-
             {logs === null ? (
                 <div className="dashboard-daily-card">
                     <div className="profile-loading">
@@ -418,7 +451,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <ChartTip />
                                 <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />
                                 <AvgLine y={averages.score} />
-                                <Area type="monotone" dataKey="score" name="Score" stroke={C.primary} strokeWidth={2} fill="url(#scoreFill)" dot={false} connectNulls />
+                                <Area type="monotone" dataKey="score" name="Score" stroke={C.primary} strokeWidth={2.5} fill="url(#scoreFill)" dot={false} connectNulls />
                             </ComposedChart>
                         }
                     />
@@ -431,12 +464,18 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             onExpand={openChart}
                             chart={
                                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="sleepFill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={C.primary} stopOpacity={0.28} />
+                                            <stop offset="100%" stopColor={C.primary} stopOpacity={0.02} />
+                                        </linearGradient>
+                                    </defs>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY domain={[0, 12]} />
                                     <ChartTip />
                                     <AvgLine y={averages.sleepDuration} />
-                                    <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2} fill="rgba(0, 255, 166, 0.15)" dot={false} connectNulls />
+                                    <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2.5} fill="url(#sleepFill)" dot={false} connectNulls />
                                 </AreaChart>
                             }
                         />
@@ -451,7 +490,56 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartY domain={[0, 10]} />
                                     <ChartTip />
                                     <AvgLine y={averages.sleepQuality} stroke={C.blue} />
-                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                </LineChart>
+                            }
+                        />
+                    </div>
+
+                    {/* Bedtime and wake time share a clock-hours axis, so they are
+                        drawn together on one wide chart. */}
+                    <div className="metrics-columns metrics-columns--single">
+                        <ChartCard
+                            title="Bedtime & Wake Time"
+                            empty={!hasAny('bedtime', 'wakeTime')}
+                            height={200}
+                            onExpand={openChart}
+                            chart={
+                                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="bedtimeFade" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={C.purple} stopOpacity={0.28} />
+                                            <stop offset="100%" stopColor={C.purple} stopOpacity={0.02} />
+                                        </linearGradient>
+                                        <linearGradient id="wakeTimeFade" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={C.amber} stopOpacity={0.28} />
+                                            <stop offset="100%" stopColor={C.amber} stopOpacity={0.02} />
+                                        </linearGradient>
+                                    </defs>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <YAxis
+                                        tick={AXIS_TICK}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        domain={[0, 36]}
+                                        ticks={[0, 6, 12, 18, 24, 30, 36]}
+                                        tickFormatter={hoursToClock}
+                                        width={44}
+                                        allowDecimals={false}
+                                    />
+                                    <ChartTip />
+                                    <AvgLine y={averages.bedtime} stroke={C.purple} />
+                                    <AvgLine y={averages.wakeTime} stroke={C.amber} />
+                                    <Area type="monotone" dataKey="bedtime" name="Bedtime" stroke={C.purple} strokeWidth={2.5} fill="url(#bedtimeFade)" dot={false} connectNulls />
+                                    <Area type="monotone" dataKey="wakeTime" name="Wake Time" stroke={C.amber} strokeWidth={2.5} fill="url(#wakeTimeFade)" dot={false} connectNulls />
+                                    <Legend
+                                        verticalAlign="top"
+                                        height={24}
+                                        iconType="plainline"
+                                        iconSize={14}
+                                        wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--chart-axis)' }}
+                                    />
                                 </LineChart>
                             }
                         />
@@ -473,8 +561,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ReferenceLine y={120} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.morningSystolic} stroke={C.blue} />
                                     <AvgLine y={averages.eveningSystolic} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -492,8 +580,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.morningDiastolic} stroke={C.blue} />
                                     <AvgLine y={averages.eveningDiastolic} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -510,8 +598,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
                                     <AvgLine y={averages.morningBpm} stroke={C.blue} />
                                     <AvgLine y={averages.eveningBpm} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningBpm" name="AM BPM" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningBpm" name="PM BPM" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningBpm" name="AM BPM" stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="eveningBpm" name="PM BPM" stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -527,7 +615,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     <ReferenceLine y={37} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.bodyTemperature} stroke={C.amber} />
-                                    <Line type="monotone" dataKey="bodyTemperature" name="°C" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="bodyTemperature" name="°C" stroke={C.amber} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -568,9 +656,9 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         <AvgLine y={averages.protein} stroke={C.blue} />
                                         <AvgLine y={averages.carbs} stroke={C.purple} />
                                         <AvgLine y={averages.fat} stroke={C.amber} />
-                                        <Line type="monotone" dataKey="protein" name="Protein" stroke={C.blue} strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="carbs" name="Carbs" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="fat" name="Fat" stroke={C.amber} strokeWidth={2} dot={false} connectNulls />
+                                        <Line type="monotone" dataKey="protein" name="Protein" stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="carbs" name="Carbs" stroke={C.purple} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="fat" name="Fat" stroke={C.amber} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -606,7 +694,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={averages.weight} />
-                                    <Line type="monotone" dataKey="weight" name="kg" stroke={C.primary} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="weight" name="kg" stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -622,7 +710,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={averages.bodyFat} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="bodyFat" name="%" stroke={C.pink} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="bodyFat" name="%" stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -637,7 +725,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartY domain={[0, 10]} />
                                     <ChartTip />
                                     <AvgLine y={averages.mood} stroke={C.purple} />
-                                    <Line type="monotone" dataKey="mood" name="Mood" stroke={C.purple} strokeWidth={2} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="mood" name="Mood" stroke={C.purple} strokeWidth={2.5} dot={false} connectNulls />
                                 </LineChart>
                             }
                         />
@@ -651,34 +739,44 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             onExpand={openChart}
                             chart={
                                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="habitFill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={C.greenDark} stopOpacity={0.3} />
+                                            <stop offset="100%" stopColor={C.greenDark} stopOpacity={0.02} />
+                                        </linearGradient>
+                                    </defs>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY domain={[0, 100]} />
                                     <ChartTip />
                                     <AvgLine y={averages.habitPct} stroke={C.greenDark} />
-                                    <Area type="monotone" dataKey="habitPct" name="Done %" stroke={C.greenDark} strokeWidth={2} fill="rgba(67, 182, 125, 0.16)" dot={false} connectNulls />
+                                    <Area type="monotone" dataKey="habitPct" name="Done %" stroke={C.greenDark} strokeWidth={2.5} fill="url(#habitFill)" dot={false} connectNulls />
                                 </AreaChart>
                             }
                         />
+                    </div>
+                    {/* Full width: habit names are long, and a 2-up column forced
+                        them onto two lines. */}
+                    <div className="metrics-columns metrics-columns--single">
                         <ChartCard
                             title="Custom Habit Completion"
+                            fullWidth
                             empty={customHabitData.length === 0}
                             height={habitChartHeight}
                             expandHeight={habitExpandHeight}
                             onExpand={openChart}
                             chart={
-                                <BarChart data={customHabitData} layout="vertical" margin={{ top: 2, right: 12, left: 0, bottom: 0 }}>
-                                    <CartesianGrid stroke="rgba(255, 255, 255, 0.06)" horizontal={false} />
+                                <BarChart data={customHabitData} layout="vertical" margin={{ top: 2, right: 16, left: 0, bottom: 0 }}>
+                                    <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
                                     <XAxis type="number" domain={[0, 100]} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }} allowDecimals={false} />
                                     <YAxis
                                         type="category"
                                         dataKey="name"
-                                        width={130}
+                                        width={210}
                                         tick={{ ...AXIS_TICK, fontSize: 10 }}
                                         tickLine={false}
                                         axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }}
                                         interval={0}
-                                        tickFormatter={(v: string) => (v.length > 18 ? v.slice(0, 16) + '…' : v)}
                                     />
                                     <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.04)' }} />
                                     {customHabitAvg != null && (

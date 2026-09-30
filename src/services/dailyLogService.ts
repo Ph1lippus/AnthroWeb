@@ -94,14 +94,16 @@ export const getDailyLogById = async (id: string): Promise<DailyLog | null> => {
     return data as DailyLog;
 };
 
-// Create a new daily log
+// Create a daily log for a day, or overwrite it if that day already has one.
+// Upserting against the (user_id, log_date) unique index means a second save
+// for the same day updates instead of failing with a 23505 conflict.
 export const createDailyLog = async (log: DailyLog) => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('No user found');
 
     const { data, error } = await supabase
         .from('daily_logs')
-        .insert({
+        .upsert({
             user_id: userId,
             log_date: log.log_date,
             wake_time: log.wake_time,
@@ -136,7 +138,7 @@ export const createDailyLog = async (log: DailyLog) => {
             stretching: log.stretching,
             reading: log.reading,
             no_sleep: log.no_sleep,
-        })
+        }, { onConflict: 'user_id,log_date' })
         .select()
         .single();
 

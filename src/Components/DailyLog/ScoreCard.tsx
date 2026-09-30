@@ -3,7 +3,7 @@ import ScoreRing from './ScoreRing';
 import { getScoreColor } from '../../utils/dailyScoring';
 import type { MetricScore } from '../../utils/dailyScoring';
 
-type Category = 'sleep' | 'vitals' | 'nutrition' | 'body' | 'habits';
+type Category = 'sleep' | 'vitals' | 'nutrition' | 'body' | 'mood' | 'habits';
 
 interface ScoreMetricMeta {
     key: string;
@@ -13,8 +13,6 @@ interface ScoreMetricMeta {
 
 interface ScoreCardProps {
     score: number;
-    loggedCount: number;
-    totalMetrics: number;
     dateLabel: string;
     metrics: Record<string, MetricScore>;
 }
@@ -24,10 +22,11 @@ const CATEGORY_LABELS: Record<Category, string> = {
     vitals: 'Vitals & BP',
     nutrition: 'Nutrition',
     body: 'Body Metrics',
+    mood: 'Mood',
     habits: 'Habits',
 };
 
-const CATEGORY_ORDER: Category[] = ['sleep', 'vitals', 'nutrition', 'body', 'habits'];
+const CATEGORY_ORDER: Category[] = ['sleep', 'vitals', 'nutrition', 'body', 'mood', 'habits'];
 
 const METRIC_META: ScoreMetricMeta[] = [
     { key: 'wakeTime', label: 'Wake Time', cat: 'sleep' },
@@ -48,25 +47,21 @@ const METRIC_META: ScoreMetricMeta[] = [
     { key: 'weight', label: 'Weight', cat: 'body' },
     { key: 'bodyFat', label: 'Body Fat', cat: 'body' },
     { key: 'measurementRecency', label: 'Measurements Recency', cat: 'body' },
-    { key: 'mood', label: 'Mood', cat: 'body' },
+    { key: 'mood', label: 'Mood', cat: 'mood' },
     { key: 'habits', label: 'Habits', cat: 'habits' },
 ];
 
-const ScoreCard: React.FC<ScoreCardProps> = ({ score, loggedCount, totalMetrics, dateLabel, metrics }) => {
-    const [expanded, setExpanded] = useState(false);
+const ScoreCard: React.FC<ScoreCardProps> = ({ score, dateLabel, metrics }) => {
+    const [expanded, setExpanded] = useState(true);
 
     return (
         <div className="daily-score-card">
             <div className="daily-score-main">
+                <span className="daily-score-info-date">{dateLabel}</span>
                 <ScoreRing score={score} />
-                <div className="daily-score-info">
-                    <span className="daily-score-info-date">{dateLabel}</span>
-                    <span className="daily-score-heading">Overall Daily Score</span>
-                    <span className="daily-score-based">Based on {loggedCount} of {totalMetrics} metrics logged</span>
-                    <button type="button" onClick={() => setExpanded(e => !e)} className="daily-score-toggle">
-                        {expanded ? 'Hide breakdown' : 'Show breakdown'}
-                    </button>
-                </div>
+                <button type="button" onClick={() => setExpanded(e => !e)} className="daily-score-toggle">
+                    {expanded ? 'Hide breakdown' : 'Show breakdown'}
+                </button>
             </div>
 
             {expanded && (

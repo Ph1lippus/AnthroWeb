@@ -1,8 +1,11 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import type { User } from '@supabase/supabase-js';
+import { navItems, isNavItemActive } from '../utils/navItems';
 
+// Tablet navigation: the bottom pill bar, shown from 768px to 1023px. On
+// >=1024px the SidebarNav rail takes over; below 768px MobileNavbar does.
 const SecondaryNavbar: React.FC = () => {
     const pillRef = useRef<HTMLSpanElement>(null);
     const tabsRef = useRef<HTMLDivElement>(null);
@@ -23,31 +26,17 @@ const SecondaryNavbar: React.FC = () => {
         return () => subscription.unsubscribe();
     }, []);
 
-    const navItems = [
-        { to: '/Dashboard', label: 'Dashboard' },
-        { to: '/Daily-Log', label: 'Daily Log' },
-        { to: '/Journal', label: 'Journal' },
-        { to: '/Measurements', label: 'Measurements' },
-        { to: '/Books', label: 'Books' },
-        { to: '/Workouts', label: 'Workouts' },
-        { to: '/Projects', label: 'Projects' },
-        { to: '/Abstinence', label: 'Abstinence' },
-        { to: '/Academic', label: 'Academic' },
-        { to: '/Notes', label: 'Notes' },
-        { to: '/Study-Timer', label: 'Study Timer' },
-        { to: '/Profile', label: 'Profile' },
-    ];
+    // Internal routes only - the external Study Timer link is never "active", so
+    // it must not be a valid pill target. Memoised so getActiveTabIndex keeps a
+    // stable identity and the pill effect doesn't re-run on every render.
+    const internalItems = useMemo(() => navItems.filter(item => !item.external), []);
 
-    // Get the active tab index based on current route (case-insensitive)
+    // Match on the section, not the exact path, so /Workouts/Templates keeps
+    // Workouts highlighted instead of falling back to the first tab.
     const getActiveTabIndex = useCallback(() => {
-        const normalizedPath = location.pathname.charAt(0).toUpperCase() + location.pathname.slice(1);
-        const index = navItems.findIndex(item => 
-            item.to.toLowerCase() === location.pathname.toLowerCase() ||
-            item.to === normalizedPath ||
-            item.to === location.pathname
-        );
+        const index = internalItems.findIndex(item => isNavItemActive(location.pathname, item.to));
         return index === -1 ? 0 : index;
-    }, [location.pathname]);
+    }, [location.pathname, internalItems]);
 
     // Set pill position on first render, on route change, and on resize
     useEffect(() => {
@@ -60,7 +49,7 @@ const SecondaryNavbar: React.FC = () => {
             if (!activeTab) return;
 
             const shouldAnimate = !isInitialRender.current;
-            
+
             if (shouldAnimate) {
                 // Animate transition on route change
                 pill.style.transform = `translateX(${activeTab.offsetLeft}px)`;
@@ -105,30 +94,35 @@ const SecondaryNavbar: React.FC = () => {
         <nav className="secondary-navbar" aria-label="Secondary navigation">
             <div className="secondary-navbar-inner" ref={tabsRef} role="tablist">
                 <span className="secondary-tabs-pill" ref={pillRef} aria-hidden="true"></span>
-                {navItems.map((item, index) => (
-                    <NavLink
-                        key={item.to}
-                        to={item.to}
-                                className={({ isActive }) =>
-                                    `secondary-navbar-link${isActive || location.pathname.toLowerCase() === item.to.toLowerCase() ? ' active' : ''}`
-                                }
-                        role="tab"
-                        data-index={index}
-                        onClick={handleTabClick}
-                    >
-                        {item.label}
-                    </NavLink>
-                ))}
+                {internalItems.map((item, index) => {
+                    const active = isNavItemActive(location.pathname, item.to);
+                    return (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            className={`secondary-navbar-link${active ? ' active' : ''}`}
+                            role="tab"
+                            aria-current={active ? 'page' : undefined}
+                            data-index={index}
+                            onClick={handleTabClick}
+                        >
+                            {item.label}
+                        </NavLink>
+                    );
+                })}
                 {/* External Study Timer link */}
-                <a
-                    href="https://protomo.vercel.app"
-                    className="secondary-navbar-link study-timer-external"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Open Study Timer in new tab"
-                >
-                    <i className="fas fa-clock"></i>
-                </a>
+                {navItems.filter(item => item.external).map(item => (
+                    <a
+                        key={item.to}
+                        href={item.href}
+                        className="secondary-navbar-link study-timer-external"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open ${item.label} in new tab`}
+                    >
+                        <item.icon className="secondary-navbar-external-icon" aria-hidden="true" />
+                    </a>
+                ))}
             </div>
         </nav>
     );
