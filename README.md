@@ -4,6 +4,34 @@ A comprehensive daily tracking application that helps you monitor your health, h
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Registration is currently disabled
+
+**AnthroWeb is a private, single-user deployment and public sign-up is turned off.** No one can create an account on the live site.
+
+This was done on purpose: the backing Postgres instance has very little free storage, so every new account would consume a permanent slice of it. Existing accounts are unaffected — sign in, password reset and password recovery all work exactly as before.
+
+### What "registration disabled" means in practice
+
+| Surface | Behaviour |
+|---------|-----------|
+| Navbar (logged out) | Only **Login** is shown; the Register button is hidden |
+| Landing page call to action | Links to **Login** instead of **Register** |
+| `/login` footer | Reads *"Registration is closed — this deployment is invite only"* |
+| `/register` | Renders a **Registration Closed** notice with a link to Login, not a sign-up form |
+| `signUpWithEmail()` | Throws before it ever calls Supabase, so no code path can create an account |
+
+### How to turn registration back on
+
+1. Open `src/utils/appConfig.ts` and flip the single flag:
+
+   ```ts
+   export const REGISTRATION_ENABLED = true;
+   ```
+
+2. That single change restores everything at once — the `/register` route, the navbar button, the login page footer link and the landing page call to action all read from this one value. The sign-up form itself was left intact behind the flag, so no other file needs editing.
+
+3. For a hard stop that does not depend on the app build, also turn off **Enable email signups** in the Supabase dashboard (*Authentication → Providers → Email*). The flag above only closes the app's own entry points; the dashboard toggle blocks direct calls to the Supabase auth endpoint. It is recommended to do both.
+
 ## Features
 
 ### Daily Tracking - Doing
@@ -35,9 +63,14 @@ A comprehensive daily tracking application that helps you monitor your health, h
 
 ### Dashboards
 - Overview dashboard with score, streaks, and key metrics
+- **Switchable time windows** — 7 days / 30 days / 90 days / All Time, with All Time as the default. The window drives both the insight cards and every chart, so they always describe the same period.
+- **One chart per metric** — calories, protein, carbs, fat, water, weight, body fat, mood, sleep duration, sleep quality, bedtime, wake time, systolic, diastolic, heart rate and body temperature each get their own chart with their own axis, goal line and average. A 200g carb day no longer flattens a 60g fat day onto the same baseline.
+- **Analysis-friendly axes** — 0–10 rating scales (mood, sleep quality) show all eleven stops, 0–10, so any logged value can be read straight off the chart. Percentage and score scales show 0/20/40/60/80/100. Only genuinely continuous measurements (weight, body temperature) use fractional ticks.
+- **Bedtime & wake time as discrete clock points** — both series share a plain 0–24 clock axis with a shaded night band, and are plotted as individual dots rather than joined by a line, because two clock readings from different nights are not a continuous series. The average line uses a circular mean, so 23:30 and 00:30 average to just after midnight instead of to midnight itself.
 - Correlation charts (e.g. sleep duration vs. next-day score)
 - Habit-streak and workout calendars
 - Weekly/monthly summary reports
+- Charts can be enlarged into a modal, and every card collapses to a single full-width column on phones
 
 ### Abstinence - Done
 - 
@@ -45,7 +78,7 @@ A comprehensive daily tracking application that helps you monitor your health, h
 ### Platform
 - Installable PWA — Can add to home screen
 - Native Android app via Capacitor — side-loaded APK with built-in in-app updates
-- API integration with a companion study-timer app to help with studies. 
+- Study timer: a placeholder page in-app, replacing the previous external companion app.
 
 ## Tech Stack
 

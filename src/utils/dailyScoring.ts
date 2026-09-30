@@ -67,8 +67,7 @@ export const getScoreColor = (score: number) => {
 export const calculateMetricScore = (
     type: string,
     value: string | number | boolean | null | undefined,
-    currentSettings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null,
-    computedSleepDuration: number | null
+    currentSettings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null
 ): MetricScore => {
     if (value === null || value === undefined || value === '' ) {
         return { score: 0, logged: false };
@@ -179,19 +178,11 @@ export const calculateMetricScore = (
         case 'sleepQuality': {
             const sq = parseInt(value as string);
             if (isNaN(sq)) return { score: 0, logged: false };
-            const goalHours = activeGoals?.sleep?.hours;
-            const qualityScore = Math.round((sq / 10) * 100);
-
-            if (goalHours && computedSleepDuration) {
-                const diff = Math.abs(computedSleepDuration - goalHours);
-                const durationScore = Math.max(0, Math.round(100 - ((diff / 1.5) * 100)));
-                let combined = Math.round((qualityScore * 0.4) + (durationScore * 0.6));
-                if (diff > 2) combined = Math.min(combined, 30);
-                return { score: combined, logged: true };
-            }
-
-            // Cap quality-only score to avoid inflated values when no duration is logged
-            return { score: Math.min(60, qualityScore), logged: true };
+            // Sleep quality is a subjective 0-10 rating that maps linearly to
+            // 0-100. Short sleep is judged by its own metric (duration/recency),
+            // so a restful 7h night is not punished here.
+            const clamped = Math.min(10, Math.max(0, sq));
+            return { score: clamped * 10, logged: true };
         }
 
         // === OPTIONAL BODY FIELDS ===
@@ -251,13 +242,13 @@ export const getInputScore = (
         case 'mood': {
             const m = parseInt(value as string);
             if (isNaN(m)) return { score: 0, logged: false };
-            if (m >= 8) return { score: 100, logged: true };
-            if (m >= 6) return { score: 80, logged: true };
-            if (m >= 4) return { score: 50, logged: true };
-            return { score: 20, logged: true };
+            // Linear 1-10 scale: every step is worth 10 points (1 -> 10,
+            // 10 -> 100), so a rating of 8 scores 80 instead of the old 100.
+            const clamped = Math.min(10, Math.max(1, m));
+            return { score: clamped * 10, logged: true };
         }
         default: {
-            return calculateMetricScore(type, value, null, null);
+            return calculateMetricScore(type, value, null);
         }
     }
 };
@@ -332,13 +323,12 @@ export interface DailyScoringInput {
     customTotal: number;
     activeGoals: ActiveGoals | null | undefined;
     settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
-    computedSleepDuration: number | null;
     noSleep: boolean;
     lastMeasurementDate?: string | null;
 }
 
 export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult => {
-    const { activeGoals, settings, computedSleepDuration, noSleep } = input;
+    const { activeGoals, settings, noSleep } = input;
 
     // "No sleep" nights: mark the tracked night as score 0 (penalised). The three
     // sleep metrics count as logged so a bad night drags the daily average down.
@@ -348,21 +338,21 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
     const metrics: Record<string, MetricScore> = {
         wakeTime: sleep(getInputScore('wakeTime', input.wakeTime, activeGoals)),
         bedtime: sleep(getInputScore('bedtime', input.bedtime, activeGoals)),
-        sleepQuality: sleep(calculateMetricScore('sleepQuality', input.sleepQuality, settings, computedSleepDuration)),
-        morningSystolic: calculateMetricScore('morningSystolic', input.morningSystolic, settings, computedSleepDuration),
-        morningDiastolic: calculateMetricScore('morningDiastolic', input.morningDiastolic, settings, computedSleepDuration),
-        morningBpm: calculateMetricScore('morningBpm', input.morningBpm, settings, computedSleepDuration),
-        eveningSystolic: calculateMetricScore('eveningSystolic', input.eveningSystolic, settings, computedSleepDuration),
-        eveningDiastolic: calculateMetricScore('eveningDiastolic', input.eveningDiastolic, settings, computedSleepDuration),
-        eveningBpm: calculateMetricScore('eveningBpm', input.eveningBpm, settings, computedSleepDuration),
-        bodyTemperature: calculateMetricScore('bodyTemperature', input.bodyTemperature, settings, computedSleepDuration),
-        calories: calculateMetricScore('calories', input.calories, settings, computedSleepDuration),
-        protein: calculateMetricScore('protein', input.protein, settings, computedSleepDuration),
-        carbs: calculateMetricScore('carbs', input.carbs, settings, computedSleepDuration),
-        fat: calculateMetricScore('fat', input.fat, settings, computedSleepDuration),
-        water: calculateMetricScore('water', input.water, settings, computedSleepDuration),
-        weight: calculateMetricScore('weight', input.weight, settings, computedSleepDuration),
-        bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings, computedSleepDuration),
+        sleepQuality: sleep(calculateMetricScore('sleepQuality', input.sleepQuality, settings)),
+        morningSystolic: calculateMetricScore('morningSystolic', input.morningSystolic, settings),
+        morningDiastolic: calculateMetricScore('morningDiastolic', input.morningDiastolic, settings),
+        morningBpm: calculateMetricScore('morningBpm', input.morningBpm, settings),
+        eveningSystolic: calculateMetricScore('eveningSystolic', input.eveningSystolic, settings),
+        eveningDiastolic: calculateMetricScore('eveningDiastolic', input.eveningDiastolic, settings),
+        eveningBpm: calculateMetricScore('eveningBpm', input.eveningBpm, settings),
+        bodyTemperature: calculateMetricScore('bodyTemperature', input.bodyTemperature, settings),
+        calories: calculateMetricScore('calories', input.calories, settings),
+        protein: calculateMetricScore('protein', input.protein, settings),
+        carbs: calculateMetricScore('carbs', input.carbs, settings),
+        fat: calculateMetricScore('fat', input.fat, settings),
+        water: calculateMetricScore('water', input.water, settings),
+        weight: calculateMetricScore('weight', input.weight, settings),
+        bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings),
         measurementRecency: calculateMeasurementRecency(input.lastMeasurementDate),
         mood: getInputScore('mood', input.mood, activeGoals),
         habits: habitGroupScore(input.habits, input.customCompleted, input.customTotal),

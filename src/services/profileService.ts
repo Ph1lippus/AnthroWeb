@@ -1,4 +1,5 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
+import { REGISTRATION_ENABLED } from '../utils/appConfig';
 
 export const signOutUser = async () => {
     const { error } = await supabase.auth.signOut();
@@ -31,6 +32,13 @@ export const signInWithEmail = async (email: string, password: string) => {
 };
 
 export const signUpWithEmail = async (email: string, password: string, username?: string) => {
+    // Public sign-up is disabled (see utils/appConfig.ts). The guard lives here
+    // too so no code path can create an account even if a screen is reached
+    // directly or the UI is bypassed.
+    if (!REGISTRATION_ENABLED) {
+        throw new Error('Registration is currently closed on this deployment.');
+    }
+
     const { data, error } = await supabase.auth.signUp({
         email,
         password,

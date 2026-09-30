@@ -5,6 +5,7 @@ import { getUserSettings, createUserSettings, updateUserSettings } from '../serv
 import { getCurrentUser } from '../services/profileService';
 import { supabase } from '../services/supabaseClient';
 import type { UserSettings } from '../services/profileService';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 type GenderType = 'male' | 'female' | 'other' | 'prefer_not_to_say' | '';
 type GoalType = 'maintain' | 'lose' | 'gain' | '';
@@ -46,6 +47,12 @@ const EditProfilePage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isNewUser, setIsNewUser] = useState(true);
+    // The form is hidden until the existing settings have been fetched. Without
+    // this the page paints an empty form, then repaints it a moment later with
+    // every value in place, and the heading swaps from "Complete Your Profile"
+    // to "Edit Your Profile" - a visible jump. `loading` below is the submit
+    // state, so this needs its own flag.
+    const [isLoadingSettings, setIsLoadingSettings] = useState(true);
     
     // Toast notification state
     const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -84,25 +91,31 @@ const EditProfilePage: React.FC = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            const existingSettings = await getUserSettings();
-            if (existingSettings) {
-                setIsNewUser(false);
-                setGender(existingSettings.gender || '');
-                setHeightCm(existingSettings.height_cm || '');
-                setDateOfBirth(convertToDisplayFormat(existingSettings.date_of_birth || ''));
-                setGoal(existingSettings.goal || '');
-                setStartingWeight(existingSettings.starting_weight || '');
-                setStartingBodyfat(existingSettings.starting_bodyfat || '');
-                setTargetWeight(existingSettings.target_weight || '');
-                setTargetBodyfat(existingSettings.target_bodyfat || '');
-                setLastMeasurementDate(convertToDisplayFormat(existingSettings.last_measurement_date || ''));
-                if (existingSettings.weight_unit) setWeightUnit(existingSettings.weight_unit);
-            }
-            
-            // Get username from Supabase auth user metadata
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.user_metadata?.username) {
-                setUsername(user.user_metadata.username);
+            try {
+                const existingSettings = await getUserSettings();
+                if (existingSettings) {
+                    setIsNewUser(false);
+                    setGender(existingSettings.gender || '');
+                    setHeightCm(existingSettings.height_cm || '');
+                    setDateOfBirth(convertToDisplayFormat(existingSettings.date_of_birth || ''));
+                    setGoal(existingSettings.goal || '');
+                    setStartingWeight(existingSettings.starting_weight || '');
+                    setStartingBodyfat(existingSettings.starting_bodyfat || '');
+                    setTargetWeight(existingSettings.target_weight || '');
+                    setTargetBodyfat(existingSettings.target_bodyfat || '');
+                    setLastMeasurementDate(convertToDisplayFormat(existingSettings.last_measurement_date || ''));
+                    if (existingSettings.weight_unit) setWeightUnit(existingSettings.weight_unit);
+                }
+                
+                // Get username from Supabase auth user metadata
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user?.user_metadata?.username) {
+                    setUsername(user.user_metadata.username);
+                }
+            } finally {
+                // Always release the gate, including on a failed fetch, so the
+                // form is never stuck behind a permanent spinner.
+                setIsLoadingSettings(false);
             }
         };
         void loadData();
@@ -287,9 +300,15 @@ const validateForm = () => {
 
     return (
         <>
-            <Title title={isNewUser ? "Complete Your Profile" : "Edit Profile"} />
+            <Title title={isLoadingSettings ? "Edit Profile" : (isNewUser ? "Complete Your Profile" : "Edit Profile")} />
             <div className="page-main-with-secondary">
                 <div className="auth-card profile-form-card auth-card-wide">
+                    {/* Nothing is painted until the settings have landed, so the
+                        form never appears twice and the heading never flips. */}
+                    {isLoadingSettings ? (
+                        <LoadingSpinner />
+                    ) : (
+                        <>
                     <h2 className="auth-title">{isNewUser ? "Welcome! Complete Your Profile" : "Edit Your Profile"}</h2>
                     <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
                         {isNewUser ? "Let's set up your fitness profile to get started." : "Update your fitness profile information."}
@@ -347,6 +366,8 @@ const validateForm = () => {
                             {loading ? (isNewUser ? 'Creating...' : 'Saving...') : (isNewUser ? 'Complete Profile' : 'Save Changes')}
                         </button>
                     </form>
+                        </>
+                    )}
                 </div>
             </div>
 

@@ -6,6 +6,7 @@ import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar,
 import ConfirmModal from './ConfirmModal';
 import { useDailyLogSaveState } from '../utils/dailyLogStatus';
 import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
+import { REGISTRATION_ENABLED } from '../utils/appConfig';
 
 const Navbar: React.FC = () => {
     const location = useLocation();
@@ -243,16 +244,18 @@ const Navbar: React.FC = () => {
                             >
                                 <LogIn size={18} />
                             </NavLink>
-                            <NavLink
-                                className={({ isActive }) =>
-                                    `navbar-action-link navbar-auth-link navbar-icon-link${isActive ? ' active' : ''}`
-                                }
-                                to="/register"
-                                title="Register"
-                                aria-label="Register"
-                            >
-                                <UserPlus size={18} />
-                            </NavLink>
+                            {REGISTRATION_ENABLED && (
+                                <NavLink
+                                    className={({ isActive }) =>
+                                        `navbar-action-link navbar-auth-link navbar-icon-link${isActive ? ' active' : ''}`
+                                    }
+                                    to="/register"
+                                    title="Register"
+                                    aria-label="Register"
+                                >
+                                    <UserPlus size={18} />
+                                </NavLink>
+                            )}
                         </>
                     )}
                 </div>

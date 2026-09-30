@@ -3,6 +3,7 @@ import Title from '../Components/Title';
 import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
 import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 interface DuplicateGroup {
     title: string;
@@ -731,10 +732,7 @@ const BooksPage: React.FC = () => {
                         {/* Books Content */}
                         {!showAddForm && (
                             loading ? (
-                                <div className="profile-loading">
-                                    <div className="profile-loading-spinner"></div>
-                                    <p>Loading books...</p>
-                                </div>
+                                <LoadingSpinner />
                             ) : books.length === 0 ? (
                                 <div className="books-empty">
                                     <i className="i-lucide-book-open books-empty-icon"></i>

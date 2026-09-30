@@ -7,6 +7,7 @@ import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import { Lightbulb, X, RotateCw, PenTool } from 'lucide-react';
 import { todayString } from '../utils/dates';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const JournalPage: React.FC = () => {
     const navigate = useNavigate();
@@ -167,10 +168,7 @@ const JournalPage: React.FC = () => {
                 <div className="journal-page-wrapper">
                     <div className="dashboard-section journal-section">
                         <div className="journal-card">
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading...</p>
-                            </div>
+                            <LoadingSpinner />
                         </div>
                     </div>
                 </div>

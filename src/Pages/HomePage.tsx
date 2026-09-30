@@ -44,10 +44,11 @@ const HomePage: React.FC = () => {
                         <h2 className="showcase-title">Ready to Begin?</h2>
                         <hr className="animated-hr" />
                         <p className="showcase-text">
-                            Join AnthroWeb today and start building the habits that move the needle.
+                            AnthroWeb is a private deployment, so sign in with your existing
+                            account to pick up where you left off.
                         </p>
-                        <Link to="/register" className="btn btn-primary showcase-btn auth-card-btn">
-                            Get Started
+                        <Link to="/login" className="btn btn-primary showcase-btn auth-card-btn">
+                            Go to Login
                         </Link>
                     </div>
                 </section>

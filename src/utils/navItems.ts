@@ -9,8 +9,8 @@ import {
     Ban,
     GraduationCap,
     StickyNote,
-    Timer,
-    User,
+    Hourglass,
+    CircleUserRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -37,8 +37,8 @@ export const navItems: NavItem[] = [
     { to: '/Abstinence', label: 'Abstinence', icon: Ban },
     { to: '/Academic', label: 'Academic', icon: GraduationCap },
     { to: '/Notes', label: 'Notes', icon: StickyNote },
-    { to: '/Study-Timer', label: 'Study Timer', icon: Timer, external: true, href: 'https://protomo.vercel.app' },
-    { to: '/Profile', label: 'Profile', icon: User },
+    { to: '/Study-Timer', label: 'Study Timer', icon: Hourglass },
+    { to: '/Profile', label: 'Profile', icon: CircleUserRound },
 ];
 
 // Sub-routes keep their section highlighted: /Workouts/Templates counts as

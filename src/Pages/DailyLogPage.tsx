@@ -17,6 +17,7 @@ import ScoreCard from '../Components/DailyLog/ScoreCard';
 import ConfirmModal from '../Components/ConfirmModal';
 import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
 import { isDateString, todayString } from '../utils/dates';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const getScoreColor = (score: number): string => {
     if (score >= 80) return 'var(--color-primary)';
@@ -284,10 +285,9 @@ const DailyLogPage: React.FC = () => {
         customTotal: habits.length,
         activeGoals,
         settings: effectiveSettings,
-        computedSleepDuration,
         noSleep,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, computedSleepDuration, noSleep, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     const scoreOf = (key: string): number | null => {
@@ -566,10 +566,7 @@ const DailyLogPage: React.FC = () => {
             <div className="daily-logs-page-wrapper">
                 <div className="dashboard-section daily-logs-section">
                     <div className="daily-logs-card">
-                        <div className="profile-loading">
-                            <div className="profile-loading-spinner"></div>
-                            <p>Loading...</p>
-                        </div>
+                        <LoadingSpinner />
                     </div>
                 </div>
             </div>
@@ -680,7 +677,7 @@ const DailyLogPage: React.FC = () => {
                                             maxLength={5}
                                             style={wakeTime && !noSleep ? { borderColor: getScoreColor(scoreOf('wakeTime')! ?? 0) } : undefined}
                                         />
-                                        <label className="scored-input-label">Wake Time (24h format) <span className="scored-input-goal-inline">{activeGoals?.sleep?.wake_time || '--:--'}</span></label>
+                                        <label className="scored-input-label">Wake Time<span className="scored-input-goal-inline">{activeGoals?.sleep?.wake_time || '--:--'}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
                                         <input
@@ -693,7 +690,7 @@ const DailyLogPage: React.FC = () => {
                                             maxLength={5}
                                             style={bedtime && !noSleep ? { borderColor: getScoreColor(scoreOf('bedtime')! ?? 0) } : undefined}
                                         />
-                                        <label className="scored-input-label">Bedtime (24h format) <span className="scored-input-goal-inline">{activeGoals?.sleep?.bedtime || '--:--'}</span></label>
+                                        <label className="scored-input-label">Bedtime<span className="scored-input-goal-inline">{activeGoals?.sleep?.bedtime || '--:--'}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
                                         <input
@@ -712,7 +709,7 @@ const DailyLogPage: React.FC = () => {
                                             placeholder=" "
                                             style={sleepQuality && !noSleep ? { borderColor: getScoreColor(scoreOf('sleepQuality')! ?? 0) } : undefined}
                                         />
-                                        <label className="scored-input-label">Sleep Quality (0-10) <span className="scored-input-goal-inline">{activeGoals?.sleep?.hours || 8}h sleep</span></label>
+                                        <label className="scored-input-label">Sleep Quality (0-10)</label>
                                     </div>
                                 </div>
                             </div>

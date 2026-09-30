@@ -3,6 +3,7 @@ import Title from '../Components/Title';
 import { getUserNotes, createNote, updateNote, deleteNote, togglePinNote } from '../services/noteService';
 import type { Note } from '../services/noteService';
 import { Pin, SquarePen, Trash2, Search, X, StickyNote, Bold, Italic, Underline, Strikethrough, Heading, Pilcrow, Quote, Code, ListOrdered, List, Square, CheckSquare, Link, Image } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const NotesPage: React.FC = () => {
     const [notes, setNotes] = useState<Note[]>([]);
@@ -319,10 +320,7 @@ const NotesPage: React.FC = () => {
 
                         {/* Notes Content */}
                         {loading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading notes...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : notes.length === 0 ? (
                             <div className="notes-empty">
                                 <StickyNote className="notes-empty-icon" />

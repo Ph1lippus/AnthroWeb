@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rubik+Glitch&display=swap');
+/* JetBrains Mono carries the whole UI; VT323 is a VT320-terminal face used for
+   display-size text only, where the CRT character is the point and legibility
+   is not at risk. */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rubik+Glitch&family=VT323&display=swap');
 @import "tailwindcss";
 
 @media (max-width: 768px) {
@@ -73,8 +76,25 @@
   --chart-red: #ff5a60;
   --chart-grid: rgba(255, 255, 255, 0.05);
   --chart-axis: rgba(255, 255, 255, 0.55);
-  --font-mono: 'JetBrains Mono', monospace;
+  /* ---- Typography ----------------------------------------------------
+     One terminal stack for the entire app. Every family variable below
+     resolves to the same mono stack so that no element - not a Tailwind
+      + "ont-sans" +  utility, not a native <select> or <input> in Safari, not a
+     chart tick label - can quietly fall back to the OS UI font.
+     Tailwind emits its own  + "--font-sans" +  /  + "--font-mono" +  in  + "@layer theme" + 
+     and points  + "html" +  at  + "--font-sans" + ; because this :root is unlayered it
+     wins, so the override below is what actually forces the terminal look
+     site-wide. */
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'VT323', 'JetBrains Mono', monospace;
   --font-logo: 'Rubik Glitch', cursive;
+  /* Redefined so the generic names and Tailwind's theme both point at the
+     terminal stack rather than a system sans. */
+  --font-sans: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --default-font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --heading: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --text: #ffffff;
   --text-h: #ffffff;
   --bg: #fffbfb;
@@ -85,9 +105,10 @@
   --accent-border: rgba(0, 255, 166, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* --sans / --heading / --mono are intentionally NOT redeclared here. They
+     used to sit further down this block set to system-ui, which silently
+     overrode the terminal stack declared above them; they are now defined once,
+     with the whole app's type, at the top of the file. */
   --navbar-height: 3rem;
   --shake-distance: 6px;
   --shake-overshoot: 4px;
@@ -118,6 +139,48 @@
   height: 1em;
   flex-shrink: 0;
 }
+/* ============================================
+   GLOBAL TERMINAL TYPOGRAPHY
+   ============================================
+   Two rules carry the whole "hacker terminal" look:
+
+   1. Every font-family custom property resolves to the same mono stack, so
+      nothing anywhere in the app can fall back to the OS UI face.
+   2. Programming ligatures are switched OFF. JetBrains Mono turns =>, != and
+      <= into single glyphs, which is what makes it read as a code editor
+      rather than a terminal. A terminal has no ligatures, and killing them is
+      what makes dense numeric tables legible.
+
+   The font stack itself is declared in :root; this block just enforces it on
+   the elements browsers style on their own. */
+html,
+body,
+button,
+input,
+select,
+textarea,
+optgroup,
+option,
+label,
+legend,
+summary,
+h1, h2, h3, h4, h5, h6,
+p, span, div, a, li, td, th, dt, dd {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "clig" 0, "calt" 0;
+}
+/* Recharts renders axis ticks and labels as SVG <text>, which do not inherit
+   the family reliably across browsers, so the chart surface is set explicitly;
+   every series in MetricsCharts also passes var(--font-mono). */
+.recharts-wrapper text,
+.recharts-surface text {
+  font-family: var(--font-mono);
+}
+/* The CRT display face is applied at the END of this file - see
+   "DISPLAY TYPE (CRT face)". It has to come after the individual heading rules
+   because those also declare font-size and font-weight, and at equal
+   specificity the later declaration wins. */
 hr {
   border: none;
   height: 1px;
@@ -182,15 +245,27 @@ body::before {
 .books-page-wrapper {
   flex-shrink: 0;
 }
+/* `safe center` keeps the vertically centred look on short pages but falls back
+   to flex-start once the content is taller than the viewport. Plain `center`
+   overflows in *both* directions, which pushed the top of a long page above
+   the scroll origin and made the navbar and the first rows unreachable. */
 .screen-height,
 .page-main {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: safe center;
   align-items: center;
   padding: 2rem;
   padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+}
+/* Fallback for engines without `safe center` alignment. */
+@supports not (justify-content: safe center) {
+  .screen-height,
+  .page-main,
+  .page-main-with-secondary {
+    justify-content: flex-start;
+  }
 }
 /* Books page - full viewport, no page scroll */
 .books-page-wrapper {
@@ -210,7 +285,7 @@ body::before {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: safe center;
   align-items: center;
   padding: 2rem;
   padding-top: calc(3rem + env(safe-area-inset-top, 0px));
@@ -715,8 +790,13 @@ body::before {
   padding: 2rem;
   padding-top: calc(3rem + env(safe-area-inset-top, 0px));
 }
+/* Forms sit on their own panel. This used to be `background: transparent`, so a
+   long form had no surface of its own and read as loose text floating on the
+   starfield. */
 .auth-card {
-  background: transparent;
+  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
   border-radius: 25px;
   width: 100%;
   max-width: 640px;
@@ -724,8 +804,16 @@ body::before {
   text-align: center;
   box-shadow: none;
 }
+/* The goals form is a 2-up grid of seven short numeric fields. The previous 960px
+   stretched each input so wide that the label stopped looking attached to it. */
 .auth-card-wide {
-  max-width: 960px;
+  max-width: 720px;
+}
+/* Login and register hold two short fields each. At the 640px default a single
+   row of inputs stretched across half a monitor, so they get their own
+   narrower measure. */
+.auth-card-narrow {
+  max-width: 420px;
 }
 .auth-title {
   color: var(--color-light);
@@ -743,19 +831,65 @@ body::before {
   margin-bottom: 0.3rem;
   letter-spacing: 0.3px;
 }
+/* Matches the daily log's .scored-input: same fill, same 1.5px hairline and the
+   same 20px radius, so a form field looks identical wherever it appears. */
 .auth-card .form-control {
   background: #ffffff0a;
   color: var(--color-light);
-  border-radius: 25px;
-  padding: 0.45rem 0.7rem;
-  font-size: 0.8rem;
+  border-radius: 20px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
   width: 100%;
 }
-.auth-card .form-control::placeholder { color: rgba(255, 255, 255, 0.4); }
+.auth-card .form-control:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
 .auth-card .form-control:focus {
-  background: var(--accent-bg);
+  background: #ffffff12;
+  border-color: var(--color-primary);
   color: var(--color-light);
 }
+.auth-card .form-select {
+  background: #ffffff0a;
+  color: var(--color-light);
+  border-radius: 20px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+}
+.auth-card .form-select:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.auth-card .form-select:focus {
+  background: #ffffff12;
+  border-color: var(--color-primary);
+}
+/* The "Registration Closed" notice. */
+.auth-closed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1.25rem;
+  border-radius: 50%;
+  background: #ffffff0a;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+}
+.auth-text-muted {
+  opacity: 0.55;
+  font-size: 0.72rem;
+}
+.auth-card .form-control::placeholder { color: rgba(255, 255, 255, 0.4); }
 .password-input-wrap {
   position: relative;
   width: 100%;
@@ -778,23 +912,45 @@ body::before {
   line-height: 1;
 }
 .password-toggle:hover { color: var(--color-primary); }
+/* Form submit buttons. Solid primary fill so the action reads as the clear
+   next step, darkening on hover rather than inverting to a text-only state. */
 .auth-card .btn-primary,
 .auth-card-btn {
-  background: var(--accent-bg);
+  background: var(--color-primary);
   color: #000000;
   font-weight: 600;
-  border-radius: 25px;
-  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  padding: 0.65rem 1rem;
   margin-top: 1rem;
   font-size: 0.82rem;
+  font-family: var(--font-mono);
   cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 .auth-card .btn-primary:hover,
-.auth-card .btn-primary:active,
+.auth-card .btn-primary:focus-visible,
 .auth-card-btn:hover,
+.auth-card-btn:focus-visible {
+  background: var(--color-primary-dark);
+  color: #000000;
+}
+.auth-card .btn-primary:active,
 .auth-card-btn:active {
   background: var(--color-primary-dark);
   color: #000000;
+}
+/* While a submit is in flight the label says "Saving...", so the button should
+   stop inviting a second click. */
+.auth-card .btn-primary:disabled,
+.auth-card-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  background: var(--color-primary);
+}
+.auth-card .btn-primary:disabled:hover,
+.auth-card-btn:disabled:hover {
+  background: var(--color-primary);
 }
 .auth-extra-links { margin-top: 0.85rem; }
 .auth-link {
@@ -862,8 +1018,26 @@ body::before {
   text-align: left;
   line-height: 1.3;
 }
-.t-input-wrap { width: 100%; }
+.t-input-wrap {
+  width: 100%;
+  /* Anchors the absolutely positioned goal hint inside the field. Without this
+     the hint resolves against a distant ancestor and lands off the input. */
+  position: relative;
+}
 .t-input { width: 100%; }
+/* Right-aligned hint inside a form field (e.g. the sample time on a clock
+   input). Mirrors .scored-input-goal, which is tied to the daily log's floating
+   label markup and so does not apply inside an auth-card form. */
+.t-input-hint {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.32);
+  pointer-events: none;
+}
 /* Number input - remove spin buttons */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -1350,9 +1524,11 @@ input[type="number"] {
     display: none;
   }
 }
-/* Edit Profile Form Styles - extends auth-card */
+/* Edit Profile Form Styles - extends auth-card. Nine short fields in a 2-up grid
+   read fine at 720px; the previous 960px stretched each input so far apart that
+   the label stopped looking attached to its box. */
 .auth-card.profile-form-card {
-  max-width: 960px;
+  max-width: 720px;
 }
 .auth-card .form-grid {
   display: grid;
@@ -1366,20 +1542,15 @@ input[type="number"] {
 .auth-card .form-grid > :only-child {
   grid-column: 1 / -1;
 }
-/* Form Select styling within auth-card */
+/* Form Select styling within auth-card. The custom arrow and the option colours
+   live here, on top of the shared 20px-radius field treatment. */
 .auth-card .form-select {
-  background: #ffffff0a;
-  color: var(--color-light);
-  border-radius: 25px;
-  padding: 0.45rem 0.7rem;
-  font-size: 0.8rem;
-  width: 100%;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6,9 12,15 18,9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
+  background-position: right 0.9rem center;
   background-size: 16px;
-  padding-right: 2.5rem;
+  padding-right: 2.6rem;
 }
 /* Select dropdown options styling */
 .auth-card .form-select option {
@@ -1387,11 +1558,6 @@ input[type="number"] {
   color: var(--color-light);
 }
 .auth-card .form-select::placeholder { color: rgba(255, 255, 255, 0.4); }
-.auth-card .form-select:focus {
-  background: var(--accent-bg);
-  color: var(--color-light);
-  outline: none;
-}
 /* Modern Profile Card Styles */
 .profile-card-modern {
   background: #ffffff08;
@@ -1561,10 +1727,27 @@ input[type="number"] {
 .profile-loading-spinner {
   width: 40px;
   height: 40px;
+  /* The ring is a 3px translucent band with the top edge in the accent colour.
+     Previously only border-top-color was set, so the rest of the circle was
+     transparent and the spinner was invisible until the first animation frame. */
+  border: 3px solid rgba(255, 255, 255, 0.12);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
+  margin: 0 auto;
+}
+/* Inline variant: a small ring sized to the surrounding type, for a value that
+   has not resolved yet (e.g. the account email) rather than a whole panel. */
+.loading-spinner-inline {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.loading-spinner-inline .profile-loading-spinner {
+  width: 1em;
+  height: 1em;
+  border-width: 2px;
+  margin: 0;
+  animation-duration: 0.9s;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -1572,13 +1755,22 @@ input[type="number"] {
 /* ============================================
    PROFILE PAGE - Modern Design
    ============================================ */
+/* The profile is a two-column data layout, not a reading column, so it is given
+   the same generous measure as the dashboard. The quick-stat mosaic that used to
+   sit above it is gone, which leaves plenty of room for the info tiles. */
 .profile-container {
   width: 100%;
-  max-width: 1000px;
+  max-width: 1320px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+.profile-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 .profile-header {
   display: flex;
@@ -1697,9 +1889,12 @@ input[type="number"] {
   letter-spacing: 0.6px;
   margin: 0;
 }
+/* The profile page is much wider now, so the tiles reflow to fill it instead of
+   sitting as two oversized boxes. minmax() keeps the phone layout at one or
+   two columns without a separate breakpoint. */
 .profile-info-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 0.6rem;
 }
 .profile-info-item {
@@ -1851,14 +2046,6 @@ input[type="number"] {
   text-align: center;
   padding: 3rem 2rem;
 }
-.profile-loading-spinner {
-  width: 40px;
-  height: 40px;
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -1902,6 +2089,13 @@ input[type="number"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
+  align-items: start;
+}
+/* Phones stack the columns; the gap stays generous so the sections read apart. */
+@media (max-width: 900px) {
+  .profile-two-col {
+    grid-template-columns: 1fr;
+  }
 }
 .profile-left-col {
   display: flex;
@@ -4702,12 +4896,15 @@ input[type="number"] {
     position: relative;
     margin-bottom: 0.6rem ;
 }
+/* 20px, matching every other input in the app. This was 14px, which left the
+   dense daily-log grid looking rounder-free next to the 20px fields on the
+   login / goals / profile forms. */
 .scored-input {
     width: 100%;
     padding: 0.95rem 0.7rem 0.35rem;
     background: #ffffff0a;
     color: var(--color-light);
-    border-radius: 14px;
+    border-radius: 20px;
     font-family: var(--font-mono);
     font-size: 0.82rem;
     outline: none;
@@ -8101,13 +8298,22 @@ select.form-control option {
   flex-direction: column;
   gap: 1rem;
 }
+/* auto-fit with a 360px floor kept every chart at two columns right down to
+   phone width, where 360px + the card padding + the gap overflowed the
+   viewport. The floor is capped at 100% and dropped to a single column under
+   700px, so each chart gets the full width of the page. */
 .metrics-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 1rem;
 }
 .metrics-columns--single {
   grid-template-columns: 1fr;
+}
+@media (max-width: 700px) {
+  .metrics-columns {
+    grid-template-columns: 1fr;
+  }
 }
 .metrics-chart-card {
   background: linear-gradient(160deg, #ffffff0d, #ffffff05);
@@ -8225,8 +8431,13 @@ select.form-control option {
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(165deg, #1e1e1e, #141414);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  /* Same translucent panel as .auth-card and .metrics-chart-card, so opening a
+     chart does not drop the reader onto a flat opaque slab. It was a solid
+     #1e1e1e->#141414, which also hid the starfield the rest of the app shows
+     through its surfaces. */
+  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 1.15rem 1.2rem 0.6rem;
   color: var(--color-light);
@@ -8316,6 +8527,37 @@ select.form-control option {
   .chart-modal-body {
     max-height: 80vh;
   }
+  /* Recharts measures its own container, so anything that can give it a
+     percentage width or an intrinsic min-width makes the plot drift off-centre
+     or overflow sideways. The page padding is trimmed to match, and every card
+     in the track is pinned to the full column width. */
+  .dashboard-section {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .metrics-track,
+  .metrics-columns,
+  .metrics-columns--single,
+  .metrics-chart-card,
+  .metrics-chart-card--full {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+  /* The habit bar chart reserves 180px of category axis; on a phone that is
+     most of the plot area, so the labels get a tighter allowance. */
+  .metrics-chart-card .recharts-yAxis,
+  .chart-modal-body .recharts-yAxis {
+    width: 120px !important;
+  }
+  .analysis-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.6rem;
+  }
+  .analysis-card-value {
+    font-size: 1.15rem;
+  }
 }
 /* ============================================
    DASHBOARD - wide layout (charts fill the page)
@@ -8337,6 +8579,41 @@ select.form-control option {
   .dashboard-page-wrapper {
     max-width: none;
   }
+}
+/* ============================================
+   STUDY TIMER - placeholder page
+   ============================================ */
+.study-timer-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.study-timer-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+  background: #ffffff0a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-primary);
+  font-size: 1.75rem;
+}
+.study-timer-title {
+  font-size: 1.3rem;
+}
+.study-timer-page .showcase-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  opacity: 0.7;
+  margin: 0.75rem 0 1.5rem;
 }
 
 /* ============================================
@@ -8567,7 +8844,10 @@ select.form-control option {
 .update-modal {
   width: 100%;
   max-width: 420px;
-  background: #1e1e1e;
+  /* Same translucent panel as .auth-card / .metrics-chart-card / .chart-modal,
+     so every dialog in the app shares one surface. */
+  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   padding: 1.25rem;
@@ -9508,3 +9788,47 @@ body {
     flex-direction: column;
   }
 }
+
+/* ============================================
+   DISPLAY TYPE (CRT face)
+   ============================================
+   VT323 is a VT320 terminal face: thin, angular, unmistakably a CRT. It has a
+   small x-height relative to its em, so at the sizes these headings already
+   use it would balloon - every font-size below is dialled back to compensate.
+
+   This block lives at the END of the stylesheet on purpose. The individual
+   heading rules (.slogan, .auth-title, .profile-name ...) also declare
+   font-size and font-weight, and at equal specificity the later declaration
+   wins, so placing this earlier would have had its sizes silently overridden.
+
+   Applied to display-scale text ONLY. Dense numeric readouts - stat tiles,
+   chart axis labels, table cells - deliberately stay on JetBrains Mono: VT323
+   ships no bold weight, and rendering figures like "128.4" or "6/10" in a thin
+   CRT face would work against the one thing the dashboard exists to do.
+
+   To use a different display face, edit --font-display in :root.
+   To go all-JetBrains-Mono, set --font-display to 'JetBrains Mono'. */
+.slogan,
+.showcase-title,
+.study-timer-title,
+.settings-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  /* Faint phosphor bloom, the way a terminal's glow bleeds on a CRT. */
+  text-shadow: 0 0 12px rgba(0, 255, 166, 0.18);
+}
+.slogan { font-size: 2.6rem; }
+.showcase-title { font-size: 1.8rem; }
+.study-timer-title { font-size: 1.3rem; }
+.settings-title { font-size: 1.3rem; }
+.auth-title,
+.navbar-page-title,
+.profile-name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.auth-title { font-size: 1.1rem; }
+.navbar-page-title { font-size: 0.8rem; }
+.profile-name { font-size: 1rem; }

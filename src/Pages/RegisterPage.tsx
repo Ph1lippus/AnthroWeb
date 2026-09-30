@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signUpWithEmail } from '../services/profileService';
-import { EyeOff, Eye } from 'lucide-react';
+import { REGISTRATION_ENABLED } from '../utils/appConfig';
+import { EyeOff, Eye, Lock } from 'lucide-react';
 
 const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
@@ -83,9 +84,30 @@ const RegisterPage: React.FC = () => {
         }
     };
 
+    // Sign-up is switched off, so the form never renders. The state and
+    // handlers above are kept intact so flipping REGISTRATION_ENABLED back on
+    // restores the page without touching this file.
+    if (!REGISTRATION_ENABLED) {
+        return (
+            <div className="auth-page">
+                <div className="auth-card auth-card-narrow">
+                    <div className="auth-closed-icon" aria-hidden="true"><Lock /></div>
+                    <h2 className="auth-title">Registration Closed</h2>
+                    <p className="auth-text">
+                        AnthroWeb is currently a private, single-user deployment, so new
+                        accounts cannot be created. If you already have access, sign in below.
+                    </p>
+                    <Link to="/login" className="btn btn-primary w-100 mt-3">
+                        Go to Login
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="auth-page">
-            <div className="auth-card">
+            <div className="auth-card auth-card-narrow">
                 <h2 className="auth-title">Create Account</h2>
                 <form onSubmit={handleSubmit} noValidate>
                     {error && <div className="auth-error">{error}</div>}

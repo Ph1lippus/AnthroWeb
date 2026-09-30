@@ -13,6 +13,7 @@ import {
 } from '../services/abstinenceService';
 import type { AbstinenceGoal, AbstinenceHistory } from '../services/abstinenceService';
 import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flame, Check } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const AbstinencePage: React.FC = () => {
     const [goals, setGoals] = useState<AbstinenceGoal[]>([]);
@@ -585,10 +586,7 @@ const AbstinencePage: React.FC = () => {
 
                         {/* Content */}
                         {loading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading abstinence goals...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : goals.length === 0 && history.length === 0 ? (
                             <div className="abstinence-empty">
                                 <ShieldHalf className="abstinence-empty-icon" />

@@ -13,6 +13,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { ageFromDob } from '../utils/measurementCalculations';
 import type { WorkoutCompletionLog } from '../services/workoutService';
 import { Calendar, LineChart, Trophy, Ruler, ArrowRight } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const WorkoutDashboardPage: React.FC = () => {
     const navigate = useNavigate();
@@ -73,10 +74,7 @@ const WorkoutDashboardPage: React.FC = () => {
                     </div>
 
                         {isLoading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading dashboard...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : (
                             <>
                                 <WorkoutStatsCards weeklyStats={weeklyStats} monthlyStats={monthlyStats} weightUnit={weightUnit} />

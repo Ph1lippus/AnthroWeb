@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import { getCurrentUser, signOutUser } from '../services/profileService';
+import LoadingSpinner from '../Components/LoadingSpinner';
 import { LogOut, ChevronRight } from 'lucide-react';
 
 const AccountPage: React.FC = () => {
@@ -48,7 +49,9 @@ const AccountPage: React.FC = () => {
                             <LogOut />
                             Account
                         </h1>
-                        <p className="settings-subtitle">{loading ? 'Loading...' : email}</p>
+                        <p className="settings-subtitle">
+                            {loading ? <LoadingSpinner inline label="Loading account" /> : email}
+                        </p>
                     </div>
 
                     <div className="settings-list">

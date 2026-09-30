@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmail, getUserSettings } from '../services/profileService';
+import { REGISTRATION_ENABLED } from '../utils/appConfig';
 import { EyeOff, Eye } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
@@ -77,7 +78,7 @@ const LoginPage: React.FC = () => {
 
     return (
         <div className="auth-page">
-            <div className="auth-card">
+            <div className="auth-card auth-card-narrow">
                 <h2 className="auth-title">Welcome Back</h2>
                 <form onSubmit={handleSubmit} noValidate>
                     {error && <div className="auth-error">{error}</div>}
@@ -144,9 +145,15 @@ const LoginPage: React.FC = () => {
                 <div className="auth-extra-links">
                     <Link className="auth-link" to="/forgot-password">Forgot password?</Link>
                 </div>
-                <p className="auth-text mt-3">
-                    Don't have an account? <Link className="auth-link" to="/register">Register</Link>
-                </p>
+                {!REGISTRATION_ENABLED ? (
+                    <p className="auth-text auth-text-muted mt-3">
+                        Registration is closed &mdash; this deployment is invite only.
+                    </p>
+                ) : (
+                    <p className="auth-text mt-3">
+                        Don't have an account? <Link className="auth-link" to="/register">Register</Link>
+                    </p>
+                )}
             </div>
         </div>
     );

@@ -3,6 +3,7 @@ import Title from '../Components/Title';
 import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete } from '../services/projectService';
 import type { Project, ProjectPlanItem } from '../services/projectService';
 import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const priorityColors: Record<string, string> = {
     low: '#43b67d',
@@ -503,10 +504,7 @@ const ProjectsPage: React.FC = () => {
 
                         {/* Projects Content - always visible, modal overlays on top */}
                         {loading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading projects...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : projects.length === 0 ? (
                             <div className="projects-empty">
                                 <i className="i-lucide-folder-open projects-empty-icon"></i>

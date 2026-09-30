@@ -7,6 +7,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { fromKg } from '../utils/units';
 import type { PRHistory } from '../services/workoutService';
 import { Trophy, ArrowLeft, Search, X } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const WorkoutPRsPage: React.FC = () => {
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
@@ -80,10 +81,7 @@ const WorkoutPRsPage: React.FC = () => {
                         </div>
 
                         {isLoading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading PRs...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : (
                             <div className="workout-pr-content">
                                 {selectedPR ? (

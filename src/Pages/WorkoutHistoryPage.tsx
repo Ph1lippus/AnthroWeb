@@ -6,6 +6,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { fromKg } from '../utils/units';
 import type { WorkoutCompletionLog } from '../services/workoutService';
 import { CircleCheck, CircleX, Flame, ChevronRight, History, CalendarX, CalendarDays, Timer } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const WorkoutHistoryPage: React.FC = () => {
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
@@ -70,10 +71,7 @@ const WorkoutHistoryPage: React.FC = () => {
                         <WorkoutsNav />
 
                         {isLoading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading history...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : (
                             <div className="workout-history-content">
                                 {selectedWorkout ? (

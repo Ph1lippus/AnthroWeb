@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
+import TimeField from '../Components/TimeField';
 import { getUserSettings, updateUserSettings, type UserSettings } from '../services/profileService';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 interface ActiveGoals {
     nutrition: {
@@ -147,10 +149,7 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 <Title title="Setup Goals" />
                 <div className="page-main-with-secondary">
                     <div className="dashboard-section">
-                        <div className="profile-loading">
-                            <div className="profile-loading-spinner"></div>
-                            <p>Loading...</p>
-                        </div>
+                        <LoadingSpinner />
                     </div>
                 </div>
             </>
@@ -238,10 +237,11 @@ const DailyLogGoalSetupPage: React.FC = () => {
                             {renderInput('water', 'Water (ml)', water, setWater, 'number', '2500')}
                         </div>
 
-                        {/* Sleep Goals */}
+                        {/* Sleep Goals - wake time drives the bedtime chart's axis,
+                            so both are clamped to a valid 24-hour clock time. */}
                         <div className="form-grid">
-                            {renderInput('wakeTime', 'Wake Time', wakeTime, setWakeTime, 'text', 'HH:MM', undefined, true)}
-                            {renderInput('bedtime', 'Bedtime', bedtime, setBedtime, 'text', 'HH:MM', undefined, true)}
+                            <TimeField id="wakeTime" label="Wake Time" value={wakeTime} onChange={setWakeTime} hint="07:00" />
+                            <TimeField id="bedtime" label="Bedtime" value={bedtime} onChange={setBedtime} hint="23:00" />
                         </div>
 
                         <div style={{ marginTop: '1.5rem' }}>

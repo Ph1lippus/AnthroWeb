@@ -14,6 +14,7 @@ import {
 import { useUserSettings } from '../hooks/useUserSettings';
 import type { WorkoutTemplateDay } from '../services/workoutService';
 import { Check, Save } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -53,10 +54,7 @@ const WorkoutTemplateEditorPage: React.FC = () => {
                 <div className="books-page-wrapper">
                     <div className="dashboard-section workout-section">
                         <div className="workout-card">
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading template...</p>
-                            </div>
+                            <LoadingSpinner />
                         </div>
                     </div>
                 </div>

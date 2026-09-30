@@ -12,6 +12,7 @@ import {
 } from '../hooks/useWorkouts';
 import type { WorkoutTemplate } from '../services/workoutService';
 import { Plus, Layers, Pin, Pencil, Check, Copy, Trash2, Search, X } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const WorkoutTemplatesPage: React.FC = () => {
     const navigate = useNavigate();
@@ -90,10 +91,7 @@ const WorkoutTemplatesPage: React.FC = () => {
                         </div>
 
                         {isLoading ? (
-                            <div className="profile-loading">
-                                <div className="profile-loading-spinner"></div>
-                                <p>Loading templates...</p>
-                            </div>
+                            <LoadingSpinner />
                         ) : templates.length === 0 ? (
                             <div className="workout-empty">
                                 <Layers className="workout-empty-icon" />

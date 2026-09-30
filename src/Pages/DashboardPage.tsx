@@ -6,6 +6,7 @@ import type { DateRange } from '../Components/Dashboard/dateRange';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { useHabitData } from '../hooks/useHabitData';
 import { useUserSettings } from '../hooks/useUserSettings';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const MetricsCharts = lazy(() => import('../Components/Dashboard/MetricsCharts'));
 
@@ -69,10 +70,7 @@ const DashboardPage: React.FC = () => {
                             <Suspense
                                 fallback={
                                     <div className="dashboard-daily-card">
-                                        <div className="profile-loading">
-                                            <div className="profile-loading-spinner"></div>
-                                            <p>Loading charts...</p>
-                                        </div>
+                                        <LoadingSpinner />
                                     </div>
                                 }
                             >

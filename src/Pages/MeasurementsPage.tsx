@@ -7,6 +7,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { usePRs } from '../hooks/useWorkouts';
 import { ageFromDob, measureDateToInput } from '../utils/measurementCalculations';
 import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock, LineChart, ArrowRight } from 'lucide-react';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const toDateString = measureDateToInput;
 
@@ -141,10 +142,7 @@ const MeasurementsPage: React.FC = () => {
                         </div>
                         <div className="card-body">
                             {isLoading ? (
-                                <div className="profile-loading">
-                                    <div className="profile-loading-spinner"></div>
-                                    <p>Loading measurements...</p>
-                                </div>
+                                <LoadingSpinner />
                             ) : (
                                 <MeasurementEditor
                                     key={date}

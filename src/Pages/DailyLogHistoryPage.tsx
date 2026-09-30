@@ -7,6 +7,7 @@ import type { DailyLog } from '../services/dailyLogService';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { queryKeys } from '../utils/queryKeys';
 import { getScoreColor } from '../utils/dailyScoring';
+import LoadingSpinner from '../Components/LoadingSpinner';
 
 const DailyLogHistoryPage: React.FC = () => {
     const navigate = useNavigate();
@@ -67,10 +68,7 @@ const DailyLogHistoryPage: React.FC = () => {
                     </div>
 
                     {logs === null ? (
-                        <div className="profile-loading">
-                            <div className="profile-loading-spinner"></div>
-                            <p>Loading logs...</p>
-                        </div>
+                        <LoadingSpinner />
                     ) : logs.length === 0 ? (
                         <div className="projects-empty">
                             <p className="projects-empty-title">No logs yet</p>

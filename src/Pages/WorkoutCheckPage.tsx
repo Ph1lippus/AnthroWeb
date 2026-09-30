@@ -14,6 +14,7 @@ import {
 import { useUserSettings } from '../hooks/useUserSettings';
 import { toKg, fromKg } from '../utils/units';
 import type { PRHistory } from '../services/workoutService';
+import LoadingSpinner from '../Components/LoadingSpinner';
 import {
     Dumbbell, Calendar, Flame, CircleCheck, Circle, StickyNote, Flag,
     Check, Loader2, Timer, Trash2, Trophy, X, Save, Medal,
@@ -211,7 +212,7 @@ const WorkoutCheckPage: React.FC = () => {
                 <div className="books-page-wrapper">
                     <div className="dashboard-section workout-section">
                         <div className="workout-card">
-                            <div className="profile-loading"><div className="profile-loading-spinner"></div><p>Loading workout...</p></div>
+                            <LoadingSpinner />
                         </div>
                     </div>
                 </div>
