@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { RotateCcw, StickyNote, Trash2 } from 'lucide-react';
 import Title from '../Title';
@@ -6,6 +6,7 @@ import LoadingSpinner from '../LoadingSpinner';
 import ConfirmModal from '../ConfirmModal';
 import NotesSidebar from './NotesSidebar';
 import NoteEditorPane from './NoteEditorPane';
+import QuickSwitcher from './QuickSwitcher';
 import type { Note } from '../../services/noteService';
 import {
     useCreateNote,
@@ -40,6 +41,7 @@ const NotesWorkspace: React.FC = () => {
     const [showTrash, setShowTrash] = useState(false);
     const [pendingRestore, setPendingRestore] = useState<Note | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Note | null>(null);
+    const [switcherOpen, setSwitcherOpen] = useState(false);
 
     const notes = useMemo(() => notesQuery.data ?? [], [notesQuery.data]);
     const trashed = useMemo(() => trashedQuery.data ?? [], [trashedQuery.data]);
@@ -102,6 +104,19 @@ const NotesWorkspace: React.FC = () => {
             },
         );
     }, [createNote, navigate]);
+
+    // Cmd/Ctrl+K anywhere on the page opens the switcher. Bound on the window
+    // rather than the rail so it works with focus in the editor too.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                setSwitcherOpen(open => !open);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
 
     const handleRestore = () => {
         if (!pendingRestore?.id) return;
@@ -286,6 +301,13 @@ const NotesWorkspace: React.FC = () => {
                     )}
                 </section>
             </div>
+
+            <QuickSwitcher
+                open={switcherOpen}
+                notes={notes}
+                activeId={activeNote?.id}
+                onClose={() => setSwitcherOpen(false)}
+            />
         </div>
     );
 };

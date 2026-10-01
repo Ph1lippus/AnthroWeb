@@ -5069,6 +5069,227 @@ input[type="number"] {
 }
 .note-icon-clear:hover { background: var(--color-danger-dark); color: #ff6b70; }
 
+/* ---------- quick switcher ---------- */
+.note-switcher-overlay {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+.note-switcher {
+  width: min(560px, 92vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ffffff1f;
+  border-radius: 25px;
+  background: #111;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.note-switcher-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #ffffff0f;
+}
+.note-switcher-icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+.note-switcher-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  outline: none;
+}
+.note-switcher-search input::placeholder {
+  color: var(--color-light);
+  opacity: 0.35;
+}
+.note-switcher-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+  overflow-y: auto;
+}
+.note-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-light);
+  text-align: left;
+  cursor: pointer;
+}
+.note-switcher-item--active {
+  background: var(--accent-bg);
+}
+.note-switcher-item-icon {
+  flex-shrink: 0;
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+.note-switcher-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.note-switcher-item-title {
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-switcher-item-path {
+  color: var(--color-light);
+  opacity: 0.4;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-switcher-current {
+  flex-shrink: 0;
+  padding: 0.05rem 0.35rem;
+  border-radius: 25px;
+  background: #ffffff12;
+  color: var(--color-light);
+  opacity: 0.5;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+.note-switcher-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--color-light);
+  opacity: 0.4;
+  font-size: 0.8rem;
+}
+
+/* ---------- export ---------- */
+.note-export-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #ffffff1f;
+  border-radius: 25px;
+  background: #111;
+}
+.note-export-inline button {
+  padding: 0.25rem 0.6rem;
+  border: none;
+  border-radius: 25px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+.note-export-inline button:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+
+/* ---------- shortcuts sheet ---------- */
+.note-shortcuts {
+  max-width: 720px !important;
+  width: 92vw;
+  max-height: 84vh;
+  overflow-y: auto;
+}
+.note-shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.note-shortcuts-head h3 {
+  margin: 0 !important;
+  font-size: 1rem;
+  color: var(--color-light);
+}
+.note-shortcuts-head button {
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.5;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.note-shortcuts-head button:hover {
+  opacity: 1;
+  color: var(--color-primary);
+}
+.note-shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  text-align: left;
+}
+.note-shortcuts-grid h4 {
+  margin: 0 0 0.5rem;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.note-shortcuts-grid dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.note-shortcut-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.note-shortcut-row dt {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+  margin: 0;
+}
+.note-shortcut-row dd {
+  margin: 0;
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.74rem;
+  text-align: right;
+}
+.note-shortcut-plus {
+  color: var(--color-light);
+  opacity: 0.35;
+  font-size: 0.62rem;
+}
+.note-shortcuts kbd {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #ffffff1f;
+  border-radius: 6px;
+  background: #ffffff0a;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
 /* ---------- contextual block controls ----------
    One toolbar, swapped by what the caret is inside, rather than a separate one
    per block type. Rendered by BlockControls above the document. */

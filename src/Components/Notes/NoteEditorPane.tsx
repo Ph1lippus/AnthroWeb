@@ -3,7 +3,9 @@ import {
     ArrowLeft,
     Check,
     Copy,
+    Download,
     Eye,
+    Keyboard,
     Loader2,
     ListTree,
     Palette,
@@ -14,11 +16,13 @@ import {
     X,
 } from 'lucide-react';
 import NoteToc from './NoteToc';
+import ShortcutsSheet from './ShortcutsSheet';
 import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
+import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
 import {
     NOTE_COLORS,
     absoluteTime,
@@ -79,6 +83,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [showIcons, setShowIcons] = useState(false);
     const [newTag, setNewTag] = useState('');
+    const [showExport, setShowExport] = useState(false);
+    const [showShortcuts, setShowShortcuts] = useState(false);
     const [focusMode, setFocusMode] = useState(false);
     const [showToc, setShowToc] = useState(false);
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
@@ -221,6 +227,33 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
         updateNote.mutate({ notes_tags: (note.notes_tags ?? []).filter(entry => entry !== tag) });
     };
 
+    // Cmd/Ctrl+Shift+E exports. Bound on the window so it works with the caret in
+    // the body, and ignored while a modifier-free keystroke is being typed.
+    useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'e') {
+                event.preventDefault();
+                downloadNoteMarkdown(note, allNotes);
+                return;
+            }
+            // "?" only when it is not being typed: an editable target means the
+            // character belongs to the note.
+            if (
+                event.key === '?' &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.altKey &&
+                !(event.target instanceof HTMLElement && event.target.isContentEditable) &&
+                !(event.target instanceof HTMLInputElement)
+            ) {
+                event.preventDefault();
+                setShowShortcuts(true);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [note, allNotes]);
+
     const saveLabel =
         saveState === 'saving'
             ? 'Saving...'
@@ -291,6 +324,51 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         {saveState === 'saved' && <Check size={12} />}
                         {saveLabel}
                     </span>
+
+                    <div className="note-color-wrap">
+                        <button
+                            type="button"
+                            className={`note-action-btn${showExport ? ' note-action-btn--pinned' : ''}`}
+                            onClick={() => setShowExport(v => !v)}
+                            title="Export this page"
+                            aria-label="Export this page"
+                        >
+                            <Download size={14} />
+                        </button>
+                    </div>
+
+                    {showExport && (
+                        <div className="note-export-inline" role="group" aria-label="Export">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    downloadNoteMarkdown(note, allNotes);
+                                    setShowExport(false);
+                                }}
+                            >
+                                Markdown
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    downloadNoteHtml(note);
+                                    setShowExport(false);
+                                }}
+                            >
+                                HTML
+                            </button>
+                        </div>
+                    )}
+
+                    <button
+                        type="button"
+                        className="note-action-btn"
+                        onClick={() => setShowShortcuts(true)}
+                        title="Keyboard shortcuts (?)"
+                        aria-label="Keyboard shortcuts"
+                    >
+                        <Keyboard size={14} />
+                    </button>
 
                     <div className="note-color-wrap">
                         <button
@@ -507,6 +585,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                     </Suspense>
                 </div>
             </div>
+
+            <ShortcutsSheet open={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
             <ConfirmModal
                 open={confirmDelete}
