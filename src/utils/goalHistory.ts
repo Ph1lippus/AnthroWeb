@@ -106,6 +106,46 @@ export const latestGoals = (history: GoalVersion[], fallback: ActiveGoals | null
     history.length ? history[history.length - 1].goals : fallback;
 
 /**
+ * Which goals apply to one day.
+ *
+ * The precedence is the whole point, and it is not uniform:
+ *
+ *  - For a past day the log's own `goal_snapshot` wins. It records the targets
+ *    that day was actually scored against, so it is the most truthful answer, and
+ *    it is what stops an edit to today's goals from silently rewriting history.
+ *  - For today the version history wins *instead*. Editing a goal writes a new
+ *    version effective today, so if the snapshot still won then a goal change
+ *    would be invisible for the rest of the day and would only take effect
+ *    tomorrow. Today's snapshot is re-stamped from this same resolution, so it
+ *    cannot drift away from the history.
+ *
+ * This lives here rather than inline in DailyLogPage so the rule can be tested
+ * directly. It was previously inlined in the component, which is how it managed
+ * to be both wrong and untestable.
+ */
+export const resolveGoalsForDay = (options: {
+    snapshot: unknown;
+    history: GoalVersion[];
+    date: string | null | undefined;
+    fallback: ActiveGoals | null;
+    today: string;
+}): ActiveGoals | null => {
+    const { snapshot, history, date, fallback, today } = options;
+
+    const fromHistory = (): ActiveGoals | null => {
+        if (!isDateString(date)) return fallback;
+        return goalsForDate(history, date, fallback);
+    };
+
+    if (isDateString(date) && date === today) return fromHistory();
+
+    const record = snapshot as ActiveGoals | undefined;
+    if (record && (record.nutrition || record.sleep)) return record;
+
+    return fromHistory();
+};
+
+/**
  * Add or replace the version starting on `effectiveFrom`.
  *
  * Re-saving on the same day overwrites that day's version instead of appending

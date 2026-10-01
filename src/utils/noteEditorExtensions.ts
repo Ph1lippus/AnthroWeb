@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import { Plugin, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -468,6 +469,40 @@ export { readFavourites };
  * to document.body, anchors it to the caret, and keeps it positioned through
  * scroll, resize and layout shifts. That is why there is no tippy.js here.
  */
+/**
+ * Keeps a selection from being destroyed by typing "/".
+ *
+ * ProseMirror's default for typed text over a selection is to replace it, which
+ * means selecting fifty lines and pressing "/" deletes all fifty and opens the
+ * menu on an empty document -- the exact opposite of what someone selecting a
+ * block of lines in order to convert it intends.
+ *
+ * So a "/" typed over a selection moves to the end of that selection and inserts
+ * there, leaving the text intact and the selection collapsed after the slash.
+ * The menu then opens normally, so converting the block below still works.
+ */
+const PreserveSelectionOnSlash = Extension.create({
+    name: 'preserveSelectionOnSlash',
+
+    addProseMirrorPlugins() {
+        return [
+            new Plugin({
+                props: {
+                    handleTextInput: (view, from, to, text) => {
+                        if (text !== '/' || from === to) return false;
+
+                        const { state, dispatch } = view;
+                        const tr = state.tr.insertText('/', to, to);
+                        tr.setSelection(TextSelection.create(tr.doc, to + 1));
+                        dispatch(tr.scrollIntoView());
+                        return true;
+                    },
+                },
+            }),
+        ];
+    },
+});
+
 export const SlashCommandExtension = Extension.create({
     name: 'slashCommand',
 
@@ -493,6 +528,16 @@ export const SlashCommandExtension = Extension.create({
                     // Replace the whole "/query" run, then run the command.
                     editor.chain().focus().deleteRange(range).run();
                     props.run(editor);
+
+                    // Put the caret at the start of the block that was just made.
+                    // Without this the selection is left wherever the conversion
+                    // happened to leave it, and typing continues somewhere other
+                    // than the new item -- which reads as "it made a new line
+                    // instead of letting me type in front of it".
+                    const { $from } = editor.state.selection;
+                    if ($from.parent.isTextblock) {
+                        editor.chain().focus().setTextSelection($from.start()).run();
+                    }
                 },
                 items: ({ query }: { query: string }) => filterCommands({ query }),
                 render: () => {
@@ -581,6 +626,10 @@ export const buildNoteExtensions = ({
             HTMLAttributes: { class: 'note-link' },
         },
         dropcursor: { color: 'var(--color-primary)', width: 2 },
+        // Off deliberately. TrailingNode guarantees a paragraph after the last
+        // block, so inserting a to-do as the final block left an empty line under
+        // it and the caret appeared to be somewhere else entirely.
+        trailingNode: false,
     }),
     CodeBlockLowlight.configure({
         lowlight,
@@ -630,6 +679,7 @@ export const buildNoteExtensions = ({
     Superscript,
     Typography,
     CharacterCount,
+    PreserveSelectionOnSlash,
     // Adds `has-focus` to the block the caret is in. The dimming itself is CSS
     // driven off the editor's focus-mode class, which is why there is no command.
     Focus.configure({ className: 'has-focus', mode: 'deepest' }),

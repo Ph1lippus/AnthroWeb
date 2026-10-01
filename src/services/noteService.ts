@@ -177,7 +177,7 @@ export const togglePinNote = async (id: string, isPinned: boolean) => {
 export const trashNote = async (id: string): Promise<Note> => {
     const { data, error } = await supabase
         .from('notes')
-        .update({ deleted_at: new Date().toISOString() })
+        .update({ notes_deleted_at: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single();
@@ -203,7 +203,7 @@ export const deleteNoteForever = async (id: string) => {
 export const restoreNote = async (id: string): Promise<Note> => {
     const { data, error } = await supabase
         .from('notes')
-        .update({ deleted_at: null })
+        .update({ notes_deleted_at: null })
         .eq('id', id)
         .select()
         .single();

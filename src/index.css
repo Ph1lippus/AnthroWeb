@@ -5290,6 +5290,49 @@ input[type="number"] {
   white-space: nowrap;
 }
 
+.note-block-controls-on {
+  background: var(--accent-bg) !important;
+  color: var(--color-primary) !important;
+}
+
+/* ---------- per-day goals ---------- */
+.daily-log-goals-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+.day-goals-card {
+  max-width: 560px !important;
+  width: 92vw;
+  text-align: left;
+}
+.day-goals-note {
+  margin: -0.5rem 0 1rem;
+  color: var(--color-light);
+  opacity: 0.5;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.day-goals-error {
+  margin-bottom: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 12px;
+  background: var(--color-danger-dark);
+  color: #ff9ba0;
+  font-size: 0.75rem;
+}
+.day-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+.day-goals-grid .form-label {
+  font-size: 0.7rem;
+}
+.day-goals-grid .form-control {
+  width: 100%;
+}
+
 /* ---------- contextual block controls ----------
    One toolbar, swapped by what the caret is inside, rather than a separate one
    per block type. Rendered by BlockControls above the document. */

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
-import { getUserSettings } from '../services/profileService';
+import { getUserSettings, updateUserSettings } from '../services/profileService';
 import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { getUserProjects } from '../services/projectService';
 import type { DailyLog } from '../services/dailyLogService';
@@ -11,10 +11,11 @@ import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
-import { goalsForDate, parseGoalHistory } from '../utils/goalHistory';
+import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
+import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
 import ConfirmModal from '../Components/ConfirmModal';
 import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
 import { isDateString, todayString } from '../utils/dates';
@@ -35,6 +36,12 @@ const DailyLogPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
+
+// True once the user deliberately re-saves this day's goals. Lifts the snapshot
+// freeze for any date, so an explicit edit is never overwritten by the autosave
+// and an accidental one never happens.
+const [goalsExplicitlyEdited, setGoalsExplicitlyEdited] = useState(false);
+const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [habits, setHabits] = useState<Habit[]>([]);
@@ -246,14 +253,17 @@ const DailyLogPage: React.FC = () => {
     // Keyed on logDate rather than `id`: reaching a past day via ?date= used to
     // fall through to today's goals, which is what made old days move whenever
     // a goal was edited.
-    const activeGoals = useMemo<ActiveGoals | null>(() => {
-        const snapshot = existingLog?.goal_snapshot as ActiveGoals | undefined;
-        if (snapshot && (snapshot.nutrition || snapshot.sleep)) return snapshot;
-
-        const fallback = (settings?.active_goals as ActiveGoals | undefined) ?? null;
-        if (!isDateString(logDate)) return fallback;
-        return goalsForDate(parseGoalHistory(settings?.goal_history), logDate, fallback);
-    }, [existingLog, settings, logDate]);
+    const activeGoals = useMemo<ActiveGoals | null>(
+        () =>
+            resolveGoalsForDay({
+                snapshot: existingLog?.goal_snapshot,
+                history: parseGoalHistory(settings?.goal_history),
+                date: logDate,
+                fallback: (settings?.active_goals as ActiveGoals | undefined) ?? null,
+                today: todayString(),
+            }),
+        [existingLog, settings, logDate],
+    );
 
     // Only what scoring reads: the day's goals plus the body targets.
     const effectiveSettings = useMemo(
@@ -399,17 +409,26 @@ const DailyLogPage: React.FC = () => {
         setSaving(true);
         setSaveError(null);
         try {
-            // Freeze the day's goals on the log itself.
+            // The day's goals, frozen onto the log itself.
             //
-            // An existing snapshot is authoritative and is never rewritten: past
-            // days already hold the targets they were scored against, and the 2s
-            // debounced autosave fires on any form change, so overwriting here
-            // would restamp history every time you opened an old day.
+            // A past day's snapshot is authoritative and is never rewritten: it
+            // holds the targets that day was actually scored against, and the 2s
+            // debounced autosave fires on any form change, so overwriting
+            // unconditionally would restamp history every time an old day was
+            // opened.
             //
-            // A new log (or one that predates snapshots) captures the goals
-            // resolved for logDate -- `activeGoals` above, not the live blob.
+            // Today is the exception, and it has to be. Goals edited today write a
+            // new history version, so today's snapshot must be allowed to follow or
+            // the edit would not register until tomorrow. That is safe because
+            // `activeGoals` for today resolves from the history, so re-stamping
+            // writes back the same values rather than drifting.
+            //
+            // `goalsExplicitlyEdited` covers the deliberate case for any date: the
+            // user opened this day's goals and changed them, which is exactly the
+            // action the freeze is meant to protect against happening by accident.
             let goalSnapshot: Record<string, unknown> | undefined | null;
-            if (existingLog?.goal_snapshot) {
+            const viewingToday = isDateString(logDate) && logDate === todayString();
+            if (existingLog?.goal_snapshot && !viewingToday && !goalsExplicitlyEdited) {
                 goalSnapshot = existingLog.goal_snapshot;
             } else {
                 const base = activeGoals ?? (settings?.active_goals as ActiveGoals | undefined) ?? null;
@@ -485,7 +504,7 @@ const DailyLogPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, activeGoals, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -548,6 +567,52 @@ const DailyLogPage: React.FC = () => {
         setCustomHabitName('');
         setCustomHabitDesc('');
         setShowCustomHabit(false);
+    };
+
+    /**
+     * Saves goals for the day being viewed.
+     *
+     * Two writes, with deliberately different reach:
+     *
+     *  - The day's own `goal_snapshot`. This is the per-day record the day's score
+     *    is computed against, so writing it changes this day and nothing else.
+     *
+     *  - Only when the day is today, a new version in `user_settings.goal_history`
+     *    plus the `active_goals` pointer. A goal changed for today should also be
+     *    the goal tomorrow starts from. A past day's edit deliberately does *not*
+     *    touch the history: "this one day was different" must not silently become
+     *    the new normal for every day after it, which is the exact leak migration
+     *    0005 was written to close.
+     *
+     * Editing today therefore also lifts the snapshot freeze, so the next autosave
+     * re-stamps today's snapshot from the same resolved values instead of writing
+     * the pre-edit targets back over this change.
+     */
+    const handleSaveDayGoals = async (goals: ActiveGoals) => {
+        const viewingToday = isDateString(logDate) && logDate === todayString();
+
+        if (viewingToday && settings) {
+            const history = withVersion(parseGoalHistory(settings.goal_history), logDate, goals);
+            await updateUserSettings({
+                ...settings,
+                active_goals: latestGoals(history, goals) as unknown as Record<string, unknown>,
+                goal_history: history,
+            });
+            queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
+        }
+
+        if (existingLog?.id) {
+            await updateDailyLog(existingLog.id, { goal_snapshot: goals as unknown as Record<string, unknown> });
+            setGoalsExplicitlyEdited(true);
+            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+        }
+
+        // A day with no log row yet has nothing to attach a snapshot to, so the
+        // change is written to the history alone (today) and picked up when the
+        // page creates the row. For a past day with no row there is nothing to
+        // change and nothing to say.
+        setShowGoalsEditor(false);
     };
 
     const handleDeleteHabit = async (id: string) => {
@@ -658,6 +723,17 @@ const DailyLogPage: React.FC = () => {
                         columns; below the breakpoint the card grid collapses and it sits
                         above the form again. */}
                     <div className="daily-log-score-col">
+                        {/* Per-day goals. The goals shown inline in the form are
+                            read-only, so without this the only way to change them is
+                            the setup page, which writes a version effective today and
+                            cannot express "this one day was different". */}
+                        <button
+                            type="button"
+                            className="btn-action daily-log-goals-btn"
+                            onClick={() => setShowGoalsEditor(true)}
+                        >
+                            Goals for this day
+                        </button>
                         <ScoreCard
                             score={scoreResult.score}
                             dateLabel={dateLabel}
@@ -1044,6 +1120,14 @@ const DailyLogPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <DayGoalsEditor
+                open={showGoalsEditor}
+                goals={activeGoals}
+                dateLabel={dateLabel}
+                onClose={() => setShowGoalsEditor(false)}
+                onSave={handleSaveDayGoals}
+            />
 
             <ConfirmModal
                 open={!!deleteTarget}

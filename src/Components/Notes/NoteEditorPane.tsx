@@ -79,7 +79,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     const [content, setContent] = useState(note.content ?? '');
     const [saveState, setSaveState] = useState<SaveState>('idle');
     const [showColors, setShowColors] = useState(false);
-    const [colorError, setColorError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [showIcons, setShowIcons] = useState(false);
     const [newTag, setNewTag] = useState('');
@@ -171,7 +171,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     };
 
     const handleColor = (color: string) => {
-        setColorError(null);
+        setActionError(null);
         updateNote.mutate(
             { notes_color: color || null },
             {
@@ -180,7 +180,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                 // it applied every write 4xx's -- and an unhandled mutation error
                 // meant nothing at all appeared to happen.
                 onError: error => {
-                    setColorError(`Could not save colour: ${error.message}`);
+                    setActionError(`Could not save colour: ${error.message}`);
                 },
             },
         );
@@ -206,7 +206,15 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
         if (timerRef.current) clearTimeout(timerRef.current);
         // A soft delete. This is reachable from one click on the page, so it has
         // to be recoverable -- the irreversible version lives in the trash view.
-        trashNoteMutation.mutate(note.id!, { onSuccess: onDeleted });
+        // onError is explicit because a swallowed rejection here looks exactly
+        // like the button doing nothing, which is how a misspelled column went
+        // unnoticed for a whole round.
+        trashNoteMutation.mutate(note.id!, {
+            onSuccess: () => onDeleted(),
+            onError: (error: Error) => {
+                setActionError(`Could not move to trash: ${error.message}`);
+            },
+        });
     };
 
     const handleAddTag = () => {
@@ -289,9 +297,9 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                 )}
 
                 <div className="note-pane-actions">
-                    {colorError && (
+                    {actionError && (
                         <span className="note-inline-error" role="alert">
-                            {colorError}
+                            {actionError}
                         </span>
                     )}
 
