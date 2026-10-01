@@ -124,6 +124,9 @@ function App() {
         <Route path="/Academic" element={<AcademicPage />} />
         <Route path="/Study-Timer" element={<StudyTimerPage />} />
         <Route path="/Notes" element={<NotesPage />} />
+        {/* Same workspace, a different page open. The route parameter selects it,
+            which keeps notes deep-linkable and gives Back a step to return to. */}
+        <Route path="/Notes/:id" element={<NotesPage />} />
         <Route path="/Settings" element={<SettingsPage />} />
         <Route path="/Settings/App" element={<AppPage />} />
         <Route path="/Settings/Account" element={<AccountPage />} />

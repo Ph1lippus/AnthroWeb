@@ -20,6 +20,11 @@ export const queryKeys = {
     bodyMeasurements: ['body-measurements'] as const,
     bodyMeasurementByDate: (date: string) => ['body-measurement', date] as const,
     latestMeasurement: ['latest-measurement'] as const,
+    // Notes. The single-note entry is invalidated on every autosave tick, so the
+    // list query is invalidated alongside it to keep the "last edited" ordering
+    // and the card previews honest.
+    notes: ['notes'] as const,
+    note: (id: string) => ['note', id] as const,
     // Academic
     academicSemesters: ['academic-semesters'] as const,
     academicCourses: ['academic-courses'] as const,

@@ -69,20 +69,24 @@ export const getLatestMeasurement = async (): Promise<BodyMeasurement | null> =>
     const userId = await getCurrentUserId();
     if (!userId) return null;
 
+    // Deliberately not .single(). Asking PostgREST for a single JSON object when
+    // the account has no measurement rows answers 406 (PGRST116, "JSON object
+    // requested, multiple (or no) rows returned") -- a red console error on every
+    // single page load for exactly the users least likely to know why. Selecting
+    // an array and taking the first element returns 200 either way.
     const { data, error } = await supabase
         .from('body_measurements')
         .select('*')
         .eq('user_id', userId)
         .order('measure_date', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
     if (error) {
-        if (error.code === 'PGRST116') return null;
         console.error('Error fetching latest body measurement:', error.message);
         return null;
     }
-    return data as BodyMeasurement;
+    const rows = data as BodyMeasurement[] | null;
+    return rows?.[0] ?? null;
 };
 
 // Insert a new snapshot, or update the existing one for that date

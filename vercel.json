@@ -8,6 +8,7 @@
     { "source": "/projects", "destination": "/Projects", "permanent": false },
     { "source": "/academic", "destination": "/Academic", "permanent": false },
     { "source": "/notes", "destination": "/Notes", "permanent": false },
+    { "source": "/notes/:id", "destination": "/Notes/:id", "permanent": false },
     { "source": "/study-timer", "destination": "/Study-Timer", "permanent": false },
     { "source": "/settings", "destination": "/Settings", "permanent": false },
     { "source": "/profile", "destination": "/Profile", "permanent": false },
