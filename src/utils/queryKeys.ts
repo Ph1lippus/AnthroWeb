@@ -25,6 +25,9 @@ export const queryKeys = {
     // and the card previews honest.
     notes: ['notes'] as const,
     note: (id: string) => ['note', id] as const,
+    // Kept apart from `notes` because one is live pages and the other is the
+    // trash; invalidating one must not refetch or empty the other.
+    trashedNotes: ['trashed-notes'] as const,
     // Academic
     academicSemesters: ['academic-semesters'] as const,
     academicCourses: ['academic-courses'] as const,

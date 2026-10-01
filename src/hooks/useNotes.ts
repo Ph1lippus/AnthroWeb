@@ -1,10 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     createNote,
-    deleteNote,
+    deleteNoteForever,
+    duplicateNote,
+    emptyTrash,
     getNoteById,
+    getTrashedNotes,
     getUserNotes,
+    moveNote,
+    restoreNote,
     togglePinNote,
+    trashNote,
     updateNote,
 } from '../services/noteService';
 import type { Note } from '../services/noteService';
@@ -14,6 +20,12 @@ export const useNotes = () =>
     useQuery({
         queryKey: queryKeys.notes,
         queryFn: getUserNotes,
+    });
+
+export const useTrashedNotes = () =>
+    useQuery({
+        queryKey: queryKeys.trashedNotes,
+        queryFn: getTrashedNotes,
     });
 
 // The full-page editor reads one note. maybeSingle in the service means a deleted
@@ -29,8 +41,13 @@ export const useNote = (id: string | undefined) =>
 export const useCreateNote = (onDone?: (note: Note) => void) => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (note: { title?: string | null; content?: string; notes_color?: string | null }) =>
-            createNote(note),
+        mutationFn: (note: {
+            title?: string | null;
+            content?: string;
+            notes_color?: string | null;
+            notes_icon?: string | null;
+            notes_parent_id?: string | null;
+        }) => createNote(note),
         onSuccess: (note) => {
             // Seeded into the cached list rather than only invalidated: the
             // workspace navigates straight to the new page and looks it up in this
@@ -60,21 +77,101 @@ export const useUpdateNote = (id: string | undefined, onDone?: () => void) => {
     });
 };
 
-export const useDeleteNote = (onDone?: () => void) => {
+/**
+ * Throwing a page away.
+ *
+ * Also drops it from the cached single-note row and from the live list, so a
+ * page thrown away while it is open closes immediately rather than sitting there
+ * apparently still editable until the next refetch notices.
+ */
+export const useTrashNote = (onDone?: () => void) => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (id: string) => deleteNote(id),
-        onSuccess: (_data, id) => {
+        mutationFn: (id: string) => trashNote(id),
+        onSuccess: (trashed) => {
+            const id = trashed.id ?? '';
+            qc.setQueryData<Note[]>(queryKeys.notes, existing =>
+                (existing ?? []).filter(note => note.id !== id),
+            );
+            qc.setQueryData<Note[]>(queryKeys.trashedNotes, existing => [
+                trashed,
+                ...(existing ?? []),
+            ]);
             qc.setQueryData(queryKeys.note(id), null);
+            onDone?.();
+        },
+    });
+};
+
+export const useRestoreNote = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => restoreNote(id),
+        onSuccess: restored => {
+            const id = restored.id ?? '';
+            qc.setQueryData<Note[]>(queryKeys.trashedNotes, existing =>
+                (existing ?? []).filter(note => note.id !== id),
+            );
+            qc.setQueryData<Note[]>(queryKeys.notes, existing => [restored, ...(existing ?? [])]);
+            qc.setQueryData(queryKeys.note(id), restored);
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+        },
+    });
+};
+
+export const useDeleteNoteForever = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => deleteNoteForever(id),
+        onSuccess: (_data, id) => {
+            qc.setQueryData<Note[]>(queryKeys.trashedNotes, existing =>
+                (existing ?? []).filter(note => note.id !== id),
+            );
+            qc.setQueryData(queryKeys.note(id), null);
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+        },
+    });
+};
+
+export const useEmptyTrash = (onDone?: () => void) => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: () => emptyTrash(),
+        onSuccess: () => {
+            qc.setQueryData(queryKeys.trashedNotes, []);
             qc.invalidateQueries({ queryKey: queryKeys.notes });
             onDone?.();
         },
     });
 };
 
+export const useMoveNote = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, parentId }: { id: string; parentId: string | null }) =>
+            moveNote(id, parentId),
+        onSuccess: moved => {
+            qc.setQueryData(queryKeys.note(moved.id ?? ''), moved);
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+        },
+    });
+};
+
+export const useDuplicateNote = (onDone?: (note: Note) => void) => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (note: Note) => duplicateNote(note),
+        onSuccess: (copy) => {
+            qc.setQueryData<Note[]>(queryKeys.notes, existing => [copy, ...(existing ?? [])]);
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+            onDone?.(copy);
+        },
+    });
+};
+
 // Pinning bypasses useUpdateNote on purpose: the editor page holds the note in
-// local state and owns its own autosave, so routing a pin through that
-// mutation would race the editor's next write.
+// local state and owns its own autosave, so routing a pin through that mutation
+// would race the editor's next write.
 export const useToggleNotePin = () => {
     const qc = useQueryClient();
     return useMutation({

@@ -1,20 +1,24 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ArrowLeft,
     Check,
+    Copy,
     Eye,
     Loader2,
     ListTree,
     Palette,
     Pin,
     PinOff,
+    Smile,
     Trash2,
+    X,
 } from 'lucide-react';
 import NoteToc from './NoteToc';
 import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
-import { useDeleteNote, useToggleNotePin, useUpdateNote } from '../../hooks/useNotes';
+import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
+import { noteAncestors } from '../../utils/noteTree';
 import {
     NOTE_COLORS,
     absoluteTime,
@@ -40,9 +44,15 @@ interface Pending {
 
 interface NoteEditorPaneProps {
     note: Note;
+    /** The live page list, so breadcrumbs can be resolved from the parent id. */
+    allNotes: Note[];
     onDeleted: () => void;
     onClose?: () => void;
 }
+
+/** Emoji offered by the page icon picker. A short, opinionated list beats a
+ *  full emoji search when the only job is to tell two pages apart. */
+const ICONS = ['📄', '📝', '📌', '⭐', '💡', '🔥', '📚', '🎯', '🧠', '⚙️', '🧪', '💻', '🌱', '✅', '❗', '🎓'];
 
 /**
  * The right half of the notes workspace: one open page, always editable.
@@ -55,9 +65,10 @@ interface NoteEditorPaneProps {
  * pane instead of trying to reconcile one document into another. That is what
  * keeps two notes from ever bleeding into each other.
  */
-const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClose }) => {
+const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDeleted, onClose }) => {
     const updateNote = useUpdateNote(note.id);
-    const deleteNote = useDeleteNote();
+    const trashNoteMutation = useTrashNote();
+    const duplicateNoteMutation = useDuplicateNote();
     const togglePin = useToggleNotePin();
 
     const [title, setTitle] = useState(note.title ?? '');
@@ -66,6 +77,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
     const [showColors, setShowColors] = useState(false);
     const [colorError, setColorError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [showIcons, setShowIcons] = useState(false);
+    const [newTag, setNewTag] = useState('');
     const [focusMode, setFocusMode] = useState(false);
     const [showToc, setShowToc] = useState(false);
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
@@ -181,11 +194,31 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
     }, [showColors]);
 
     const handleDelete = () => {
-        // Clear the pending payload before deleting: unmounting would otherwise
-        // flush an update for a row that no longer exists.
+        // Clear the pending payload first: unmounting would otherwise flush an
+        // update for a row that is on its way to the trash.
         pendingRef.current = null;
         if (timerRef.current) clearTimeout(timerRef.current);
-        deleteNote.mutate(note.id!, { onSuccess: onDeleted });
+        // A soft delete. This is reachable from one click on the page, so it has
+        // to be recoverable -- the irreversible version lives in the trash view.
+        trashNoteMutation.mutate(note.id!, { onSuccess: onDeleted });
+    };
+
+    const handleAddTag = () => {
+        const tag = newTag.trim();
+        if (!tag) return;
+        const current = note.notes_tags ?? [];
+        // Case-insensitive duplicate check, so "Exam" and "exam" do not both end
+        // up on one page.
+        if (current.some(existing => existing.toLowerCase() === tag.toLowerCase())) {
+            setNewTag('');
+            return;
+        }
+        updateNote.mutate({ notes_tags: [...current, tag] });
+        setNewTag('');
+    };
+
+    const handleRemoveTag = (tag: string) => {
+        updateNote.mutate({ notes_tags: (note.notes_tags ?? []).filter(entry => entry !== tag) });
     };
 
     const saveLabel =
@@ -201,6 +234,10 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
 
     const currentColor = note.notes_color ?? '';
     const words = wordCount(content);
+    // Ancestors resolve against the live list. A parent that is missing -- trashed,
+    // or filtered out by a search -- simply drops out of the trail rather than
+    // rendering a dead link.
+    const ancestors = useMemo(() => noteAncestors(allNotes, note), [allNotes, note]);
     // Captured from the note as it was opened, not from live state: this decides
     // whether the caret goes into the body on mount, and that only makes sense
     // for a page that was still empty when it loaded.
@@ -295,6 +332,27 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
 
                     <button
                         type="button"
+                        className={`note-action-btn${showIcons ? ' note-action-btn--pinned' : ''}`}
+                        onClick={() => setShowIcons(v => !v)}
+                        title="Page icon"
+                        aria-label="Page icon"
+                    >
+                        <Smile size={14} />
+                    </button>
+
+                    <button
+                        type="button"
+                        className="note-action-btn"
+                        onClick={() => duplicateNoteMutation.mutate(note)}
+                        disabled={duplicateNoteMutation.isPending}
+                        title="Duplicate page"
+                        aria-label="Duplicate page"
+                    >
+                        <Copy size={14} />
+                    </button>
+
+                    <button
+                        type="button"
                         className={`note-action-btn${note.is_pinned ? ' note-action-btn--pinned' : ''}`}
                         onClick={() => togglePin.mutate({ id: note.id!, isPinned: note.is_pinned })}
                         title={note.is_pinned ? 'Unpin' : 'Pin'}
@@ -307,20 +365,78 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                         type="button"
                         className="note-action-btn note-action-btn--danger"
                         onClick={() => setConfirmDelete(true)}
-                        title="Delete note"
-                        aria-label="Delete note"
+                        title="Move to trash"
+                        aria-label="Move to trash"
                     >
                         <Trash2 size={14} />
                     </button>
                 </div>
+
+                {showIcons && (
+                    <div className="note-icon-inline" role="group" aria-label="Page icon">
+                        {ICONS.map(glyph => (
+                            <button
+                                type="button"
+                                key={glyph}
+                                className={`note-icon-swatch${
+                                    note.notes_icon === glyph ? ' note-icon-swatch--on' : ''
+                                }`}
+                                onClick={() => {
+                                    updateNote.mutate({
+                                        notes_icon: note.notes_icon === glyph ? null : glyph,
+                                    });
+                                    setShowIcons(false);
+                                }}
+                            >
+                                {glyph}
+                            </button>
+                        ))}
+                        {note.notes_icon && (
+                            <button
+                                type="button"
+                                className="note-icon-clear"
+                                onClick={() => {
+                                    updateNote.mutate({ notes_icon: null });
+                                    setShowIcons(false);
+                                }}
+                                title="Remove icon"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="note-pane-scroll">
+                {note.notes_cover && (
+                    <div
+                        className="note-cover"
+                        style={{ backgroundImage: `url(${note.notes_cover})` }}
+                        role="img"
+                        aria-label="Page cover"
+                    />
+                )}
                 {currentColor && (
                     <div className="note-pane-accent" style={{ background: currentColor }} />
                 )}
 
                 <div className="note-pane-inner">
+                    {ancestors.length > 0 && (
+                        <nav className="note-breadcrumbs" aria-label="Breadcrumbs">
+                            {ancestors.map(ancestor => (
+                                <span key={ancestor.id} className="note-crumb">
+                                    {ancestor.notes_icon && (
+                                        <span className="note-crumb-icon">{ancestor.notes_icon}</span>
+                                    )}
+                                    {ancestor.title?.trim() || 'Untitled'}
+                                </span>
+                            ))}
+                        </nav>
+                    )}
+
+                    {note.notes_icon && <div className="note-page-icon">{note.notes_icon}</div>}
+
                     <input
                         type="text"
                         className="note-title-input"
@@ -329,6 +445,44 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                         placeholder="Untitled"
                         aria-label="Note title"
                     />
+
+                    <div className="note-tag-row">
+                        {(note.notes_tags ?? []).map(tag => (
+                            <span key={tag} className="note-tag">
+                                {tag}
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveTag(tag)}
+                                    aria-label={`Remove tag ${tag}`}
+                                    title={`Remove ${tag}`}
+                                >
+                                    <X size={10} />
+                                </button>
+                            </span>
+                        ))}
+                        <input
+                            type="text"
+                            className="note-tag-input"
+                            value={newTag}
+                            placeholder="Add tag"
+                            onChange={e => setNewTag(e.target.value)}
+                            // Enter commits; Escape abandons without saving.
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddTag();
+                                } else if (e.key === 'Escape') {
+                                    setNewTag('');
+                                }
+                            }}
+                            // Losing focus with text in the box means a tag was
+                            // being written, so commit it rather than drop it.
+                            onBlur={() => {
+                                if (newTag.trim()) handleAddTag();
+                            }}
+                            aria-label="Add tag"
+                        />
+                    </div>
 
                     <div
                         className="note-meta-line"
@@ -356,10 +510,10 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
 
             <ConfirmModal
                 open={confirmDelete}
-                title={`Delete "${note.title || 'Untitled'}"?`}
-                confirmLabel="Delete"
+                title={`Move "${note.title || 'Untitled'}" to the trash?`}
+                confirmLabel="Move to trash"
                 danger
-                busy={deleteNote.isPending}
+                busy={trashNoteMutation.isPending}
                 onConfirm={handleDelete}
                 onCancel={() => setConfirmDelete(false)}
             />
