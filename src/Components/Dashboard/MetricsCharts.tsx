@@ -21,6 +21,7 @@ import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
+import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { addDays } from '../../utils/dates';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
@@ -154,6 +155,20 @@ interface ChartPoint {
     eveningBpm: number | null;
     bodyTemperature: number | null;
     habitPct: number | null;
+    /**
+     * The goal in force on that day's date, carried per point rather than as one
+     * chart-wide constant. Goals are versioned by date (see `goalHistory.ts`), so
+     * a window spanning an edit has several legitimate goal levels and a single
+     * flat reference line would misdescribe the earlier part of it.
+     */
+    goalCalories: number | null;
+    goalWater: number | null;
+    goalProtein: number | null;
+    goalCarbs: number | null;
+    goalFat: number | null;
+    goalSleepHours: number | null;
+    goalBedtime: number | null;
+    goalWakeTime: number | null;
 }
 
 interface TooltipEntry {
@@ -333,6 +348,69 @@ const BLANK_POINT: ChartPoint = {
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
     bodyTemperature: null, habitPct: null,
+    goalCalories: null, goalWater: null, goalProtein: null, goalCarbs: null,
+    goalFat: null, goalSleepHours: null, goalBedtime: null, goalWakeTime: null,
+};
+
+/**
+ * A stepped goal line across days that each carry their own goal.
+ *
+ * Recharts' `ReferenceLine y={...}` is a single constant, so it cannot express a
+ * goal that changed partway through the window. Its `segments` prop takes
+ * explicit x/y pairs instead, which lets the line step at the day the goal
+ * actually changed. Renders nothing when no day in the window had that goal set,
+ * so charts with an unchanging goal look exactly as they did.
+ */
+const GoalSegments: React.FC<{
+    points: ChartPoint[];
+    dataKey: keyof ChartPoint;
+    stroke: string;
+    label?: string;
+}> = ({ points, dataKey, stroke, label }) => {
+    const segments = useMemo(() => {
+        // Consecutive real days only: a day with no goal set breaks the line
+        // rather than bridging it, so a stretch without a goal doesn't read as
+        // "held steady".
+        const run: { x: string; y: number }[][] = [];
+        let current: { x: string; y: number }[] = [];
+        points.forEach(p => {
+            const y = p[dataKey];
+            if (typeof y !== 'number' || Number.isNaN(y)) {
+                if (current.length > 1) run.push(current);
+                current = [];
+                return;
+            }
+            current.push({ x: p.label, y });
+        });
+        if (current.length > 1) run.push(current);
+        return run;
+    }, [points, dataKey]);
+
+    if (!segments.length) return null;
+
+    // Recharts 3 dropped the multi-segment `segments` prop in favour of a single
+    // `segment` tuple, so one <ReferenceLine> per run. The label rides the last
+    // run only, otherwise a goal edited three times prints "Goal" three times.
+    return (
+        <>
+            {segments.map((run, runIndex) =>
+                run.slice(0, -1).map((p, i) => {
+                    const q = run[i + 1];
+                    const isLast = runIndex === segments.length - 1 && i === run.length - 2;
+                    return (
+                        <ReferenceLine
+                            key={`${runIndex}-${i}`}
+                            segment={[{ x: p.x, y: p.y }, { x: q.x, y: q.y }]}
+                            stroke={stroke}
+                            strokeDasharray="4 4"
+                            strokeOpacity={0.5}
+                            label={label && isLast ? { value: label, position: 'insideTopRight', fill: stroke, fontSize: 10 } : undefined}
+                        />
+                    );
+                })
+            )}
+        </>
+    );
 };
 
 const AVG_STROKE = 'rgba(255, 255, 255, 0.55)';
@@ -473,20 +551,16 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
 
     const openChart = useCallback((e: ExpandedChart) => setExpanded(e), []);
 
-    const activeGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
-    const caloriesGoal = activeGoals?.nutrition?.calories ?? null;
-    const waterGoal = activeGoals?.nutrition?.water ?? null;
-    const proteinGoal = activeGoals?.nutrition?.protein ?? null;
-    const carbsGoal = activeGoals?.nutrition?.carbs ?? null;
-    const fatGoal = activeGoals?.nutrition?.fat ?? null;
+    // Goals are versioned by date, so each point resolves its own (see
+    // `goalHistory.ts`); the chart-wide constants below are only used to decide
+    // whether a goal exists at all in this window.
+    const goalHistory = useMemo(() => parseGoalHistory(settings?.goal_history), [settings?.goal_history]);
+    const currentGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const goalsOn = useCallback((date: string): ActiveGoals | null =>
+        goalsForDate(goalHistory, date, currentGoals), [goalHistory, currentGoals]);
+
     const targetWeight = settings?.target_weight ?? null;
     const targetBodyFat = settings?.target_bodyfat ?? null;
-    // Clock goals come back as "HH:MM" strings; the chart plots the same decimal
-    // hours as the readings, so the goal lines land where they belong. A blank or
-    // malformed goal yields null, which simply hides the line.
-    const bedtimeGoalHours = clockToHours(activeGoals?.sleep?.bedtime);
-    const wakeGoalHours = clockToHours(activeGoals?.sleep?.wake_time);
-    const sleepHoursGoal = activeGoals?.sleep?.hours ?? null;
 
     const completedByDate = useMemo(() => {
         const map = new Map<string, number>();
@@ -535,9 +609,21 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     eveningBpm: l.evening_bpm ?? null,
                     bodyTemperature: l.body_temperature ?? null,
                     habitPct: habitTotal > 0 ? Math.round(((builtinDone + customDone) / habitTotal) * 100) : null,
+                    goalCalories: goalsOn(l.log_date)?.nutrition?.calories ?? null,
+                    goalWater: goalsOn(l.log_date)?.nutrition?.water ?? null,
+                    goalProtein: goalsOn(l.log_date)?.nutrition?.protein ?? null,
+                    goalCarbs: goalsOn(l.log_date)?.nutrition?.carbs ?? null,
+                    goalFat: goalsOn(l.log_date)?.nutrition?.fat ?? null,
+                    goalSleepHours: goalsOn(l.log_date)?.sleep?.hours ?? null,
+                    // Clock goals come back as "HH:MM" strings; the chart plots
+                    // the same decimal hours as the readings, so the goal lines
+                    // land where they belong. A blank or malformed goal yields
+                    // null, which simply hides the line for that day.
+                    goalBedtime: clockToHours(goalsOn(l.log_date)?.sleep?.bedtime),
+                    goalWakeTime: clockToHours(goalsOn(l.log_date)?.sleep?.wake_time),
                 };
             });
-    }, [logs, range.days, habits, completedByDate]);
+    }, [logs, range.days, habits, completedByDate, goalsOn]);
 
     const completedByHabit = useMemo(() => {
         const map = new Map<string, number>();
@@ -646,9 +732,9 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     // flattened a 60g fat day onto the same baseline.
     const macroChart = (
         dataKey: 'protein' | 'carbs' | 'fat',
+        goalKey: 'goalProtein' | 'goalCarbs' | 'goalFat',
         label: string,
         color: string,
-        goal: number | null,
     ) => (
         <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
             <defs>
@@ -661,9 +747,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             <ChartX />
             <ChartY />
             <ChartTip />
-            {goal != null && (
-                <ReferenceLine y={goal} stroke={color} strokeDasharray="4 4" strokeOpacity={0.45} label="Goal" />
-            )}
+            <GoalSegments points={chartData} dataKey={goalKey} stroke={color} label="Goal" />
             <AvgLine y={averages[dataKey]} stroke={color} />
             <Area
                 type="monotone"
@@ -741,7 +825,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         cluttering the axis with quarters. */}
                                     <ChartY domain={[0, 14]} ticks={TICKS.hours} tickFormatter={(v) => `${v}h`} />
                                     <ChartTip />
-                                    {sleepHoursGoal != null && <ReferenceLine y={sleepHoursGoal} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
+                                    <GoalSegments points={chartData} dataKey="goalSleepHours" stroke={C.primary} label="Goal" />
                                     <AvgLine y={averages.sleepDuration} />
                                     <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2.5} fill="url(#sleepFill)" dot={false} connectNulls formatter={(v) => `${num(v)}h`} />
                                 </AreaChart>
@@ -801,24 +885,18 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         the context of when people actually sleep. */}
                                     <ReferenceArea y1={TICKS.night[0]} y2={24} fill="rgba(179, 141, 255, 0.07)" strokeOpacity={0} />
                                     <ReferenceArea y1={0} y2={TICKS.morning[1]} fill="rgba(179, 141, 255, 0.07)" strokeOpacity={0} />
-                                    {bedtimeGoalHours != null && (
-                                        <ReferenceLine
-                                            y={bedtimeGoalHours}
-                                            stroke={C.purple}
-                                            strokeDasharray="4 4"
-                                            strokeOpacity={0.45}
-                                            label={{ value: 'Goal', position: 'insideTopLeft', fill: C.purple, fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                        />
-                                    )}
-                                    {wakeGoalHours != null && (
-                                        <ReferenceLine
-                                            y={wakeGoalHours}
-                                            stroke={C.amber}
-                                            strokeDasharray="4 4"
-                                            strokeOpacity={0.45}
-                                            label={{ value: 'Goal', position: 'insideBottomLeft', fill: C.amber, fontSize: 9, fontFamily: 'var(--font-mono)' }}
-                                        />
-                                    )}
+                                    <GoalSegments
+                                        points={chartData}
+                                        dataKey="goalBedtime"
+                                        stroke={C.purple}
+                                        label="Goal"
+                                    />
+                                    <GoalSegments
+                                        points={chartData}
+                                        dataKey="goalWakeTime"
+                                        stroke={C.amber}
+                                        label="Goal"
+                                    />
                                     <AvgLine y={averages.bedtime} stroke={C.purple} />
                                     <AvgLine y={averages.wakeTime} stroke={C.amber} />
                                     <Line
@@ -940,7 +1018,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
-                                    {caloriesGoal != null && <ReferenceLine y={caloriesGoal} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
+                                    <GoalSegments points={chartData} dataKey="goalCalories" stroke={C.primary} label="Goal" />
                                     <AvgLine y={averages.calories} />
                                     <Bar dataKey="calories" name="Calories" formatter={(v) => `${num(v)} kcal`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} />
                                 </ComposedChart>
@@ -950,19 +1028,19 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Protein"
                             empty={!hasAny('protein')}
                             onExpand={openChart}
-                            chart={macroChart('protein', 'Protein', C.blue, proteinGoal)}
+                            chart={macroChart('protein', 'goalProtein', 'Protein', C.blue)}
                         />
                         <ChartCard
                             title="Carbs"
                             empty={!hasAny('carbs')}
                             onExpand={openChart}
-                            chart={macroChart('carbs', 'Carbs', C.purple, carbsGoal)}
+                            chart={macroChart('carbs', 'goalCarbs', 'Carbs', C.purple)}
                         />
                         <ChartCard
                             title="Fat"
                             empty={!hasAny('fat')}
                             onExpand={openChart}
-                            chart={macroChart('fat', 'Fat', C.amber, fatGoal)}
+                            chart={macroChart('fat', 'goalFat', 'Fat', C.amber)}
                         />
                         <ChartCard
                             title="Water"
@@ -974,7 +1052,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
-                                    {waterGoal != null && <ReferenceLine y={waterGoal} stroke={C.cyan} strokeDasharray="4 4" strokeOpacity={0.5} />}
+                                    <GoalSegments points={chartData} dataKey="goalWater" stroke={C.cyan} />
                                     <AvgLine y={averages.water} stroke={C.cyan} />
                                     <Bar dataKey="water" name="Water" formatter={(v) => `${num(v)} ml`} fill={C.cyan} radius={[3, 3, 0, 0]} maxBarSize={18} />
                                 </ComposedChart>

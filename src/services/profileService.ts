@@ -80,6 +80,11 @@ export interface UserSettings {
     target_bodyfat: number | null;
     last_measurement_date: string | null;
     active_goals?: Record<string, unknown> | null;
+    /**
+     * Dated goal versions; see `src/utils/goalHistory.ts`. `active_goals` remains
+     * the current-goals pointer so readers that only need "now" keep working.
+     */
+    goal_history?: unknown[] | null;
     weight_unit?: 'kg' | 'lbs';
     created_at?: string;
     updated_at?: string;
@@ -150,6 +155,7 @@ export const updateUserSettings = async (settings: UserSettings) => {
             last_measurement_date: settings.last_measurement_date,
             weight_unit: settings.weight_unit || 'kg',
             active_goals: settings.active_goals,
+            goal_history: settings.goal_history,
             updated_at: new Date().toISOString(),
         }, {
             onConflict: 'user_id'

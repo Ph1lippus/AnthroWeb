@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Moon, Utensils, Droplets, Scale, HeartPulse, Smile } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
+import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import type { DateRange } from './dateRange';
 
 const inRange = (date: string, days: number | null): boolean => {
@@ -72,7 +73,18 @@ const trend = (
 };
 
 const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, settings, range }) => {
-    const goals = (settings?.active_goals as ActiveGoals | undefined) || null;
+    const goalHistory = useMemo(() => parseGoalHistory(settings?.goal_history), [settings?.goal_history]);
+    const currentGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
+
+    /**
+     * A day's goal, falling back to the goals in force today.
+     *
+     * Aggregates mix days that may predate the current goal, so scoring the
+     * whole window against today's target is what made history appear to
+     * change. Each log is resolved on its own date instead.
+     */
+    const goalsOn = useCallback((date: string): ActiveGoals | null =>
+        goalsForDate(goalHistory, date, currentGoals), [goalHistory, currentGoals]);
 
     const stats = useMemo<Stat[]>(() => {
         if (!logs) return [];
@@ -99,8 +111,13 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         });
 
         // 2. Nutrition - calories against the goal, with protein adherence.
+        //
+        // Mean intake is compared against the mean of each day's own goal, so a
+        // window spanning a goal change isn't judged by a target most of it was
+        // never aiming at.
         const calories = mean(sorted.map(l => l.calories));
-        const calGoal = goals?.nutrition?.calories ?? null;
+        const calGoals = sorted.map(l => goalsOn(l.log_date)?.nutrition?.calories ?? null);
+        const calGoal = mean(calGoals);
         const calDelta = calories !== null && calGoal ? calories - calGoal : null;
         out.push({
             key: 'nutrition',
@@ -117,16 +134,26 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
 
         // 3. Hydration.
         const water = mean(sorted.map(l => l.water));
-        const waterGoal = goals?.nutrition?.water ?? null;
+        const waterGoal = mean(sorted.map(l => goalsOn(l.log_date)?.nutrition?.water ?? null));
+        // Per-day attainment, not intake-over-mean-goal: a day met its own target
+        // even if a later edit raised that target above it.
+        const attainmentRatios = sorted
+            .map(l => ({ log: l.water, goal: goalsOn(l.log_date)?.nutrition?.water ?? null }))
+            .filter((r): r is { log: number; goal: number } =>
+                typeof r.log === 'number' && !Number.isNaN(r.log) && typeof r.goal === 'number' && r.goal > 0)
+            .map(r => Math.min(1, r.log / r.goal));
+        const waterAttainment = attainmentRatios.length
+            ? Math.round((attainmentRatios.reduce((a, b) => a + b, 0) / attainmentRatios.length) * 100)
+            : null;
         out.push({
             key: 'water',
             label: 'Hydration',
             value: fmt(water, ' ml', 0),
-            hint: waterGoal && water !== null
-                ? `${Math.round((water / waterGoal) * 100)}% of goal`
-                : 'No water goal set',
+            hint: waterGoal === null
+                ? 'No water goal set'
+                : waterAttainment !== null ? `${waterAttainment}% of daily goal` : 'No data',
             icon: Droplets,
-            tone: water === null ? 'flat' : waterGoal && water >= waterGoal * 0.9 ? 'good' : 'warn',
+            tone: water === null ? 'flat' : waterAttainment === null ? 'flat' : waterAttainment >= 90 ? 'good' : 'warn',
         });
 
         // 4. Body - latest weight plus movement across the window.
@@ -185,7 +212,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         });
 
         return out;
-    }, [logs, habits, habitLogs, goals, range.days]);
+    }, [logs, habits, habitLogs, goalsOn, range.days]);
 
     if (stats.length === 0) return null;
 

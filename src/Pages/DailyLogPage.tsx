@@ -11,6 +11,7 @@ import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
+import { goalsForDate, parseGoalHistory } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
@@ -233,18 +234,34 @@ const DailyLogPage: React.FC = () => {
         loadProjects();
     }, []);
 
-    // Get active goals for placeholders
-    const effectiveSettings = useMemo(() => {
-        if (id && existingLog?.goal_snapshot) {
-            return {
-                ...settings,
-                active_goals: existingLog.goal_snapshot
-            } as UserSettings;
-        }
-        return settings;
-    }, [id, existingLog, settings]);
+    // Goals for the day being viewed, not the goals in force right now.
+    //
+    // Resolution order:
+    //   1. the log's own snapshot, which is what the day was actually scored
+    //      against and therefore the most trustworthy record;
+    //   2. the goal version effective on that date, so a day logged before any
+    //      snapshot exists still resolves to the targets of its era;
+    //   3. active_goals, for rows predating goal versioning.
+    //
+    // Keyed on logDate rather than `id`: reaching a past day via ?date= used to
+    // fall through to today's goals, which is what made old days move whenever
+    // a goal was edited.
+    const activeGoals = useMemo<ActiveGoals | null>(() => {
+        const snapshot = existingLog?.goal_snapshot as ActiveGoals | undefined;
+        if (snapshot && (snapshot.nutrition || snapshot.sleep)) return snapshot;
 
-    const activeGoals = (effectiveSettings?.active_goals as ActiveGoals | undefined) || null;
+        const fallback = (settings?.active_goals as ActiveGoals | undefined) ?? null;
+        if (!isDateString(logDate)) return fallback;
+        return goalsForDate(parseGoalHistory(settings?.goal_history), logDate, fallback);
+    }, [existingLog, settings, logDate]);
+
+    // Only what scoring reads: the day's goals plus the body targets.
+    const effectiveSettings = useMemo(
+        () => (activeGoals
+            ? { ...settings, active_goals: activeGoals }
+            : settings),
+        [settings, activeGoals]
+    );
     const nutritionGoals = activeGoals?.nutrition;
 
     // Latest body-measurement date drives the measurement-recent-worthy daily metric.
@@ -382,23 +399,32 @@ const DailyLogPage: React.FC = () => {
         setSaving(true);
         setSaveError(null);
         try {
+            // Freeze the day's goals on the log itself.
+            //
+            // An existing snapshot is authoritative and is never rewritten: past
+            // days already hold the targets they were scored against, and the 2s
+            // debounced autosave fires on any form change, so overwriting here
+            // would restamp history every time you opened an old day.
+            //
+            // A new log (or one that predates snapshots) captures the goals
+            // resolved for logDate -- `activeGoals` above, not the live blob.
             let goalSnapshot: Record<string, unknown> | undefined | null;
-            if (id && existingLog?.goal_snapshot) {
+            if (existingLog?.goal_snapshot) {
                 goalSnapshot = existingLog.goal_snapshot;
             } else {
-                const activeGoalsState = (settings?.active_goals as ActiveGoals | undefined) || null;
-                goalSnapshot = activeGoalsState || settings ? {
+                const base = activeGoals ?? (settings?.active_goals as ActiveGoals | undefined) ?? null;
+                goalSnapshot = base || settings ? {
                     nutrition: {
-                        calories: activeGoalsState?.nutrition?.calories ?? (settings?.target_weight != null ? Math.round(settings.target_weight * 30) : null),
-                        protein: activeGoalsState?.nutrition?.protein ?? (settings?.starting_weight != null ? Math.round(settings.starting_weight * 1.6) : null),
-                        carbs: activeGoalsState?.nutrition?.carbs ?? null,
-                        fat: activeGoalsState?.nutrition?.fat ?? null,
-                        water: activeGoalsState?.nutrition?.water ?? 2500,
+                        calories: base?.nutrition?.calories ?? (settings?.target_weight != null ? Math.round(settings.target_weight * 30) : null),
+                        protein: base?.nutrition?.protein ?? (settings?.starting_weight != null ? Math.round(settings.starting_weight * 1.6) : null),
+                        carbs: base?.nutrition?.carbs ?? null,
+                        fat: base?.nutrition?.fat ?? null,
+                        water: base?.nutrition?.water ?? 2500,
                     },
                     sleep: {
-                        hours: activeGoalsState?.sleep?.hours ?? 8,
-                        wake_time: activeGoalsState?.sleep?.wake_time ?? null,
-                        bedtime: activeGoalsState?.sleep?.bedtime ?? null,
+                        hours: base?.sleep?.hours ?? 8,
+                        wake_time: base?.sleep?.wake_time ?? null,
+                        bedtime: base?.sleep?.bedtime ?? null,
                     }
                 } : null;
             }
@@ -459,7 +485,7 @@ const DailyLogPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, id, queryClient]);
+    }, [settings, activeGoals, logDate, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
 
     useEffect(() => {
         if (saveError) {

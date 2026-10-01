@@ -1,27 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../utils/queryKeys';
 import Title from '../Components/Title';
 import TimeField from '../Components/TimeField';
 import { getUserSettings, updateUserSettings, type UserSettings } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
-
-interface ActiveGoals {
-    nutrition: {
-        calories: number | null;
-        protein: number | null;
-        carbs: number | null;
-        fat: number | null;
-        water: number | null;
-    };
-    sleep: {
-        hours: number | null;
-        wake_time: string | null;
-        bedtime: string | null;
-    };
-}
+import { goalsForDate, latestGoals, parseGoalHistory, withVersion } from '../utils/goalHistory';
+import { todayString } from '../utils/dates';
+import type { ActiveGoals } from '../utils/dailyScoring';
 
 const DailyLogGoalSetupPage: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -69,8 +60,12 @@ const DailyLogGoalSetupPage: React.FC = () => {
             const userSettings = await getUserSettings();
             setSettings(userSettings);
             setLoading(false);
-            if (userSettings?.active_goals) {
-                const goals = userSettings.active_goals as unknown as ActiveGoals;
+            // Prefill with the goals in force today, not the newest version on
+            // record: the history can extend into the future only if a past
+            // entry was edited, and today's is what the user is editing.
+            const history = parseGoalHistory(userSettings?.goal_history);
+            const goals = goalsForDate(history, todayString(), (userSettings?.active_goals as ActiveGoals | null) ?? null);
+            if (goals) {
                 if (goals.nutrition) {
                     setCalories(goals.nutrition.calories?.toString() || '');
                     setProtein(goals.nutrition.protein?.toString() || '');
@@ -126,11 +121,27 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     bedtime: bedtime || null,
                 }
             };
+            // Saving writes a version effective today rather than overwriting.
+            // Logs already written keep the goals they were scored against, so
+            // today's edit only moves today and everything after it.
+            const effectiveFrom = todayString();
+            const history = withVersion(
+                parseGoalHistory(settings.goal_history),
+                effectiveFrom,
+                goals
+            );
             const updatedSettings: UserSettings = {
                 ...settings,
-                active_goals: goals as unknown as Record<string, unknown>,
+                // active_goals stays the current-goals pointer for readers that
+                // only ever ask "what are my goals now?".
+                active_goals: latestGoals(history, goals) as unknown as Record<string, unknown>,
+                goal_history: history,
             };
             await updateUserSettings(updatedSettings);
+            // Charts, insight cards and the daily log all read settings through
+            // this cache key; without this they keep scoring against the old
+            // goals until a reload.
+            queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
             setMessage({ text: 'Goals saved successfully! Redirecting...', type: 'success' });
             showToast('success', 'Goals saved successfully!');
             setTimeout(() => navigate('/Daily-Log'), 1200);
