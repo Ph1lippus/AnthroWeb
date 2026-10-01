@@ -15,6 +15,8 @@ import Superscript from '@tiptap/extension-superscript';
 import { Color, TextStyle } from '@tiptap/extension-text-style';
 import TableOfContents from '@tiptap/extension-table-of-contents';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
+import { TableKit } from '@tiptap/extension-table';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Suggestion from '@tiptap/suggestion';
 import type {
     SuggestionKeyDownProps,
@@ -25,6 +27,59 @@ import type { Editor } from '@tiptap/core';
 import { ReactRenderer } from '@tiptap/react';
 import SlashMenu from '../Components/Notes/SlashMenu';
 import type { SlashMenuRef } from '../Components/Notes/SlashMenu';
+import Callout from './noteCallout';
+import type { CalloutType } from './noteCallout';
+
+import { createLowlight } from 'lowlight';
+import bash from 'highlight.js/lib/languages/bash';
+import csharp from 'highlight.js/lib/languages/csharp';
+import css from 'highlight.js/lib/languages/css';
+import diff from 'highlight.js/lib/languages/diff';
+import go from 'highlight.js/lib/languages/go';
+import java from 'highlight.js/lib/languages/java';
+import javascript from 'highlight.js/lib/languages/javascript';
+import json from 'highlight.js/lib/languages/json';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import php from 'highlight.js/lib/languages/php';
+import python from 'highlight.js/lib/languages/python';
+import ruby from 'highlight.js/lib/languages/ruby';
+import rust from 'highlight.js/lib/languages/rust';
+import sql from 'highlight.js/lib/languages/sql';
+import swift from 'highlight.js/lib/languages/swift';
+import typescript from 'highlight.js/lib/languages/typescript';
+import xml from 'highlight.js/lib/languages/xml';
+import { BlockMath, InlineMath } from '@tiptap/extension-mathematics';
+
+// One shared highlighter, built from an explicit language list rather than
+// lowlight's `common` bundle. `common` is 37 grammars; the picker only ever
+// offers the 17 below, so the other 20 were weight nobody could reach. An empty
+// grammar for `plaintext` matters: lowlight throws on an unknown language, and a
+// code block with no language set is emitted as `plaintext`.
+const lowlight = createLowlight();
+lowlight.register({
+    bash,
+    csharp,
+    css,
+    diff,
+    go,
+    java,
+    javascript,
+    json,
+    kotlin,
+    php,
+    python,
+    ruby,
+    rust,
+    sql,
+    swift,
+    typescript,
+    xml,
+});
+// An empty grammar, which is what "plaintext" means: recognised as a language so
+// highlighting does not throw, but matching nothing. lowlight's Language type
+// requires `contains`, so it cannot be a bare {}.
+lowlight.register('plaintext', () => ({ contains: [] }));
+lowlight.registerAlias({ html: 'xml', text: 'plaintext', txt: 'plaintext' });
 
 /* ------------------------------------------------------------------ *
  * Toggles
@@ -81,7 +136,6 @@ export type SlashIconName =
     | 'Code'
     | 'Sigma'
     | 'Image';
-
 export type SlashGroup = 'Basic' | 'Lists' | 'Insert' | 'Media';
 
 export interface SlashCommand {
@@ -128,6 +182,27 @@ const runToggle =
             .updateAttributes('details', { toggleLevel: level })
             .run();
     };
+
+/** Toggles a callout of the given type, so a second press unwraps it. */
+const runCallout =
+    (type: CalloutType) =>
+    (editor: Editor): void => {
+        editor.chain().focus().toggleCallout({ type }).run();
+    };
+
+/** Inserts a table, asking for a size first so nobody ends up with a 10x10. */
+const runTable = (editor: Editor): void => {
+    const answer = window.prompt('Table size, e.g. 3x4 (rows x columns)', '3x3');
+    if (answer === null) return;
+
+    const match = answer.trim().match(/^(\d{1,2})\s*[xX,]\s*(\d{1,2})$/);
+    // A malformed answer falls back to a sensible default rather than refusing,
+    // because the menu item should never dead-end.
+    const rows = match ? Math.min(20, Math.max(1, Number(match[1]))) : 3;
+    const cols = match ? Math.min(12, Math.max(1, Number(match[2]))) : 3;
+
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+};
 
 export const SLASH_COMMANDS: SlashCommand[] = [
     // ---- Basic
@@ -190,6 +265,42 @@ export const SLASH_COMMANDS: SlashCommand[] = [
             (editor.getAttributes('details').toggleLevel ?? null) !== null,
     },
     {
+        id: 'callout-info',
+        title: 'Callout: Info',
+        hint: 'A tinted note block',
+        icon: 'Info',
+        group: 'Basic',
+        keywords: ['callout', 'info', 'note', 'blue', 'admonition'],
+        run: runCallout('info'),
+    },
+    {
+        id: 'callout-tip',
+        title: 'Callout: Tip',
+        hint: 'Something worth remembering',
+        icon: 'Info',
+        group: 'Basic',
+        keywords: ['callout', 'tip', 'hint', 'success', 'green', 'admonition'],
+        run: runCallout('tip'),
+    },
+    {
+        id: 'callout-warning',
+        title: 'Callout: Warning',
+        hint: 'Caution, read this',
+        icon: 'Info',
+        group: 'Basic',
+        keywords: ['callout', 'warning', 'caution', 'amber', 'yellow', 'admonition'],
+        run: runCallout('warning'),
+    },
+    {
+        id: 'callout-danger',
+        title: 'Callout: Danger',
+        hint: 'Something that will break',
+        icon: 'Info',
+        group: 'Basic',
+        keywords: ['callout', 'danger', 'error', 'red', 'stop', 'admonition'],
+        run: runCallout('danger'),
+    },
+    {
         id: 'quote',
         title: 'Quote',
         hint: 'Set text apart',
@@ -239,13 +350,57 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 
     // ---- Insert
     {
+        id: 'table',
+        title: 'Table',
+        hint: 'Grid with a header row',
+        icon: 'Table',
+        group: 'Insert',
+        keywords: ['table', 'grid', 'spreadsheet', 'rows', 'columns'],
+        run: runTable,
+        isActive: editor => editor.isActive('table'),
+    },
+    {
         id: 'code',
         title: 'Code block',
-        hint: 'Monospaced block',
+        hint: 'Syntax highlighted',
         icon: 'Code',
         group: 'Insert',
         keywords: ['code', 'snippet', 'pre', 'monospace'],
         run: editor => editor.chain().focus().toggleCodeBlock().run(),
+    },
+    {
+        id: 'inline-math',
+        title: 'Inline maths',
+        hint: 'LaTeX in the sentence',
+        icon: 'Sigma',
+        group: 'Insert',
+        keywords: ['math', 'maths', 'latex', 'formula', 'equation', 'sigma', 'katex'],
+        run: editor => {
+            const expression = window.prompt('LaTeX expression', 'x^2');
+            if (!expression) return;
+            editor
+                .chain()
+                .focus()
+                .insertInlineMath({ latex: expression })
+                .run();
+        },
+    },
+    {
+        id: 'block-math',
+        title: 'Maths block',
+        hint: 'LaTeX on its own line',
+        icon: 'Sigma',
+        group: 'Insert',
+        keywords: ['math', 'maths', 'latex', 'formula', 'equation', 'display', 'katex'],
+        run: editor => {
+            const expression = window.prompt('LaTeX expression', '\\int_0^1 x^2 dx');
+            if (!expression) return;
+            editor
+                .chain()
+                .focus()
+                .insertBlockMath({ latex: expression })
+                .run();
+        },
     },
 
     // ---- Media
@@ -414,7 +569,9 @@ export const buildNoteExtensions = ({
 }: NoteEditorExtensionsOptions) => [
     StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        codeBlock: { HTMLAttributes: { class: 'note-code-block' } },
+        // Replaced by CodeBlockLowlight below. Both register a `codeBlock` node, so
+        // StarterKit's has to be switched off or the schema collides.
+        codeBlock: false,
         // Reopen the link editor when clicking an existing link, and treat bare
         // URLs typed into the page as links the way Notion does.
         link: {
@@ -424,6 +581,11 @@ export const buildNoteExtensions = ({
             HTMLAttributes: { class: 'note-link' },
         },
         dropcursor: { color: 'var(--color-primary)', width: 2 },
+    }),
+    CodeBlockLowlight.configure({
+        lowlight,
+        defaultLanguage: 'plaintext',
+        HTMLAttributes: { class: 'note-code-block' },
     }),
     Placeholder.configure({
         placeholder,
@@ -435,6 +597,18 @@ export const buildNoteExtensions = ({
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    Callout,
+    InlineMath,
+    BlockMath,
+    TableKit.configure({
+        table: {
+            resizable: true,
+            // Without this a table inside a 740px column overflows the page and
+            // the scroll container rather than fitting it.
+            allowTableNodeSelection: true,
+            HTMLAttributes: { class: 'note-table' },
+        },
+    }),
     ToggleDetails.configure({
         // Keeps the open/closed state in the saved document, so a section folded
         // away stays folded when the page is reopened.

@@ -4801,6 +4801,231 @@ input[type="number"] {
   background: #ffffff1f;
 }
 
+/* ---------- contextual block controls ----------
+   One toolbar, swapped by what the caret is inside, rather than a separate one
+   per block type. Rendered by BlockControls above the document. */
+.note-block-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ffffff0f;
+  border-radius: 25px;
+  background: #ffffff06;
+}
+.note-block-controls-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: 0.25rem;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.note-block-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 25px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.note-block-controls button:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.note-block-controls-danger:hover {
+  background: var(--color-danger-dark);
+  color: #ff6b70;
+}
+.note-code-language {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #ffffff14;
+  border-radius: 25px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+.note-code-language:focus {
+  outline: 1px solid var(--accent-border);
+}
+
+/* ---------- callouts ---------- */
+.note-callout {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #ffffff14;
+  border-left: 3px solid var(--callout-accent, var(--color-primary));
+  border-radius: 18px;
+  background: var(--callout-bg, #ffffff06);
+}
+.note-callout-glyph {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: 0.1rem;
+  border-radius: 25px;
+  background: var(--callout-accent, var(--color-primary));
+  color: #06210f;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.note-callout-body {
+  flex: 1;
+  min-width: 0;
+}
+.note-callout-body > * + * {
+  margin-top: 0.5rem;
+}
+.note-callout[data-callout='info'] {
+  --callout-accent: #4da6ff;
+  --callout-bg: rgba(77, 166, 255, 0.08);
+}
+.note-callout[data-callout='tip'] {
+  --callout-accent: #00ffa6;
+  --callout-bg: rgba(0, 255, 166, 0.07);
+}
+.note-callout[data-callout='warning'] {
+  --callout-accent: #ffb84d;
+  --callout-bg: rgba(255, 184, 77, 0.08);
+}
+.note-callout[data-callout='danger'] {
+  --callout-accent: #ff5a60;
+  --callout-bg: rgba(255, 90, 96, 0.08);
+}
+
+/* ---------- tables ---------- */
+.note-prose .note-table {
+  width: 100%;
+  margin: 0.75rem 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  overflow: hidden;
+}
+.note-prose .note-table td,
+.note-prose .note-table th {
+  position: relative;
+  min-width: 3rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ffffff14;
+  vertical-align: top;
+}
+.note-prose .note-table th {
+  background: #ffffff0a;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+}
+.note-prose .note-table td {
+  font-size: 0.85rem;
+}
+.note-prose .note-table .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 255, 166, 0.14);
+  pointer-events: none;
+}
+.note-prose .note-table .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: var(--color-primary);
+  pointer-events: none;
+}
+.note-prose .note-table.resize-cursor {
+  cursor: col-resize;
+}
+
+/* ---------- highlighted code ----------
+   highlight.js injects its own class names, so this is a dark palette keyed to
+   the token classes rather than the app's tokens. */
+.note-prose pre.note-code-block {
+  position: relative;
+  padding: 0.9rem 1rem;
+  border: 1px solid #ffffff0f;
+  border-radius: 18px;
+  background: #0a0a0a;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+.note-prose pre.note-code-block code {
+  padding: 0;
+  background: none;
+  color: #d7d7d7;
+  font-size: inherit;
+}
+.note-prose pre.note-code-block .hljs-comment,
+.note-prose pre.note-code-block .hljs-quote { color: #6a737d; font-style: italic; }
+.note-prose pre.note-code-block .hljs-keyword,
+.note-prose pre.note-code-block .hljs-selector-tag,
+.note-prose pre.note-code-block .hljs-literal { color: #ff7ba9; }
+.note-prose pre.note-code-block .hljs-string,
+.note-prose pre.note-code-block .hljs-attr,
+.note-prose pre.note-code-block .hljs-template-tag { color: #7ee787; }
+.note-prose pre.note-code-block .hljs-number,
+.note-prose pre.note-code-block .hljs-symbol { color: #ffb84d; }
+.note-prose pre.note-code-block .hljs-title,
+.note-prose pre.note-code-block .hljs-function,
+.note-prose pre.note-code-block .hljs-section { color: #4da6ff; }
+.note-prose pre.note-code-block .hljs-type,
+.note-prose pre.note-code-block .hljs-built_in { color: #4dd8e0; }
+.note-prose pre.note-code-block .hljs-variable,
+.note-prose pre.note-code-block .hljs-params { color: #b48dff; }
+.note-prose pre.note-code-block .hljs-meta,
+.note-prose pre.note-code-block .hljs-deletion { color: #ff5a60; }
+.note-prose pre.note-code-block .hljs-addition { color: #00ffa6; }
+
+/* ---------- maths ---------- */
+.note-prose .tiptap-mathematics-render {
+  cursor: pointer;
+}
+.note-prose .tiptap-mathematics-render[data-type='block-math'] {
+  display: block;
+  margin: 0.85rem 0;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.note-prose .tiptap-mathematics-render[data-type='inline-math'] {
+  padding: 0 0.1rem;
+}
+/* The editor writes the raw LaTeX into a contenteditable node; while editing it
+   has to look like code rather than rendered maths, or there is nothing to
+   click and no way to see what you typed. */
+.note-prose .tiptap-mathematics-edit {
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+  background: #ffffff0a;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  outline: none;
+}
+
 /* ---------- toggles ----------
    The Details extension renders native <details>/<summary>, so the browser
    handles open and close for free and the state survives a save. What is left is

@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { DragHandle } from '@tiptap/extension-drag-handle-react';
+import BlockControls from './BlockControls';
+// KaTeX ships its own stylesheet; without it the maths renders as unstyled
+// fractions and radicals.
+import 'katex/dist/katex.min.css';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import {
     Bold,
@@ -214,6 +218,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     )}
                 </div>
             </BubbleMenu>
+
+            <BlockControls editor={editor} />
 
             <EditorContent editor={editor} />
         </div>
