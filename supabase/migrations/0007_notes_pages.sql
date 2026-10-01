@@ -74,29 +74,34 @@ comment on column public.notes.notes_tags is
 -- -----------------------------------------------------------------------------
 -- 2. Indexes
 --
--- The list query filters on deleted_at, so the index from 0006 is now the wrong
--- shape: it still serves live notes correctly, but a partial index over live rows
--- only is both smaller and lets the planner skip the trashed ones outright.
+-- Every predicate below is on notes_deleted_at, not deleted_at. The column carries
+-- the notes_ prefix like the rest of this table's additions, and a partial index
+-- that names the wrong column is a hard 42703 rather than a silent no-op -- which
+-- is what made the first run of this script roll back entirely.
+--
+-- The list query filters on notes_deleted_at, so the index from 0006 is now the
+-- wrong shape: it still serves live notes correctly, but a partial index over live
+-- rows only is both smaller and lets the planner skip the trashed ones outright.
 -- -----------------------------------------------------------------------------
 
 create index if not exists notes_user_live_updated_idx
     on public.notes (user_id, updated_at desc)
-    where deleted_at is null;
+    where notes_deleted_at is null;
 
 create index if not exists notes_user_live_pinned_updated_idx
     on public.notes (user_id, updated_at desc)
-    where is_pinned and deleted_at is null;
+    where is_pinned and notes_deleted_at is null;
 
 -- Resolving a page's children is the rail tree's only query.
 create index if not exists notes_user_parent_idx
     on public.notes (user_id, notes_parent_id)
-    where deleted_at is null;
+    where notes_deleted_at is null;
 
 -- Tag filtering. GIN is what makes the array containment operator indexable;
 -- without it a tag filter is a sequential scan of every note.
 create index if not exists notes_tags_idx
     on public.notes using gin (notes_tags)
-    where deleted_at is null;
+    where notes_deleted_at is null;
 
 -- -----------------------------------------------------------------------------
 -- 3. RLS for the self-reference

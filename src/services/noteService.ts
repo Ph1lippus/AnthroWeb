@@ -27,9 +27,9 @@ export interface Note {
 /**
  * Live notes for the sidebar: pinned first, then most recently touched.
  *
- * The `is('deleted_at', null)` filter is the important part. Migration 0007 adds
- * a trash, and a trashed page that still appears in the sidebar is worse than a
- * missing feature -- it looks like a live page and can be opened and edited.
+ * The `is('notes_deleted_at', null)` filter is the important part. Migration 0007
+ * adds a trash, and a trashed page that still appears in the sidebar is worse than
+ * a missing feature -- it looks like a live page and can be opened and edited.
  * Every read path that lists or resolves notes has to carry this filter.
  */
 export const getUserNotes = async (): Promise<Note[]> => {
@@ -40,7 +40,7 @@ export const getUserNotes = async (): Promise<Note[]> => {
         .from('notes')
         .select('*')
         .eq('user_id', user.id)
-        .is('deleted_at', null)
+        .is('notes_deleted_at', null)
         .order('is_pinned', { ascending: false })
         .order('updated_at', { ascending: false });
 
@@ -61,8 +61,8 @@ export const getTrashedNotes = async (): Promise<Note[]> => {
         .from('notes')
         .select('*')
         .eq('user_id', user.id)
-        .not('deleted_at', 'is', null)
-        .order('deleted_at', { ascending: false });
+        .not('notes_deleted_at', 'is', null)
+        .order('notes_deleted_at', { ascending: false });
 
     if (error) {
         console.error('Error fetching trashed notes:', error.message);
@@ -87,7 +87,7 @@ export const getNoteById = async (id: string, includeTrashed = false): Promise<N
         .eq('id', id)
         .eq('user_id', user.id);
 
-    query = includeTrashed ? query : query.is('deleted_at', null);
+    query = includeTrashed ? query : query.is('notes_deleted_at', null);
 
     const { data, error } = await query.maybeSingle();
 
@@ -221,7 +221,7 @@ export const emptyTrash = async () => {
         .from('notes')
         .delete()
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-        .not('deleted_at', 'is', null);
+        .not('notes_deleted_at', 'is', null);
 
     if (error) {
         console.error('Error emptying trash:', error.message);
