@@ -132,7 +132,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
     };
 
     const handleColor = (color: string) => {
-        setShowColors(false);
         setColorError(null);
         updateNote.mutate(
             { notes_color: color || null },
@@ -140,7 +139,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                 // Surfaced rather than swallowed. This mutation writes a column
                 // added by migration 0006, so against a database that has not had
                 // it applied every write 4xx's -- and an unhandled mutation error
-                // meant the menu simply closed with no visible cause.
+                // meant nothing at all appeared to happen.
                 onError: error => {
                     setColorError(`Could not save colour: ${error.message}`);
                 },
@@ -148,35 +147,17 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
         );
     };
 
-    const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-    const colorButtonRef = useRef<HTMLButtonElement>(null);
-
-    const toggleColors = () => {
-        if (showColors) {
-            setShowColors(false);
-            return;
-        }
-        const rect = colorButtonRef.current?.getBoundingClientRect();
-        if (rect) setMenuPos({ top: rect.bottom + 8, left: rect.left });
-        setShowColors(true);
-    };
-
-    // Dismiss on Escape or a click elsewhere, the way any popover should behave.
+    // Escape closes the palette. There is deliberately no outside-click handler:
+    // pointerdown fires before click, so one that closed on any click outside the
+    // trigger unmounted the swatches before the click on them could land, and no
+    // colour was ever selectable.
     useEffect(() => {
         if (!showColors) return;
         const onKey = (event: KeyboardEvent) => {
             if (event.key === 'Escape') setShowColors(false);
         };
-        const onPointerDown = (event: PointerEvent) => {
-            const target = event.target as Node;
-            if (!colorButtonRef.current?.contains(target)) setShowColors(false);
-        };
         document.addEventListener('keydown', onKey);
-        document.addEventListener('pointerdown', onPointerDown);
-        return () => {
-            document.removeEventListener('keydown', onKey);
-            document.removeEventListener('pointerdown', onPointerDown);
-        };
+        return () => document.removeEventListener('keydown', onKey);
     }, [showColors]);
 
     const handleDelete = () => {
@@ -233,43 +214,40 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                     <div className="note-color-wrap">
                         <button
                             type="button"
-                            ref={colorButtonRef}
                             className={`note-action-btn${currentColor ? ' note-action-btn--pinned' : ''}`}
-                            onClick={toggleColors}
+                            onClick={() => setShowColors(v => !v)}
                             title="Page colour"
                             aria-label="Page colour"
                             aria-expanded={showColors}
                         >
                             <Palette size={14} />
                         </button>
-                        {showColors && menuPos && (
-                            /* Fixed, not absolute. The pane and workspace both clip
-                               and create containing blocks (overflow, backdrop-filter),
-                               so an absolute menu here is at the mercy of whichever
-                               ancestor wins. Fixed plus a measured trigger rect is
-                               immune to all of it, and translateX(-100%) lines the
-                               menu's right edge up with the button without needing to
-                               know its width first. */
-                            <div
-                                className="note-color-menu"
-                                style={{ top: menuPos.top, left: menuPos.left }}
-                            >
-                                {NOTE_COLORS.map(color => (
-                                    <button
-                                        type="button"
-                                        key={color.label}
-                                        className={`note-color-swatch${
-                                            currentColor === color.value ? ' note-color-swatch--on' : ''
-                                        }${color.value ? '' : ' note-color-swatch--none'}`}
-                                        style={color.value ? { background: color.value } : undefined}
-                                        onClick={() => handleColor(color.value)}
-                                        title={color.label}
-                                        aria-label={color.label}
-                                    />
-                                ))}
-                            </div>
-                        )}
                     </div>
+
+                    {/* Inline, in normal flow inside the bar. This started as a
+                        popover and was unfixable as one: the pane clips with
+                        overflow, the workspace carries backdrop-filter (which makes
+                        it a containing block for fixed descendants), and a
+                        dismiss-on-outside-click handler closed the menu on
+                        pointerdown -- before the click on a swatch could land.
+                        Nothing about a strip in the document flow can go wrong. */}
+                    {showColors && (
+                        <div className="note-color-inline" role="group" aria-label="Page colour">
+                            {NOTE_COLORS.map(color => (
+                                <button
+                                    type="button"
+                                    key={color.label}
+                                    className={`note-color-swatch${
+                                        currentColor === color.value ? ' note-color-swatch--on' : ''
+                                    }${color.value ? '' : ' note-color-swatch--none'}`}
+                                    style={color.value ? { background: color.value } : undefined}
+                                    onClick={() => handleColor(color.value)}
+                                    title={color.label}
+                                    aria-label={color.label}
+                                />
+                            ))}
+                        </div>
+                    )}
 
                     <button
                         type="button"

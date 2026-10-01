@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
     CheckSquare,
     Code,
@@ -52,8 +52,6 @@ interface SlashMenuProps {
     command: (item: SlashCommand) => void;
 }
 
-const MAX_VISIBLE = 8;
-
 /**
  * The "/" command palette.
  *
@@ -64,12 +62,20 @@ const MAX_VISIBLE = 8;
  */
 const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ items, command }, ref) => {
     const [selected, setSelected] = useState(0);
+    const activeRef = useRef<HTMLButtonElement>(null);
 
     // Reset the highlight whenever the filtered list changes shape, otherwise an
     // index from the previous query can point past the end of the new list.
     useEffect(() => {
         setSelected(0);
     }, [items]);
+
+    // Keep the highlighted row on screen. Arrow keys can move the selection past
+    // the fold, and without this the list would look stuck while the keyboard was
+    // clearly working.
+    useEffect(() => {
+        activeRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [selected]);
 
     const selectItem = (index: number) => {
         const item = items[index];
@@ -103,17 +109,20 @@ const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ items, command }, 
         );
     }
 
-    const visible = items.slice(0, MAX_VISIBLE);
-
     return (
         <div className="slash-menu" role="listbox">
-            {visible.map((item, index) => {
+            {/* Every item is rendered, not a truncated window. Clipping the list to
+                MAX_VISIBLE while the keyboard could still walk past it meant arrow
+                keys highlighted rows that did not exist, and the rows below the
+                fold could not be reached at all. The menu scrolls instead. */}
+            {items.map((item, index) => {
                 const Icon = ICONS[item.icon] ?? Type;
                 const isSelected = index === selected;
                 return (
                     <button
                         type="button"
                         key={item.title}
+                        ref={isSelected ? activeRef : undefined}
                         role="option"
                         aria-selected={isSelected}
                         className={`slash-menu-item${isSelected ? ' slash-menu-item--active' : ''}`}
@@ -135,9 +144,6 @@ const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ items, command }, 
                     </button>
                 );
             })}
-            {items.length > MAX_VISIBLE && (
-                <div className="slash-menu-more">+{items.length - MAX_VISIBLE} more</div>
-            )}
         </div>
     );
 });

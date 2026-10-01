@@ -9,13 +9,24 @@ export const stripHtml = (html: string): string => {
     return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
 };
 
-/** Word count from stored HTML, for the card footer and the editor header. */
+/**
+ * Word count from stored HTML.
+ *
+ * Deliberately regex-based rather than reusing stripHtml: this runs on every
+ * keystroke for the header count, and DOMParser builds and throws away a whole
+ * document each time. Stripping tags with a regex and dropping entities is good
+ * enough to count words and costs a fraction of it. stripHtml stays DOM-based
+ * because search and previews want entities actually decoded.
+ */
 export const wordCount = (html: string): number => {
-    const text = stripHtml(html);
-    if (!text) return 0;
-    // Count whitespace-separated runs, which is close enough to how every word
-    // processor counts and avoids treating punctuation as a token.
-    return text.split(/\s+/).filter(Boolean).length;
+    if (!html) return 0;
+    const text = html
+        .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;|&#160;/gi, ' ')
+        .replace(/&[a-z]+;|&#\d+;|&#x[0-9a-f]+;/gi, ' ');
+    const match = text.trim();
+    return match ? match.split(/\s+/).length : 0;
 };
 
 /** Relative "3 days ago" / "just now" label for cards and the editor header. */

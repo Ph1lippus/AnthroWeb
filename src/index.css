@@ -4226,9 +4226,14 @@ input[type="number"] {
   margin: 0 auto;
   border: 1px solid #ffffff0d;
   border-radius: 25px;
-  background: #ffffff05;
-  backdrop-filter: blur(10px);
+  /* No backdrop-filter here on purpose. The workspace spans the whole viewport
+     and the editor scrolls inside it, so the browser had to re-sample and re-blur
+     the entire backdrop on every scroll frame. Over a near-black background the
+     blur was also almost invisible, so it cost a great deal for very little. */
+  background: #ffffff06;
   overflow: hidden;
+  /* Isolates the rail/pane layout from the rest of the page while scrolling. */
+  contain: layout paint;
 }
 
 /* ---------- the rail ---------- */
@@ -4277,6 +4282,7 @@ input[type="number"] {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   margin: 0;
   /* Nudge the first item up so it sits closer to the new-note button. */
   margin-top: -0.2rem;
@@ -4397,6 +4403,8 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  /* Wraps so the inline colour strip cannot squeeze the bar on a phone. */
+  flex-wrap: wrap;
   gap: 0.5rem;
   flex-shrink: 0;
   padding: 0.6rem 1rem;
@@ -4459,6 +4467,8 @@ input[type="number"] {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Stop the wheel handing off to the page once the note reaches its end. */
+  overscroll-behavior: contain;
 }
 .note-pane-scroll::-webkit-scrollbar { width: 5px; }
 .note-pane-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -4545,25 +4555,22 @@ input[type="number"] {
   color: var(--color-primary);
 }
 
-/* ---------- colour picker ---------- */
+/* ---------- colour picker ----------
+   A strip in normal flow inside the header bar rather than a popover. The pane
+   clips with overflow and the workspace sets backdrop-filter, which makes it a
+   containing block for fixed descendants, so an overlaid menu had no reliable
+   place to live. */
 .note-color-wrap {
   position: relative;
 }
-.note-color-menu {
-  /* Fixed, positioned from the trigger's measured rect in JS. Absolute positioning
-     here would depend on which ancestor wins the containing block, and both the
-     pane and the workspace set overflow plus backdrop-filter. translateX(-100%)
-     puts the menu's right edge on the button's without measuring the menu. */
-  position: fixed;
-  transform: translateX(-100%);
-  z-index: 60;
+.note-color-inline {
   display: flex;
-  gap: 0.35rem;
-  padding: 0.45rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.4rem;
   border: 1px solid #ffffff1f;
-  border-radius: 18px;
+  border-radius: 25px;
   background: #111;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 .note-color-swatch {
   width: 20px;
@@ -4800,14 +4807,29 @@ input[type="number"] {
   flex-direction: column;
   gap: 1px;
   min-width: 230px;
-  max-height: 300px;
+  /* Every block type is listed, so this scrolls rather than truncating. Sized so
+     roughly eight rows are visible without the wheel being needed for the
+     common cases. */
+  max-height: 330px;
   padding: 0.3rem;
   border: 1px solid #ffffff1f;
   border-radius: 18px;
   background: #111;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
   overflow-y: auto;
+  /* Keeps a wheel gesture over the menu from scrolling the page underneath it. */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   animation: slash-menu-in 0.12s ease-out;
+}
+.slash-menu::-webkit-scrollbar { width: 4px; }
+.slash-menu::-webkit-scrollbar-track { background: transparent; }
+.slash-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 25px;
+}
+.slash-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 @keyframes slash-menu-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -4852,13 +4874,6 @@ input[type="number"] {
   color: var(--color-light);
   opacity: 0.45;
   font-size: 0.66rem;
-}
-.slash-menu-more {
-  padding: 0.3rem 0.5rem;
-  color: var(--color-light);
-  opacity: 0.35;
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
 }
 .slash-menu--empty { padding: 0.6rem; }
 .slash-menu-empty {

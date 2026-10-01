@@ -28,13 +28,23 @@ const NotesWorkspace: React.FC = () => {
 
     const notes = useMemo(() => notesQuery.data ?? [], [notesQuery.data]);
 
+    // Searchable text, built once per notes change instead of once per keystroke.
+    // stripHtml uses DOMParser, so filtering over it directly meant parsing every
+    // note's markup on every character typed into the search box.
+    const searchIndex = useMemo(() => {
+        const index = new Map<string, string>();
+        for (const note of notes) {
+            index.set(
+                note.id ?? '',
+                `${note.title ?? ''} ${stripHtml(note.content)}`.toLowerCase(),
+            );
+        }
+        return index;
+    }, [notes]);
+
     const visibleNotes = useMemo(() => {
         const q = query.trim().toLowerCase();
-        const matched = q
-            ? notes.filter(note =>
-                  `${note.title ?? ''} ${stripHtml(note.content)}`.toLowerCase().includes(q),
-              )
-            : notes;
+        const matched = q ? notes.filter(note => (searchIndex.get(note.id ?? '') ?? '').includes(q)) : notes;
         // Pinned first, then newest page.
         //
         // Deliberately created_at rather than updated_at: autosave stamps
@@ -46,7 +56,7 @@ const NotesWorkspace: React.FC = () => {
             if (a.is_pinned !== b.is_pinned) return Number(b.is_pinned) - Number(a.is_pinned);
             return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
         });
-    }, [notes, query]);
+    }, [notes, query, searchIndex]);
 
     // Which page is open. The route wins, so a note stays deep-linkable and Back
     // has a step to return to; otherwise the newest page opens, which means
