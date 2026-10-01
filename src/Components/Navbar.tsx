@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
-import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History, Check, Loader2, AlertTriangle } from 'lucide-react';
+import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History, AlertTriangle } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import AcademicAlertBanner from './AcademicAlertBanner';
 import { useDailyLogSaveState } from '../utils/dailyLogStatus';
 import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
 import { REGISTRATION_ENABLED } from '../utils/appConfig';
@@ -91,9 +92,9 @@ const Navbar: React.FC = () => {
     // never renders empty. An invalid ?date= is ignored the same way.
     const logDate = isDateString(logDateParam) ? logDateParam : today;
 
-    // Drop a stale "Saved HH:MM" after a day switch — it describes the previous
-    // day and must not read as confirmation that the newly-selected day landed.
-    const saveStatus = saveState.status === 'saved' && saveState.date !== logDate
+    // Only failures reach the navbar, and a stale one from a previous day is
+    // dropped so it cannot read as a problem with the day now selected.
+    const saveStatus = saveState.status === 'error' && saveState.date !== logDate
         ? 'idle'
         : saveState.status;
 
@@ -109,6 +110,9 @@ const Navbar: React.FC = () => {
         <nav className="navbar-brand-row" aria-label="Main navigation">
             <div className="container navbar-inner">
                 <div className="navbar-slot navbar-slot--start">
+                {/* Left of everything else, so the warning starts hard against
+                    the sidebar. The menu button stays anchored at the far end. */}
+                <AcademicAlertBanner />
                 {showDayNav && (
                     <>
                         <div className="navbar-day-nav">
@@ -158,30 +162,20 @@ const Navbar: React.FC = () => {
                                 <History size={15} />
                             </button>
                         </div>
-                        {saveStatus !== 'idle' && (
+                        {/* The only save feedback the navbar carries. "Saved
+                            2:54:49 PM" was noise: the timestamp told the user
+                            nothing they could act on, and the page already
+                            reflects the change on its own. Errors stay, because
+                            a silent failure is the one thing worth interrupting
+                            for. */}
+                        {saveStatus === 'error' && (
                             <div
-                                className={`navbar-save-status navbar-save-status--${saveStatus}`}
+                                className="navbar-save-status navbar-save-status--error"
                                 role="status"
                                 aria-live="polite"
                             >
-                                {saveStatus === 'saving' && (
-                                    <>
-                                        <Loader2 size={12} className="navbar-save-status-spinner" aria-hidden="true" />
-                                        Saving&hellip;
-                                    </>
-                                )}
-                                {saveStatus === 'saved' && (
-                                    <>
-                                        <Check size={12} aria-hidden="true" />
-                                        {saveState.savedAt ? `Saved ${saveState.savedAt.toLocaleTimeString()}` : 'Saved'}
-                                    </>
-                                )}
-                                {saveStatus === 'error' && (
-                                    <>
-                                        <AlertTriangle size={12} aria-hidden="true" />
-                                        {saveState.error || 'Save failed'}
-                                    </>
-                                )}
+                                <AlertTriangle size={12} aria-hidden="true" />
+                                {saveState.error || 'Save failed'}
                             </div>
                         )}
                     </>

@@ -20,4 +20,13 @@ export const queryKeys = {
     bodyMeasurements: ['body-measurements'] as const,
     bodyMeasurementByDate: (date: string) => ['body-measurement', date] as const,
     latestMeasurement: ['latest-measurement'] as const,
+    // Academic
+    academicSemesters: ['academic-semesters'] as const,
+    academicCourses: ['academic-courses'] as const,
+    academicItems: ['academic-items'] as const,
+    academicGoals: ['academic-goals'] as const,
+    studySessions: ['study-sessions'] as const,
+    gpaScales: ['gpa-scales'] as const,
+    // Derived from courses + items, so it is invalidated whenever either is.
+    academicAlerts: ['academic-alerts'] as const,
 } as const;
