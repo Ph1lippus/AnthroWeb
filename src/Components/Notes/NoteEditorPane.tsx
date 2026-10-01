@@ -1,17 +1,28 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import {
     ArrowLeft,
     Check,
+    Eye,
     Loader2,
+    ListTree,
     Palette,
     Pin,
     PinOff,
     Trash2,
 } from 'lucide-react';
+import NoteToc from './NoteToc';
 import ConfirmModal from '../ConfirmModal';
+import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
 import { useDeleteNote, useToggleNotePin, useUpdateNote } from '../../hooks/useNotes';
-import { NOTE_COLORS, absoluteTime, isBlankNote, relativeTime, wordCount } from '../../utils/noteContent';
+import {
+    NOTE_COLORS,
+    absoluteTime,
+    isBlankNote,
+    relativeTime,
+    shouldShowToc,
+    wordCount,
+} from '../../utils/noteContent';
 
 // TipTap and ProseMirror are by far the heaviest thing the notes page loads, and
 // nothing outside these two routes needs them. Splitting the import keeps them
@@ -55,6 +66,15 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
     const [showColors, setShowColors] = useState(false);
     const [colorError, setColorError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [focusMode, setFocusMode] = useState(false);
+    const [showToc, setShowToc] = useState(false);
+    const [tocItems, setTocItems] = useState<TableOfContentData>([]);
+
+    // Stable identity on purpose: NoteEditor reports the outline through an effect
+    // keyed on this callback, so a fresh function each render would loop forever.
+    const handleTocChange = useCallback((items: TableOfContentData) => {
+        setTocItems(items);
+    }, []);
 
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // The newest values still owed to the database. A ref rather than state
@@ -205,6 +225,30 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                         </span>
                     )}
 
+                    <button
+                        type="button"
+                        className={`note-action-btn${focusMode ? ' note-action-btn--pinned' : ''}`}
+                        onClick={() => setFocusMode(v => !v)}
+                        title="Focus mode: dim everything except the current line"
+                        aria-pressed={focusMode}
+                    >
+                        <Eye size={14} />
+                    </button>
+
+                    {/* Only offered once the page has enough headings for an outline
+                        to be worth the space. */}
+                    {shouldShowToc(tocItems.length) && (
+                        <button
+                            type="button"
+                            className={`note-action-btn${showToc ? ' note-action-btn--pinned' : ''}`}
+                            onClick={() => setShowToc(v => !v)}
+                            title="Outline of this page"
+                            aria-pressed={showToc}
+                        >
+                            <ListTree size={14} />
+                        </button>
+                    )}
+
                     <span className={`note-save-status note-save-status--${saveState}`}>
                         {saveState === 'saving' && <Loader2 size={12} className="note-spin" />}
                         {saveState === 'saved' && <Check size={12} />}
@@ -294,6 +338,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                         {words > 0 && ` · ${words} ${words === 1 ? 'word' : 'words'}`}
                     </div>
 
+                    {showToc && <NoteToc items={tocItems} onClose={() => setShowToc(false)} />}
+
                     {/* The title and meta line render immediately; only the
                         document body waits on the editor chunk. */}
                     <Suspense fallback={<div className="note-prose-loading" />}>
@@ -301,6 +347,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, onDeleted, onClos
                             initialHtml={note.content ?? ''}
                             onChange={handleContent}
                             autoFocus={isBlank}
+                            focusMode={focusMode}
+                            onTocChange={handleTocChange}
                         />
                     </Suspense>
                 </div>

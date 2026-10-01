@@ -4,8 +4,16 @@
 /** Strip tags and decode entities so a note can be searched and previewed as text. */
 export const stripHtml = (html: string): string => {
     if (!html) return '';
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    // Block boundaries become spaces so `<p>a</p><p>b</p>` does not read as "ab".
+    // Block boundaries are turned into spaces *before* parsing. textContent alone
+    // concatenates straight across them, so <p>a</p><p>b</p> read as "ab" -- which
+    // glued two words together in the search index and in previews.
+    const spaced = html
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(
+            /<\/(p|div|li|ul|ol|h[1-6]|blockquote|pre|section|article|tr|td|th|details|summary)\s*>/gi,
+            ' ',
+        );
+    const doc = new DOMParser().parseFromString(spaced, 'text/html');
     return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
 };
 
@@ -136,6 +144,12 @@ export const isBlankNote = (html?: string | null): boolean => {
     // An image or a table has no text content but is very much not blank.
     return !/<(img|table|hr)\b/i.test(html);
 };
+
+/** Below this many headings a page outline is noise rather than navigation. */
+export const TOC_MIN_HEADINGS = 3;
+
+/** Whether a note has enough headings to be worth drawing an outline for. */
+export const shouldShowToc = (headingCount: number): boolean => headingCount >= TOC_MIN_HEADINGS;
 
 /** Accent options offered on the editor page. Null clears the accent. */
 export const NOTE_COLORS: { value: string; label: string }[] = [

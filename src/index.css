@@ -4801,6 +4801,200 @@ input[type="number"] {
   background: #ffffff1f;
 }
 
+/* ---------- toggles ----------
+   The Details extension renders native <details>/<summary>, so the browser
+   handles open and close for free and the state survives a save. What is left is
+   making it look like a Notion toggle rather than a browser default. */
+.note-prose details.note-toggle {
+  margin: 0.35rem 0;
+  padding: 0;
+  border: none;
+}
+.note-prose details.note-toggle > summary.note-toggle-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+.note-prose details.note-toggle > summary.note-toggle-summary::-webkit-details-marker {
+  display: none;
+}
+.note-prose details.note-toggle > summary.note-toggle-summary:hover {
+  background: #ffffff08;
+}
+/* The chevron is drawn with a rotated border rather than a font glyph so it
+   inherits the accent colour and animates. */
+.note-prose details.note-toggle > summary.note-toggle-summary::before {
+  content: '';
+  flex-shrink: 0;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-top: 0.45rem;
+  border-right: 1.5px solid var(--color-light);
+  border-bottom: 1.5px solid var(--color-light);
+  opacity: 0.55;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.note-prose details.note-toggle[open] > summary.note-toggle-summary::before {
+  transform: rotate(45deg);
+  opacity: 1;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.note-prose details.note-toggle > summary.note-toggle-summary > * {
+  flex: 1;
+  min-width: 0;
+}
+.note-prose details.note-toggle > div.note-toggle-content {
+  padding-left: 1.25rem;
+  border-left: 1px solid #ffffff0f;
+  margin-left: 0.15rem;
+}
+/* data-toggle-level turns the summary into a heading, which is how Notion's
+   toggle heading differs from a toggle list: same node, different summary. */
+.note-prose details.note-toggle[data-toggle-level='1'] > summary.note-toggle-summary,
+.note-prose details.note-toggle[data-toggle-level='2'] > summary.note-toggle-summary,
+.note-prose details.note-toggle[data-toggle-level='3'] > summary.note-toggle-summary {
+  color: var(--color-primary);
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 0.5rem;
+}
+.note-prose details.note-toggle[data-toggle-level='1'] > summary.note-toggle-summary { font-size: 1.5rem; }
+.note-prose details.note-toggle[data-toggle-level='2'] > summary.note-toggle-summary { font-size: 1.25rem; }
+.note-prose details.note-toggle[data-toggle-level='3'] > summary.note-toggle-summary { font-size: 1.05rem; }
+.note-prose details.note-toggle[data-toggle-level] > summary.note-toggle-summary::before {
+  margin-top: 0.4em;
+}
+
+/* ---------- focus mode ----------
+   The Focus extension marks the caret's block with `has-focus`; the dimming is
+   pure CSS so switching modes costs no editor transaction. */
+.note-editor-shell--focus .note-prose:not(:focus-within) {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+.note-editor-shell--focus .note-prose:not(:focus-within) .has-focus {
+  opacity: 1;
+}
+
+/* ---------- drag handles ---------- */
+.note-drag-handle {
+  position: absolute;
+  left: -1.6rem;
+  top: 0.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.5rem;
+  border-radius: 6px;
+  color: var(--color-light);
+  opacity: 0;
+  cursor: grab;
+  background: #ffffff0a;
+  transition: opacity 0.12s ease;
+}
+/* Only the handle for the hovered block shows, and the editor itself gets a
+   little left padding so it never sits under the gutter. */
+.note-editor-shell .note-prose {
+  position: relative;
+}
+.note-editor-shell:hover .note-drag-handle:not([data-drag-handle-hidden]) {
+  opacity: 0.45;
+}
+.note-drag-handle:hover {
+  opacity: 1 !important;
+  color: var(--color-primary);
+}
+.note-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ---------- sub / superscript ---------- */
+.note-prose sub {
+  font-size: 0.72em;
+  vertical-align: sub;
+}
+.note-prose sup {
+  font-size: 0.72em;
+  vertical-align: super;
+}
+
+/* ---------- outline ---------- */
+.note-toc {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #ffffff0f;
+  border-radius: 18px;
+  background: #ffffff06;
+}
+.note-toc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.note-toc-title {
+  color: var(--color-light);
+  opacity: 0.5;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.note-toc-close {
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.5;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  cursor: pointer;
+}
+.note-toc-close:hover {
+  opacity: 1;
+  color: var(--color-primary);
+}
+.note-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.note-toc-item {
+  display: block;
+  width: 100%;
+  padding: 0.2rem 0.4rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.6;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.note-toc-item:hover {
+  background: #ffffff0a;
+  opacity: 1;
+}
+.note-toc-item--active {
+  color: var(--color-primary);
+  opacity: 1;
+  font-weight: 600;
+}
+
 /* ---------- slash menu ---------- */
 .slash-menu {
   display: flex;
@@ -4875,6 +5069,43 @@ input[type="number"] {
   opacity: 0.45;
   font-size: 0.66rem;
 }
+.slash-menu-group {
+  padding: 0.4rem 0.5rem 0.2rem;
+  color: var(--color-light);
+  opacity: 0.35;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  position: sticky;
+  top: 0;
+  background: #111;
+}
+.slash-menu-star {
+  display: grid;
+  place-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: var(--color-light);
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+/* No hover on touch, so the star is always visible there rather than unreachable. */
+.slash-menu-item:hover .slash-menu-star {
+  opacity: 0.5;
+}
+.slash-menu-star:hover {
+  opacity: 1 !important;
+  background: #ffffff12;
+  color: var(--color-primary);
+}
+.slash-menu-star--on {
+  opacity: 0.9;
+  color: var(--color-primary);
+}
 .slash-menu--empty { padding: 0.6rem; }
 .slash-menu-empty {
   color: var(--color-light);
@@ -4934,6 +5165,14 @@ input[type="number"] {
   }
   .note-prose {
     font-size: 0.9rem;
+  }
+  /* The drag gutter has nowhere to sit on a phone, and there is no hover to
+     reveal it with anyway. */
+  .note-drag-handle {
+    display: none;
+  }
+  .slash-menu-star {
+    opacity: 0.5;
   }
 }
 
