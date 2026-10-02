@@ -12,6 +12,8 @@ interface InlineNumberProps {
     max?: number;
     /** What an empty field means. 'null' clears the value, 'min' clamps up to it. */
     emptyValue?: number | null;
+    /** What this number is. Required wherever the field has no visible label. */
+    ariaLabel?: string;
 }
 
 /**
@@ -27,6 +29,7 @@ const InlineNumber: React.FC<InlineNumberProps> = ({
     min,
     max,
     emptyValue = null,
+    ariaLabel,
 }) => {
     const [text, setText] = useState(() => toText(value));
     const [syncedValue, setSyncedValue] = useState(value);
@@ -81,6 +84,7 @@ const InlineNumber: React.FC<InlineNumberProps> = ({
             min={min}
             max={max}
             step="any"
+            aria-label={ariaLabel}
             onChange={(event) => setText(event.target.value)}
             onBlur={commit}
             onKeyDown={handleKeyDown}

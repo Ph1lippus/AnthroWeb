@@ -1,8 +1,15 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     getWorkoutTemplates,
     getWorkoutTemplate,
     getTemplateExercises,
+    getPlanSessions,
+    getPlanSession,
+    getPlanSessionsForDay,
+    createPlanSession,
+    updatePlanSession,
+    deletePlanSession,
     getPlanForDay,
     createWorkoutTemplate,
     updateWorkoutTemplate,
@@ -17,6 +24,7 @@ import {
     getSessionsWithExercises,
     createSession,
     updateSession,
+    startSessionFromPlan,
     setGymForDate,
     clearGymForDate,
     addSessionExercise,
@@ -28,12 +36,16 @@ import {
     seedPRsFromTemplate,
     deletePREntry,
     recordManualPR,
+    updatePRHistory,
+    deletePRHistory,
+    clearPRHistory,
     recordNewPRs,
     getExercises,
     createCustomExercise,
     syncExerciseLibrary,
     type WorkoutTemplate,
     type WorkoutTemplateExercise,
+    type WorkoutPlanSession,
     type WorkoutCompletionLog,
     type WorkoutExerciseLog,
     type PREntry,
@@ -87,18 +99,45 @@ export const useActiveTemplate = () => {
     };
 };
 
-export const useWorkoutTemplate = (id: string | undefined) =>
+/** One template, its sessions, and all of its exercises -- one round trip. */
+export const useWorkoutTemplate = (id: string | null | undefined) =>
     useQuery({
         queryKey: queryKeys.workoutTemplate(id ?? ''),
         queryFn: async () => {
             if (!id) return null;
-            const [template, exercises] = await Promise.all([
+            const [template, sessions, exercises] = await Promise.all([
                 getWorkoutTemplate(id),
+                getPlanSessions(id),
                 getTemplateExercises(id),
             ]);
-            return template ? { template, exercises } : null;
+            return template ? { template, sessions, exercises } : null;
         },
         enabled: !!id,
+    });
+
+/** Just the sessions for one template, for the session dialog. */
+export const usePlanSessions = (templateId: string | null) =>
+    useQuery({
+        queryKey: queryKeys.workoutTemplateSessions(templateId ?? ''),
+        queryFn: () => getPlanSessions(templateId!),
+        enabled: !!templateId,
+    });
+
+/** One planned session by id, for comparing a target against what happened. */
+export const usePlanSession = (sessionId: string | null | undefined) =>
+    useQuery({
+        queryKey: ['workout-plan-session', sessionId ?? ''],
+        queryFn: () => getPlanSession(sessionId!),
+        enabled: !!sessionId,
+    });
+
+/** The planned sessions on one weekday of the active template. */
+export const useTodaysPlanSessions = (dayOfWeek: number, enabled = true) =>
+    useQuery({
+        queryKey: ['workout-today-sessions', dayOfWeek],
+        queryFn: () => getPlanSessionsForDay(dayOfWeek),
+        enabled,
+        staleTime: 5 * 60 * 1000,
     });
 
 export const useWorkoutPlan = (dayOfWeek: number, enabled = true) =>
@@ -138,13 +177,87 @@ export const usePRHistory = () =>
         queryFn: getPRHistory,
     });
 
-export const useExerciseLibrary = () =>
-    useQuery({
+/**
+ * The user's own copy of the exercise catalogue.
+ *
+ * Fetched on first use rather than behind a button. An import control inside the
+ * search dropdown was the wrong shape for it twice over: it hid a network
+ * request behind something nobody looks for, and an empty library was
+ * indistinguishable from a library that simply lacked the lift you typed. Now
+ * the first picker to find an empty library starts the sync itself, once per
+ * page load, and the dropdown says it is fetching until the rows arrive.
+ *
+ * `syncLibrary` is returned so the query's own `onSuccess` can be the thing that
+ * refreshes the rows -- one source of truth for when the data changed.
+ */
+/**
+ * The auto-sync latch. One catalogue fetch per page load, not one per mounted
+ * picker -- several pickers can be open at once on the Templates tab.
+ *
+ * `autoSyncAttempts` bounds the retries. Resetting the latch on its own was not
+ * enough: the effect depends on the mutation's identity, which changes when the
+ * mutation settles, so a latch reset made it fire again immediately and a
+ * catalogue that keeps coming back empty turned into a fetch loop.
+ */
+let autoSyncStarted = false;
+let autoSyncAttempts = 0;
+const MAX_AUTO_ATTEMPTS = 2;
+
+/**
+ * What the picker can actually say about the library.
+ *
+ * `failed` is the state that was missing. Deriving this from
+ * `library.length === 0` cannot tell "still loading" from "loaded, and empty"
+ * from "the fetch threw" from "the database rejected the write" -- all four are
+ * the same empty array, so a broken sync reported itself as an empty library.
+ */
+export type LibraryStatus = 'loading' | 'syncing' | 'failed' | 'empty' | 'ready';
+
+export const useExerciseLibrary = () => {
+    const query = useQuery({
         queryKey: queryKeys.exerciseLibrary,
         queryFn: getExercises,
-        // The library only changes on an explicit sync or a custom entry.
+        // The library only changes on a sync or a custom entry.
         staleTime: 60 * 60 * 1000,
     });
+
+    const syncLibrary = useSyncExerciseLibrary();
+
+    const isEmpty = query.data != null && query.data.length === 0;
+
+    useEffect(() => {
+        if (!isEmpty || syncLibrary.isPending || autoSyncStarted) return;
+        if (autoSyncAttempts >= MAX_AUTO_ATTEMPTS) return;
+        autoSyncStarted = true;
+        autoSyncAttempts += 1;
+        const giveUp = () => {
+            autoSyncStarted = false;
+        };
+        void syncLibrary
+            .mutateAsync()
+            // A failure is recorded on the mutation as well as released here, so
+            // the picker can show the reason and a later mount can try again.
+            .then(giveUp, giveUp);
+    }, [isEmpty, syncLibrary]);
+
+    const status: LibraryStatus = syncLibrary.isPending
+        ? 'syncing'
+        : syncLibrary.isError
+          ? 'failed'
+          : query.isPending
+            ? 'loading'
+            : isEmpty
+              ? 'empty'
+              : 'ready';
+
+    // `useSyncExerciseLibrary` invalidates the library itself once rows land.
+    return {
+        ...query,
+        syncLibrary,
+        status,
+        error: syncLibrary.error instanceof Error ? syncLibrary.error.message : null,
+    };
+};
 
 // ---------------------------------------------------------------------------
 // The workouts page in one query
@@ -348,6 +461,59 @@ export const useSetActiveTemplate = () => {
     });
 };
 
+export const useCreatePlanSession = (templateId: string) => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (input: {
+            name: string;
+            day_of_week: number;
+            activity_type?: ActivityType;
+            target_duration_minutes?: number | null;
+            target_intensity?: number | null;
+            notes?: string | null;
+            position?: number;
+        }) => createPlanSession(templateId, input),
+        onSuccess: () => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
+        },
+    });
+};
+
+export const useUpdatePlanSession = (templateId: string) => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({
+            id,
+            updates,
+        }: {
+            id: string;
+            updates: Partial<Omit<WorkoutPlanSession, 'id' | 'user_id' | 'workout_template_id'>>;
+        }) => updatePlanSession(id, updates),
+        onSuccess: () => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
+        },
+    });
+};
+
+export const useDeletePlanSession = (templateId: string) => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => deletePlanSession(id),
+        onSuccess: () => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
+        },
+    });
+};
+
 export const useAddTemplateExercise = (templateId: string) => {
     const invalidate = useInvalidateWorkouts();
     const qc = useQueryClient();
@@ -356,6 +522,7 @@ export const useAddTemplateExercise = (templateId: string) => {
         onSuccess: () => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
         },
     });
 };
@@ -369,6 +536,7 @@ export const useUpdateTemplateExercise = (templateId: string) => {
         onSuccess: () => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
         },
     });
 };
@@ -381,6 +549,7 @@ export const useDeleteTemplateExercise = (templateId: string) => {
         onSuccess: () => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
         },
     });
 };
@@ -409,6 +578,24 @@ export const useSetGymForDate = (onNewPRs?: (prs: NewPR[]) => void) => {
             // refresh it or the popover will disagree with the heatmap.
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
             if (result.newPRs.length) onNewPRs?.(result.newPRs);
+        },
+    });
+};
+
+/**
+ * Open a session for a date from the active template's plan, without marking the
+ * day as trained. The explicit door behind the "preview the plan, then start it"
+ * gesture in the session editor.
+ */
+export const useStartSessionFromPlan = () => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (input: { date: string; planSessionId?: string | null }) =>
+            startSessionFromPlan(input.date, input.planSessionId),
+        onSuccess: (_result, input) => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
         },
     });
 };
@@ -518,8 +705,43 @@ export const useDeletePREntry = () => {
 export const useRecordManualPR = () => {
     const invalidate = useInvalidateWorkouts();
     return useMutation({
-        mutationFn: (input: { pr_entry_id: string; weight?: number | null; reps?: number | null }) =>
-            recordManualPR(input),
+        mutationFn: (input: {
+            pr_entry_id: string;
+            exercise_name: string;
+            weight?: number | null;
+            reps?: number | null;
+            workout_date?: string | null;
+        }) => recordManualPR(input),
+        onSuccess: invalidate,
+    });
+};
+
+/** Correct one record in place -- the weight, reps or date of a single best. */
+export const useUpdatePRHistory = () => {
+    const invalidate = useInvalidateWorkouts();
+    return useMutation({
+        mutationFn: (input: {
+            id: string;
+            updates: { weight?: number | null; reps?: number | null; workout_date?: string | null };
+        }) => updatePRHistory(input.id, input.updates),
+        onSuccess: invalidate,
+    });
+};
+
+/** Remove one record, for a number that was typed wrong. */
+export const useDeletePRHistory = () => {
+    const invalidate = useInvalidateWorkouts();
+    return useMutation({
+        mutationFn: (id: string) => deletePRHistory(id),
+        onSuccess: invalidate,
+    });
+};
+
+/** Remove every record for one tracked lift. */
+export const useClearPRHistory = () => {
+    const invalidate = useInvalidateWorkouts();
+    return useMutation({
+        mutationFn: (prEntryId: string) => clearPRHistory(prEntryId),
         onSuccess: invalidate,
     });
 };

@@ -9,7 +9,7 @@ import {
     type ActivityType,
     type WorkoutSet,
 } from '../utils/workoutSets';
-import { exerciseKey, detectNewPRs, type NewPR } from '../utils/prs';
+import { prKey, detectNewPRs, type NewPR } from '../utils/prs';
 
 // ---------------------------------------------------------------------------
 // The shape of the workout domain.
@@ -41,13 +41,41 @@ export interface WorkoutTemplate {
     updated_at?: string;
 }
 
-/** One exercise on one weekday of a template. */
+/**
+ * One session inside a template -- a whole workout, on a chosen weekday.
+ *
+ * A template holds several, and they may share a day: three sessions on a Friday
+ * is a normal week for someone who trains twice in the evening plus mobility.
+ * Nothing about a session is tied to a date; the date arrives when the session is
+ * actually performed, and becomes a `WorkoutCompletionLog`.
+ */
+export interface WorkoutPlanSession {
+    id?: string;
+    workout_template_id: string;
+    user_id: string;
+    name: string;
+    /** 0 = Sunday .. 6 = Saturday, matching `Date.getDay()`. */
+    day_of_week: number;
+    /** Drives which fields the session's exercises get. */
+    activity_type: ActivityType;
+    target_duration_minutes?: number | null;
+    /** 1-10, how hard this session is meant to be. */
+    target_intensity?: number | null;
+    notes?: string | null;
+    position: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+/** One exercise inside one session. */
 export interface WorkoutTemplateExercise {
     id?: string;
     workout_template_id: string;
     user_id: string;
-    /** 0 = Sunday .. 6 = Saturday. */
+    /** 0 = Sunday .. 6 = Saturday. A copy of its session's day. */
     day_of_week: number;
+    /** Null on rows written before sessions existed. */
+    session_id?: string | null;
     position: number;
     exercise_id?: string | null;
     exercise_name: string;
@@ -70,6 +98,8 @@ export interface WorkoutCompletionLog {
     user_id?: string;
     workout_date: string;
     workout_template_id?: string | null;
+    /** Which planned session this day followed, so target and actual can be compared. */
+    plan_session_id?: string | null;
     completed: boolean;
     /** 1-10, drives the heatmap shade. */
     intensity?: number | null;
@@ -266,6 +296,150 @@ export const createWorkoutTemplate = async (
     return data as WorkoutTemplate;
 };
 
+/** Every session in a template, weekday-first so the card reads as a week. */
+export const getPlanSessions = async (templateId: string): Promise<WorkoutPlanSession[]> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('workout_plan_sessions')
+        .select('*')
+        .eq('workout_template_id', templateId)
+        .eq('user_id', userId)
+        // Monday first, because a training week reads Mon..Sun. The stored value
+        // is Sunday-first, so this is a rotation rather than a plain sort.
+        .order('position', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching plan sessions:', error.message);
+        return [];
+    }
+
+    const rows = data as WorkoutPlanSession[];
+    return [
+        ...rows.filter(row => row.day_of_week === 1),
+        ...rows.filter(row => row.day_of_week === 2),
+        ...rows.filter(row => row.day_of_week === 3),
+        ...rows.filter(row => row.day_of_week === 4),
+        ...rows.filter(row => row.day_of_week === 5),
+        ...rows.filter(row => row.day_of_week === 6),
+        ...rows.filter(row => row.day_of_week === 0),
+    ];
+};
+
+/** One planned session by id, for reading a target back. */
+export const getPlanSession = async (id: string): Promise<WorkoutPlanSession | null> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await supabase
+        .from('workout_plan_sessions')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error fetching plan session:', error.message);
+        return null;
+    }
+    return (data as WorkoutPlanSession) ?? null;
+};
+
+/** The planned sessions on one weekday of the active template, Monday-first. */
+export const getPlanSessionsForDay = async (dayOfWeek: number): Promise<WorkoutPlanSession[]> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data: template, error: templateError } = await supabase
+        .from('workout_templates')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+    if (templateError || !template) return [];
+
+    const { data, error } = await supabase
+        .from('workout_plan_sessions')
+        .select('*')
+        .eq('workout_template_id', template.id)
+        .eq('user_id', userId)
+        .eq('day_of_week', dayOfWeek)
+        .order('position', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching sessions for day:', error.message);
+        return [];
+    }
+    return (data as WorkoutPlanSession[]) ?? [];
+};
+
+export const createPlanSession = async (
+    templateId: string,
+    input: {
+        name: string;
+        day_of_week: number;
+        activity_type?: ActivityType;
+        target_duration_minutes?: number | null;
+        target_intensity?: number | null;
+        notes?: string | null;
+        position?: number;
+    },
+): Promise<WorkoutPlanSession> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { data, error } = await supabase
+        .from('workout_plan_sessions')
+        .insert({
+            user_id: userId,
+            workout_template_id: templateId,
+            name: input.name,
+            day_of_week: input.day_of_week,
+            activity_type: input.activity_type ?? 'strength',
+            target_duration_minutes: input.target_duration_minutes ?? null,
+            target_intensity: input.target_intensity ?? null,
+            notes: input.notes ?? null,
+            position: input.position ?? 0,
+        })
+        .select()
+        .single();
+
+    if (error) fail('Could not create session', error);
+    return data as WorkoutPlanSession;
+};
+
+export const updatePlanSession = async (
+    id: string,
+    updates: Partial<Omit<WorkoutPlanSession, 'id' | 'user_id' | 'workout_template_id'>>,
+): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('workout_plan_sessions')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', userId);
+
+    if (error) fail('Could not change session', error);
+};
+
+/** Removes the session and, by cascade, every exercise inside it. */
+export const deletePlanSession = async (id: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('workout_plan_sessions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+    if (error) fail('Could not remove session', error);
+};
+
 export const updateWorkoutTemplate = async (
     id: string,
     updates: Partial<Pick<WorkoutTemplate, 'name' | 'description'>>,
@@ -350,6 +524,33 @@ export const duplicateWorkoutTemplate = async (templateId: string): Promise<Work
     if (error) fail('Could not duplicate template', error);
     const copy = created as WorkoutTemplate;
 
+    // Sessions first: the exercises point at them, and the ids are only known now.
+    const originalSessions = await getPlanSessions(templateId);
+    const sessionIdMap = new Map<string, string>();
+
+    if (originalSessions.length) {
+        const { data: newSessions, error: sessionError } = await supabase
+            .from('workout_plan_sessions')
+            .insert(originalSessions.map(row => ({
+                user_id: userId,
+                workout_template_id: copy.id!,
+                name: row.name,
+                day_of_week: row.day_of_week,
+                activity_type: row.activity_type,
+                target_duration_minutes: row.target_duration_minutes ?? null,
+                target_intensity: row.target_intensity ?? null,
+                notes: row.notes ?? null,
+                position: row.position,
+            })))
+            .select();
+
+        if (sessionError) fail('Could not copy sessions', sessionError);
+        originalSessions.forEach((row, index) => {
+            const made = (newSessions as WorkoutPlanSession[] | null)?.[index];
+            if (row.id && made?.id) sessionIdMap.set(row.id, made.id);
+        });
+    }
+
     const exercises = await getTemplateExercises(templateId);
     if (exercises.length === 0) return copy;
 
@@ -360,6 +561,7 @@ export const duplicateWorkoutTemplate = async (templateId: string): Promise<Work
             workout_template_id: copy.id!,
             user_id: userId,
             day_of_week: row.day_of_week,
+            session_id: row.session_id ? (sessionIdMap.get(row.session_id) ?? null) : null,
             position: row.position,
             exercise_id: row.exercise_id ?? null,
             exercise_name: row.exercise_name,
@@ -383,6 +585,8 @@ export const duplicateWorkoutTemplate = async (templateId: string): Promise<Work
 
 export interface TemplateExerciseInput {
     day_of_week?: number;
+    /** Which session this belongs to. Null on rows written before sessions. */
+    session_id?: string | null;
     exercise_id?: string | null;
     exercise_name: string;
     activity_type: ActivityType;
@@ -405,7 +609,11 @@ const templateExercisePayload = (
     return {
         user_id: userId,
         workout_template_id: templateId,
+        // Denormalised from the session so `getPlanForDay` can still find a
+        // weekday's plan without joining, and so rows written before sessions
+        // existed keep working with no backfill.
         day_of_week: input.day_of_week ?? 0,
+        session_id: input.session_id ?? null,
         position: input.position ?? position,
         exercise_id: input.exercise_id ?? null,
         exercise_name: input.exercise_name.trim(),
@@ -648,6 +856,52 @@ export const updateSession = async (
         .eq('user_id', userId);
 
     if (error) fail('Could not save session', error);
+};
+
+/**
+ * Open a session from the active template's plan for that weekday, without
+ * claiming the day was trained.
+ *
+ * `planSessionId` is the planned session being followed, when there is one. It is
+ * recorded on the log row so that the target intensity the session was written
+ * with can be compared against the intensity the day actually turned out to be.
+ *
+ * `setGymForDate` cannot be reused for this. Marking a day sets `completed: true`
+ * and writes the daily log's Gym flag, both of which are wrong for "I have
+ * opened this and am about to fill it in" -- a half-written session would count
+ * as a finished workout in the streak, the heatmap and the daily log's score.
+ *
+ * Idempotent: an existing session for the date is returned untouched, so
+ * pressing Start twice does not duplicate the plan.
+ */
+export const startSessionFromPlan = async (
+    date: string,
+    planSessionId?: string | null,
+): Promise<{ sessionId: string; seeded: number }> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const existing = await getSessionByDate(date);
+    if (existing?.id) {
+        return { sessionId: existing.id, seeded: 0 };
+    }
+
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    const plan = await getPlanForDay(weekday);
+    const created = await createSession({
+        workout_date: date,
+        completed: false,
+        workout_template_id: plan.length ? await activeTemplateId() : null,
+        plan_session_id: planSessionId ?? null,
+    });
+
+    if (!created.id) throw new Error('Could not start the session');
+
+    if (plan.length) {
+        await insertSessionExercises(created.id, plan);
+    }
+
+    return { sessionId: created.id, seeded: plan.length };
 };
 
 /**
@@ -1003,11 +1257,25 @@ export const deletePREntry = async (id: string): Promise<void> => {
     if (error) fail('Could not stop tracking this record', error);
 };
 
-/** Record a historical best by hand, for lifts predating the app. */
+/**
+ * Record a historical best by hand, for lifts predating the app.
+ *
+ * `exercise_name` and `workout_date` are both written properly now. They used to
+ * be an empty string and today's date, which was harmless only because every
+ * reader keyed off `pr_entry_id` -- but a record dated the day you typed it in
+ * is simply the wrong date on the card, and the empty name left these rows
+ * invisible to the name-fallback path and to the name index.
+ *
+ * `workout_completion_id` stays null. That is the only thing distinguishing a
+ * hand-entered record from one a logged session earned, so the editor can tell
+ * you which is which.
+ */
 export const recordManualPR = async (input: {
     pr_entry_id: string;
+    exercise_name: string;
     weight?: number | null;
     reps?: number | null;
+    workout_date?: string | null;
 }): Promise<void> => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
@@ -1015,14 +1283,87 @@ export const recordManualPR = async (input: {
     const { error } = await supabase.from('pr_history').insert({
         user_id: userId,
         pr_entry_id: input.pr_entry_id,
-        exercise_name: '',
+        exercise_name: input.exercise_name.trim(),
         weight: input.weight ?? null,
         reps: input.reps ?? null,
-        workout_date: todayString(),
+        workout_date: input.workout_date || todayString(),
         workout_completion_id: null,
     });
 
     if (error) fail('Could not record your max', error);
+};
+
+/**
+ * Correct one record in place.
+ *
+ * The first thing this file ever did to a `pr_history` row other than insert it.
+ * It exists because a record is a claim the user makes about themselves, and a
+ * claim can be wrong: a mistyped 120 for 12 would otherwise win every comparison
+ * forever, with no way to take it back except deleting the whole exercise.
+ *
+ * No guard against lowering the current best below another historical row. That
+ * is deliberate and self-correcting rather than blocked -- the displayed record
+ * is `max(weight)` over the rows, so lowering one row simply promotes whatever
+ * is genuinely second-best, which is usually the truth.
+ */
+export const updatePRHistory = async (
+    id: string,
+    updates: { weight?: number | null; reps?: number | null; workout_date?: string | null },
+): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('pr_history')
+        .update({
+            ...(updates.weight !== undefined ? { weight: updates.weight } : {}),
+            ...(updates.reps !== undefined ? { reps: updates.reps } : {}),
+            ...(updates.workout_date !== undefined ? { workout_date: updates.workout_date } : {}),
+        })
+        .eq('id', id)
+        .eq('user_id', userId);
+
+    if (error) fail('Could not change that record', error);
+};
+
+/**
+ * Delete one record.
+ *
+ * `pr_history` was append-only until this, on the reasoning that a record is
+ * evidence. That reasoning holds for a record a logged session earned, where the
+ * session itself is the evidence and cascading it away already happens. It does
+ * not hold for a record the user typed and got wrong, which is why this exists
+ * alongside `updatePRHistory` rather than instead of it.
+ */
+export const deletePRHistory = async (id: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('pr_history')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+    if (error) fail('Could not remove that record', error);
+};
+
+/**
+ * Every record for one tracked lift, newest first. For the "reset" action that
+ * backs a mis-typed number, where removing one row would leave the next-worst
+ * one standing.
+ */
+export const clearPRHistory = async (prEntryId: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('pr_history')
+        .delete()
+        .eq('pr_entry_id', prEntryId)
+        .eq('user_id', userId);
+
+    if (error) fail('Could not clear these records', error);
 };
 
 /**
@@ -1044,7 +1385,7 @@ export const recordNewPRs = async (
     const bests = new Map<string, { weight: number }>();
     for (const row of history) {
         if (row.weight == null) continue;
-        const key = row.pr_entry_id ? `entry:${row.pr_entry_id}` : exerciseKey({ exercise_name: row.exercise_name });
+        const key = prKey(row.exercise_name);
         const current = bests.get(key);
         if (!current || row.weight > current.weight) bests.set(key, { weight: row.weight });
     }
@@ -1126,45 +1467,71 @@ export const createCustomExercise = async (
     return data as LibraryExercise;
 };
 
-/** One round-trip for the whole catalogue instead of one per wger page. */
+/** Writes the whole catalogue and reports how many rows it sent.
+ *
+ * Two things used to make a first sync take the better part of a minute, and
+ * neither of them was the network:
+ *
+ * `getExercises()` was called first to diff the catalogue against what was
+ * already there. That reads every existing row -- names plus three JSONB columns
+ * -- into the browser, only for the `upsert` below to discard the answer.
+ *
+ * Then the chunks were written one after another. Six chunks of 400 rows with
+ * JSONB arrays is six sequential round trips, each one blocking on the last.
+ *
+ * The diff is gone because the `upsert` below is already idempotent, and the
+ * chunks now go together because they touch disjoint rows. First sync is a
+ * couple of round trips rather than seven.
+ *
+ * The conflict target is `user_id,wger_id` -- two plain columns. It was
+ * `user_id,lower(name)`, which cannot work: PostgREST reads `on_conflict` as a
+ * comma-separated list of column *names*, so it parsed that as `user_id`,
+ * `lower`, `name` and every sync failed on `column "lower" does not exist`.
+ * See `0009_exercise_library_sync_key.sql`. */
 export const syncExerciseLibrary = async (
     rows: Array<Omit<LibraryExercise, 'id' | 'user_id' | 'is_custom'>>,
 ): Promise<number> => {
     const userId = await getCurrentUserId();
     if (!userId || rows.length === 0) return 0;
 
-    const existing = await getExercises();
-    const known = new Set(existing.filter(row => row.wger_id != null).map(row => row.wger_id));
-    const fresh = rows.filter(row => row.wger_id == null || !known.has(row.wger_id));
-    if (fresh.length === 0) return 0;
-
     // Chunked so one oversized statement can't trip the request size limit.
     const CHUNK = 400;
-    for (let i = 0; i < fresh.length; i += CHUNK) {
-        const chunk = fresh.slice(i, i + CHUNK);
-        const { error } = await supabase
-            .from('exercises')
-            .upsert(
-                chunk.map(row => ({
-                    user_id: userId,
-                    wger_id: row.wger_id ?? null,
-                    name: row.name,
-                    category: row.category ?? null,
-                    equipment: row.equipment ?? null,
-                    muscles: row.muscles ?? null,
-                    aliases: row.aliases ?? null,
-                    activity_type: isActivityType(row.activity_type) ? row.activity_type : 'strength',
-                    is_custom: false,
-                    last_synced_at: new Date().toISOString(),
-                })),
-                { onConflict: 'user_id,lower(name)' },
-            );
-        if (error) {
-            console.error('Could not sync the exercise library:', error.message);
-            return i;
-        }
+    const chunks: typeof rows[] = [];
+    for (let i = 0; i < rows.length; i += CHUNK) chunks.push(rows.slice(i, i + CHUNK));
+
+    const writes = await Promise.all(
+        chunks.map(chunk =>
+            supabase
+                .from('exercises')
+                .upsert(
+                    chunk.map(row => ({
+                        user_id: userId,
+                        wger_id: row.wger_id ?? null,
+                        name: row.name,
+                        category: row.category ?? null,
+                        equipment: row.equipment ?? null,
+                        muscles: row.muscles ?? null,
+                        aliases: row.aliases ?? null,
+                        activity_type: isActivityType(row.activity_type) ? row.activity_type : 'strength',
+                        is_custom: false,
+                        last_synced_at: new Date().toISOString(),
+                    })),
+                    { onConflict: 'user_id,wger_id' },
+                )
+                .then(({ error }) => error),
+        ),
+    );
+
+    const failed = writes.findIndex(error => error != null);
+    if (failed !== -1) {
+        // Thrown, not returned. This used to `console.error` and hand back a
+        // partial count, which the caller read as "synced, nothing new" -- so a
+        // database rejection was indistinguishable from an up-to-date library
+        // and showed up as "the library is empty" with the reason nowhere on
+        // screen.
+        throw new Error(`Could not write the exercise library: ${writes[failed]!.message}`);
     }
-    return fresh.length;
+    return rows.length;
 };
 
 // ---------------------------------------------------------------------------

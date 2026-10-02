@@ -246,17 +246,15 @@ const AcademicPage: React.FC = () => {
 
                             <section className="academic-grades">
                                 <div className="books-top-bar">
+                                    {/* Only "Add semester". "Add course" used to sit
+                                        beside it, which meant two ways to reach the
+                                        same thing -- the top bar for a course with no
+                                        semester yet, and the row at the foot of the
+                                        semester you were already looking at. The one
+                                        inside the semester is the one you want. */}
                                     <div className="flex gap-2 flex-wrap">
                                         <button type="button" className="btn-action" onClick={openNewSemester}>
                                             <Plus size={13} /> Add semester
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-action"
-                                            onClick={() => openNewCourse(semesters[0]?.id ?? null)}
-                                            disabled={semesters.length === 0}
-                                        >
-                                            <Plus size={13} /> Add course
                                         </button>
                                     </div>
 

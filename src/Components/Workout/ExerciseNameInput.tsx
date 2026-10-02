@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Dumbbell, HeartPulse, PersonStanding, Plus } from 'lucide-react';
+import { Dumbbell, HeartPulse, PersonStanding, Plus, RefreshCw } from 'lucide-react';
 import { rankMatches } from '../../services/wgerService';
-import { useExerciseLibrary, useSyncExerciseLibrary, useCreateCustomExercise } from '../../hooks/useWorkouts';
+import { useExerciseLibrary, useCreateCustomExercise } from '../../hooks/useWorkouts';
 import type { ActivityType } from '../../utils/workoutSets';
 
 export interface PickedExercise {
@@ -53,8 +53,7 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
 }) => {
     const listId = useId();
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const { data: library = [] } = useExerciseLibrary();
-    const syncLibrary = useSyncExerciseLibrary();
+    const { data: library = [], status, syncLibrary, error } = useExerciseLibrary();
     const createCustom = useCreateCustomExercise();
     const [open, setOpen] = useState(false);
 
@@ -130,7 +129,42 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
         }
     };
 
-    const showList = open && (matches.length > 0 || canCreate || library.length === 0);
+    /* The list opens on focus whenever there is something to say. It used to
+       require a match, so typing something the library does not carry left the
+       field looking dead: no dropdown, no "add this", nothing to tell you the
+       search had run. Now a query alone opens it, and an empty result says so.
+
+       It also used to open just because `library.length === 0`, which put an
+       empty box under the field on focus: with nothing loaded there was no
+       message, because a message needed a query. Now the only reason an unloaded
+       library opens the list is that there is a real status to report. */
+    const hasQuery = value.trim().length > 0;
+    const loading = status === 'loading' || status === 'syncing';
+    const showList =
+        open &&
+        (hasQuery ||
+            matches.length > 0 ||
+            canCreate ||
+            loading ||
+            status === 'empty');
+    const nothingFound = hasQuery && matches.length === 0 && !canCreate;
+
+    /* What to say when there is nothing to show. Each state gets its own line,
+       because the honest answer differs: still waiting, waiting on wger, wger
+       gave us nothing, the library is loaded and simply has no match, or the
+       sync failed -- in which case the reason is shown rather than a summary,
+       because "empty" and "broken" look identical from out here. */
+    const notice = loading
+        ? status === 'syncing'
+            ? 'Syncing the exercise library…'
+            : 'Loading the exercise library…'
+        : status === 'failed'
+          ? `Could not load the exercise library. ${error ?? ''}`.trim()
+          : status === 'empty'
+            ? 'The library is empty. Nothing to search yet.'
+            : nothingFound
+              ? `Nothing in the library matches “${value.trim()}”.`
+              : null;
 
     return (
         <div className="workout-picker" ref={wrapperRef}>
@@ -190,17 +224,28 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                         </li>
                     )}
 
-                    {library.length === 0 && (
-                        <li className="workout-picker__empty">
-                            <button
-                                type="button"
-                                onMouseDown={event => event.preventDefault()}
-                                onClick={() => syncLibrary.mutate()}
-                                disabled={syncLibrary.isPending}
-                                className="btn-action btn-action--primary"
-                            >
-                                {syncLibrary.isPending ? 'Importing…' : 'Import 900+ exercises'}
-                            </button>
+{/* Nothing about syncing is offered here. An import button inside a search
+                         dropdown is the wrong shape for it: it puts a network
+                         request behind a control nobody looks for. The library
+                         fetches itself on first use -- see `useExerciseLibrary`.
+
+                         The one exception is a retry, and it lives in the empty
+                         state rather than above it: the auto-sync gives up after
+                         two attempts, so without this there is no way back for
+                         anyone whose first fetch lost a race with wger. */}
+                    {notice && (
+                        <li className="workout-picker__none" role="presentation">
+                            <span>{notice}</span>
+                            {status === 'empty' || status === 'failed' ? (
+                                <button
+                                    type="button"
+                                    className="btn-action"
+                                    disabled={syncLibrary.isPending}
+                                    onClick={() => syncLibrary.mutate()}
+                                >
+                                    <RefreshCw size={11} /> Fetch the library
+                                </button>
+                            ) : null}
                         </li>
                     )}
                 </ul>

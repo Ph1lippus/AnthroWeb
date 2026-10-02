@@ -75,13 +75,17 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weightUnit, onOpen 
                                     ) : null}
                                 </span>
                             </span>
-                            <span className="collapse-head__right">
-                                <ChevronRight
-                                    size={15}
-                                    className="collapse-chevron"
-                                    style={{ transform: open ? 'rotate(90deg)' : 'none' }}
-                                />
-                            </span>
+<span className="collapse-head__right">
+                                    {/* A chevron points right when closed and turns
+                                        to point down when open, which reads as
+                                        "opens downwards" rather than as a spin. */}
+                                    <span
+                                        className="collapse-chevron"
+                                        style={{ transform: open ? 'rotate(90deg)' : 'none' }}
+                                    >
+                                        <ChevronRight size={15} />
+                                    </span>
+                                </span>
                         </button>
 
                         {open && (

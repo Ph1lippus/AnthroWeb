@@ -30,6 +30,23 @@ import { parseSetDetail, bestSet, type WorkoutSet } from './workoutSets';
 export const exerciseKey = (exercise: { exercise_id?: string | null; exercise_name: string }): string =>
     exercise.exercise_id ? `id:${exercise.exercise_id}` : `name:${exercise.exercise_name.trim().toLowerCase()}`;
 
+/**
+ * The key a record is compared under.
+ *
+ * Deliberately not `exerciseKey`. `pr_history` has no `exercise_id` column --
+ * only `pr_entry_id`, which points at the tracked-lift row rather than at the
+ * exercise library -- so a logged session's exercise and its own record cannot
+ * be matched on an id. They can only be matched on the name.
+ *
+ * Using `exerciseKey` on both sides of that comparison is what made every save
+ * announce a new record: the session side produced `id:<uuid>` and the history
+ * side produced `entry:<uuid>`, so `previous` was always undefined and the
+ * strictly-heavier gate in `detectNewPRs` never ran. Everything that reads or
+ * writes records uses this key instead, so the two cannot drift apart again.
+ */
+export const prKey = (exerciseName: string): string =>
+    `name:${exerciseName.trim().toLowerCase()}`;
+
 export interface PRBest {
     weight: number;
     reps?: number;
@@ -58,26 +75,8 @@ export const currentBestOf = (history: PRHistory[]): PRBest | null => {
     return best;
 };
 
-export const currentBests = (history: PRHistory[]): Map<string, PRBest> => {
-    const grouped = new Map<string, PRHistory[]>();
-    for (const entry of history) {
-        const key = entry.pr_entry_id
-            ? `entry:${entry.pr_entry_id}`
-            : exerciseKey({ exercise_name: entry.exercise_name });
-        const list = grouped.get(key);
-        if (list) list.push(entry);
-        else grouped.set(key, [entry]);
-    }
-
-    const bests = new Map<string, PRBest>();
-    for (const [key, list] of grouped) {
-        const best = currentBestOf(list);
-        if (best) bests.set(key, best);
-    }
-    return bests;
-};
-
 export interface NewPR {
+    /** `prKey` of the exercise. Records are compared by name, not by id. */
     exerciseKey: string;
     exercise_name: string;
     exercise_id?: string | null;
@@ -118,7 +117,7 @@ export const detectNewPRs = (
         const heaviest = bestSet(parseSetDetail(exercise.sets_detail));
         if (!heaviest || heaviest.weight === undefined || heaviest.weight <= 0) continue;
 
-        const key = exerciseKey(exercise);
+        const key = prKey(exercise.exercise_name);
         const previous = bests.get(key);
         if (previous && previous.weight >= heaviest.weight) continue;
 

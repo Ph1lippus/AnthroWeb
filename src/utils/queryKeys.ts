@@ -20,6 +20,7 @@ export const queryKeys = {
     workoutPlan: (dayOfWeek: number) => [...workoutPlanRoot, dayOfWeek] as const,
     workoutTemplateExercisesRoot: templateExercisesRoot,
     workoutTemplateExercises: (id: string) => [...templateExercisesRoot, id] as const,
+    workoutTemplateSessions: (id: string) => ['workout-template-sessions', id] as const,
     workoutSessionsRoot,
     /** Every session in a window, exercises attached, in two queries. */
     workoutSessions: (from: string, to: string) => [...workoutSessionsRoot, from, to] as const,

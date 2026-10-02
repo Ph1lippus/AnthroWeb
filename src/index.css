@@ -95,6 +95,13 @@
 }
 
 :root {
+  /* Tells the browser to render the controls it draws itself -- the date
+     picker's calendar, the select's dropdown list, scrollbars, the autofill
+     highlight -- against a dark surface. Without it every one of those arrives
+     in the browser's light default, which is what a `<input type="date">`
+     looked like the moment you clicked into it. */
+  color-scheme: dark;
+
   --color-primary: #00ffa6;
   --color-primary-dark: #43b67d;
   --color-danger: #db222a;
@@ -2908,6 +2915,164 @@ input[type="number"] {
   margin-bottom: 0.3rem;
   letter-spacing: 0.3px;
 }
+/* =========================================================================
+   FORM PRIMITIVES
+
+   `.form-control` and `.form-label` are used by twenty-odd files across the
+   app, but until now there was no base rule for either -- every definition was
+   scoped to a container (`.auth-card`, `.book-form-card`, `.import-modal-card`,
+   `.daily-log-form`, `.day-goals-grid`), so a `.form-control` anywhere outside
+   those five rendered as a raw browser input: white background, default border,
+   default type size, default focus ring. That is why the template fields, the
+   exercise editor and the record form looked like unstyled HTML.
+
+   These are the modal values promoted to a base. Every container-scoped rule
+   already in this file is left exactly where it is, and because those selectors
+   are more specific they still win -- so nothing that looks correct today
+   changes, and everything that renders unstyled starts matching the rest.
+   ========================================================================= */
+.form-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-align: left;
+  opacity: 0.7;
+}
+
+.form-control {
+  width: 100%;
+  /* Deliberately a little more generous than the modal values these were promoted
+     from: 0.45rem of vertical padding on a 0.8rem field is a target you can miss
+     on a phone, and these fields are used to type numbers. */
+  padding: 0.6rem 0.8rem;
+  background: #ffffff0a;
+  color: var(--color-light);
+  border: 1px solid transparent;
+  border-radius: 25px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  /* Without this the number inputs grow a pair of native spinners wide enough
+     to unbalance a grid row, and they are the only control here the browser
+     supplies its own affordance for. */
+  -moz-appearance: textfield;
+}
+.form-control::-webkit-outer-spin-button,
+.form-control::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.form-control::placeholder { color: rgba(255, 255, 255, 0.35); }
+.form-control:hover { border-color: rgba(255, 255, 255, 0.12); }
+.form-control:focus {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  outline: none;
+}
+.form-control:disabled { opacity: 0.45; cursor: default; }
+/* A textarea at this padding and radius reads as a pill with a long line of
+   text in it, so it gets square-ish corners and a minimum height. */
+textarea.form-control {
+  border-radius: 14px;
+  resize: vertical;
+  min-height: 70px;
+  line-height: 1.5;
+}
+
+/* =========================================================================
+   TABS
+
+   A segmented control: one rounded track with a segment per tab, the selected
+   one filled. Reads as a single control rather than a row of buttons, and matches
+   the app's existing pill language -- 25px radius, #ffffff0a control fill, the
+   accent only on what is actually chosen.
+
+   `--tabs-dur` / `--tabs-ease` have been in `:root` unused since the workouts
+   page was six tabs. They are what this animates on.
+   ========================================================================= */
+.tabs {
+  display: inline-flex;
+  gap: 0.15rem;
+  max-width: 100%;
+  padding: 0.2rem;
+  border-radius: 25px;
+  background: #ffffff08;
+  border: 1px solid #ffffff14;
+  /* Four labels do not fit a narrow column on a phone, and wrapping the track
+     would leave a ragged second row inside a pill. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.4rem 0.85rem;
+  border: none;
+  border-radius: 25px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    background var(--tabs-dur) var(--tabs-ease),
+    color var(--tabs-dur) var(--tabs-ease),
+    opacity 0.15s ease;
+}
+.tab:hover { opacity: 0.9; }
+.tab--active {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+/* The roving tabindex means the selected tab is the only one Tab can reach, so
+   the focus ring on it is the only one most keyboard users will ever see. */
+.tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.tab__badge {
+  padding: 0.05rem 0.35rem;
+  border-radius: 25px;
+  background: #ffffff0f;
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+.tab--active .tab__badge {
+  background: transparent;
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+}
+/* Panels stay mounted so a form inside one keeps its state across a tab switch,
+   and `display: flex` above would otherwise beat the user-agent rule for
+   `[hidden]` and show every panel at once. */
+.tab-panel[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tab { transition: none; }
+}
+
 .book-form-card .form-control {
   background: #ffffff0a;
   color: var(--color-light);
@@ -2994,8 +3159,8 @@ input[type="number"] {
 }
 .import-modal-card {
   background: #111;
-  border-radius: 25px;
-  max-width: 560px;
+  border-radius: 20px;
+  max-width: 500px;
   width: 100%;
   padding: 1.5rem;
 }
@@ -7173,28 +7338,28 @@ select.form-control option {
   display: flex;
   flex-direction: column;
 }
-/* Workout card fills all vertical space */
+/* Workout card fills all vertical space.
+   Matches `.academic-card` exactly: 1rem of padding and a 10px blur. This was
+   1.5rem and 12px, which made the workouts page sit inside a visibly larger and
+   softer box than every other page built on the same shell. */
 .workout-card {
-  background: #ffffff08;
-  border-radius: 25px;
-  padding: 1.5rem;
+  padding: 0rem;
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  backdrop-filter: blur(12px);
+  min-height: 0;
+  /* `auto` rather than `hidden`. The rails absorb all the slack, so this never
+     produces a scrollbar on a normal desktop viewport -- it is the fallback for
+     the two full-width bands plus the rails together exceeding a short window,
+     where clipping would have made part of the page unreachable. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  backdrop-filter: blur(10px);
+  text-align: left;
 }
 /* Workout Section */
 .workout-section {
-  margin-top: 0.5rem;
-}
-/* Workout Empty States */
-.workout-empty {
-  text-align: center;
-  padding: 3rem 2rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 25px;
-  backdrop-filter: blur(10px);
+  margin: 0;
 }
 
 /* Use books-page-wrapper for workout pages instead of workout-page-wrapper */
@@ -9618,8 +9783,15 @@ body {
   flex-shrink: 0;
   opacity: 0.5;
   transition: transform 0.2s ease;
+  display: inline-flex;
 }
 .collapse-card--open .collapse-chevron { transform: rotate(180deg); }
+/* The same rule again, this time keyed off the button's own state rather than
+   a class on an ancestor. Two independent triggers, because the chevron on the
+   workouts cards stopped moving and this is the one that cannot silently fail:
+   `aria-expanded` is set on the button that toggles it, so the selector matches
+   whatever is inside it. */
+.collapse-head[aria-expanded='true'] .collapse-chevron { transform: rotate(180deg); }
 .collapse-body {
   border-top: 1px solid #ffffff0f;
   padding: 0.6rem;

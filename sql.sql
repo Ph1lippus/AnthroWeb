@@ -154,11 +154,34 @@ CREATE TABLE public.custom_measurement_logs (
   CONSTRAINT custom_measurement_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT custom_measurement_logs_measurement_id_fkey FOREIGN KEY (measurement_id) REFERENCES public.custom_measurements(id)
 );
+CREATE TABLE IF NOT EXISTS public.workout_plan_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  workout_template_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  -- 0 = Sunday .. 6 = Saturday, matching Date.getDay().
+  day_of_week integer NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  activity_type text NOT NULL DEFAULT 'strength'::text CHECK (activity_type = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text])),
+  target_duration_minutes integer,
+  target_intensity integer CHECK (target_intensity >= 1 AND target_intensity <= 10),
+  notes text,
+  position integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workout_plan_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT workout_plan_sessions_template_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id) ON DELETE CASCADE,
+  CONSTRAINT workout_plan_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE INDEX IF NOT EXISTS workout_plan_sessions_template_idx ON public.workout_plan_sessions (workout_template_id, day_of_week, position);
+CREATE INDEX IF NOT EXISTS workout_plan_sessions_user_day_idx ON public.workout_plan_sessions (user_id, day_of_week);
 CREATE TABLE public.workout_template_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   workout_template_id uuid NOT NULL,
   user_id uuid NOT NULL,
   day_of_week integer NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  -- Which session this exercise belongs to. Nullable: rows that predate plan
+  -- sessions have none and keep working, grouped by weekday as before.
+  session_id uuid,
   position integer NOT NULL DEFAULT 0,
   exercise_id uuid,
   exercise_name text NOT NULL,
@@ -173,9 +196,11 @@ CREATE TABLE public.workout_template_exercises (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workout_template_exercises_pkey PRIMARY KEY (id),
   CONSTRAINT workout_template_exercises_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id) ON DELETE CASCADE,
+  CONSTRAINT workout_template_exercises_session_fkey FOREIGN KEY (session_id) REFERENCES public.workout_plan_sessions(id) ON DELETE CASCADE,
   CONSTRAINT workout_template_exercises_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT workout_template_exercises_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE SET NULL
 );
+CREATE INDEX IF NOT EXISTS workout_template_exercises_session_idx ON public.workout_template_exercises (session_id, position);
 CREATE TABLE public.workout_completion_log (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -582,10 +607,22 @@ CREATE TABLE public.gpa_scale_bands (
 -- so without these the client queries below are sequential scans over the
 -- user's whole history.
 -- ---------------------------------------------------------------------------
--- Serves the library lookup and backs the (user_id, lower(name)) upsert target
--- used when syncing from wger, so a re-sync updates rather than duplicating.
-CREATE UNIQUE INDEX exercises_user_id_name_idx ON public.exercises (user_id, lower(name));
-CREATE INDEX exercises_user_id_wger_idx ON public.exercises (user_id, wger_id);
+-- The library lookup, and the upsert target used when syncing from wger.
+--
+-- The sync's conflict target is (user_id, wger_id), so that pair is UNIQUE: one
+-- row per wger exercise per user, and a re-sync updates in place. Custom
+-- exercises have wger_id IS NULL, and Postgres treats NULLs as distinct inside a
+-- unique index, so they never collide with each other or with the catalogue.
+--
+-- This was UNIQUE on (user_id, lower(name)) instead, which PostgREST cannot
+-- express in `on_conflict`: that parameter is a list of column *names*, so
+-- `user_id,lower(name)` was read as `user_id`, `lower`, `name` and every sync
+-- failed with `column "lower" does not exist`. Kept non-unique, it still serves
+-- the picker's name lookups.
+--
+-- See supabase/migrations/0009_exercise_library_sync_key.sql.
+CREATE UNIQUE INDEX exercises_user_id_wger_uniq ON public.exercises (user_id, wger_id);
+CREATE INDEX exercises_user_id_name_idx ON public.exercises (user_id, lower(name));
 
 CREATE INDEX workout_template_exercises_template_day_idx
   ON public.workout_template_exercises (workout_template_id, day_of_week, position);
