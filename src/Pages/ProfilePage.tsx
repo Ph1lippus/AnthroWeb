@@ -6,6 +6,7 @@ import { supabase } from '../services/supabaseClient';
 import { Pencil, Target } from 'lucide-react';
 import Title from '../Components/Title';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 interface UserSettingsData {
     gender: string | null;
@@ -49,25 +50,31 @@ const ProfilePage: React.FC = () => {
 
     useEffect(() => {
         const loadProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                navigate('/login');
-                return;
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    navigate('/login');
+                    return;
+                }
+                setUserEmail(user.email || '');
+                setUsername(user.user_metadata?.username || userEmail.split('@')[0] || 'User');
+                
+                const userSettings = await getUserSettings();
+                if (userSettings) {
+                    setSettings(userSettings as UserSettingsData);
+                }
+                
+                const latestMeas = await getLatestBodyMeasurements();
+                if (latestMeas) {
+                    setLatestMeasurements(latestMeas as LatestMeasurements);
+                }
+            } finally {
+                // One place clears it, so it cannot be missed: the no-user path
+                // above returns before the old bottom-of-function call, and a
+                // rejected fetch skips it entirely. Either would leave the flag
+                // true, which is the page's gate and the boot splash's.
+                setLoading(false);
             }
-            setUserEmail(user.email || '');
-            setUsername(user.user_metadata?.username || userEmail.split('@')[0] || 'User');
-            
-            const userSettings = await getUserSettings();
-            if (userSettings) {
-                setSettings(userSettings as UserSettingsData);
-            }
-            
-            const latestMeas = await getLatestBodyMeasurements();
-            if (latestMeas) {
-                setLatestMeasurements(latestMeas as LatestMeasurements);
-            }
-
-            setLoading(false);
         };
         void loadProfile();
     }, [navigate, userEmail]);
@@ -128,6 +135,13 @@ const ProfilePage: React.FC = () => {
         };
         return goalMap[goal] || 'Not set';
     };
+
+    // The profile loads the auth user, its settings and its latest measurements
+    // with raw awaits, so none of it shows up in `client.isFetching()` and the
+    // splash would lift over the spinner below. `loading` provably terminates:
+    // the loader clears it in a `finally`, which also covers the signed-out
+    // redirect.
+    useBootHold(loading);
 
     if (loading) {
         return (

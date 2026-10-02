@@ -5,6 +5,7 @@ import ConfirmModal from '../Components/ConfirmModal';
 import { getCurrentUser, signOutUser } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { LogOut, ChevronRight } from 'lucide-react';
+import { useBootHold } from '../services/bootScreen';
 
 const AccountPage: React.FC = () => {
     const navigate = useNavigate();
@@ -17,15 +18,26 @@ const AccountPage: React.FC = () => {
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
-            const user = await getCurrentUser();
-            if (!cancelled) {
-                setEmail(user?.email ?? '');
+            try {
+                const user = await getCurrentUser();
+                if (!cancelled) {
+                    setEmail(user?.email ?? '');
+                }
+            } finally {
+                // The `cancelled` guard stays on `setEmail` only. The flag has to
+                // clear unconditionally: a rejected `getCurrentUser()` would
+                // otherwise skip it and pin both the inline spinner and the
+                // boot hold. Unmounting releases the hold on its own.
                 setLoading(false);
             }
         };
         load();
         return () => { cancelled = true; };
     }, []);
+
+    // The email loads with a raw await the app-level boot gate cannot see, so
+    // without this the splash lifts on top of the inline spinner below.
+    useBootHold(loading);
 
     const handleSignOut = async () => {
         setSigningOut(true);

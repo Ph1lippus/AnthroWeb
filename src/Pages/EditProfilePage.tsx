@@ -6,6 +6,7 @@ import { getCurrentUser } from '../services/profileService';
 import { supabase } from '../services/supabaseClient';
 import type { UserSettings } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 type GenderType = 'male' | 'female' | 'other' | 'prefer_not_to_say' | '';
 type GoalType = 'maintain' | 'lose' | 'gain' | '';
@@ -120,6 +121,12 @@ const EditProfilePage: React.FC = () => {
         };
         void loadData();
     }, []);
+
+    // The form's contents come from a raw await the app-level boot gate cannot
+    // see, so the splash would otherwise lift over this page's spinner. The
+    // loader already clears `isLoadingSettings` in a `finally`, so a failed
+    // fetch releases the hold instead of freezing the splash.
+    useBootHold(isLoadingSettings);
 
 const validateForm = () => {
         const errors: Record<string, string> = {};

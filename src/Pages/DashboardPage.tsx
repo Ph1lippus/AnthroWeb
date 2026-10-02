@@ -6,7 +6,7 @@ import type { DateRange } from '../Components/Dashboard/dateRange';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { useHabitData } from '../hooks/useHabitData';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { useBootDismiss } from '../services/bootScreen';
+import { useBootHold } from '../services/bootScreen';
 import type { MetricsChartsProps } from '../Components/Dashboard/MetricsCharts';
 
 /**
@@ -66,12 +66,15 @@ const DashboardPage: React.FC = () => {
     const ready = chartsSettled && !logsLoading && !habitsLoading && !settingsLoading;
 
     // The splash comes down when this gate opens, not when the auth session
-    // resolves. That is the whole difference between one cross-fade onto a
-    // finished dashboard and the old sequence of black screen, navbars over an
-    // empty page, then the charts arriving underneath all of it. Hooks run even
-    // while this component renders null, so the gate above and the splash can be
-    // held on the same condition without either one knowing about the other.
-    useBootDismiss(ready);
+    // resolves. It renders nothing while loading, so without this there is
+    // nothing to reveal but the navbars -- which is what made the dashboard's boot
+    // a splash, then an empty page, then the charts arriving underneath.
+    //
+    // A hold rather than a dismissal: the app-level signal ("nothing is fetching")
+    // is satisfied as soon as the queries land, which is before the chart chunk
+    // has. Both have to agree, or the fast one wins and the slow page is the one
+    // left half-painted. See `useBootHold`.
+    useBootHold(!ready);
 
     if (!ready) return null;
 

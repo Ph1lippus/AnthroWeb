@@ -4,6 +4,7 @@ import { getUserProjects, createProject, updateProject, deleteProject, exportPro
 import type { Project, ProjectPlanItem, ProjectStatus } from '../services/projectService';
 import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const priorityColors: Record<string, string> = {
     low: '#43b67d',
@@ -89,9 +90,15 @@ const ProjectsPage: React.FC = () => {
     useEffect(() => {
         const loadProjects = async () => {
             setLoading(true);
-            const allProjects = await getUserProjects();
-            setProjects(allProjects);
-            setLoading(false);
+            try {
+                const allProjects = await getUserProjects();
+                setProjects(allProjects);
+            } finally {
+                // In a `finally` because this flag is the page's spinner and the
+                // boot splash's hold. A rejected fetch must still release it or
+                // the splash never comes down.
+                setLoading(false);
+            }
         };
         loadProjects();
     }, []);
@@ -266,6 +273,11 @@ const ProjectsPage: React.FC = () => {
         }
         return buckets;
     }, [projects]);
+
+    // Projects load with a raw await the app-level boot gate cannot see, so the
+    // splash would otherwise lift on top of the spinner further down.
+    // `loading` terminates on every path, including the rejected one.
+    useBootHold(loading);
 
     const plannedProjects = byStatus.planned;
     const activeProjects = byStatus.active;

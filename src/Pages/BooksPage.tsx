@@ -4,6 +4,7 @@ import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, e
 import type { Book } from '../services/bookService';
 import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 interface DuplicateGroup {
     title: string;
@@ -128,10 +129,16 @@ const BooksPage: React.FC = () => {
             booksLoadedRef.current = true;
             
             setLoading(true);
-            const allBooks = await getUserBooks();
-            console.log(`✅ Initial load: Setting ${allBooks.length} books in state`);
-            setBooks(allBooks);
-            setLoading(false);
+            try {
+                const allBooks = await getUserBooks();
+                console.log(`✅ Initial load: Setting ${allBooks.length} books in state`);
+                setBooks(allBooks);
+            } finally {
+                // Cleared here rather than after the fetch so a rejected load
+                // still releases it: this flag is the page's spinner and the
+                // boot splash's hold, and a stuck one freezes the splash.
+                setLoading(false);
+            }
         };
         loadBooks();
     }, []);
@@ -376,6 +383,11 @@ const BooksPage: React.FC = () => {
         setSelectedDeleteIds(toDelete);
         setShowDuplicatesModal(true);
     }, [findDuplicates]);
+
+    // The library loads with a raw await the app-level boot gate cannot see, so
+    // without this the splash lifts on top of the spinner further down.
+    // `loading` terminates on every path, including the rejected one.
+    useBootHold(loading);
 
     const toggleDuplicateSelection = (bookId: string) => {
         setSelectedDeleteIds(prev => {

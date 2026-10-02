@@ -7,12 +7,14 @@ import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import { PenTool } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const JournalEditPage: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
+    const [dataLoaded, setDataLoaded] = useState(false);
     const [journalEntry, setJournalEntry] = useState('');
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -22,15 +24,23 @@ const JournalEditPage: React.FC = () => {
     useEffect(() => {
         const load = async () => {
             if (!id) return;
-            const [log, userSettings] = await Promise.all([
-                getDailyLogById(id),
-                getUserSettings()
-            ]);
-            if (log) {
-                setExistingLog(log);
-                setJournalEntry(log.journal_entry || '');
+            try {
+                const [log, userSettings] = await Promise.all([
+                    getDailyLogById(id),
+                    getUserSettings()
+                ]);
+                if (log) {
+                    setExistingLog(log);
+                    setJournalEntry(log.journal_entry || '');
+                }
+                setSettings(userSettings);
+            } finally {
+                // The gate below is `!settings || !existingLog`, and a log id
+                // that no longer exists leaves `existingLog` null forever, so
+                // that flag can never be what the hold waits on. "Asked and
+                // answered" can: set even when the fetch rejects.
+                setDataLoaded(true);
             }
-            setSettings(userSettings);
         };
         load();
     }, [id]);
@@ -82,6 +92,12 @@ const JournalEditPage: React.FC = () => {
             }
         };
     }, [journalEntry, performSave, settings]);
+
+    // Both the log and the settings come from a raw `Promise.all`, invisible to the
+    // app-level boot gate, so the splash would otherwise lift over the spinner
+    // below. Guarded on `id` because the loader returns early without an id, and
+    // `dataLoaded` only covers the case where it actually fetched something.
+    useBootHold(id ? !dataLoaded : false);
 
     if (!settings || !existingLog) {
         return (

@@ -9567,7 +9567,7 @@ select.form-control option {
   }
 }
 .metrics-chart-card {
-  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  background: #ffffff08;
   border-radius: 20px;
   padding: 1rem 1rem 0.75rem;
   min-width: 0;
@@ -9766,7 +9766,7 @@ select.form-control option {
   position: fixed;
   inset: 0;
   z-index: 300;
-  background-color: #000;
+  background-color: #000000bd;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9785,10 +9785,10 @@ select.form-control option {
    selection box around it: the same stray border that was already fixed on the
    cards, reappearing one click later. */
 .chart-modal {
+  background: rgb(20, 20, 20);
   width: 100%;
-  background: #000;
-  max-width: 1100px;
-  max-height: 92vh;
+  max-width: 90%;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
   border-radius: 20px;

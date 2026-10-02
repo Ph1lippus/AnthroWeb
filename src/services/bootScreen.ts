@@ -1,62 +1,62 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 const BOOT_ID = 'boot';
-const FADE_MS = 240;
+const MIN_BOOT_MS = 900;
+const FONT_WAIT_MAX_MS = 5000;
 
 /**
- * How long the app waits after the session resolves before taking the splash
- * down by itself.
+ * How many consecutive frames with nothing in flight are required before the
+ * splash is allowed to lift.
  *
- * This is the *default* handover, not a fallback, and it is deliberately short.
- * Most routes have their content synchronously and need nothing else: they paint
- * in the same commit that mounts the shell, so all this has to cover is the one
- * frame between that commit and the splash starting its fade.
+ * One frame is not enough, and the reason is the app's own routing. A cold load
+ * lands on `/`, which is a redirect: `DefaultRoute` resolves to `<Navigate>`, and
+ * the page the user actually wants does not mount until a commit later. At the
+ * moment the redirect lands nothing has been fetched yet, so a single quiet frame
+ * arrives *before* the page exists rather than after it. Two in a row means a
+ * whole frame passed with the redirect settled and still nothing in flight.
  *
- * The routes that cannot -- the dashboard, which renders nothing until a
- * code-split chart chunk and three queries are in hand -- pass their own gate to
- * `useBootDismiss` instead and win the race, because `dismissBootScreen` is
- * idempotent and first-call-wins. A long value here would be the wrong trade: it
- * would hold every page that *can* paint immediately behind a splash for no
- * reason, and it would still not rescue a route whose gate rejects, because a
- * fixed delay cannot tell "ready" from "never going to be".
+ * This only has to cover the redirect. A page that loads outside React Query
+ * cannot be seen from here at all, so it registers a hold of its own rather than
+ * relying on this count -- see `useBootHold`.
  */
-export const BOOT_DEFAULT_DELAY_MS = 250;
+const QUIET_FRAMES = 2;
 
 /**
- * How long the splash will wait for webfonts before it gives up and fades anyway.
- *
- * A cap, not a preference: the app must not be held hostage by a slow, throttled
- * or blocked font request, and 300ms is short enough that a warm load never
- * notices it.
+ * Open holds on the boot screen, and the one place allowed to end the wait.
+ * See `useBootHold` and `useBootFetchHandoff`.
  */
-const FONT_WAIT_MS = 300;
+let bootHolds = 0;
 
 /**
- * Resolves when the webfont queue has drained, or when the wait cap expires.
- *
- * The app's faces are served with `display=swap`, so the browser paints a
- * fallback immediately and swaps the real face in whenever it lands. `fonts` is
- * missing in older browsers and absent entirely under some test environments, so
- * both the property and `ready.then` are checked before this is trusted.
- *
- * The splash's own display face is the exception: Rubik Glitch is requested with
- * `display=optional`, so it either arrives before first paint or is never used --
- * there is no swap to wait for. It still appears in the queue, so waiting for
- * `ready` covers it either way.
+ * Set by `useBootFetchHandoff` while it is running: the single loop that decides
+ * when the splash comes down. A hold releasing calls this instead of dismissing
+ * directly, so "ready" keeps meaning *everything* is ready rather than whichever
+ * participant happened to notice last.
+ */
+let requestBootRecheck: (() => void) | null = null;
+
+/**
+ * Resolve after the app faces have loaded, with a bounded fallback for a blocked
+ * font provider. The root remains hidden during this entire wait.
  */
 const fontsSettled = (): Promise<void> => {
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     if (!fonts || typeof fonts.ready?.then !== 'function') return Promise.resolve();
-    // Mapped to void rather than `.catch(() => undefined)`, which would widen the
-    // race to `Promise<void | FontFaceSet>` because the rejection handler returns
-    // the resolved set. Nothing below needs the value.
-    const drained = fonts.ready.then(
-        () => undefined,
-        () => undefined,
-    );
+
+    const requested = Promise.all([
+        fonts.load('400 16px "JetBrains Mono"'),
+        fonts.load('500 16px "JetBrains Mono"'),
+        fonts.load('600 16px "JetBrains Mono"'),
+        fonts.load('700 16px "JetBrains Mono"'),
+        fonts.load('400 16px "VT323"'),
+        fonts.load('400 16px "Rubik Glitch"'),
+    ]).then(() => undefined, () => undefined);
+    const drained = fonts.ready.then(() => undefined, () => undefined);
+
     return Promise.race([
-        drained,
-        new Promise<void>(resolve => window.setTimeout(resolve, FONT_WAIT_MS)),
+        Promise.all([drained, requested]).then(() => undefined),
+        new Promise<void>(resolve => window.setTimeout(resolve, FONT_WAIT_MAX_MS)),
     ]);
 };
 
@@ -68,70 +68,129 @@ const fontsSettled = (): Promise<void> => {
  * before the JS bundle has parsed. React never renders it, it only removes it, so
  * there is no moment where a half-hydrated app is visible behind a spinner.
  *
- * Idempotent, because both the app entry point and the failure path in index.html
- * can end up calling it.
+ * Not exported. `useBootFetchHandoff` is the only thing that should decide when
+ * the splash goes, and making that unmissable is worth more than the ability to
+ * call it from somewhere else. The watchdog in index.html can still tear it down
+ * if the bundle never runs at all: it sets the same `data-dismissing` flag this
+ * checks, so the two paths cannot both animate the same element.
  */
-export const dismissBootScreen = (): void => {
+const dismissBootScreen = (): void => {
     const boot = document.getElementById(BOOT_ID);
-    if (!boot) return;
+    const root = document.getElementById('root');
+    if (!boot || !root) return;
 
     // An element that is already leaving must not be scheduled twice, or the node
     // is removed while its transition is still running and the fade is cut off.
     if (boot.dataset.dismissing === 'true') return;
     boot.dataset.dismissing = 'true';
 
-    const reducedMotion =
-        typeof window.matchMedia === 'function' &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // Hold the splash until the fonts have settled.
-    //
-    // A swap is invisible while the splash covers the screen and glaring the
-    // instant it does not: the fade reveals the app underneath, and if the real
-    // faces land partway through that cross-fade the text visibly re-shapes as you
-    // watch. That is the jump at the end of the boot transition. Waiting for the
-    // queue to drain means the cross-fade only ever reveals finished text.
-    //
-    // The caller has already committed the app to the DOM by the time this runs,
-    // so the faces the app needs are already requested and `ready` genuinely
-    // covers them. The splash stays blocking (it never gets `pointer-events:
-    // none` here) for the duration, so those extra milliseconds are still spent
-    // showing the splash rather than showing a half-styled page.
-    void fontsSettled().then(() => {
-        if (reducedMotion) {
-            boot.remove();
-            return;
-        }
-
-        boot.classList.add('boot--dismissing');
-        window.setTimeout(() => boot.remove(), FADE_MS);
+    // Keep the root hidden while the browser finishes font work and performs
+    // two layout frames. Reveal and remove the splash in the same task, with no
+    // fade exposing a page that is still moving underneath it.
+    const elapsed = performance.now();
+    void Promise.all([
+        fontsSettled(),
+        new Promise<void>(resolve => {
+            window.setTimeout(resolve, Math.max(0, MIN_BOOT_MS - elapsed));
+        }),
+    ]).then(() => {
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                root.classList.add('boot-ready');
+                boot.remove();
+            });
+        });
     });
 };
 
 /**
- * Hold the splash until this page actually has something to show.
+ * Keep the splash up for as long as `holding` is true, and take it down the
+ * moment the last hold is released.
  *
- * The splash used to be dismissed the moment the auth session resolved, which is
- * not the same moment there is a page: `DashboardPage` renders nothing until the
- * Recharts chunk and three queries are in hand, so the transition played out as
- * black screen, then navbars and an empty page, then the real dashboard a beat
- * later -- two paints and a jump, where it should have been one cross-fade onto
- * finished content.
+ * The app-level signal in `useBootFetchHandoff` can only see the network. A page
+ * with a gate that involves none -- the dashboard waiting on a code-split chunk,
+ * anything waiting on a synchronous calculation -- has to be able to say so
+ * directly, and it has to be able to do that without racing. Counting holds makes
+ * "ready" mean every participant agrees, which is the only definition that is
+ * correct when more than one of them is loading; otherwise the fast signal wins
+ * and the slow page is left half-painted under a splash that has already gone.
  *
- * So a page calls this with whatever its own readiness gate is, and the splash
- * comes down on that instead. Hooks run even while a component returns `null`, so
- * a page that renders nothing before it is ready can still hold the splash open
- * without restructuring how it gates.
- *
- * The next frame is awaited first. Dismissal happens in an effect, and an effect
- * runs after commit but before paint -- fading there would start the transition
- * against a tree the compositor has not drawn yet, and the splash would lift
- * over an unpainted frame.
+ * Releasing the last hold dismisses on the next frame, so the handover happens
+ * against a page that has been painted rather than one still being committed.
  */
-export const useBootDismiss = (ready: boolean): void => {
+export const useBootHold = (holding: boolean): void => {
     useEffect(() => {
-        if (!ready) return;
-        const frame = window.requestAnimationFrame(() => dismissBootScreen());
-        return () => window.cancelAnimationFrame(frame);
-    }, [ready]);
+        if (!holding) return;
+        bootHolds++;
+        return () => {
+            bootHolds--;
+            // Goes back through the loop rather than dismissing from here. A hold
+            // knows only about itself; it cannot see whether something else is
+            // still in flight, and dismissing on its say-so alone would reinstate
+            // exactly the race the hold count exists to remove.
+            if (bootHolds === 0) requestBootRecheck?.();
+        };
+    }, [holding]);
+};
+
+/**
+ * Take the splash down once the app has stopped fetching and nothing is holding.
+ *
+ * This is the general case, and it exists because hand-signalling each page does
+ * not scale: there are thirty-three routes and no way to remember which of them
+ * gate on data. React Query already knows the answer -- it counts the queries in
+ * flight across every mounted component -- and "no query is running" is exactly
+ * the condition under which no page is showing a spinner or an empty gate.
+ *
+ * That makes the boot handover a single transition for every route, which is the
+ * whole point. What it replaced was a fixed delay, which lifted the splash over
+ * whatever happened to be underneath: a cold load into the Daily Log played out
+ * as the splash, then a second full-screen black page with a spinner on it, then
+ * the actual page. The same three-beat jump it was meant to remove, with a
+ * spinner in the middle.
+ *
+ * This is deliberately imperative rather than reactive. A frame loop reading
+ * `client.isFetching()` is one number per frame and no renders at all, where
+ * driving it off `useIsFetching` would re-run the effect on every change to the
+ * answer and rebuild the loop each time. It asks the question at the moment it
+ * matters -- what is the cache doing *now* -- rather than acting on a value
+ * captured during the render that scheduled the check, which is exactly the stale
+ * read this whole module exists to avoid.
+ */
+export const useBootFetchHandoff = (): void => {
+    const client = useQueryClient();
+
+    useEffect(() => {
+        let quiet = 0;
+        let frame = 0;
+        let running = true;
+
+        const step = () => {
+            quiet = client.isFetching() === 0 ? quiet + 1 : 0;
+            if (quiet >= QUIET_FRAMES && bootHolds === 0) {
+                running = false;
+                dismissBootScreen();
+                return;
+            }
+            frame = window.requestAnimationFrame(step);
+        };
+        frame = window.requestAnimationFrame(step);
+
+        // Runs until the splash is gone, so it survives any change in what the
+        // cache is doing. A hold releasing restarts it and clears the streak: the
+        // quiet frames it had accumulated were earned before that page was ready
+        // and do not count towards the moment it became ready.
+        requestBootRecheck = () => {
+            if (!running) return;
+            quiet = 0;
+            window.cancelAnimationFrame(frame);
+            frame = window.requestAnimationFrame(step);
+        };
+
+        return () => {
+            running = false;
+            window.cancelAnimationFrame(frame);
+            requestBootRecheck = null;
+        };
+    }, [client]);
 };

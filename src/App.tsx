@@ -37,9 +37,8 @@ import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { BOOT_DEFAULT_DELAY_MS, dismissBootScreen } from './services/bootScreen'
+import { useBootFetchHandoff, useBootHold } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
-import { useEffect } from 'react'
 
 const AuthenticatedFooter: React.FC = () => {
     const location = useLocation();
@@ -65,6 +64,40 @@ const DefaultRoute: React.FC = () => {
 };
 
 /**
+ * Decides when the boot splash comes down. Renders nothing.
+ *
+ * This is the whole boot handover in one place, and it used to be three separate
+ * things that each guessed at the same question: is there a page on screen yet?
+ *
+ * The splash was taken down when the auth session resolved. That is earlier than
+ * the answer, by a wide margin and by an amount that varies per route. A signed-in
+ * user lands on `/`, which redirects to the Daily Log, which renders a spinner
+ * until its settings arrive -- so the transition was the splash, then a second
+ * full-screen black page with a spinner on it, then the actual page. Three beats
+ * and two jumps, which is what it looks like when the app has briefly put two
+ * boot screens on screen at once. The dashboard was worse in a different way: it
+ * renders `null` rather than a spinner while it loads, so there was nothing at
+ * all between the splash and the charts.
+ *
+ * Waiting on "nothing is fetching" fixes both at once and fixes them for every
+ * route, rather than for whichever two somebody remembered to signal by hand.
+ * Pages with a gate React Query cannot see -- the dashboard's code-split chart
+ * chunk -- register a hold of their own; both have to be satisfied.
+ */
+const BootHandoff: React.FC = () => {
+    const location = useLocation();
+    const { resolved, user } = useAuthSession();
+
+    // An authenticated visit to `/` is only an intermediate route: React
+    // renders <Navigate> first and mounts the Daily Log on the next commit.
+    // Keep the splash locked across that redirect so the handoff can never
+    // complete during the quiet frame between the two route renders.
+    useBootHold(resolved && !!user && location.pathname === '/');
+    useBootFetchHandoff();
+    return null;
+};
+
+/**
  * The app, held back until the session is known.
  *
  * Everything below -- navbars, sidebar, routes, footer -- stays unmounted until
@@ -72,26 +105,13 @@ const DefaultRoute: React.FC = () => {
  * footer under it on the way to their Daily Log. That was the visible glitch on
  * open: the route guard used to return null until its own `getSession()` settled,
  * which left the footer free to paint against an otherwise empty screen.
+ *
+ * It renders nothing at all until then, which is why the splash has to stay up:
+ * there is genuinely nothing here to reveal, and it is `BootHandoff` -- rendered
+ * below, so it mounts with the shell -- that decides when there finally is.
  */
 const AuthenticatedApp: React.FC = () => {
     const { resolved } = useAuthSession();
-
-    useEffect(() => {
-        // Deliberately not an immediate dismissal. Knowing the session is not the
-        // same as having a page to show: the dashboard renders nothing until its
-        // code-split chart chunk and its queries are in hand, and several other
-        // routes gate on their own data. Taking the splash down here is what made
-        // boot read as two paints and a jump -- black screen, empty page, then
-        // content arriving underneath it.
-        //
-        // This is the default handover, one frame after the shell mounts, for the
-        // routes that have their content synchronously. A route that has to wait
-        // calls `useBootDismiss(ready)` with its own gate and wins the race,
-        // because `dismissBootScreen` is idempotent and first-call-wins.
-        if (!resolved) return;
-        const timer = window.setTimeout(dismissBootScreen, BOOT_DEFAULT_DELAY_MS);
-        return () => window.clearTimeout(timer);
-    }, [resolved]);
 
     if (!resolved) return null;
 
@@ -141,6 +161,7 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="*" element={<DefaultRoute />} />
             </Routes>
             <AuthenticatedFooter />
+            <BootHandoff />
         </>
     );
 };

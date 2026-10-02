@@ -20,6 +20,7 @@ import ConfirmModal from '../Components/ConfirmModal';
 import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
 import { isDateString, todayString } from '../utils/dates';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const getScoreColor = (score: number): string => {
     if (score >= 80) return 'var(--color-primary)';
@@ -178,17 +179,23 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         if (!id) return;
         const loadLog = async () => {
             setIsLoadingData(true);
-            const log = await getDailyLogById(id);
-            if (log) {
-                setExistingLog(log);
-                setIsEditing(true);
-                fillForm(log);
-                const projectIds = await getDailyLogProjects(log.id!);
-                if (projectIds.length > 0) {
-                    setSelectedProjectIds(new Set(projectIds));
+            try {
+                const log = await getDailyLogById(id);
+                if (log) {
+                    setExistingLog(log);
+                    setIsEditing(true);
+                    fillForm(log);
+                    const projectIds = await getDailyLogProjects(log.id!);
+                    if (projectIds.length > 0) {
+                        setSelectedProjectIds(new Set(projectIds));
+                    }
                 }
+            } finally {
+                // Cleared in a `finally` because this flag is part of the boot
+                // hold below. A rejected fetch has to still count as "asked and
+                // answered", or the splash waits on a load that is never coming.
+                setIsLoadingData(false);
             }
-            setIsLoadingData(false);
         };
         loadLog();
     }, [id]);
@@ -196,9 +203,17 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     // Load user settings
     useEffect(() => {
         const loadSettings = async () => {
-            const userSettings = await getUserSettings();
-            setSettings(userSettings);
-            setSettingsLoaded(true);
+            try {
+                const userSettings = await getUserSettings();
+                setSettings(userSettings);
+            } finally {
+                // In a `finally` because this flag is what the page gates its
+                // render on, and it is what the boot splash waits for. A rejected
+                // request must still count as "asked and answered": leaving it
+                // false strands the page on its spinner forever, and strands
+                // anything waiting on the page behind the splash too.
+                setSettingsLoaded(true);
+            }
         };
         loadSettings();
     }, []);
@@ -207,9 +222,12 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     useEffect(() => {
         const loadHabits = async () => {
             setLoadingHabits(true);
-            const userHabits = await getUserHabits();
-            setHabits(userHabits);
-            setLoadingHabits(false);
+            try {
+                const userHabits = await getUserHabits();
+                setHabits(userHabits);
+            } finally {
+                setLoadingHabits(false);
+            }
         };
         loadHabits();
     }, []);
@@ -234,9 +252,12 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     useEffect(() => {
         const loadProjects = async () => {
             setLoadingProjects(true);
-            const userProjects = await getUserProjects();
-            setProjects(userProjects);
-            setLoadingProjects(false);
+            try {
+                const userProjects = await getUserProjects();
+                setProjects(userProjects);
+            } finally {
+                setLoadingProjects(false);
+            }
         };
         loadProjects();
     }, []);
@@ -655,6 +676,21 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     }, [saving, saveError, lastSaved, logDate]);
 
     useEffect(() => resetDailyLogSaveState, []);
+
+    // This is the page a signed-in user lands on, and it loads its settings,
+    // habits and projects with raw awaits rather than through React Query. That
+    // makes all of it invisible to the app-level boot gate, which only knows what
+    // the query cache is doing -- so without this the splash lifted on top of the
+    // spinner below and the handover played out as two black screens in a row.
+    //
+    // `settingsLoaded` rather than `settings`: the gate below reads `!settings`,
+    // and a user with no settings row legitimately has `settings === null`, which
+    // would hold the splash forever. The flag means "asked and answered".
+    //
+    // `isLoadingData` only in edit-by-id mode. It starts `true` and nothing ever
+    // clears it when there is no `id`, so holding on it unconditionally would
+    // never release.
+    useBootHold(!settingsLoaded || loadingHabits || loadingProjects || (id ? isLoadingData : false));
 
     if (!settings) {
         return (

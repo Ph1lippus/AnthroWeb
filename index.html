@@ -14,27 +14,18 @@
     <meta name="theme-color" content="#000000" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Two requests rather than one, because the splash needs a different
-         font-display strategy from the app. JetBrains Mono is used everywhere,
-         so it swaps and `bootScreen.ts` holds the splash until the queue drains
-         to cover the reflow. Rubik Glitch is used *only* by the splash word, so
-         there is nothing behind it to reflow into -- `display=optional` makes the
-         browser either have the face in time or never use it at all, instead of
-         swapping it in mid-fade, which is where the boot transition jumped. -->
+    <!-- The app root stays out of layout until these faces have settled, so
+         loading the display font cannot move already-visible text. The boot
+         background remains stable while its logo waits for Rubik Glitch. -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=VT323&display=swap"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=VT323&display=block"
     />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Rubik+Glitch&display=optional"
+      href="https://fonts.googleapis.com/css2?family=Rubik+Glitch&display=block"
     />
     <style>
-      /* Static by design. This screen does not animate, does not report progress
-         it cannot actually measure, and does not pretend to be a spinner: a
-         progress bar that moves by guesswork is worse than none, because it
-         promises a finish line. The one thing it does is stay put until there is
-         a real page to cross-fade onto, so the handover reads as a single event. */
       .boot {
         position: fixed;
         inset: 0;
@@ -42,41 +33,47 @@
         display: grid;
         place-items: center;
         background: #000;
-        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+        font-size: 16px;
+        font-weight: 400;
+        line-height: 1;
         color: #fffbfb;
-        opacity: 1;
-        visibility: visible;
-        transition: opacity 0.24s ease, visibility 0s linear 0s;
-      }
-      /* No `backdrop-filter` here. The background is fully opaque, so the blur
-         had nothing to sample -- it was a full-viewport blur re-composited on
-         every frame of the fade for no visible difference. */
-      .boot--dismissing {
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.24s ease, visibility 0s linear 0.24s;
-        pointer-events: none;
+        isolation: isolate;
       }
       .boot__inner {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.6rem;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 220px;
+        height: 76px;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        visibility: hidden;
+      }
+      .boot.boot-font-ready .boot__inner {
+        visibility: visible;
       }
       .boot__word {
-        font-family: 'Rubik Glitch', 'JetBrains Mono', monospace;
+        display: block;
+        width: 220px;
+        height: 24px;
+        margin: 0;
+        padding: 0;
+        font-family: 'Rubik Glitch', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
         font-size: 1.5rem;
-        line-height: 1;
+        font-weight: 400;
+        line-height: 24px;
         letter-spacing: 0.18em;
         text-indent: 0.18em;
         color: #ffffff;
       }
-      /* The rule. A hairline in the accent colour, faded out at both ends so it
-         reads as a drawn divider rather than a filled bar. */
+
       .boot__rule {
+        display: block;
         width: 180px;
         height: 1px;
-        margin: 0;
+        margin: 10px auto 0;
+        padding: 0;
         border: 0;
         background: linear-gradient(
           to right,
@@ -87,17 +84,28 @@
         );
       }
       .boot__status {
-        margin: 0;
+        display: block;
+        width: 220px;
+        height: 14px;
+        margin: 10px 0 0;
+        padding: 0;
         font-size: 0.68rem;
+        font-weight: 400;
+        line-height: 14px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: #fffbfb;
         opacity: 0.4;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
       }
-      @media (prefers-reduced-motion: reduce) {
-        .boot {
-          transition: none;
-        }
+      /* React mounts while booting, but must not participate in the initial
+         document paint. Otherwise the static splash and the first app render
+         appear together and the later font/layout pass is visible. */
+      #root:not(.boot-ready) {
+        display: none !important;
+      }
+      #root.boot-ready {
+        display: flex !important;
       }
     </style>
   </head>
@@ -109,22 +117,27 @@
         <p class="boot__status">Starting up</p>
       </div>
     </div>
+    <script>
+      /* Keep the background visible immediately, but do not show any fallback
+         boot text. Both faces are part of the same reveal so the logo and status
+         cannot remeasure independently. */
+      (function () {
+        var boot = document.getElementById('boot');
+        if (!boot || !document.fonts || !document.fonts.load) return;
+        Promise.all([
+          document.fonts.load('400 24px "Rubik Glitch"'),
+          document.fonts.load('400 16px "JetBrains Mono"')
+        ]).then(function () {
+          boot.classList.add('boot-font-ready');
+        });
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
 
     <script>
-      /* Last-resort watchdog.
-       *
-       * If the app never calls dismissBootScreen -- a chunk that fails to load, a
-       * query that rejects, a JS error before the session resolves -- the splash
-       * would otherwise sit there forever looking like a hang. It gives up after
-       * 15s, but it says so first: the message is written *before* the fade
-       * starts and the element is only removed once the fade has finished, so
-       * unlike the old version (which set the text and hid the element in the
-       * same tick, 240ms later) the message is actually readable. */
       (function () {
         var HOLD_MS = 1200;
-        var FADE_MS = 240;
         window.setTimeout(function () {
           var boot = document.getElementById('boot');
           if (!boot || boot.dataset.dismissing === 'true') return;
@@ -132,8 +145,9 @@
           var status = boot.querySelector('.boot__status');
           if (status) status.textContent = 'Reload to continue';
           window.setTimeout(function () {
-            boot.classList.add('boot--dismissing');
-            window.setTimeout(function () { boot.remove(); }, FADE_MS);
+            var root = document.getElementById('root');
+            if (root) root.classList.add('boot-ready');
+            boot.remove();
           }, HOLD_MS);
         }, 15000);
       })();

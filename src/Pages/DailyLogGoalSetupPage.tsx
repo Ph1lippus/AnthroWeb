@@ -9,6 +9,7 @@ import LoadingSpinner from '../Components/LoadingSpinner';
 import { goalsForDate, latestGoals, parseGoalHistory, withVersion } from '../utils/goalHistory';
 import { todayString } from '../utils/dates';
 import type { ActiveGoals } from '../utils/dailyScoring';
+import { useBootHold } from '../services/bootScreen';
 
 const DailyLogGoalSetupPage: React.FC = () => {
     const navigate = useNavigate();
@@ -57,26 +58,32 @@ const DailyLogGoalSetupPage: React.FC = () => {
 
     useEffect(() => {
         const load = async () => {
-            const userSettings = await getUserSettings();
-            setSettings(userSettings);
-            setLoading(false);
-            // Prefill with the goals in force today, not the newest version on
-            // record: the history can extend into the future only if a past
-            // entry was edited, and today's is what the user is editing.
-            const history = parseGoalHistory(userSettings?.goal_history);
-            const goals = goalsForDate(history, todayString(), (userSettings?.active_goals as ActiveGoals | null) ?? null);
-            if (goals) {
-                if (goals.nutrition) {
-                    setCalories(goals.nutrition.calories?.toString() || '');
-                    setProtein(goals.nutrition.protein?.toString() || '');
-                    setCarbs(goals.nutrition.carbs?.toString() || '');
-                    setFat(goals.nutrition.fat?.toString() || '');
-                    setWater(goals.nutrition.water?.toString() || '');
+            try {
+                const userSettings = await getUserSettings();
+                setSettings(userSettings);
+                // Prefill with the goals in force today, not the newest version on
+                // record: the history can extend into the future only if a past
+                // entry was edited, and today's is what the user is editing.
+                const history = parseGoalHistory(userSettings?.goal_history);
+                const goals = goalsForDate(history, todayString(), (userSettings?.active_goals as ActiveGoals | null) ?? null);
+                if (goals) {
+                    if (goals.nutrition) {
+                        setCalories(goals.nutrition.calories?.toString() || '');
+                        setProtein(goals.nutrition.protein?.toString() || '');
+                        setCarbs(goals.nutrition.carbs?.toString() || '');
+                        setFat(goals.nutrition.fat?.toString() || '');
+                        setWater(goals.nutrition.water?.toString() || '');
+                    }
+                    if (goals.sleep) {
+                        setWakeTime(goals.sleep.wake_time || '');
+                        setBedtime(goals.sleep.bedtime || '');
+                    }
                 }
-                if (goals.sleep) {
-                    setWakeTime(goals.sleep.wake_time || '');
-                    setBedtime(goals.sleep.bedtime || '');
-                }
+            } finally {
+                // In a `finally` because this flag is both the page's gate and the
+                // boot splash's. A rejected request has to count as "asked and
+                // answered" or the hold below never releases.
+                setLoading(false);
             }
         };
         load();
@@ -153,6 +160,12 @@ const DailyLogGoalSetupPage: React.FC = () => {
             setSaving(false);
         }
     };
+
+    // Settings come from a raw await rather than React Query, so the app-level
+    // boot gate cannot see them: without this the splash lifts on top of the
+    // spinner below. `loading` is safe to hold on because the loader clears it in
+    // a `finally`, so a rejected fetch still lets the page (and the splash) go.
+    useBootHold(loading);
 
     if (loading) {
         return (

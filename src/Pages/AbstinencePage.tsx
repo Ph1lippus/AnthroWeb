@@ -14,6 +14,7 @@ import {
 import type { AbstinenceGoal, AbstinenceHistory } from '../services/abstinenceService';
 import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flame, Check } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const AbstinencePage: React.FC = () => {
     const [goals, setGoals] = useState<AbstinenceGoal[]>([]);
@@ -70,16 +71,26 @@ const AbstinencePage: React.FC = () => {
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
-            const [allGoals, allHistory] = await Promise.all([
-                getUserAbstinenceGoals(),
-                getUserAbstinenceHistory(),
-            ]);
-            setGoals(allGoals);
-            setHistory(allHistory);
-            setLoading(false);
+            try {
+                const [allGoals, allHistory] = await Promise.all([
+                    getUserAbstinenceGoals(),
+                    getUserAbstinenceHistory(),
+                ]);
+                setGoals(allGoals);
+                setHistory(allHistory);
+            } finally {
+                // In a `finally` because this flag is the page's spinner and the
+                // boot splash's hold. Either half of the `Promise.all`
+                // rejecting must still release it.
+                setLoading(false);
+            }
         };
         loadData();
     }, []);
+
+    // Goals and history load with a raw `Promise.all` the app-level boot gate
+    // cannot see, so without this the splash lifts on top of the spinner below.
+    useBootHold(loading);
 
     const resetForm = () => {
         setName('');

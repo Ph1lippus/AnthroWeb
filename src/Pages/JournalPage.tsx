@@ -8,6 +8,7 @@ import type { UserSettings } from '../services/profileService';
 import { Lightbulb, X, RotateCw, PenTool } from 'lucide-react';
 import { todayString } from '../utils/dates';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const JournalPage: React.FC = () => {
     const navigate = useNavigate();
@@ -16,6 +17,7 @@ const JournalPage: React.FC = () => {
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
@@ -51,8 +53,12 @@ const JournalPage: React.FC = () => {
     // Load user settings
     useEffect(() => {
         const loadSettings = async () => {
-            const userSettings = await getUserSettings();
-            setSettings(userSettings);
+            try {
+                const userSettings = await getUserSettings();
+                setSettings(userSettings);
+            } finally {
+                setSettingsLoaded(true);
+            }
         };
         loadSettings();
     }, []);
@@ -160,6 +166,13 @@ const JournalPage: React.FC = () => {
             }
         };
     }, [journalEntry, performSave, settings]);
+
+    // Settings come from a raw await, invisible to the app-level boot gate, so
+    // without this the splash lifts over the spinner below. `settingsLoaded`
+    // rather than `settings`: the gate reads `!settings`, and a user with no
+    // settings row legitimately has `settings === null`, which would hold the
+    // splash forever. The flag means "asked and answered", rejection included.
+    useBootHold(!settingsLoaded);
 
     if (!settings) {
         return (
