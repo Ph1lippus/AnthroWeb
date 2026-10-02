@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import type { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
 import { Settings, LogOut, LogIn, UserPlus, ChevronLeft, ChevronRight, Calendar, History, AlertTriangle } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 import AcademicAlertBanner from './AcademicAlertBanner';
 import { useDailyLogSaveState } from '../utils/dailyLogStatus';
+import { useAuthSession } from '../hooks/useAuthSession';
 import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
 import { REGISTRATION_ENABLED } from '../utils/appConfig';
 
@@ -14,27 +14,13 @@ const Navbar: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const saveState = useDailyLogSaveState();
-    const [user, setUser] = useState<User | null>(null);
+    const { user } = useAuthSession();
     const [menuOpen, setMenuOpen] = useState(false);
     const [closing, setClosing] = useState(false);
     const [logoutConfirm, setLogoutConfirm] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
-
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user || null);
-        });
-
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user || null);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
 
     const closeMenu = useCallback(() => {
         setClosing(true);

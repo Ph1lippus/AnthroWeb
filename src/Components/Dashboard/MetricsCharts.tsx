@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ResponsiveContainer,
     ComposedChart,
@@ -25,6 +26,7 @@ import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { addDays } from '../../utils/dates';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
+import { useViewportHeight } from '../../hooks/useViewportHeight';
 
 // Resolved from CSS variables so the palette lives in one place in index.css.
 const cssVar = (name: string): string =>
@@ -438,6 +440,8 @@ interface ExpandedChart {
     title: string;
     chart: React.ReactNode;
     height: number;
+    /** Shown under the title, e.g. the date range the plot covers. */
+    subtitle?: string;
 }
 
 interface ChartCardProps {
@@ -451,7 +455,75 @@ interface ChartCardProps {
     fullWidth?: boolean;
 }
 
-const ChartCard: React.FC<ChartCardProps> = ({ title, chart, height = 150, expandHeight, onExpand, empty, fullWidth }) => (
+/* ---------- the enlarged view's state ----------
+   The chart that is open in the enlarged view, or null.
+ *
+ * This lives outside React on purpose. It used to be `useState` on MetricsCharts,
+ * which meant opening a chart re-rendered MetricsCharts -- and therefore rebuilt
+ * all sixteen chart elements, so every ResponsiveContainer, axis, tick and
+ * legend on the dashboard recomputed. Closing did it again. That was the pause
+ * behind opening a chart once the Recharts animation was taken out of the picture.
+ *
+ * A tiny external store plus `useSyncExternalStore` inverts that: MetricsCharts
+ * writes to it on click and never reads it, and only the portal host subscribes.
+ * Opening and closing now re-render the dialog and nothing else on the page.
+ *
+ * It is a snapshot store rather than a `useState` pair because `useState` has no
+ * subscriber API, and React 19's `use`/context would put the value back into the
+ * tree above the charts -- exactly the tree that must not re-render. */
+let openChartSnapshot: ExpandedChart | null = null;
+const openChartListeners = new Set<() => void>();
+
+const notifyOpenChart = (): void => {
+    // Copied before iterating: a listener that unmounts during the notification
+    // mutates the set, and iterating a Set while it is being mutated is how you
+    // end up calling a stale closure.
+    for (const listener of [...openChartListeners]) listener();
+};
+
+const subscribeOpenChart = (listener: () => void): (() => void) => {
+    openChartListeners.add(listener);
+    return () => {
+        openChartListeners.delete(listener);
+    };
+};
+
+const getOpenChart = (): ExpandedChart | null => openChartSnapshot;
+
+const setOpenChart = (next: ExpandedChart | null): void => {
+    if (next === openChartSnapshot) return;
+    openChartSnapshot = next;
+    notifyOpenChart();
+};
+
+/** Stable identity, so it can be handed to the memoized dialog as a prop. */
+const closeChart = (): void => setOpenChart(null);
+
+/**
+ * One chart, in a card.
+ *
+ * The plot sits in its own panel rather than directly on the card's translucent
+ * surface, purely so it gets some breathing room -- the panel carries no
+ * background, border or shadow. It used to: the cards are translucent white over
+ * a near-black page, so the plot area had almost no contrast of its own and the
+ * gridlines floated. But an outlined plot area reads as a frame drawn around the
+ * data, which is the same shape as the stray border a tap used to leave behind,
+ * and it was not worth it. The padding in `.chart-plot` is enough separation.
+ *
+ * The panel is a wrapper div rather than a background on the SVG, because
+ * ResponsiveContainer measures its own parent to decide the plot size --
+ * styling the SVG itself would have put the sizing and the decoration fighting
+ * over the same box.
+ */
+const ChartCard: React.FC<ChartCardProps> = ({
+    title,
+    chart,
+    height = 150,
+    expandHeight,
+    onExpand,
+    empty,
+    fullWidth,
+}) => (
     <div className={`metrics-chart-card${fullWidth ? ' metrics-chart-card--full' : ''}`}>
         <div className="metrics-chart-head">
             <h3>{title}</h3>
@@ -470,7 +542,19 @@ const ChartCard: React.FC<ChartCardProps> = ({ title, chart, height = 150, expan
         {empty ? (
             <ChartEmpty />
         ) : (
-            <ResponsiveContainer width="100%" height={height}>{chart}</ResponsiveContainer>
+            /* The panel is never swapped for a stand-in. It used to be: a card
+               holding the chart that was open enlarged drew an empty box of
+               `style={{ height }}` instead, which -- under the global
+               `box-sizing: border-box` -- was the chart's height with none of
+               this padding, and therefore 13.6px short of the real panel on
+               desktop. Every close of the enlarged view shifted the whole grid
+               down by that much. With no stand-in to be wrong about, the chart
+               can just size itself again. */
+            <div className="chart-plot">
+                <ResponsiveContainer width="100%" height={height}>
+                    {chart}
+                </ResponsiveContainer>
+            </div>
         )}
     </div>
 );
@@ -479,12 +563,14 @@ const ChartEmpty: React.FC = () => (
     <div className="metrics-chart-empty">No data in this range</div>
 );
 
-const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void }> = ({ expanded, onClose }) => {
+const ChartModal = React.memo(function ChartModal({ expanded, onClose }: { expanded: ExpandedChart; onClose: () => void }) {
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeRef = useRef<HTMLButtonElement>(null);
+    // Read live rather than once at open, so rotating the device or opening the
+    // keyboard re-fits the plot instead of leaving it clipped.
+    const viewportHeight = useViewportHeight();
 
     useEffect(() => {
-        if (!expanded) return;
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 onClose();
@@ -493,24 +579,36 @@ const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void
             // Keep Tab inside the dialog; it is the only focusable content here.
             if (e.key === 'Tab' && dialogRef.current) {
                 e.preventDefault();
-                closeRef.current?.focus();
+                // Focus the close button so Escape and Tab work straight away, but
+                // without scrolling: the default focus behaviour scrolls every
+                // scrollable ancestor to bring the element into view, which on a
+                // long dashboard meant the page jumping under the dialog as it
+                // opened.
+                closeRef.current?.focus({ preventScroll: true });
             }
         };
         window.addEventListener('keydown', onKey);
+        // Stop the page behind from scrolling. `overflow: hidden` on the body
+        // takes the scrollbar away with it, which reflows the whole dashboard --
+        // and again on close when the scrollbar comes back. The gutter is
+        // reserved permanently in index.css so the content width does not change
+        // either time; without it, opening a chart measured and re-laid out every
+        // chart behind the dialog, which was a visible pause on a loaded page.
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        closeRef.current?.focus();
+        // Same preventScroll reasoning as the Tab branch above -- and it was the
+        // missing half of the same fix: opening a chart scrolled the dashboard to
+        // the top because the close button sits above the fold.
+        closeRef.current?.focus({ preventScroll: true });
         return () => {
             window.removeEventListener('keydown', onKey);
             document.body.style.overflow = prevOverflow;
         };
-    }, [expanded, onClose]);
-
-    if (!expanded) return null;
+    }, [onClose]);
 
     // The caller passes a preferred pixel height; cap it against the viewport so
     // tall charts (custom habits) never push the header off screen.
-    const height = Math.max(260, Math.min(expanded.height, window.innerHeight * 0.68));
+    const height = Math.max(260, Math.min(expanded.height, viewportHeight * 0.68));
 
     return (
         <div className="chart-modal-overlay" onClick={onClose}>
@@ -523,22 +621,50 @@ const ChartModal: React.FC<{ expanded: ExpandedChart | null; onClose: () => void
                 onClick={e => e.stopPropagation()}
             >
                 <div className="chart-modal-head">
-                    <h3>{expanded.title}</h3>
+                    <div className="chart-modal-heading">
+                        <h3>{expanded.title}</h3>
+                        {expanded.subtitle && <span className="chart-modal-subtitle">{expanded.subtitle}</span>}
+                    </div>
                     <button ref={closeRef} type="button" className="chart-modal-close" aria-label="Close chart" title="Close" onClick={onClose}>
                         <X size={18} />
                     </button>
                 </div>
                 <div className="chart-modal-body">
-                    <ResponsiveContainer width="100%" height={height}>
-                        {expanded.chart}
-                    </ResponsiveContainer>
+                    <div className="chart-plot chart-plot--large">
+                        <ResponsiveContainer width="100%" height={height}>
+                            {expanded.chart}
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
         </div>
     );
-};
+});
 
-interface MetricsChartsProps {
+/**
+ * Mounts the enlarged view at the end of <body>, and only ever re-renders it.
+ *
+ * The portal target matters as much as the store does. The overlay was rendered
+ * inline, inside the dashboard grid, so it inherited whatever z-index and
+ * stacking context that grid had and had to be raised out of it by hand.
+ * Rendering into <body> puts it last in the document -- on top of everything,
+ * equal z-index or not -- and makes that a property of the tree rather than a
+ * number someone has to remember to raise later.
+ */
+const ChartModalHost: React.FC = React.memo(function ChartModalHost() {
+    const expanded = React.useSyncExternalStore(subscribeOpenChart, getOpenChart, getOpenChart);
+
+    // The store is module scope, so it outlives any one render of this
+    // component. Without this a chart left open while navigating away would
+    // come back as an overlay over the next page.
+    useEffect(() => () => setOpenChart(null), []);
+
+    if (!expanded) return null;
+    return createPortal(<ChartModal expanded={expanded} onClose={closeChart} />, document.body);
+});
+ChartModalHost.displayName = 'ChartModalHost';
+
+export interface MetricsChartsProps {
     logs: DailyLog[] | null;
     habits: Habit[] | null;
     habitLogs: DailyHabitLog[] | null;
@@ -547,9 +673,15 @@ interface MetricsChartsProps {
 }
 
 const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings, range }) => {
-    const [expanded, setExpanded] = useState<ExpandedChart | null>(null);
-
-    const openChart = useCallback((e: ExpandedChart) => setExpanded(e), []);
+    // Every chart on the page covers the same window, so the range is stamped on
+    // here rather than threaded down through sixteen cards just for the enlarged
+    // view to say what window it is showing.
+    const openChart = useCallback(
+        (e: ExpandedChart) => {
+            setOpenChart({ ...e, subtitle: e.subtitle ?? range.label });
+        },
+        [range.label],
+    );
 
     // Goals are versioned by date, so each point resolves its own (see
     // `goalHistory.ts`); the chart-wide constants below are only used to decide
@@ -759,6 +891,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                 dot={false}
                 connectNulls
                 formatter={(v) => `${num(v)}g`}
+                isAnimationActive={false}
             />
         </AreaChart>
     );
@@ -799,7 +932,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <ChartTip />
                                 <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />
                                 <AvgLine y={averages.score} />
-                                <Area type="monotone" dataKey="score" name="Score" formatter={(v) => `${num(v)}/100`} stroke={C.primary} strokeWidth={2.5} fill="url(#scoreFill)" dot={false} connectNulls />
+                                <Area type="monotone" dataKey="score" name="Score" formatter={(v) => `${num(v)}/100`} stroke={C.primary} strokeWidth={2.5} fill="url(#scoreFill)" dot={false} connectNulls isAnimationActive={false} />
                             </ComposedChart>
                         }
                     />
@@ -827,7 +960,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     <GoalSegments points={chartData} dataKey="goalSleepHours" stroke={C.primary} label="Goal" />
                                     <AvgLine y={averages.sleepDuration} />
-                                    <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2.5} fill="url(#sleepFill)" dot={false} connectNulls formatter={(v) => `${num(v)}h`} />
+                                    <Area type="monotone" dataKey="sleepDuration" name="Hours" stroke={C.primary} strokeWidth={2.5} fill="url(#sleepFill)" dot={false} connectNulls formatter={(v) => `${num(v)}h`} isAnimationActive={false} />
                                 </AreaChart>
                             }
                         />
@@ -842,7 +975,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartY domain={[0, 10]} ticks={TICKS.rating0to10} />
                                     <ChartTip />
                                     <AvgLine y={averages.sleepQuality} stroke={C.blue} />
-                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" formatter={(v) => `${num(v)}/10`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" formatter={(v) => `${num(v)}/10`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -946,8 +1079,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ReferenceLine y={120} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.morningSystolic} stroke={C.blue} />
                                     <AvgLine y={averages.eveningSystolic} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningSystolic" name="AM Systolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="eveningSystolic" name="PM Systolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -965,8 +1098,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.morningDiastolic} stroke={C.blue} />
                                     <AvgLine y={averages.eveningDiastolic} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningDiastolic" name="AM Diastolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="eveningDiastolic" name="PM Diastolic" formatter={(v) => `${num(v)} mmHg`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -983,8 +1116,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
                                     <AvgLine y={averages.morningBpm} stroke={C.blue} />
                                     <AvgLine y={averages.eveningBpm} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningBpm" name="AM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls />
-                                    <Line type="monotone" dataKey="eveningBpm" name="PM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="morningBpm" name="AM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="eveningBpm" name="PM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -1000,7 +1133,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     <ReferenceLine y={37} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
                                     <AvgLine y={averages.bodyTemperature} stroke={C.amber} />
-                                    <Line type="monotone" dataKey="bodyTemperature" name="Temperature" formatter={(v) => `${num(v, 2)} °C`} stroke={C.amber} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="bodyTemperature" name="Temperature" formatter={(v) => `${num(v, 2)} °C`} stroke={C.amber} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -1020,7 +1153,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     <GoalSegments points={chartData} dataKey="goalCalories" stroke={C.primary} label="Goal" />
                                     <AvgLine y={averages.calories} />
-                                    <Bar dataKey="calories" name="Calories" formatter={(v) => `${num(v)} kcal`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                                    <Bar dataKey="calories" name="Calories" formatter={(v) => `${num(v)} kcal`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </ComposedChart>
                             }
                         />
@@ -1054,7 +1187,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     <GoalSegments points={chartData} dataKey="goalWater" stroke={C.cyan} />
                                     <AvgLine y={averages.water} stroke={C.cyan} />
-                                    <Bar dataKey="water" name="Water" formatter={(v) => `${num(v)} ml`} fill={C.cyan} radius={[3, 3, 0, 0]} maxBarSize={18} />
+                                    <Bar dataKey="water" name="Water" formatter={(v) => `${num(v)} ml`} fill={C.cyan} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </ComposedChart>
                             }
                         />
@@ -1074,7 +1207,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={averages.weight} />
-                                    <Line type="monotone" dataKey="weight" name="Weight" formatter={(v) => `${num(v, 2)} kg`} stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="weight" name="Weight" formatter={(v) => `${num(v, 2)} kg`} stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -1090,7 +1223,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartTip />
                                     {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={averages.bodyFat} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="bodyFat" name="Body Fat" formatter={(v) => `${num(v)}%`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="bodyFat" name="Body Fat" formatter={(v) => `${num(v)}%`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -1105,7 +1238,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartY domain={[0, 10]} ticks={TICKS.rating0to10} />
                                     <ChartTip />
                                     <AvgLine y={averages.mood} stroke={C.purple} />
-                                    <Line type="monotone" dataKey="mood" name="Mood" formatter={(v) => `${num(v)}/10`} stroke={C.purple} strokeWidth={2.5} dot={false} connectNulls />
+                                    <Line type="monotone" dataKey="mood" name="Mood" formatter={(v) => `${num(v)}/10`} stroke={C.purple} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
@@ -1130,7 +1263,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartY domain={[0, 100]} ticks={TICKS.percent} />
                                     <ChartTip />
                                     <AvgLine y={averages.habitPct} stroke={C.greenDark} />
-                                    <Area type="monotone" dataKey="habitPct" name="Done %" formatter={(v) => `${num(v)}%`} stroke={C.greenDark} strokeWidth={2.5} fill="url(#habitFill)" dot={false} connectNulls />
+                                    <Area type="monotone" dataKey="habitPct" name="Done %" formatter={(v) => `${num(v)}%`} stroke={C.greenDark} strokeWidth={2.5} fill="url(#habitFill)" dot={false} connectNulls isAnimationActive={false} />
                                 </AreaChart>
                             }
                         />
@@ -1168,7 +1301,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                             label={{ value: 'Avg', position: 'top', fill: AVG_STROKE, fontSize: 10, fontFamily: 'var(--font-mono)' }}
                                         />
                                     )}
-                                    <Bar dataKey="pct" name="Done %" formatter={(v) => `${num(v)}%`} fill={C.blue} radius={[0, 3, 3, 0]} barSize={14} />
+                                    <Bar dataKey="pct" name="Done %" formatter={(v) => `${num(v)}%`} fill={C.blue} radius={[0, 3, 3, 0]} barSize={14} isAnimationActive={false} />
                                 </BarChart>
                             }
                         />
@@ -1176,7 +1309,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                 </div>
             )}
 
-            <ChartModal expanded={expanded} onClose={() => setExpanded(null)} />
+            <ChartModalHost />
         </div>
     );
 };

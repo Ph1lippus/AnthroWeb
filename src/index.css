@@ -1,10 +1,49 @@
-/* JetBrains Mono carries the whole UI; VT323 is a VT320-terminal face used for
-   display-size text only, where the CRT character is the point and legibility
-   is not at risk. */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Rubik+Glitch&family=VT323&display=swap');
 @import "tailwindcss";
 
 @media (max-width: 768px) {
+  .chart-modal-head {
+    padding: 0.5rem;
+  }
+
+  .note-pane-inner {
+    max-width: 100% !important;
+  }
+  .notes-workspace {
+    border-radius: 0px!important;
+    background: transparent !important;
+    border: none!important;
+  }
+  .books-page-wrapper {
+    padding: 2.5rem 0rem !important;
+  }
+  .chart-modal-overlay {
+    background: black;
+  }
+  .chart-modal {
+    /* `100dvh`, not `100vh`: on a mobile browser `vh` includes the area behind
+       the URL bar, so a full-viewport dialog measured against it is taller than
+       the space actually visible and pushed the header and the close button off
+       the top of the screen. `dvh` is the viewport minus whatever the browser
+       is currently covering, which is the number this layout wants. */
+    max-height: 100dvh!important;
+    height: 100dvh!important;
+    padding: 0rem !important;
+  }
+
+  /* Full-bleed plots on a phone, so the panel's padding comes off -- but only
+     on the card-sized panels. Scoping it to `:not(.chart-plot--large)` stops it
+     from reaching the enlarged view's panel, which is the one that still wants
+     its room. */
+  .chart-plot:not(.chart-plot--large) {
+    padding: 0rem !important;
+  }
+  .page-main-with-secondary {
+    padding: 2.5rem 0.5rem  !important;  
+  }
+  .notes-workspace {
+    background: none;
+    border: none;
+  }
   .card-header {
     place-self: anchor-center;
   }
@@ -74,8 +113,13 @@
   --chart-purple: #b48dff;
   --chart-cyan: #4dd8e0;
   --chart-red: #ff5a60;
-  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-grid: rgba(255, 255, 255, 0.075);
   --chart-axis: rgba(255, 255, 255, 0.55);
+  /* Tooltip surface, shared by every chart. Recharts takes these inline, so they
+     have to be variables rather than a class -- the dashboard's custom tooltip
+     component uses .chart-tooltip for the same values. */
+  --chart-tooltip-bg: #151515;
+  --chart-tooltip-border: rgba(255, 255, 255, 0.12);
   /* ---- Typography ----------------------------------------------------
      One terminal stack for the entire app. Every family variable below
      resolves to the same mono stack so that no element - not a Tailwind
@@ -127,6 +171,13 @@
 }
 @media (max-width: 1024px) {
   :root { font-size: 16px; }
+}
+/* The scrollbar's width is reserved whether or not it is there. Locking the
+   body while a modal is open hides it, and without this gutter the page content
+   would get 15px wider and narrower again on every open and close -- which
+   re-measures every chart in the dashboard behind the dialog. */
+html {
+  scrollbar-gutter: stable;
 }
 * {
   margin: 0;
@@ -198,7 +249,15 @@ body {
   background-color: #000000;
   color: var(--color-light);
   font-family: var(--font-mono);
+  /* `svh`, matching `#root` and the page wrappers below. These three used to
+     disagree -- the body and the pages at `100vh`, the root at `100svh` -- and on
+     a phone `vh` is the full layout viewport, URL bar included. That made the
+     document taller than the area the user was looking at the moment the boot
+     splash lifted, so the page grew by roughly the height of the URL bar right
+     after it stopped covering everything. `vh` is kept as the declared fallback
+     for engines with no `svh` support. */
   min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -252,6 +311,10 @@ body::before {
 .screen-height,
 .page-main {
   min-height: 100vh;
+  /* See the note on `body`: `svh` is the viewport with the mobile URL bar taken
+     out of it, which is the same box `#root` and `body` already use. `100vh`
+     stays above it as the fallback for engines without `svh`. */
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
@@ -283,6 +346,8 @@ body::before {
 /* Page with secondary navbar at bottom - needs bottom padding */
 .page-main-with-secondary {
   min-height: 100vh;
+  /* Matches `.page-main` above -- see the note there on `vh` vs `svh`. */
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
@@ -783,6 +848,9 @@ body::before {
 }
 .auth-page {
   min-height: 100vh;
+  /* See the note on `body`: keeps every page wrapper on the same viewport box as
+     `#root`, so the document is not silently taller than the visible area. */
+  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1106,6 +1174,8 @@ input[type="number"] {
 /* Credits Page Styles */
 .credits-page {
   min-height: 100vh;
+  /* Matches `.auth-page` -- see the note on `body`. */
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2658,10 +2728,10 @@ input[type="number"] {
   padding-right: 2rem;
   background: #ffffff0a;
   color: var(--color-light);
-  border-radius: 25px;
+  border-radius: 20px;
   font-size: 0.75rem;
   font-family: var(--font-mono);
-  height: 32px;
+  height: 35px;
 }
 .search-input:focus {
   background: var(--accent-bg);
@@ -2877,7 +2947,7 @@ input[type="number"] {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  border-radius: 25px;
+  border-radius: 20px;
   background: var(--color-primary);
   color: #000000;
   font-family: var(--font-mono);
@@ -2932,7 +3002,7 @@ input[type="number"] {
   padding: 1.5rem;
 }
 .edit-modal-card {
-  max-width: 700px;
+  max-width: 500px;
 }
 .project-view-card {
   max-width: 700px;
@@ -2947,7 +3017,7 @@ input[type="number"] {
 .import-modal-card .form-control {
   background: #ffffff0a;
   color: var(--color-light);
-  border-radius: 25px;
+  border-radius: 20px;
   padding: 0.45rem 0.7rem;
   font-size: 0.8rem;
   width: 100%;
@@ -3783,10 +3853,9 @@ input[type="number"] {
 /* Abstinence card container fills all vertical space */
 .abstinence-card-container {
   background: #ffffff08;
-  border-radius: 25px;
+  border-radius: 20px;
   width: 100%;
   padding: 1rem;
-  backdrop-filter: blur(10px);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -3913,8 +3982,8 @@ input[type="number"] {
 /* Abstinence card - compact */
 .abstinence-card {
   background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.5rem 0.7rem;
+  border-radius: 20px;
+  padding: 1rem 1rem;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
@@ -4257,8 +4326,8 @@ input[type="number"] {
   width: 100%;
   flex-shrink: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #ffffff14;
-  border-radius: 25px;
+  height: 35px;
+  border-radius: 20px;
   background: #ffffff08;
   color: var(--color-light);
   font-family: var(--font-mono);
@@ -4492,7 +4561,7 @@ input[type="number"] {
 /* The text measure, not the pane, is what gets capped. The pane itself fills the
    width so there is no empty gutter beside the page. */
 .note-pane-inner {
-  max-width: 740px;
+  max-width: 70%;
   margin: 0 auto;
   padding: 1.75rem 2rem 30vh;
 }
@@ -4571,6 +4640,14 @@ input[type="number"] {
   border: 1px solid #ffffff1f;
   border-radius: 25px;
   background: #111;
+  /* Always its own row in the pane bar. Nested inside .note-pane-actions it had
+     no room to go: that row holds ten controls and does not wrap, so the strip
+     overflowed to the right and .notes-pane (overflow: hidden) clipped it,
+     taking the outer swatches with it. Claiming the full width here means it can
+     also wrap instead of overflowing on a narrow phone. */
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .note-color-swatch {
   width: 20px;
@@ -5289,6 +5366,26 @@ input[type="number"] {
   font-size: 0.66rem;
   white-space: nowrap;
 }
+/* A toolbar button's name rather than a keystroke. Styled like the key chip so
+   the column still reads as a grid, but without the border that would imply it
+   can be typed. */
+.note-shortcut-label {
+    min-width: 2.4rem;
+    text-align: center;
+    color: var(--color-light);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+/* Sentences, not one-word labels: keep them against the chip column rather than
+   pushed out to the right edge. */
+.note-shortcut-section--wide .note-shortcut-row {
+    align-items: flex-start;
+}
+.note-shortcut-section--wide .note-shortcut-row dd {
+    text-align: left;
+    flex: 1;
+}
 
 .note-block-controls-on {
   background: var(--accent-bg) !important;
@@ -5300,6 +5397,7 @@ input[type="number"] {
   display: block;
   width: 100%;
   margin-bottom: 0.5rem;
+  height: 35px;
 }
 .day-goals-card {
   max-width: 560px !important;
@@ -5323,8 +5421,9 @@ input[type="number"] {
 }
 .day-goals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
+  flex: 1 1 180px; 
 }
 .day-goals-grid .form-label {
   font-size: 0.7rem;
@@ -6176,8 +6275,8 @@ input[type="number"] {
   height: 2rem;
   background: #ffffff0a;
   color: var(--color-light);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
+  border: none;
+  border-radius: 20px;
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -6694,8 +6793,8 @@ input[type="number"] {
   max-height: 200px;
   overflow-y: auto;
   padding: 0.5rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 25px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
 }
 .projects-checkbox-list::-webkit-scrollbar {
   width: 6px;
@@ -9054,6 +9153,8 @@ select.form-control option {
 /* Page with workout subnav - needs top padding */
 .page-main-with-workout-subnav {
   min-height: 100vh;
+  /* Matches `.page-main-with-secondary` -- see the note on `body`. */
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -9330,36 +9431,10 @@ select.form-control option {
 /* ============================================
    DASHBOARD - METRICS CHARTS (recharts)
    ============================================ */
-.dashboard-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.skeleton-block {
-  background: #ffffff08;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-}
-.skeleton-pill {
-  width: 5rem;
-  height: 1.55rem;
-  border-radius: 25px;
-  background: #ffffff08;
-}
-.skeleton-block,
-.skeleton-pill {
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
-}
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .skeleton-block,
-  .skeleton-pill {
-    animation: none;
-  }
-}
+/* No skeleton styles. The dashboard used to render shimmer blocks while its data
+   arrived and then re-render as the real charts, which meant the layout the user
+   was looking at was thrown away a moment later. It now renders in one pass once
+   everything is ready, so there is nothing to stand in for. */
 .dashboard-metrics {
   margin-top: 1.25rem;
   display: flex;
@@ -9375,8 +9450,7 @@ select.form-control option {
 }
 .analysis-card {
   background: #ffffff08;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 18px;
+  border-radius: 20px;
   padding: 0.85rem 0.95rem;
   min-width: 0;
 }
@@ -9403,6 +9477,7 @@ select.form-control option {
   text-overflow: ellipsis;
 }
 .analysis-card-value {
+  place-self: center;
   font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 700;
@@ -9419,6 +9494,7 @@ select.form-control option {
   opacity: 0.5;
 }
 .analysis-card-hint {
+  text-align: -webkit-center;
   margin-top: 0.3rem;
   font-size: 0.7rem;
   color: var(--color-light);
@@ -9442,6 +9518,7 @@ select.form-control option {
   }
 }
 .metric-range-pills {
+  margin-bottom: 1.25rem;
   display: flex;
   gap: 0.4rem;
   flex-wrap: wrap;
@@ -9491,14 +9568,83 @@ select.form-control option {
 }
 .metrics-chart-card {
   background: linear-gradient(160deg, #ffffff0d, #ffffff05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 20px;
   padding: 1rem 1rem 0.75rem;
   min-width: 0;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  /* No border and no hover border on the card. The card declares no `border`, so
+     the old `.metrics-chart-card:hover { border-color: ... }` rule had nothing to
+     recolour -- all it did was make the card look interactive, and keep a
+     `border-color` transition alive on every card for nothing. Only the transform
+     remains here, and nothing in the card triggers it either; it is left because
+     removing it would change nothing visually and would churn the rule. */
+  transition: transform 0.15s ease;
+  /* A chart card is a picture of some data, not an interface control. Nothing in
+     it should respond to a pointer as though it could be pressed. The subtree is
+     covered rather than just the plot because a drag that starts on the card
+     padding and crosses the axis labels used to select them -- `user-select` on
+     the plot alone does not stop a selection that begins outside it. */
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.metrics-chart-card * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Nothing inside a chart card takes a focus ring from a tap. The one genuine
+   control on the card -- the enlarge button -- restores its ring for keyboard
+   users further down, which :focus-visible already scopes to them. */
+.metrics-chart-card :focus {
+  outline: none;
 }
 .metrics-chart-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+  /* Intentionally empty. The card is not interactive, so it must not look as
+     though it were; a hover rule here drew attention to a chart that cannot be
+     pressed. */
+}
+/* ---------- the plot panel ----------
+   Every chart sits in one of these rather than directly on its card.
+
+   There is deliberately no border, background or shadow here. The cards are
+   translucent white over a near-black page, and an outlined plot area read as a
+   frame drawn around the data -- the same thing that used to look like a stray
+   border when a chart was tapped. The padding alone is enough separation.
+
+   It is a wrapper div, not a background on the SVG: ResponsiveContainer measures
+   its own parent to size the plot, and styling the SVG would have had the
+   sizing and the decoration fighting over the same box. */
+.chart-plot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.4rem 0.35rem;
+  /* A chart is not text. Without this, dragging across one selects the axis tick
+     labels as ordinary document text: you get the browser's selection highlight
+     and a highlight box wrapped round each label, which is the border that
+     appeared whenever a chart was clicked or swiped. The labels are still read
+     out by a screen reader -- this only stops the pointer selecting them. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Recharts draws ticks and the tooltip as SVG <text>, which `user-select` on the
+   wrapper does not reliably catch on iOS, so the text nodes get it too. */
+.chart-plot .recharts-wrapper,
+.chart-plot text,
+.chart-plot tspan {
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* The smaller measurement cards get less padding so the plot keeps its room. */
+.chart-plot--compact {
+  padding: 0.35rem 0.3rem 0.25rem;
+}
+/* The enlarged view is the same panel, with room to spare. */
+.chart-plot--large {
+  border-radius: 16px;
+  padding: 0.85rem 0.75rem 0.6rem;
 }
 .metrics-chart-head {
   display: flex;
@@ -9532,11 +9678,29 @@ select.form-control option {
   padding: 0;
   transition: all 0.15s ease;
 }
-.metrics-chart-expand:hover {
-  opacity: 1;
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  background: var(--accent-bg);
+/* Hover styling is gated on a real hover-capable pointer. On a touch screen the
+   browser latches :hover on to the last thing tapped and keeps it there, so the
+   accent styling used to stick around permanently after a chart was opened.
+
+   No border here either. The accent border on this button was the outline that
+   showed up around a chart the moment it was tapped; the button signals hover with
+   colour and a fill, which carries the same information without drawing a frame
+   around a card the user was told is not clickable. */
+@media (hover: hover) {
+  .metrics-chart-expand:hover {
+    opacity: 1;
+    color: var(--color-primary);
+    background: var(--accent-bg);
+  }
+}
+/* Keyboard users still need to see where they are, so focus is not suppressed --
+   only the tap-time ring is, and :focus-visible already excludes mouse taps. */
+.metrics-chart-expand:focus {
+  outline: none;
+}
+.metrics-chart-expand:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 .metrics-chart-empty {
   display: flex;
@@ -9587,49 +9751,94 @@ select.form-control option {
 /* ============================================
    METRICS CHART MODAL - enlarged chart view
    ============================================ */
+/* ---------- the enlarged chart ----------
+   The overlay is opaque. It used to be a translucent scrim with the dashboard
+   dimly visible behind it, which cost more than it looked like it bought:
+   blending a full-screen fixed layer means the compositor re-samples the whole
+   viewport on every frame the layer animates, and the dialog's rounded corners
+   let the page show through as a faint frame around a chart that has no border.
+   Opaque is cheaper and has no seam.
+
+   Desktop used to get a `backdrop-filter` here and mobile did not, and that
+   split was the single biggest reason opening and closing felt slow -- a blur
+   over the entire viewport, on every animated frame. */
 .chart-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
-  background: rgba(8, 8, 8, 0.66);
-  backdrop-filter: blur(10px) saturate(120%);
+  z-index: 300;
+  background-color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  animation: chart-modal-fade 0.16s ease-out;
+  /* The overlay is the tap target for closing, and on mobile it fills the
+     screen, so it is the single largest surface a finger can land on. Without
+     this, iOS and Android paint the platform tap highlight over it -- a bright
+     rectangle that flashes on every tap and, if it latches, stays. */
+  -webkit-tap-highlight-color: transparent;
 }
+/* The enlarged view is a chart, exactly like the card it came from, so it gets
+   the same three protections the card has. The modal is rendered into <body> by
+   a portal and is therefore outside `.metrics-chart-card`, which means none of
+   the rules on that subtree reached it -- only `.chart-plot` itself was covered,
+   and the dialog's own padding, its header and its subtitle were not. Dragging
+   from the title onto the plot therefore selected real text and drew a
+   selection box around it: the same stray border that was already fixed on the
+   cards, reappearing one click later. */
 .chart-modal {
   width: 100%;
+  background: #000;
   max-width: 1100px;
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  /* Same translucent panel as .auth-card and .metrics-chart-card, so opening a
-     chart does not drop the reader onto a flat opaque slab. It was a solid
-     #1e1e1e->#141414, which also hid the starfield the rest of the app shows
-     through its surfaces. */
-  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 1.15rem 1.2rem 0.6rem;
   color: var(--color-light);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
-  animation: chart-modal-rise 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: chart-modal-rise 0.1s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-@keyframes chart-modal-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.chart-modal,
+.chart-modal * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The one genuine control in the dialog is the close button, which takes focus
+   on open. It drops the tap-time ring the same way the enlarge button does and
+   keeps `:focus-visible` a few lines down, which already scopes the ring to
+   keyboard users. */
+.chart-modal :focus {
+  outline: none;
 }
 @keyframes chart-modal-rise {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { transform: translateY(6px) scale(0.99); }
+  to { transform: translateY(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .chart-modal-overlay,
   .chart-modal {
     animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-modal {
+    border-radius: 0;
+    padding: 0.85rem 0.75rem 0.75rem;
+    padding-top: calc(0.85rem + env(safe-area-inset-top));
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+  .chart-modal-body {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-modal-body > .chart-plot {
+    margin-block: auto;
+  }
+  .chart-modal-overlay {
+    align-items: stretch;
   }
 }
 .chart-modal-head {
@@ -9641,6 +9850,11 @@ select.form-control option {
   padding-bottom: 0.65rem;
   margin-bottom: 0.75rem;
 }
+/* The title and the range it covers, grouped so the close button cannot be
+   squeezed off the end of the header by a long chart name. */
+.chart-modal-heading {
+  min-width: 0;
+}
 .chart-modal-head h3 {
   margin: 0;
   font-family: var(--font-mono);
@@ -9648,6 +9862,18 @@ select.form-control option {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+/* Which window the plot covers. Every chart on the dashboard shares one range, so
+   the enlarged view says which rather than leaving it to be guessed at. */
+.chart-modal-subtitle {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-light);
+  opacity: 0.45;
 }
 .chart-modal-close {
   display: flex;
@@ -9665,16 +9891,35 @@ select.form-control option {
   padding: 0;
   transition: all 0.15s ease;
 }
-.chart-modal-close:hover {
-  opacity: 1;
-  color: var(--color-danger, #ff5a60);
-  border-color: var(--color-danger, #ff5a60);
-  background: rgba(255, 90, 96, 0.1);
+/* Gated on a real hover-capable pointer, and with no border, for the same two
+   reasons the enlarge button on a chart card is. On touch the browser latches
+   :hover onto the last thing tapped and keeps it there, so an ungated rule
+   painted this frame permanently the moment the enlarged chart was tapped --
+   and the accent `border-color` it used to set drew exactly the outline around
+   the chart that had already been removed from the card. Colour and a fill
+   carry the same information without drawing a frame. */
+@media (hover: hover) {
+  .chart-modal-close:hover {
+    opacity: 1;
+    color: var(--color-danger, #ff5a60);
+    background: rgba(255, 90, 96, 0.1);
+  }
+}
+/* Keyboard users still need to see where they are. `:focus-visible` excludes
+   mouse and touch, so the ring appears for the keyboard and not otherwise. */
+.chart-modal-close:focus {
+  outline: none;
+}
+.chart-modal-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 .chart-modal-body {
   max-height: 82vh;
   overflow: auto;
   width: 100%;
+  /* The body is the only part that scrolls, so the header stays put. */
+  overscroll-behavior: contain;
 }
 /* Dashboard on a phone: the 2-up chart grids already collapse to one column via
    auto-fit, so only the cramped heights and the expanded view need help. */
@@ -9685,6 +9930,12 @@ select.form-control option {
   }
   .metrics-chart-card .recharts-responsive-container {
     min-height: 170px;
+  }
+  /* Measurement trend cards are narrower still, and their plots sit inside the
+     shared panel, so they need the same treatment or the panel ends up mostly
+     padding with a squashed line in it. */
+  .measurement-chart-card .recharts-responsive-container {
+    min-height: 150px;
   }
   .metric-range-pills {
     gap: 0.3rem;
@@ -9705,10 +9956,7 @@ select.form-control option {
      percentage width or an intrinsic min-width makes the plot drift off-centre
      or overflow sideways. The page padding is trimmed to match, and every card
      in the track is pinned to the full column width. */
-  .dashboard-section {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
+  
   .metrics-track,
   .metrics-columns,
   .metrics-columns--single,
@@ -9738,7 +9986,6 @@ select.form-control option {
    ============================================ */
 .dashboard-page-wrapper {
   width: 100%;
-  max-width: 1320px;
   margin: 0 auto;
 }
 .dashboard-page-wrapper .dashboard-section {
@@ -10030,32 +10277,49 @@ select.form-control option {
    Deliberately static. The text is what carries the warning; a glow and a blink
    drew attention to the strip rather than to the deadline, and on a bar that is
    present on every page it became the most eye-catching thing on the screen.
-*/
+
+   The height is fixed rather than left to the content. The strip rotates through
+   its messages every nine seconds, and it is present on every page of the app, so
+   a strip that grew and shrank with the text would shove the rest of the bar
+   sideways every rotation. Box-sizing is border-box and there is no border, so
+   the declared height is the painted height and the text is vertically centred
+   inside it -- only the text ever changes. */
 .academic-alert {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
   flex: 1 1 auto;
-  padding: 0.25rem 0.5rem;
+  height: 1.85rem;
+  padding: 0 0.6rem;
   border: none;
   border-radius: 25px;
   background: linear-gradient(90deg, rgba(255, 46, 74, 0.26), rgba(255, 46, 74, 0.08));
   color: #ff8a94;
   font-family: var(--font-mono);
   font-size: 0.68rem;
+  line-height: 1;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .academic-alert:hover { background: linear-gradient(90deg, rgba(255, 46, 74, 0.34), rgba(255, 46, 74, 0.12)); }
+.academic-alert:focus-visible {
+  outline: 2px solid #ff8a94;
+  outline-offset: 2px;
+}
 .academic-alert--urgent {
   color: #ff5a68;
   background: linear-gradient(90deg, rgba(255, 46, 74, 0.36), rgba(255, 46, 74, 0.14));
 }
 .academic-alert__icon {
   flex-shrink: 0;
+  /* Sized here rather than with a `size` prop in the JSX, so the icon scales with
+     the strip at every breakpoint instead of being pinned to one pixel value. */
+  width: 0.8rem;
+  height: 0.8rem;
 }
 .academic-alert__text {
   overflow: hidden;
@@ -10068,6 +10332,31 @@ select.form-control option {
   flex-shrink: 0;
   font-size: 0.58rem;
   opacity: 0.6;
+}
+
+/*
+   Phone: a slimmer strip. The top bar on a narrow screen is carrying the day
+   navigation and the menu button as well, and the long sentence does not fit --
+   it was truncating to a handful of unreadable characters. This is why the banner
+   ships the short message on mobile at all; the extra height and padding here
+   were only making the truncation cost more bar than it needed to.
+
+   The pager goes entirely rather than shrinking: "2/4" on a strip this narrow
+   competes with the message for the only few characters there are. */
+@media (max-width: 768px) {
+  .academic-alert {
+    height: 1.5rem;
+    gap: 0.25rem;
+    padding: 0 0.45rem;
+    font-size: 0.62rem;
+  }
+  .academic-alert__icon {
+    width: 0.72rem;
+    height: 0.72rem;
+  }
+  .academic-alert__pager {
+    display: none;
+  }
 }
 
 /* Date and countdown beside an input's name, e.g. "21 May · in 3 days". */
@@ -10097,8 +10386,6 @@ select.form-control option {
 .update-modal {
   width: 100%;
   max-width: 420px;
-  /* Same translucent panel as .auth-card / .metrics-chart-card / .chart-modal,
-     so every dialog in the app shares one surface. */
   background: linear-gradient(160deg, #ffffff0d, #ffffff05);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -11662,6 +11949,7 @@ body {
 }
 /* The wrapper is height-locked, so this is what actually scrolls. */
 .academic-scroll {
+  border-radius: 25px;
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;

@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
-import type { User } from '@supabase/supabase-js';
 import { navItems, isNavItemActive } from '../utils/navItems';
+import { useAuthSession } from '../hooks/useAuthSession';
 
 interface TooltipState {
     label: string;
@@ -23,21 +22,9 @@ const SHOW_DELAY = 120;
 // and renders in the OS style instead of the app's.
 const SidebarNav: React.FC = () => {
     const location = useLocation();
-    const [user, setUser] = useState<User | null>(null);
+    const { user } = useAuthSession();
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const showTimer = useRef<number | null>(null);
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user || null);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user || null);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
 
     // A pending timer must never fire after the pointer has already left.
     useEffect(() => () => {

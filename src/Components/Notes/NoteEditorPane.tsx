@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ArrowLeft,
     Check,
     Copy,
     Download,
@@ -69,7 +68,7 @@ const ICONS = ['📄', '📝', '📌', '⭐', '💡', '🔥', '📚', '🎯', '�
  * pane instead of trying to reconcile one document into another. That is what
  * keeps two notes from ever bleeding into each other.
  */
-const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDeleted, onClose }) => {
+const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDeleted }) => {
     const updateNote = useUpdateNote(note.id);
     const trashNoteMutation = useTrashNote();
     const duplicateNoteMutation = useDuplicateNote();
@@ -287,14 +286,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     return (
         <>
             <div className="note-pane-bar">
-                {/* Only reachable below the split breakpoint, where the rail
-                    collapses and this becomes the way back to the list. */}
-                {onClose && (
-                    <button type="button" className="note-back-btn" onClick={onClose}>
-                        <ArrowLeft size={14} />
-                        <span>All notes</span>
-                    </button>
-                )}
 
                 <div className="note-pane-actions">
                     {actionError && (
@@ -372,8 +363,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         type="button"
                         className="note-action-btn"
                         onClick={() => setShowShortcuts(true)}
-                        title="Keyboard shortcuts (?)"
-                        aria-label="Keyboard shortcuts"
+                        title="Editor help: shortcuts and the selection toolbar (?)"
+                        aria-label="Editor help"
                     >
                         <Keyboard size={14} />
                     </button>
@@ -390,31 +381,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                             <Palette size={14} />
                         </button>
                     </div>
-
-                    {/* Inline, in normal flow inside the bar. This started as a
-                        popover and was unfixable as one: the pane clips with
-                        overflow, the workspace carries backdrop-filter (which makes
-                        it a containing block for fixed descendants), and a
-                        dismiss-on-outside-click handler closed the menu on
-                        pointerdown -- before the click on a swatch could land.
-                        Nothing about a strip in the document flow can go wrong. */}
-                    {showColors && (
-                        <div className="note-color-inline" role="group" aria-label="Page colour">
-                            {NOTE_COLORS.map(color => (
-                                <button
-                                    type="button"
-                                    key={color.label}
-                                    className={`note-color-swatch${
-                                        currentColor === color.value ? ' note-color-swatch--on' : ''
-                                    }${color.value ? '' : ' note-color-swatch--none'}`}
-                                    style={color.value ? { background: color.value } : undefined}
-                                    onClick={() => handleColor(color.value)}
-                                    title={color.label}
-                                    aria-label={color.label}
-                                />
-                            ))}
-                        </div>
-                    )}
 
                     <button
                         type="button"
@@ -457,6 +423,38 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         <Trash2 size={14} />
                     </button>
                 </div>
+
+                {/* Inline, in normal flow in the bar. This started as a popover and
+                    was unfixable as one: the pane clips with overflow, the
+                    workspace carries backdrop-filter (which makes it a containing
+                    block for fixed descendants), and a dismiss-on-outside-click
+                    handler closed the menu on pointerdown -- before the click on a
+                    swatch could land. Nothing about a strip in the document flow can
+                    go wrong.
+
+                    It is a sibling of .note-pane-actions rather than a child, for
+                    one specific reason: that row holds ten controls and does not
+                    wrap, so a strip nested inside it had nowhere to go when it ran
+                    out of width -- it overflowed to the right and the pane clipped
+                    it, taking half the swatches with it. Out here it is given its own
+                    full-width row below the buttons and can wrap on a narrow phone. */}
+                {showColors && (
+                    <div className="note-color-inline" role="group" aria-label="Page colour">
+                        {NOTE_COLORS.map(color => (
+                            <button
+                                type="button"
+                                key={color.label}
+                                className={`note-color-swatch${
+                                    currentColor === color.value ? ' note-color-swatch--on' : ''
+                                }${color.value ? '' : ' note-color-swatch--none'}`}
+                                style={color.value ? { background: color.value } : undefined}
+                                onClick={() => handleColor(color.value)}
+                                title={color.label}
+                                aria-label={color.label}
+                            />
+                        ))}
+                    </div>
+                )}
 
                 {showIcons && (
                     <div className="note-icon-inline" role="group" aria-label="Page icon">

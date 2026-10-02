@@ -8,7 +8,21 @@ interface ShortcutsSheetProps {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
 const mod = isMac ? '⌘' : 'Ctrl';
 
-const GROUPS: { title: string; rows: [string, string][] }[] = [
+/**
+ * A row is [left-hand label, what it does, kind?].
+ *
+ * The third element is there for the one section that is not about keys. Key
+ * combinations are rendered as `<kbd>` chips, which is what they are; the names
+ * of the toolbar buttons are not keystrokes and rendering them as keys would
+ * teach the wrong thing, so those rows pass 'label' and get plain text instead.
+ *
+ * `wide` left-aligns a section's descriptions. The shortcut rows are short and
+ * read fine pushed right against the chip column; the toolbar rows are sentences
+ * and do not.
+ */
+type Row = [string, string] | [string, string, 'label'];
+
+const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
     {
         title: 'Writing',
         rows: [
@@ -67,14 +81,39 @@ const GROUPS: { title: string; rows: [string, string][] }[] = [
             ['?', 'This list'],
         ],
     },
+    {
+        // The toolbar that appears above a selection. Its buttons carry `title`
+        // tooltips, which a mouse user sees on hover but a phone never does --
+        // there is no hover on a touch screen, so on mobile this section is the
+        // only description of what the row of icons does.
+        title: 'Selection toolbar',
+        wide: true,
+        rows: [
+            ['B', 'Bold — Ctrl+B', 'label'],
+            ['I', 'Italic — Ctrl+I', 'label'],
+            ['U', 'Underline — Ctrl+U', 'label'],
+            ['S', 'Strikethrough — Ctrl+Shift+X', 'label'],
+            ['H', 'Highlight — marks the text with a colour', 'label'],
+            ['</>', 'Inline code — sets the text in a monospaced font', 'label'],
+            ['x₂', 'Subscript — lowers and shrinks the text', 'label'],
+            ['x²', 'Superscript — raises and shrinks the text', 'label'],
+            ['🔗', 'Link — Ctrl+K; turns the selection into a link, or edits the one it is already inside', 'label'],
+            ['🔗̸', 'Remove link — appears only while the selection is already a link', 'label'],
+        ],
+    },
 ];
 
 /**
- * The shortcut list.
+ * The editor help sheet.
  *
  * `?` opens it, but only from outside the editor: inside, a question mark is a
  * perfectly ordinary character and swallowing it would be more annoying than
  * useful.
+ *
+ * Mostly shortcuts, with one section on the selection toolbar. That section is
+ * not decoration: the toolbar buttons carry `title` tooltips, which only a mouse
+ * with a hover ever sees. This is the only place the buttons are written down for
+ * anyone on a phone.
  */
 const ShortcutsSheet: React.FC<ShortcutsSheetProps> = ({ open, onClose }) => {
     if (!open) return null;
@@ -85,28 +124,32 @@ const ShortcutsSheet: React.FC<ShortcutsSheetProps> = ({ open, onClose }) => {
                 className="import-modal-card note-shortcuts"
                 onMouseDown={event => event.stopPropagation()}
                 role="dialog"
-                aria-label="Keyboard shortcuts"
+                aria-label="Editor help"
             >
                 <div className="note-shortcuts-head">
-                    <h3>Keyboard shortcuts</h3>
+                    <h3>Editor help</h3>
                     <button type="button" onClick={onClose} aria-label="Close">
                         &times;
                     </button>
                 </div>
                 <div className="note-shortcuts-grid">
                     {GROUPS.map(group => (
-                        <section key={group.title}>
+                        <section key={group.title} className={group.wide ? 'note-shortcut-section--wide' : undefined}>
                             <h4>{group.title}</h4>
                             <dl>
-                                {group.rows.map(([keys, description]) => (
+                                {group.rows.map(([keys, description, kind]) => (
                                     <div key={keys} className="note-shortcut-row">
                                         <dt>
-                                            {keys.split(' + ').map((part, index) => (
-                                                <React.Fragment key={`${part}-${index}`}>
-                                                    {index > 0 && <span className="note-shortcut-plus">+</span>}
-                                                    <kbd>{part}</kbd>
-                                                </React.Fragment>
-                                            ))}
+                                            {kind === 'label' ? (
+                                                <span className="note-shortcut-label">{keys}</span>
+                                            ) : (
+                                                keys.split(' + ').map((part, index) => (
+                                                    <React.Fragment key={`${part}-${index}`}>
+                                                        {index > 0 && <span className="note-shortcut-plus">+</span>}
+                                                        <kbd>{part}</kbd>
+                                                    </React.Fragment>
+                                                ))
+                                            )}
                                         </dt>
                                         <dd>{description}</dd>
                                     </div>

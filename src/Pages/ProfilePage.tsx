@@ -200,21 +200,12 @@ const ProfilePage: React.FC = () => {
                                             <span className="profile-progress-label">Overall Progress</span>
                                             <span className="profile-progress-value">{Math.round(progress.overallProgress)}%</span>
                                         </div>
-                                        {/* Start / current / target sit on the bar itself so the
-                                            journey is readable at a glance, not just the fill width. */}
                                         <div className="profile-progress-bar">
                                             <div className="profile-progress-fill" style={{ width: `${Math.round(progress.overallProgress)}%` }}></div>
                                             <span className="profile-progress-start" />
                                             <span className="profile-progress-marker" style={{ left: `${Math.round(progress.overallProgress)}%` }} />
                                         </div>
-                                        <div className="profile-progress-scale">
-                                            <span className="profile-progress-scale-start">
-                                                Start {settings.starting_weight} kg{settings.starting_bodyfat ? ` · ${settings.starting_bodyfat}%` : ''}
-                                            </span>
-                                            <span className="profile-progress-scale-target">
-                                                Target {settings.target_weight} kg{settings.target_bodyfat ? ` · ${settings.target_bodyfat}%` : ''}
-                                            </span>
-                                        </div>
+                                        
                                         <div className="profile-progress-details">
                                             {settings.starting_weight && settings.target_weight && (
                                                 <div className="profile-progress-detail">

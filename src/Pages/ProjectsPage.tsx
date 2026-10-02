@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Title from '../Components/Title';
-import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete } from '../services/projectService';
-import type { Project, ProjectPlanItem } from '../services/projectService';
+import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete, PROJECT_STATUSES, isFinishedStatus } from '../services/projectService';
+import type { Project, ProjectPlanItem, ProjectStatus } from '../services/projectService';
 import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 
@@ -11,18 +11,27 @@ const priorityColors: Record<string, string> = {
     high: '#ff6b70',
 };
 
-const statusLabels: Record<string, string> = {
+/**
+ * `maintenance` sits between `paused` and `completed` on purpose: the build
+ * shipped and something in it needs fixing, so it is neither upcoming nor done.
+ * `Wrench` in the section header and the orange in `statusColors` are the same
+ * signal the `paused` section uses for "needs attention", which is the honest
+ * reading of both.
+ */
+const statusLabels: Record<ProjectStatus, string> = {
     planned: 'Planned',
     active: 'Active',
     paused: 'Paused',
+    maintenance: 'Maintenance',
     completed: 'Completed',
     archived: 'Archived',
 };
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<ProjectStatus, string> = {
     planned: '#6366f1',
     active: 'var(--color-primary)',
     paused: '#ffa500',
+    maintenance: '#c084fc',
     completed: '#43b67d',
     archived: 'rgba(255, 255, 255, 0.4)',
 };
@@ -57,13 +66,13 @@ const ProjectsPage: React.FC = () => {
     const [editLoading, setEditLoading] = useState(false);
     const [editTitle, setEditTitle] = useState('');
     const [editDescription, setEditDescription] = useState('');
-    const [editStatus, setEditStatus] = useState<'planned' | 'active' | 'paused' | 'completed' | 'archived'>('planned');
+    const [editStatus, setEditStatus] = useState<ProjectStatus>('planned');
     const [editPriority, setEditPriority] = useState<'low' | 'medium' | 'high'>('medium');
     const [editDeadline, setEditDeadline] = useState('');
     // Add form state
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [status, setStatus] = useState<'planned' | 'active' | 'paused' | 'completed' | 'archived'>('planned');
+    const [status, setStatus] = useState<ProjectStatus>('planned');
     const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
     const [deadline, setDeadline] = useState('');
 
@@ -205,11 +214,22 @@ const ProjectsPage: React.FC = () => {
         reader.onload = async (event) => {
             const content = event.target?.result as string;
             try {
-                await importProjectsFromCSV(content);
+                const { projects: imported, rejected } = await importProjectsFromCSV(content);
                 setImportError(null);
                 setShowImportModal(false);
                 const refreshedProjects = await getUserProjects();
                 setProjects(refreshedProjects);
+                // Rows the file got wrong are surfaced rather than silently
+                // dropped -- an import that quietly changes half its rows is worse
+                // than one that says so.
+                if (rejected.length > 0) {
+                    showToast(
+                        'error',
+                        `Imported ${imported.length} project${imported.length === 1 ? '' : 's'}; ${rejected.length} row${rejected.length === 1 ? '' : 's'} had problems. First: row ${rejected[0].row} - ${rejected[0].reason}.`,
+                    );
+                } else {
+                    showToast('success', `Imported ${imported.length} project${imported.length === 1 ? '' : 's'}.`);
+                }
             } catch {
                 setImportError('Failed to import projects. Please check your CSV format.');
             }
@@ -228,26 +248,31 @@ const ProjectsPage: React.FC = () => {
         setSubmittedSearch('');
     };
 
-    const plannedProjects = projects.filter(p => p.status === 'planned').sort((a, b) => {
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    const activeProjects = projects.filter(p => p.status === 'active').sort((a, b) => {
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    const completedProjects = projects.filter(p => p.status === 'completed').sort((a, b) => {
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    const pausedProjects = projects.filter(p => p.status === 'paused').sort((a, b) => {
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    const archivedProjects = projects.filter(p => p.status === 'archived').sort((a, b) => {
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
+    // One pass, one sort rule. Every status used to be its own copy-pasted
+    // filter-and-sort block, which is how `maintenance` ended up missing from the
+    // page: there was nothing in the structure that would have complained.
+    const byStatus = useMemo(() => {
+        const priorityOrder: Record<Project['priority'], number> = { high: 0, medium: 1, low: 2 };
+        const buckets = PROJECT_STATUSES.reduce(
+            (acc, s) => {
+                acc[s] = [];
+                return acc;
+            },
+            {} as Record<ProjectStatus, Project[]>,
+        );
+        for (const project of projects) buckets[project.status]?.push(project);
+        for (const list of Object.values(buckets)) {
+            list.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+        }
+        return buckets;
+    }, [projects]);
+
+    const plannedProjects = byStatus.planned;
+    const activeProjects = byStatus.active;
+    const maintenanceProjects = byStatus.maintenance;
+    const pausedProjects = byStatus.paused;
+    const completedProjects = byStatus.completed;
+    const archivedProjects = byStatus.archived;
 
     const tagMatch = submittedSearch.match(/^(#\w+)\s*(.*)/i);
     const activeTag = tagMatch ? tagMatch[1].toLowerCase() : null;
@@ -256,19 +281,11 @@ const ProjectsPage: React.FC = () => {
     const getFilteredProjects = () => {
         if (!submittedSearch) return [];
 
-        let filtered = projects;
-
-        if (activeTag === '#planned') {
-            filtered = plannedProjects;
-        } else if (activeTag === '#active') {
-            filtered = activeProjects;
-        } else if (activeTag === '#paused') {
-            filtered = pausedProjects;
-        } else if (activeTag === '#completed') {
-            filtered = completedProjects;
-        } else if (activeTag === '#archived') {
-            filtered = archivedProjects;
-        }
+        // Any #<status> tag resolves straight off the same buckets the page is
+        // built from, so adding a status cannot leave a tag that silently does
+        // nothing (which is what a spelled-out if/else chain invites).
+        const tagStatus = activeTag ? PROJECT_STATUSES.find(s => `#${s}` === activeTag) : undefined;
+        let filtered = tagStatus ? byStatus[tagStatus] : projects;
 
         if (textSearch) {
             filtered = filtered.filter(p =>
@@ -291,7 +308,11 @@ const ProjectsPage: React.FC = () => {
 
     const totalProjectsCount = projects.length;
     const activeCount = activeProjects.length;
+    // "Completed" means completed, not "no longer upcoming" -- maintenance work is
+    // past the start line but it is not done, and folding it in here would have
+    // quietly inflated the one number on the page that means something.
     const completedCount = completedProjects.length;
+    const maintenanceCount = maintenanceProjects.length;
 
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return null;
@@ -351,7 +372,12 @@ const ProjectsPage: React.FC = () => {
     };
 
     const renderProjectCard = (project: Project) => {
-        const overdue = project.status !== 'completed' && project.status !== 'archived' && project.status !== 'planned' && isOverdue(project.deadline);
+        // Overdue is skipped for planned work (no date yet) and for anything past
+        // its end. Maintenance is skipped too, and not as an oversight: the
+        // deadline on a shipped build is the one it already met, so counting it
+        // would leave every maintenance project permanently red for something it
+        // already delivered. The next real date belongs on the fix, as a plan item.
+        const overdue = !isFinishedStatus(project.status) && project.status !== 'planned' && project.status !== 'maintenance' && isOverdue(project.deadline);
 
         return (
             <div key={project.id} className="project-card">
@@ -439,6 +465,15 @@ const ProjectsPage: React.FC = () => {
                                 <span className="projects-stat-label">Completed</span>
                                 <span className="projects-stat-value">{completedCount}</span>
                             </div>
+                            {/* Shown only when it is non-zero: a fourth tile that
+                                always reads 0 is noise, and the Maintenance
+                                section below already says the same thing. */}
+                            {maintenanceCount > 0 && (
+                                <div className="projects-stat-item">
+                                    <span className="projects-stat-label">In Maintenance</span>
+                                    <span className="projects-stat-value">{maintenanceCount}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="projects-top-bar">
@@ -472,12 +507,10 @@ const ProjectsPage: React.FC = () => {
                                         <div className="grid grid-cols-2 gap-4 mb-4">
                                             <div>
                                                 <label className="form-label">Status</label>
-                                                <select value={status} onChange={(e) => setStatus(e.target.value as 'planned' | 'active' | 'paused' | 'completed' | 'archived')} className="form-select">
-                                                    <option value="planned">Planned</option>
-                                                    <option value="active">Active</option>
-                                                    <option value="paused">Paused</option>
-                                                    <option value="completed">Completed</option>
-                                                    <option value="archived">Archived</option>
+                                                <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} className="form-select">
+                                                    {PROJECT_STATUSES.map(s => (
+                                                        <option key={s} value={s}>{statusLabels[s]}</option>
+                                                    ))}
                                                 </select>
                                             </div>
                                             <div>
@@ -523,7 +556,7 @@ const ProjectsPage: React.FC = () => {
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 onKeyDown={handleSearchKeyDown}
                                                 className="search-input"
-                                                placeholder='Search projects... (try #planned, #active, #paused, #completed, #archived)'
+                                                placeholder={`Search projects... (try ${PROJECT_STATUSES.map(s => `#${s}`).join(', ')})`}
                                             />
                                             {(searchQuery || submittedSearch) && (
                                                 <button
@@ -572,6 +605,22 @@ const ProjectsPage: React.FC = () => {
                                                 </div>
                                                 <div className="flex flex-col gap-2">
                                                     {pausedProjects.map(renderProjectCard)}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Shipped but being fixed. Sits after Paused
+                                            so the page still reads top to bottom in
+                                            lifecycle order: upcoming, in progress,
+                                            stalled, in maintenance, done, filed away. */}
+                                        {!submittedSearch && maintenanceProjects.length > 0 && (
+                                            <div className="projects-status-group">
+                                                <div className="projects-section-header">
+                                                    <i className="i-lucide-wrench"></i>
+                                                    In Maintenance ({maintenanceProjects.length})
+                                                </div>
+                                                <div className="flex flex-col gap-2">
+                                                    {maintenanceProjects.map(renderProjectCard)}
                                                 </div>
                                             </div>
                                         )}
@@ -649,12 +698,10 @@ const ProjectsPage: React.FC = () => {
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div>
                                     <label className="form-label">Status</label>
-                                    <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as 'planned' | 'active' | 'paused' | 'completed' | 'archived')} className="form-select">
-                                        <option value="planned">Planned</option>
-                                        <option value="active">Active</option>
-                                        <option value="paused">Paused</option>
-                                        <option value="completed">Completed</option>
-                                        <option value="archived">Archived</option>
+                                    <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as ProjectStatus)} className="form-select">
+                                        {PROJECT_STATUSES.map(s => (
+                                            <option key={s} value={s}>{statusLabels[s]}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div>
@@ -903,7 +950,8 @@ const ProjectsPage: React.FC = () => {
                         <p className="text-xs opacity-60 mb-4">
                             • All columns are optional except title<br />
                             • If description/status/priority is empty, defaults will be used<br />
-                            • Status options: planned, active, paused, completed, archived<br />
+                            • Status options: {PROJECT_STATUSES.join(', ')}<br />
+                             • An unrecognised status is imported as planned and reported afterwards, rather than failing the whole file<br />
                             • Priority options: low, medium, high<br />
                             • Deadline format: YYYY-MM-DD
                         </p>

@@ -107,17 +107,35 @@ const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ items, command }, 
 
     // Flattened for the keyboard: what the arrows walk is exactly what is drawn,
     // in exactly this order. Group headers are skipped because they are not rows.
-    const { rows, favouritesFirst } = useMemo(() => {
+    const { rows, favouritesFirst, starredIds } = useMemo(() => {
         // Only a favourites group while the search is empty, otherwise a query
         // like "to" would show a Favourites heading with unrelated rows in it.
         if (favourites.length === 0 || items.length === 0) {
-            return { rows: items, favouritesFirst: [] as SlashCommand[] };
+            return { rows: items, favouritesFirst: [] as SlashCommand[], starredIds: new Set<string>() };
         }
         const byId = new Map(items.map(item => [item.id, item]));
         const starred = favourites
             .map(id => byId.get(id))
             .filter((item): item is SlashCommand => !!item);
-        return { rows: items, favouritesFirst: starred };
+        const starredSet = new Set(starred.map(item => item.id));
+
+        // Starred commands are promoted into the Favourites group rather than
+        // repeated in their own group below, and `rows` is built in the order the
+        // menu actually draws them: favourites, then each group in order.
+        //
+        // This ordering is the fix, not a nicety. The rows were previously indexed
+        // by their position in `items` while being *drawn* favourites-first, so a
+        // starred command was highlighted at the position it would have had
+        // without the star, and Enter ran whichever command sat at the highlighted
+        // index -- a different row from the one under the cursor. And because a
+        // starred command was drawn twice, the id-to-index map could only hold one
+        // index for it, so one of the two copies could never be highlighted.
+        const groupIndex = new Map(SLASH_GROUP_ORDER.map((g, i) => [g, i]));
+        const rest = items
+            .filter(item => !starredSet.has(item.id))
+            .sort((a, b) => (groupIndex.get(a.group) ?? 99) - (groupIndex.get(b.group) ?? 99));
+
+        return { rows: [...starred, ...rest], favouritesFirst: starred, starredIds: starredSet };
     }, [items, favourites]);
 
     const selectItem = (index: number) => {
@@ -208,7 +226,8 @@ const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ items, command }, 
             )}
 
             {SLASH_GROUP_ORDER.map(group => {
-                const groupItems = rows.filter(item => item.group === group);
+                // Starred commands live in the Favourites group only -- see the memo above.
+                const groupItems = rows.filter(item => item.group === group && !starredIds.has(item.id));
                 if (groupItems.length === 0) return null;
                 return (
                     <React.Fragment key={group}>

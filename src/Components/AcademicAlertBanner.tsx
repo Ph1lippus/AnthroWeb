@@ -2,9 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useAcademicAlerts } from '../hooks/useAcademicAlerts';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface AcademicAlertBannerProps {
-    /** Short form for narrow layouts, where the full sentence cannot fit. */
+    /**
+     * Short form for narrow layouts, where the full sentence cannot fit.
+     *
+     * Left unset by the navbar on purpose: the viewport decides, not the caller,
+     * so the strip cannot end up shipping the long sentence on a phone because a
+     * call site forgot a prop.
+     */
     compact?: boolean;
 }
 
@@ -19,11 +26,17 @@ const ROTATE_MS = 9000;
  * Messages are shown as a cluster rather than one per deadline: three tests
  * inside a fortnight is one week of pressure, and interrupting three separate
  * times for it would be nagging rather than informing.
+ *
+ * The strip has a fixed height at every viewport. It rotates through its
+ * messages every 9 seconds, and because it lives in the top bar on every page of
+ * the app, a strip that resized as the text changed would nudge the rest of the
+ * bar sideways every rotation. Only the text is ever meant to change.
  */
-const AcademicAlertBanner: React.FC<AcademicAlertBannerProps> = ({ compact = false }) => {
+const AcademicAlertBanner: React.FC<AcademicAlertBannerProps> = ({ compact }) => {
     const { data: alerts } = useAcademicAlerts();
     const navigate = useNavigate();
     const [step, setStep] = useState(0);
+    const isMobile = useIsMobile();
 
     const list = alerts ?? [];
     const count = list.length;
@@ -41,11 +54,17 @@ const AcademicAlertBanner: React.FC<AcademicAlertBannerProps> = ({ compact = fal
     // live length keeps the position valid with no reset effect.
     const index = step % count;
     const alert = list[index];
+    // On a phone the full sentence cannot fit and gets truncated to a few
+    // unreadable characters, so the short form is what ships there. The caller
+    // can still force it, which is how the desktop long form is asserted.
+    const useShort = compact ?? isMobile;
 
     return (
         <button
             type="button"
-            className={`academic-alert${alert.urgent ? ' academic-alert--urgent' : ''}`}
+            className={`academic-alert${alert.urgent ? ' academic-alert--urgent' : ''}${
+                useShort ? ' academic-alert--compact' : ''
+            }`}
             onClick={() => navigate('/academic')}
             role="status"
             // Not re-keyed on the id: the message swaps in place. Remounting the
@@ -53,8 +72,8 @@ const AcademicAlertBanner: React.FC<AcademicAlertBannerProps> = ({ compact = fal
             // to be static now.
             title={alert.message}
         >
-            <AlertTriangle size={13} className="academic-alert__icon" aria-hidden="true" />
-            <span className="academic-alert__text">{compact ? alert.shortMessage : alert.message}</span>
+            <AlertTriangle className="academic-alert__icon" aria-hidden="true" />
+            <span className="academic-alert__text">{useShort ? alert.shortMessage : alert.message}</span>
             {count > 1 && (
                 <span className="academic-alert__pager" aria-hidden="true">
                     {index + 1}/{count}

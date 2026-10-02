@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
-import type { User as AuthUser } from '@supabase/supabase-js';
 import { navItems, isNavItemActive } from '../utils/navItems';
+import { useAuthSession } from '../hooks/useAuthSession';
 
 // The five most-used sections get a dedicated icon; everything else lives in
 // the "More" sheet so no page becomes unreachable on a phone.
@@ -12,7 +11,7 @@ const PRIMARY_PATHS = ['/Daily-Log', '/Dashboard', '/Workouts', '/Notes', '/Prof
 const MobileNavbar: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [user, setUser] = useState<AuthUser | null>(null);
+    const { user } = useAuthSession();
     // The sheet records which route it was opened on and is only rendered while
     // that is still the current route, so a back/forward navigation closes it
     // without an effect.
@@ -20,18 +19,6 @@ const MobileNavbar: React.FC = () => {
     const moreOpen = moreForPath === location.pathname;
     const openMore = useCallback(() => setMoreForPath(location.pathname), [location.pathname]);
     const closeMore = useCallback(() => setMoreForPath(null), []);
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user || null);
-        });
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user || null);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
 
     useEffect(() => {
         if (!moreOpen) return;

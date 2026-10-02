@@ -55,26 +55,71 @@ const DERIVED_CHARTS: ChartDef[] = [
 
 const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+/**
+ * One measurement over time.
+ *
+ * Shares the recessed `.chart-plot` panel and the `--chart-*` variables with the
+ * dashboard, so a trend card here is visibly the same object as a metrics card
+ * there rather than a second, weaker style of chart.
+ *
+ * Two things were fixed along the way. The Y axis used to sit under a negative
+ * left margin, which is a way of hiding the tick labels until the card got wide
+ * enough to notice -- at narrow widths the axis was simply clipped, and a chart
+ * with no readable scale is not a chart. The axis now reserves its own width and
+ * the tick labels always fit. And the grid, axis and tooltip now read from the
+ * shared palette instead of three hard-coded values, which is why the two sets of
+ * charts had drifted apart.
+ */
 const ChartCard: React.FC<{ def: ChartDef; data: Array<Record<string, number | string | null>> }> = ({ def, data }) => (
     <div className="measurement-chart-card">
         <div className="measurement-chart-card__head">
             <span className="measurement-chart-card__label">{def.label}</span>
             <span className="measurement-chart-card__unit">{def.unit}</span>
         </div>
-        <ResponsiveContainer width="100%" height={140}>
-            <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.5)' }} tickFormatter={fmtDate} minTickGap={24} />
-                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.5)' }} />
-                <Tooltip
-                    labelFormatter={(l) => fmtDate(String(l))}
-                    formatter={(v) => [String(v), def.label]}
-                    contentStyle={{ background: 'rgba(20,20,28,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, fontSize: 12 }}
-                    itemStyle={{ color: '#fff' }}
-                />
-                <Line type="monotone" dataKey={def.key} name={def.label} stroke={def.accent} strokeWidth={def.width} dot={{ r: 2.5 }} activeDot={{ r: 4 }} connectNulls />
-            </LineChart>
-        </ResponsiveContainer>
+        <div className="chart-plot chart-plot--compact">
+            <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
+                    <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
+                        tickLine={false}
+                        axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }}
+                        tickFormatter={fmtDate}
+                        minTickGap={24}
+                    />
+                    <YAxis
+                        domain={['auto', 'auto']}
+                        tick={{ fontSize: 10, fill: 'var(--chart-axis)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={40}
+                    />
+                    <Tooltip
+                        labelFormatter={(l) => fmtDate(String(l))}
+                        formatter={(v) => [String(v), def.unit ? `${def.label} (${def.unit})` : def.label]}
+                        cursor={{ stroke: 'rgba(255, 255, 255, 0.15)' }}
+                        contentStyle={{
+                            background: 'var(--chart-tooltip-bg)',
+                            border: '1px solid var(--chart-tooltip-border)',
+                            borderRadius: 12,
+                            fontSize: 12,
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--color-light)',
+                        }}
+                        itemStyle={{ color: 'var(--color-light)' }}
+                    />
+                    {/* No animation. Recharts grows every line over 1500ms by
+                        default, on a requestAnimationFrame loop: twenty-nine of
+                        them running at once on this page, and again whenever a new
+                        measurement record is added or the context changes. It
+                        carries no information the plot does not already show, and
+                        it keeps the main thread busy for a second and a half after
+                        the page has otherwise finished. */}
+                    <Line type="monotone" dataKey={def.key} name={def.label} stroke={def.accent} strokeWidth={def.width} dot={{ r: 2.5 }} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     </div>
 );
 

@@ -7,7 +7,7 @@ CREATE TABLE public.projects (
   title text NOT NULL,
   description text,
   notes text,
-  status text DEFAULT 'planned'::text CHECK (status = ANY (ARRAY['planned'::text, 'active'::text, 'paused'::text, 'completed'::text, 'archived'::text])),
+  status text DEFAULT 'planned'::text CHECK (status = ANY (ARRAY['planned'::text, 'active'::text, 'paused'::text, 'maintenance'::text, 'completed'::text, 'archived'::text])),
   priority text DEFAULT 'medium'::text CHECK (priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text])),
   started_at date,
   deadline date,
@@ -108,10 +108,10 @@ CREATE TABLE public.daily_logs (
   journal boolean DEFAULT false,
   stretching boolean DEFAULT false,
   reading boolean DEFAULT false,
+  no_sleep boolean DEFAULT false,
   CONSTRAINT daily_logs_pkey PRIMARY KEY (id),
   CONSTRAINT daily_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT daily_logs_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
-  CONSTRAINT daily_logs_user_id_log_date_key UNIQUE (user_id, log_date)
+  CONSTRAINT daily_logs_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
 CREATE TABLE public.daily_habit_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -163,6 +163,7 @@ CREATE TABLE public.workout_completion_log (
   notes text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  duration_minutes integer,
   CONSTRAINT workout_completion_log_pkey PRIMARY KEY (id),
   CONSTRAINT workout_completion_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT workout_completion_log_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id)
@@ -237,6 +238,7 @@ CREATE TABLE public.body_measurements (
   dynamic_strength real,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  weight real,
   CONSTRAINT body_measurements_pkey PRIMARY KEY (id),
   CONSTRAINT weekly_measurements_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
@@ -376,6 +378,8 @@ CREATE TABLE public.user_settings (
   target_bodyfat real,
   last_measurement_date date,
   active_goals jsonb,
+  weight_unit text NOT NULL DEFAULT 'kg'::text CHECK (weight_unit = ANY (ARRAY['kg'::text, 'lbs'::text])),
+  goal_history jsonb,
   CONSTRAINT user_settings_pkey PRIMARY KEY (id),
   CONSTRAINT user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
@@ -395,13 +399,20 @@ CREATE TABLE public.book_progress_log (
 CREATE TABLE public.notes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
-  title text NOT NULL,
+  title text,
   content text NOT NULL DEFAULT ''::text,
-  is_pinned boolean DEFAULT false,
+  is_pinned boolean NOT NULL DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  notes_color text,
+  notes_icon text,
+  notes_cover text,
+  notes_parent_id uuid,
+  notes_deleted_at timestamp with time zone,
+  notes_tags text[] NOT NULL DEFAULT '{}'::text[],
   CONSTRAINT notes_pkey PRIMARY KEY (id),
-  CONSTRAINT notes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT notes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT notes_notes_parent_id_fkey FOREIGN KEY (notes_parent_id) REFERENCES public.notes(id)
 );
 CREATE TABLE public.project_plan_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -449,7 +460,70 @@ CREATE TABLE public.daily_log_projects (
   user_id uuid NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT daily_log_projects_pkey PRIMARY KEY (id),
-  CONSTRAINT daily_log_projects_daily_log_id_fkey FOREIGN KEY (daily_log_id) REFERENCES public.daily_logs(id) ON DELETE CASCADE,
+  CONSTRAINT daily_log_projects_daily_log_id_fkey FOREIGN KEY (daily_log_id) REFERENCES public.daily_logs(id),
   CONSTRAINT daily_log_projects_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT daily_log_projects_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.academic_courses (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  semester_id uuid,
+  name text NOT NULL,
+  code text,
+  credits real NOT NULL DEFAULT 6 CHECK (credits > 0::double precision),
+  order_index integer NOT NULL DEFAULT 0,
+  final_grade real CHECK (final_grade IS NULL OR final_grade >= 0::double precision AND final_grade <= 100::double precision),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  minimum_grade real CHECK (minimum_grade IS NULL OR minimum_grade >= 0::double precision AND minimum_grade <= 100::double precision),
+  CONSTRAINT academic_courses_pkey PRIMARY KEY (id),
+  CONSTRAINT academic_courses_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT academic_courses_semester_id_fkey FOREIGN KEY (semester_id) REFERENCES public.academic_semesters(id)
+);
+CREATE TABLE public.academic_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  course_id uuid NOT NULL,
+  parent_id uuid,
+  name text NOT NULL,
+  category text NOT NULL DEFAULT 'homework'::text CHECK (category = ANY (ARRAY['homework'::text, 'exam'::text, 'quiz'::text, 'project'::text, 'lab'::text, 'participation'::text, 'other'::text])),
+  weight real NOT NULL DEFAULT 0 CHECK (weight >= 0::double precision AND weight <= 100::double precision),
+  max_score real NOT NULL DEFAULT 100 CHECK (max_score > 0::double precision),
+  score real CHECK (score IS NULL OR score >= 0::double precision),
+  due_date date,
+  order_index integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  minimum_grade real,
+  CONSTRAINT academic_items_pkey PRIMARY KEY (id),
+  CONSTRAINT academic_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT academic_items_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.academic_courses(id),
+  CONSTRAINT academic_items_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.academic_items(id)
+);
+CREATE TABLE public.gpa_scales (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  basis text NOT NULL DEFAULT 'percentage'::text CHECK (basis = ANY (ARRAY['percentage'::text, 'points'::text])),
+  max_value real NOT NULL CHECK (max_value > 0::double precision),
+  min_value real NOT NULL DEFAULT 0,
+  is_preset boolean NOT NULL DEFAULT false,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  rounding text NOT NULL DEFAULT 'nearest'::text CHECK (rounding = ANY (ARRAY['nearest'::text, 'floor'::text, 'ceil'::text])),
+  passing_grade real CHECK (passing_grade IS NULL OR passing_grade >= 0::double precision AND passing_grade <= 100::double precision),
+  CONSTRAINT gpa_scales_pkey PRIMARY KEY (id),
+  CONSTRAINT gpa_scales_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.gpa_scale_bands (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  scale_id uuid NOT NULL,
+  min_percentage real NOT NULL CHECK (min_percentage >= 0::double precision AND min_percentage <= 100::double precision),
+  points real NOT NULL,
+  letter text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT gpa_scale_bands_pkey PRIMARY KEY (id),
+  CONSTRAINT gpa_scale_bands_scale_id_fkey FOREIGN KEY (scale_id) REFERENCES public.gpa_scales(id)
 );

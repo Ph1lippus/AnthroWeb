@@ -282,7 +282,11 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         return noSleep ? null : calculateSleepDuration(wakeTime, bedtime);
     }, [noSleep, wakeTime, bedtime]);
 
-    // Get only active projects (NOT planned or paused)
+// Only `active`, by exact match. Everything else is work that is not being
+    // worked on right now: not started, deliberately halted, shipped and being
+    // fixed, done, or filed away. In particular a project in `maintenance` stays
+    // out of the log -- the fix is still happening, but attaching today's sleep
+    // and score to it would read as progress on the build, which it is not.
     const activeProjects = useMemo(() => {
         return projects.filter(p => p.status === 'active');
     }, [projects]);

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "verify:migrations": "node scripts/verify-migrations.mjs",
+    "verify:schema": "node scripts/verify-schema.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

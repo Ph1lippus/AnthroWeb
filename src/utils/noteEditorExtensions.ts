@@ -176,12 +176,38 @@ const runToggle =
             return;
         }
 
-        editor
-            .chain()
-            .focus()
-            .setDetails()
-            .updateAttributes('details', { toggleLevel: level })
-            .run();
+        // `setDetails` replaces whatever block range the cursor sits in, which
+        // inside a list is the paragraph within the list item. That produced
+        // <li><details>...</details></li>, which is not a valid document: a
+        // <details> is not permitted inside a list item, so the browser re-parsed
+        // it and what appeared on screen was an empty bullet next to the toggle.
+        // Lifting the item out first turns the list into (new paragraph) followed
+        // by (the rest of the list), which is what the user meant anyway -- a
+        // toggle is a top-level block, not something a bullet can contain.
+        //
+        // The lift is chained rather than run separately so ProseMirror maps the
+        // selection through it and the toggle lands where the cursor is.
+        //
+        // The node name is read off the selection rather than tested with
+        // isActive('listItem'), because TaskItem is a separate node with its own
+        // name. `liftListItem` matches on the name it is given, so asking for
+        // 'listItem' inside a task list lifts nothing and the invalid nesting
+        // still happens -- just inside a checkbox instead of a bullet.
+        const { $from } = editor.state.selection;
+        let listItemType: string | null = null;
+        for (let depth = $from.depth; depth > 0; depth--) {
+            const name = $from.node(depth).type.name;
+            if (name === 'listItem' || name === 'taskItem') {
+                listItemType = name;
+                break;
+            }
+        }
+
+        const chain = editor.chain().focus();
+        if (listItemType) {
+            chain.liftListItem(listItemType);
+        }
+        chain.setDetails().updateAttributes('details', { toggleLevel: level }).run();
     };
 
 /** Toggles a callout of the given type, so a second press unwraps it. */

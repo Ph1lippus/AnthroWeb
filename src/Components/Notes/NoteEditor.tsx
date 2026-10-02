@@ -132,12 +132,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     return from !== to && !editor.isActive('codeBlock');
                 }}
             >
-                <div className="note-bubble">
+                <div className="note-bubble" role="toolbar" aria-label="Text formatting">
                     <button
                         type="button"
                         className={`note-bubble-btn${editor.isActive('bold') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleBold().run()}
                         title="Bold (Ctrl+B)"
+                        aria-label="Bold"
                     >
                         <Bold size={14} />
                     </button>
@@ -146,6 +147,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('italic') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleItalic().run()}
                         title="Italic (Ctrl+I)"
+                        aria-label="Italic"
                     >
                         <Italic size={14} />
                     </button>
@@ -154,6 +156,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('underline') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleUnderline().run()}
                         title="Underline (Ctrl+U)"
+                        aria-label="Underline"
                     >
                         <Underline size={14} />
                     </button>
@@ -161,7 +164,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         type="button"
                         className={`note-bubble-btn${editor.isActive('strike') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleStrike().run()}
-                        title="Strikethrough"
+                        title="Strikethrough (Ctrl+Shift+X)"
+                        aria-label="Strikethrough"
                     >
                         <Strikethrough size={14} />
                     </button>
@@ -170,6 +174,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('subscript') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleSubscript().run()}
                         title="Subscript"
+                        aria-label="Subscript"
                     >
                         <Subscript size={14} />
                     </button>
@@ -178,6 +183,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('superscript') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleSuperscript().run()}
                         title="Superscript"
+                        aria-label="Superscript"
                     >
                         <Superscript size={14} />
                     </button>
@@ -186,6 +192,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('highlight') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleHighlight().run()}
                         title="Highlight"
+                        aria-label="Highlight"
                     >
                         <Highlighter size={14} />
                     </button>
@@ -193,7 +200,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         type="button"
                         className={`note-bubble-btn${editor.isActive('code') ? ' note-bubble-btn--on' : ''}`}
                         onClick={() => editor.chain().focus().toggleCode().run()}
-                        title="Inline code"
+                        title="Inline code (Ctrl+E)"
+                        aria-label="Inline code"
                     >
                         <Code size={14} />
                     </button>
@@ -203,15 +211,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         className={`note-bubble-btn${editor.isActive('link') ? ' note-bubble-btn--on' : ''}`}
                         onClick={setLink}
                         title="Link (Ctrl+K)"
+                        aria-label="Add link"
                     >
                         <Link2 size={14} />
                     </button>
+                    {/* Only drawn when the selection is already a link, so the
+                        second button is the one that undoes what the first did. */}
                     {editor.isActive('link') && (
                         <button
                             type="button"
                             className="note-bubble-btn"
                             onClick={() => editor.chain().focus().extendMarkRange('link').unsetLink().run()}
                             title="Remove link"
+                            aria-label="Remove link"
                         >
                             <Link2Off size={14} />
                         </button>

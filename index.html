@@ -12,9 +12,131 @@
     <title>AnthroWeb</title>
     <meta name="description" content="A comprehensive daily tracking application for health, habits, goals, and more." />
     <meta name="theme-color" content="#000000" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Two requests rather than one, because the splash needs a different
+         font-display strategy from the app. JetBrains Mono is used everywhere,
+         so it swaps and `bootScreen.ts` holds the splash until the queue drains
+         to cover the reflow. Rubik Glitch is used *only* by the splash word, so
+         there is nothing behind it to reflow into -- `display=optional` makes the
+         browser either have the face in time or never use it at all, instead of
+         swapping it in mid-fade, which is where the boot transition jumped. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=VT323&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Rubik+Glitch&display=optional"
+    />
+    <style>
+      /* Static by design. This screen does not animate, does not report progress
+         it cannot actually measure, and does not pretend to be a spinner: a
+         progress bar that moves by guesswork is worse than none, because it
+         promises a finish line. The one thing it does is stay put until there is
+         a real page to cross-fade onto, so the handover reads as a single event. */
+      .boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: #000;
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: #fffbfb;
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.24s ease, visibility 0s linear 0s;
+      }
+      /* No `backdrop-filter` here. The background is fully opaque, so the blur
+         had nothing to sample -- it was a full-viewport blur re-composited on
+         every frame of the fade for no visible difference. */
+      .boot--dismissing {
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.24s ease, visibility 0s linear 0.24s;
+        pointer-events: none;
+      }
+      .boot__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .boot__word {
+        font-family: 'Rubik Glitch', 'JetBrains Mono', monospace;
+        font-size: 1.5rem;
+        line-height: 1;
+        letter-spacing: 0.18em;
+        text-indent: 0.18em;
+        color: #ffffff;
+      }
+      /* The rule. A hairline in the accent colour, faded out at both ends so it
+         reads as a drawn divider rather than a filled bar. */
+      .boot__rule {
+        width: 180px;
+        height: 1px;
+        margin: 0;
+        border: 0;
+        background: linear-gradient(
+          to right,
+          rgba(0, 255, 166, 0) 0%,
+          rgba(0, 255, 166, 0.55) 20%,
+          rgba(0, 255, 166, 0.55) 80%,
+          rgba(0, 255, 166, 0) 100%
+        );
+      }
+      .boot__status {
+        margin: 0;
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #fffbfb;
+        opacity: 0.4;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot {
+          transition: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" class="boot" role="status" aria-live="polite">
+      <div class="boot__inner">
+        <h1 class="boot__word">ANTHROWEB</h1>
+        <hr class="boot__rule" />
+        <p class="boot__status">Starting up</p>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+      /* Last-resort watchdog.
+       *
+       * If the app never calls dismissBootScreen -- a chunk that fails to load, a
+       * query that rejects, a JS error before the session resolves -- the splash
+       * would otherwise sit there forever looking like a hang. It gives up after
+       * 15s, but it says so first: the message is written *before* the fade
+       * starts and the element is only removed once the fade has finished, so
+       * unlike the old version (which set the text and hid the element in the
+       * same tick, 240ms later) the message is actually readable. */
+      (function () {
+        var HOLD_MS = 1200;
+        var FADE_MS = 240;
+        window.setTimeout(function () {
+          var boot = document.getElementById('boot');
+          if (!boot || boot.dataset.dismissing === 'true') return;
+          boot.dataset.dismissing = 'true';
+          var status = boot.querySelector('.boot__status');
+          if (status) status.textContent = 'Reload to continue';
+          window.setTimeout(function () {
+            boot.classList.add('boot--dismissing');
+            window.setTimeout(function () { boot.remove(); }, FADE_MS);
+          }, HOLD_MS);
+        }, 15000);
+      })();
+    </script>
   </body>
 </html>

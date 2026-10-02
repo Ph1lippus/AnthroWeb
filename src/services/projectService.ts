@@ -1,5 +1,27 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
 
+/**
+ * The one list of statuses the app knows about.
+ *
+ * This used to be spelled out as a five-member union in nine separate places, so
+ * adding one meant finding all nine and hoping none was missed -- and the CSV
+ * importer trusted whatever the file said, so a typo in a spreadsheet became a
+ * row the database then rejected. Deriving the type from this list means the
+ * database constraint, the UI and the importer cannot drift apart silently.
+ *
+ * `maintenance` is the "shipped, still being fixed" state: past `active` because
+ * the build exists, but not `completed` because it is not done.
+ */
+export const PROJECT_STATUSES = ['planned', 'active', 'paused', 'maintenance', 'completed', 'archived'] as const;
+
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+export const isProjectStatus = (value: unknown): value is ProjectStatus =>
+    typeof value === 'string' && (PROJECT_STATUSES as readonly string[]).includes(value);
+
+/** Statuses that mean the work is over, for counting and overdue maths. */
+export const isFinishedStatus = (status: string): boolean => status === 'completed' || status === 'archived';
+
 // Project types
 export interface Project {
     id?: string;
@@ -7,7 +29,7 @@ export interface Project {
     title: string;
     description?: string;
     notes?: string;
-    status: 'planned' | 'active' | 'paused' | 'completed' | 'archived';
+    status: ProjectStatus;
     priority: 'low' | 'medium' | 'high';
     started_at?: string;
     deadline?: string;
@@ -59,7 +81,7 @@ export const createProject = async (project: {
     title: string;
     description?: string;
     notes?: string;
-    status?: 'planned' | 'active' | 'paused' | 'completed' | 'archived';
+    status?: ProjectStatus;
     priority?: 'low' | 'medium' | 'high';
     started_at?: string;
     deadline?: string;
@@ -164,6 +186,9 @@ export const importProjectsFromCSV = async (csvContent: string) => {
 
     const lines = csvContent.trim().split('\n');
     const projectsToCreate: Partial<Project>[] = [];
+    // Rows the file got wrong are collected rather than thrown on the first one:
+    // a spreadsheet with three bad rows should not cost the user the other forty.
+    const rejected: { row: number; reason: string }[] = [];
 
     for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue; // Skip empty lines
@@ -173,10 +198,24 @@ export const importProjectsFromCSV = async (csvContent: string) => {
         
         const title = parts[0] || '';
         const description = parts[1] || undefined;
-        const status = (parts[2] || 'planned') as Project['status'];
         const priority = (parts[3] || 'medium') as Project['priority'];
         const deadline = parts[4] || undefined;
         const notes = parts[5] || undefined;
+
+        // An unknown status used to be cast straight to Project['status'], which
+        // put a value the database constraint would reject into a bulk insert --
+        // so one typo failed the entire import with an opaque error, and any row
+        // that did slip through was typed as valid in TypeScript. Anything not on
+        // the list falls back to 'planned' and is reported.
+        const rawStatus = (parts[2] || '').trim();
+        let status: ProjectStatus = 'planned';
+        if (rawStatus) {
+            if (isProjectStatus(rawStatus)) {
+                status = rawStatus;
+            } else {
+                rejected.push({ row: i + 1, reason: `unknown status "${rawStatus}", imported as planned` });
+            }
+        }
         
         if (title && title.trim()) {
             projectsToCreate.push({
@@ -191,7 +230,9 @@ export const importProjectsFromCSV = async (csvContent: string) => {
         }
     }
 
-    if (projectsToCreate.length === 0) return [];
+    if (projectsToCreate.length === 0) {
+        return { projects: [], rejected };
+    }
 
     const { data, error } = await supabase
         .from('projects')
@@ -202,7 +243,7 @@ export const importProjectsFromCSV = async (csvContent: string) => {
         console.error('Error importing projects:', error.message);
         throw error;
     }
-    return data;
+    return { projects: data ?? [], rejected };
 };
 
 // Helper function to parse CSV line with proper quote handling
