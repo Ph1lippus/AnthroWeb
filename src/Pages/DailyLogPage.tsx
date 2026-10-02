@@ -9,10 +9,11 @@ import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
-import { computeDailyScore, calculateSleepDuration } from '../utils/dailyScoring';
+import { computeDailyScore, calculateSleepDuration, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
+import { useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
@@ -104,6 +105,23 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const [reading, setReading] = useState(false);
     const [noSleep, setNoSleep] = useState(false);
 
+    // Gym is a built-in habit, but it is written by the workout pages rather
+    // than by this form: ticking it here and marking the same day on /Workouts
+    // are the same call, so the habit charts, the score ring and the workout
+    // heatmap can never report a different answer for one date.
+    const setGym = useSetGymForDate();
+    const [gym, setGymLocal] = useState(false);
+    const toggleGym = async () => {
+        const next = !gym;
+        setGymLocal(next);
+        try {
+            await setGym.mutateAsync({ date: logDate, trained: next, materialize: true });
+        } catch (error) {
+            setGymLocal(!next);
+            console.error('Could not update the gym habit:', error);
+        }
+    };
+
     const [showCustomHabit, setShowCustomHabit] = useState(false);
     const [customHabitName, setCustomHabitName] = useState('');
     const [customHabitDesc, setCustomHabitDesc] = useState('');
@@ -140,6 +158,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         setStretching(log.stretching || false);
         setReading(log.reading || false);
         setNoSleep(log.no_sleep || false);
+        setGymLocal(log.gym || false);
     };
 
     const resetForm = () => {
@@ -171,6 +190,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         setStretching(false);
         setReading(false);
         setNoSleep(false);
+        setGymLocal(false);
         setSelectedProjectIds(new Set());
     };
 
@@ -332,14 +352,14 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         weight,
         bodyFat,
         mood,
-        habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone },
+        habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym },
         customCompleted: completedHabits.size,
         customTotal: habits.length,
         activeGoals,
         settings: effectiveSettings,
         noSleep,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     const scoreOf = (key: string): number | null => {
@@ -713,8 +733,8 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         ? new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
         : '';
 
-    const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone].filter(Boolean).length;
-    const habitTotal = 8 + habits.length;
+    const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym].filter(Boolean).length;
+    const habitTotal = BUILTIN_HABIT_COUNT + habits.length;
 
     const timeInputHandlers = (setter: (v: string) => void) => ({
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -746,6 +766,34 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         <label className="checkbox-label">
             <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="checkbox-input" />
             <span className="text-sm opacity-90">{label}</span>
+        </label>
+    );
+
+    // Gym is different from the others: the tick writes a workout session, so
+    // it is async, it can fail, and marking it opens a real session rather than
+    // only setting a flag. Kept separate from habitCheckbox so that difference
+    // is visible rather than hidden behind an identical-looking control.
+    const gymCheckbox = (
+        <label className="checkbox-label daily-log-habits__gym">
+            <input
+                type="checkbox"
+                checked={gym}
+                onChange={toggleGym}
+                disabled={setGym.isPending}
+                className="checkbox-input"
+            />
+            <span className="text-sm opacity-90">
+                Gym
+                {gym && (
+                    <a
+                        className="daily-log-habits__gym-link"
+                        href={`/Workouts?day=${logDate}`}
+                        onClick={event => event.stopPropagation()}
+                    >
+                        detail
+                    </a>
+                )}
+            </span>
         </label>
     );
 
@@ -1050,6 +1098,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                             {habitCheckbox(journal, setJournal, 'Journaled')}
                                             {habitCheckbox(stretching, setStretching, 'Stretching')}
                                             {habitCheckbox(reading, setReading, 'Reading')}
+                                            {gymCheckbox}
                                         </div>
 
                                         <div className="flex flex-col gap-1">

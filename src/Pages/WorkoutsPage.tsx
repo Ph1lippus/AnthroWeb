@@ -1,229 +1,410 @@
-import React, { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Dumbbell, Plus, Trophy } from 'lucide-react';
 import Title from '../Components/Title';
-import WorkoutsNav from '../Components/Workout/WorkoutsNav';
-import { useActiveTemplate, useWorkoutPlan, useWorkoutLog, useSetActiveTemplate } from '../hooks/useWorkouts';
+import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
+import MarkDayPanel from '../Components/Workout/MarkDayPanel';
+import WorkoutStatsCard from '../Components/Workout/WorkoutStatTiles';
+import RecentWorkouts from '../Components/Workout/RecentWorkouts';
+import SessionList from '../Components/Workout/SessionList';
+import SessionEditor from '../Components/Workout/SessionEditor';
+import RecordsPanel from '../Components/Workout/RecordsPanel';
+import TemplatePanel from '../Components/Workout/TemplatePanel';
+import TemplateExerciseStats from '../Components/Workout/TemplateExerciseStats';
+import LoadingSpinner from '../Components/LoadingSpinner';
+import {
+    useActiveTemplate,
+    useWorkoutsOverview,
+    useExerciseStats,
+    useSetGymForDate,
+    useSetActiveTemplate,
+} from '../hooks/useWorkouts';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { fromKg } from '../utils/units';
-import { Dumbbell, Layers, Pencil, Plus, CalendarDays, CircleCheck, ChevronRight } from 'lucide-react';
+import { isDateString, todayString } from '../utils/dates';
+import { describeTargets } from '../utils/workoutSets';
+import { DAY_SHORT } from '../utils/workoutStats';
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const SUBTITLE: Record<string, string> = {
+    day: 'What you actually did. This changes that day only — the template stays as it is.',
+    records: 'The heaviest set you have logged for each exercise.',
+    overview: 'Mark a day, or log what you actually did.',
+};
 
+/**
+ * Workouts, as one page.
+ *
+ * Everything lives here rather than behind six tabs: the figures, today's plan,
+ * mark-a-day, the template, the records, every session you have logged, and the
+ * year grid. Only template creation lives elsewhere, because editing a week is a
+ * different job from looking at one.
+ *
+ * The URL decides what is on screen -- `?day=` opens the session editor for that
+ * date, `?view=records` expands the records grid -- so every state is linkable,
+ * the browser's Back closes whatever was open, and the daily log's Gym link, the
+ * heatmap and the session list all open the same day through the same route.
+ *
+ * The layout is the daily log's mosaic: grid placement outside, independent flex
+ * columns inside each track so the cards pack instead of leaving holes.
+ */
 const WorkoutsPage: React.FC = () => {
     const navigate = useNavigate();
-    const { activeTemplate, templates } = useActiveTemplate();
+    const [params, setParams] = useSearchParams();
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
+    const [notice, setNotice] = useState<string | null>(null);
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const todayDayIndex = today.getDay();
-    const todayName = DAY_NAMES[todayDayIndex];
+    const overview = useWorkoutsOverview();
+    const { activeTemplate, templates, isLoading: templatesLoading } = useActiveTemplate();
+    const setGym = useSetGymForDate(onPRs => {
+        setNotice(`New record — ${onPRs.map(pr => pr.exercise_name).join(', ')}`);
+    });
+    const activate = useSetActiveTemplate();
 
-    const { data: todayExercises = [] } = useWorkoutPlan(todayDayIndex, !!activeTemplate);
-    const { data: todayLog } = useWorkoutLog(todayStr);
-    const activateMutation = useSetActiveTemplate();
+    const stats = useExerciseStats(overview.sessions, activeTemplate?.days);
 
-    const todayCompleted = todayLog?.completed ?? false;
+    const today = todayString();
+    const todayIndex = new Date().getDay();
+    const todayRecord = overview.days.get(today);
+    const recordsOpen = params.get('view') === 'records';
+    const dayParam = params.get('day');
+    const openDay = isDateString(dayParam) ? dayParam : null;
 
-    // Exercise count per weekday for the active template (0 = Sunday).
-    const activeDays = useMemo(() => {
-        const counts = [0, 0, 0, 0, 0, 0, 0];
-        for (const ex of activeTemplate?.days ?? []) {
-            const d = ex.day_of_week;
-            if (typeof d === 'number' && d >= 0 && d <= 6) counts[d] += 1;
-        }
-        return counts;
-    }, [activeTemplate]);
-
-    const statusBadge = todayCompleted
-        ? 'workout-status-badge--completed'
-        : todayExercises.length > 0
-            ? 'workout-status-badge--pending'
-            : 'workout-status-badge--none';
-    const statusLabel = todayCompleted
-        ? 'Completed'
-        : todayExercises.length > 0
-            ? 'Not Started'
-            : 'Rest Day';
-
-    const renderTemplateCard = (templateName: string, templateId: string | undefined, description?: string, exerciseCount = 0) => (
-        <div className="workout-landing-template" key={templateId ?? templateName}>
-            <div className="workout-landing-template__info">
-                <h4 className="workout-landing-template__name">{templateName}</h4>
-                {description && <p className="workout-landing-template__description">{description}</p>}
-                <span className="workout-landing-template__meta">
-                    {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
-                </span>
-            </div>
-            <div className="workout-landing-template__actions">
-                <button
-                    onClick={() => templateId && navigate(`/Workouts/Template/${templateId}`)}
-                    className="btn-action"
-                >
-                    <Pencil className="mr-1" />Edit
-                </button>
-                <button
-                    onClick={() => templateId && activateMutation.mutate(templateId)}
-                    disabled={activateMutation.isPending}
-                    className="btn-action btn-action--primary"
-                >
-                    <CircleCheck className="mr-1" />Set as Active
-                </button>
-            </div>
-        </div>
+    const todayPlan = useMemo(
+        () => (activeTemplate?.days ?? []).filter(row => row.day_of_week === todayIndex),
+        [activeTemplate, todayIndex],
     );
+
+    /** The one place the URL changes, so the views cannot disagree about it. */
+    const go = (next: Record<string, string | undefined>) => {
+        const merged = new URLSearchParams(params);
+        for (const [key, value] of Object.entries(next)) {
+            if (value === undefined) merged.delete(key);
+            else merged.set(key, value);
+        }
+        setParams(merged, { replace: false });
+        setNotice(null);
+    };
+
+    const loading = overview.isLoading && overview.sessions.length === 0;
+    const isEmpty = !loading && !templatesLoading && templates.length === 0;
+
+    // ---- Sub-views ----
+    if (openDay) {
+        return (
+            <>
+                <Title title={`Session — ${openDay}`} />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card workout-card--scroll">
+                            <div className="dashboard-section__subtitle" style={{ textAlign: 'left' }}>
+                                {SUBTITLE.day}
+                            </div>
+                            <SessionEditor date={openDay} onNavigate={next => go({ day: next })} />
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    if (recordsOpen) {
+        return (
+            <>
+                <Title title="Personal Records" />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card workout-card--scroll">
+                            {notice && (
+                                <div className="workout-notice" role="status">
+                                    <Trophy size={13} />
+                                    <span>{notice}</span>
+                                    <button
+                                        className="workout-notice__close"
+                                        onClick={() => setNotice(null)}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                            <div className="dashboard-section__subtitle" style={{ textAlign: 'left' }}>
+                                {SUBTITLE.records}
+                            </div>
+                            <RecordsPanel
+                                expanded
+                                onExpand={() => undefined}
+                                onCollapse={() => go({ view: undefined })}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    // ---- First run ----
+    if (isEmpty) {
+        return (
+            <>
+                <Title title="Workouts" />
+                <div className="books-page-wrapper">
+                    <div className="dashboard-section workout-section">
+                        <div className="workout-card">
+                            <div className="workout-empty" style={{ marginTop: '1rem' }}>
+                                <Dumbbell size={20} style={{ opacity: 0.4 }} />
+                                <p className="workout-empty__title" style={{ marginTop: '0.5rem' }}>
+                                    Build your first routine
+                                </p>
+                                <p className="workout-empty__text">
+                                    A template gives every day of the week its own exercises and fills
+                                    today's session for you. You can also mark a day without a plan at all.
+                                </p>
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.9rem' }}>
+                                    <button
+                                        className="btn-action btn-action--primary"
+                                        onClick={() => navigate('/Workouts/Templates')}
+                                    >
+                                        <Plus size={11} className="mr-1" />Create a template
+                                    </button>
+                                    <button className="btn-action" onClick={() => go({ day: today })}>
+                                        Log a session
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     return (
         <>
             <Title title="Workouts" />
             <div className="books-page-wrapper">
                 <div className="dashboard-section workout-section">
-                    <div className="workout-card">
-                        <WorkoutsNav />
-
-                        <div className="dashboard-section__subtitle">
-                        Your weekly routine at a glance
-                    </div>
-
-                        {templates.length === 0 ? (
-                            <div className="workout-onboard">
-                                <div className="workout-onboard__icon"><Layers /></div>
-                                <h3 className="workout-onboard__title">Build your first routine</h3>
-                                <p className="workout-onboard__text">
-                                    Create a weekly workout template and today's plan will show up here.
-                                    You can log an unplanned session anytime.
-                                </p>
-                                <div className="workout-onboard__actions">
-                                    <button
-                                        onClick={() => navigate('/Workouts/Templates')}
-                                        className="btn-action btn-action--primary"
-                                    >
-                                        <Plus className="mr-1" />Create Template
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/Workouts/Check')}
-                                        className="btn-action"
-                                    >
-                                        <Dumbbell className="mr-1" />Log Workout Manually
-                                    </button>
-                                </div>
+                    <div className="workout-card workout-card--scroll">
+                        {notice && (
+                            <div className="workout-notice" role="status">
+                                <Trophy size={13} />
+                                <span>{notice}</span>
+                                <button className="workout-notice__close" onClick={() => setNotice(null)}>
+                                    ×
+                                </button>
                             </div>
-                        ) : !activeTemplate ? (
-                            <>
-                                <div className="workout-choose-note">
-                                    <CalendarDays className="workout-choose-note__icon" />
-                                    <p>No active template — today has no plan yet. Pick a template to get started.</p>
-                                </div>
+                        )}
 
-                                <div className="workout-section-header">
-                                    <Layers />
-                                    Choose a template
-                                </div>
+                        <div className="dashboard-section__subtitle" style={{ textAlign: 'left' }}>
+                            {SUBTITLE.overview}
+                        </div>
 
-                                <div className="workout-landing-templates">
-                                    {templates.map(t => renderTemplateCard(t.name, t.id, t.description, (t.days ?? []).length))}
-                                </div>
+                        {loading ? <LoadingSpinner /> : (
+                            <div className="workout-mosaic">
 
-                                <div className="workout-landing-footer">
-                                    <button onClick={() => navigate('/Workouts/Templates')} className="btn-action">
-                                        <Plus className="mr-1" />New Template
-                                    </button>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                {/* Today's status */}
-                                <div className="workout-today-hero">
-                                    <div className="workout-today-hero__head">
-                                        <span className="workout-today-hero__date">Today · {todayName}</span>
-                                        <span className={`workout-status-badge ${statusBadge}`}>{statusLabel}</span>
+                                <RecentWorkouts sessions={overview.recent} weightUnit={weightUnit} />
+
+                                {/* ---- Left: the numbers ---- */}
+                                <div className="workout-mosaic__col workout-mosaic__stats">
+                                    <WorkoutStatsCard
+                                        last7={overview.last7}
+                                        last30={overview.last30}
+                                        streak={overview.streak}
+                                        weightUnit={weightUnit}
+                                    />
+
+                                    <div className="workout-mosaic__tpl">
+                                        <div className="card">
+                                            <div className="card-header">
+                                                <h3 className="card-title">This week</h3>
+                                            </div>
+                                            <div className="card-body">
+                                                <div className="workout-week">
+                                                    {DAY_SHORT.map((label, index) => {
+                                                        const weekday = (index + 1) % 7;
+                                                        const trained = overview.days.get(
+                                                            mondayOf(weekday),
+                                                        )?.completed === true;
+                                                        return (
+                                                            <span
+                                                                key={label}
+                                                                className={[
+                                                                    'workout-week__day',
+                                                                    trained ? 'workout-week__day--on' : '',
+                                                                    weekday === todayIndex ? 'workout-week__day--today' : '',
+                                                                ].filter(Boolean).join(' ')}
+                                                                title={`${label} — ${trained ? 'trained' : 'rest'}`}
+                                                            >
+                                                                <span className="workout-week__label">{label.slice(0, 2)}</span>
+                                                                <span className={`workout-week__count ${trained ? '' : 'workout-week__count--rest'}`}>
+                                                                    {trained ? '✓' : '·'}
+                                                                </span>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="workout-meter-row" style={{ marginTop: '0.6rem' }}>
+                                                    <span>Sessions · sets</span>
+                                                    <strong style={{ marginLeft: 'auto' }}>
+                                                        {overview.last7.sessions} · {overview.last7.sets}
+                                                    </strong>
+                                                </div>
+                                                <div className="workout-meter">
+                                                    <div
+                                                        className="workout-meter__fill"
+                                                        style={{ width: `${Math.min(100, overview.last7.sessions / 5 * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {todayCompleted ? (
-                                        <p className="workout-today-hero__text">Great job — you completed today's workout.</p>
-                                    ) : todayExercises.length > 0 ? (
-                                        <p className="workout-today-hero__text">
-                                            {todayExercises.length} exercise{todayExercises.length !== 1 ? 's' : ''} scheduled.
-                                        </p>
-                                    ) : (
-                                        <p className="workout-today-hero__text">Rest day — enjoy it.</p>
-                                    )}
-                                    {todayExercises.length > 0 && (
-                                        <ul className="workout-today-hero__list">
-                                            {todayExercises.map((ex, index) => (
-                                                <li key={ex.id ?? `${ex.exercise_name}-${index}`} className="workout-today-hero__item">
-                                                    <span className="workout-today-hero__item-name">{ex.exercise_name}</span>
-                                                    {ex.target_sets && ex.target_reps && (
-                                                        <span className="workout-today-hero__sets">
-                                                            {ex.target_sets} × {ex.target_reps}
-                                                            {ex.target_weight != null && ` · ${fromKg(ex.target_weight, weightUnit).toFixed(0)} ${weightUnit}`}
-                                                        </span>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                    <div className="workout-today-hero__actions">
-                                        <button
-                                            onClick={() => navigate('/Workouts/Check')}
-                                            className="btn-action btn-action--primary"
-                                        >
-                                            <Dumbbell className="mr-1" />{todayCompleted ? 'Review Session' : 'Log Workout'}
-                                        </button>
-                                    </div>
                                 </div>
 
-                                {/* Active template */}
-                                <div className="workout-active-template">
-                                    <div className="workout-active-template__head">
-                                        <div className="workout-active-template__title-group">
-                                            <h3 className="workout-active-template__name">
-                                                <CircleCheck className="workout-active-template__pin" />
-                                                {activeTemplate.name}
-                                            </h3>
-                                            {activeTemplate.description && (
-                                                <p className="workout-active-template__description">{activeTemplate.description}</p>
+                                {/* ---- Middle: the plan, then every session ---- */}
+                                <div className="workout-mosaic__col workout-mosaic__plan">
+                                    <div className="card">
+                                        <div className="card-header">
+                                            <h3 className="card-title">Today</h3>
+                                            <button
+                                                className="btn-action btn-action--primary"
+                                                style={{ marginLeft: 'auto' }}
+                                                onClick={() => go({ day: today })}
+                                            >
+                                                <Dumbbell size={11} className="mr-1" />
+                                                {todayRecord?.completed ? 'Review session' : 'Log workout'}
+                                            </button>
+                                        </div>
+                                        <div className="card-body">
+                                            {!activeTemplate ? (
+                                                <p className="form-label">No active template, so today has no plan.</p>
+                                            ) : todayPlan.length === 0 ? (
+                                                <p className="form-label">Rest day. You can still log a session.</p>
+                                            ) : (
+                                                <>
+                                                    <div className="workout-rows">
+                                                        {todayPlan.map(row => (
+                                                            <div className="workout-row" key={row.id}>
+                                                                <span className="workout-row__name">{row.exercise_name}</span>
+                                                                <span className="workout-row__value">
+                                                                    {describeTargets(row, weightUnit)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <p className="form-label" style={{ marginTop: '0.6rem' }}>
+                                                        {todayRecord?.completed
+                                                            ? `Logged today${todayRecord.intensity ? ` at ${todayRecord.intensity}/10` : ''}.`
+                                                            : 'Not logged yet.'}
+                                                    </p>
+                                                </>
                                             )}
                                         </div>
-                                        <button
-                                            onClick={() => navigate(`/Workouts/Template/${activeTemplate.id}`)}
-                                            className="btn-action"
-                                        >
-                                            <Pencil className="mr-1" />Edit
-                                        </button>
                                     </div>
-                                    <p className="workout-active-template__meta">
-                                        {(activeTemplate.days ?? []).length} planned exercise{(activeTemplate.days ?? []).length !== 1 ? 's' : ''} across the week
-                                    </p>
-                                    <div className="workout-day-strip" aria-label="Weekly plan">
-                                        {DAY_NAMES.map((name, i) => (
-                                            <span
-                                                key={name}
-                                                className={`workout-day-strip__chip ${
-                                                    activeDays[i] > 0 ? 'workout-day-strip__chip--on' : ''
-                                                } ${i === todayDayIndex ? 'workout-day-strip__chip--today' : ''}`}
-                                            >
-                                                <span className="workout-day-strip__day">{name.slice(0, 2)}</span>
-                                                {activeDays[i] > 0 && (
-                                                    <span className="workout-day-strip__count">{activeDays[i]}</span>
-                                                )}
-                                            </span>
-                                        ))}
+
+                                    <div className="workout-mosaic__history">
+                                        <div className="card">
+                                            <div className="card-header">
+                                                <h3 className="card-title">Sessions</h3>
+                                                <span className="semester-meta" style={{ marginLeft: 'auto' }}>
+                                                    last year
+                                                </span>
+                                            </div>
+                                            <div className="card-body">
+                                                <SessionList
+                                                    sessions={overview.sessions.filter(s => s.completed)}
+                                                    weightUnit={weightUnit}
+                                                    onOpen={date => go({ day: date })}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="workout-landing-footer">
-                                    <button onClick={() => navigate('/Workouts/Templates')} className="btn-action workout-landing-footer__link">
-                                        <Layers className="mr-1" />Manage Templates
-                                        <ChevronRight className="ml-1 workout-landing-footer__chevron" />
-                                    </button>
+                                {/* ---- Right: mark a day, template, records ---- */}
+                                <div className="workout-mosaic__col">
+                                    <div className="workout-mosaic__mark">
+                                        <MarkDayPanel
+                                            days={overview.days}
+                                            isSaving={setGym.isPending}
+                                            onToggle={(date, trained, intensity) =>
+                                                setGym.mutate({ date, trained, intensity })}
+                                        />
+                                    </div>
+
+                                    <TemplatePanel
+                                        activeTemplate={activeTemplate}
+                                        templates={templates}
+                                        todayIndex={todayIndex}
+                                        onActivate={id => activate.mutate(id)}
+                                        isActivating={activate.isPending}
+                                    />
+
+                                    <div className="workout-mosaic__records">
+                                        <RecordsPanel
+                                            expanded={false}
+                                            onExpand={() => go({ view: 'records' })}
+                                            onCollapse={() => go({ view: undefined })}
+                                        />
+                                    </div>
                                 </div>
-                            </>
+
+                                {/* ---- Template exercises: two tracks wide ---- */}
+                                <div className="workout-mosaic__exstats">
+                                    <div className="card">
+                                        <div className="card-header">
+                                            <h3 className="card-title">Template exercises</h3>
+                                            {activeTemplate && (
+                                                <span className="semester-meta" style={{ marginLeft: 'auto' }}>
+                                                    {activeTemplate.name}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="card-body">
+                                            <TemplateExerciseStats rows={stats} weightUnit={weightUnit} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ---- The year: all three tracks ---- */}
+                                <div className="workout-mosaic__chart">
+                                    <div className="card">
+                                        <div className="card-header">
+                                            <h3 className="card-title">The last year</h3>
+                                            <span className="semester-meta" style={{ marginLeft: 'auto' }}>
+                                                click a square to mark or unmark
+                                            </span>
+                                        </div>
+                                        <div className="card-body">
+                                            <WorkoutYearHeatmap
+                                                weeks={overview.weeks}
+                                                isSaving={setGym.isPending}
+                                                isLoading={overview.isLoading}
+                                                weightUnit={weightUnit}
+                                                onToggleDay={(date, trained) =>
+                                                    setGym.mutate({
+                                                        date,
+                                                        trained,
+                                                        intensity: trained ? 5 : undefined,
+                                                    })}
+                                                onSetIntensity={(date, intensity) =>
+                                                    setGym.mutate({ date, trained: true, intensity })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
         </>
     );
+};
+
+/** The date of `weekday` inside the current week, Monday-first. */
+const mondayOf = (weekday: number): string => {
+    const today = new Date();
+    const offset = (weekday + 6) % 7;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7) + offset);
+    return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
 };
 
 export default WorkoutsPage;

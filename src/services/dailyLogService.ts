@@ -37,6 +37,9 @@ export interface DailyLog {
     stretching?: boolean;
     reading?: boolean;
     no_sleep?: boolean;
+    // Written by the workout pages (setGymForDate), never by this service, so
+    // the habit score and the workout heatmap stay one fact rather than two.
+    gym?: boolean;
 }
 
 // Fetch all daily logs for current user

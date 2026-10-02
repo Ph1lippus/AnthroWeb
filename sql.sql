@@ -49,6 +49,22 @@ CREATE TABLE public.workout_templates (
   CONSTRAINT workout_templates_pkey PRIMARY KEY (id),
   CONSTRAINT workout_templates_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.exercises (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  wger_id integer,
+  name text NOT NULL,
+  category text,
+  equipment text,
+  muscles text[],
+  aliases text[],
+  activity_type text NOT NULL DEFAULT 'strength'::text CHECK (activity_type = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text])),
+  is_custom boolean NOT NULL DEFAULT false,
+  last_synced_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT exercises_pkey PRIMARY KEY (id),
+  CONSTRAINT exercises_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.academic_semesters (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -109,6 +125,7 @@ CREATE TABLE public.daily_logs (
   stretching boolean DEFAULT false,
   reading boolean DEFAULT false,
   no_sleep boolean DEFAULT false,
+  gym boolean DEFAULT false,
   CONSTRAINT daily_logs_pkey PRIMARY KEY (id),
   CONSTRAINT daily_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT daily_logs_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
@@ -137,28 +154,34 @@ CREATE TABLE public.custom_measurement_logs (
   CONSTRAINT custom_measurement_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT custom_measurement_logs_measurement_id_fkey FOREIGN KEY (measurement_id) REFERENCES public.custom_measurements(id)
 );
-CREATE TABLE public.workout_template_days (
+CREATE TABLE public.workout_template_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   workout_template_id uuid NOT NULL,
   user_id uuid NOT NULL,
   day_of_week integer NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+  position integer NOT NULL DEFAULT 0,
+  exercise_id uuid,
   exercise_name text NOT NULL,
-  target_sets integer,
+  activity_type text NOT NULL DEFAULT 'strength'::text CHECK (activity_type = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text])),
+  target_sets_detail jsonb,
   target_reps integer,
   target_weight real,
+  target_duration_minutes integer,
+  target_distance_km real,
   notes text,
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT workout_template_days_pkey PRIMARY KEY (id),
-  CONSTRAINT workout_template_days_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id),
-  CONSTRAINT workout_template_days_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT workout_template_exercises_pkey PRIMARY KEY (id),
+  CONSTRAINT workout_template_exercises_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id) ON DELETE CASCADE,
+  CONSTRAINT workout_template_exercises_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT workout_template_exercises_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE SET NULL
 );
 CREATE TABLE public.workout_completion_log (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   workout_date date NOT NULL DEFAULT CURRENT_DATE,
   workout_template_id uuid,
-  day_of_week integer,
-  completed boolean DEFAULT false,
+  completed boolean NOT NULL DEFAULT false,
   intensity integer CHECK (intensity >= 1 AND intensity <= 10),
   notes text,
   created_at timestamp with time zone DEFAULT now(),
@@ -166,24 +189,48 @@ CREATE TABLE public.workout_completion_log (
   duration_minutes integer,
   CONSTRAINT workout_completion_log_pkey PRIMARY KEY (id),
   CONSTRAINT workout_completion_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT workout_completion_log_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id)
+  CONSTRAINT workout_completion_log_workout_template_id_fkey FOREIGN KEY (workout_template_id) REFERENCES public.workout_templates(id) ON DELETE SET NULL,
+  CONSTRAINT workout_completion_log_user_date_key UNIQUE (user_id, workout_date)
 );
 CREATE TABLE public.workout_exercises_log (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   workout_completion_id uuid NOT NULL,
   user_id uuid NOT NULL,
+  template_exercise_id uuid,
+  exercise_id uuid,
   exercise_name text NOT NULL,
-  sets integer,
+  activity_type text NOT NULL DEFAULT 'strength'::text CHECK (activity_type = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text])),
+  position integer NOT NULL DEFAULT 0,
+  planned boolean NOT NULL DEFAULT false,
+  completed boolean NOT NULL DEFAULT false,
+  sets_detail jsonb,
   reps integer,
   weight real,
+  duration_minutes integer,
+  distance_km real,
+  notes text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT workout_exercises_log_pkey PRIMARY KEY (id),
-  CONSTRAINT workout_exercises_log_workout_completion_id_fkey FOREIGN KEY (workout_completion_id) REFERENCES public.workout_completion_log(id),
-  CONSTRAINT workout_exercises_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT workout_exercises_log_workout_completion_id_fkey FOREIGN KEY (workout_completion_id) REFERENCES public.workout_completion_log(id) ON DELETE CASCADE,
+  CONSTRAINT workout_exercises_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT workout_exercises_log_template_exercise_id_fkey FOREIGN KEY (template_exercise_id) REFERENCES public.workout_template_exercises(id) ON DELETE SET NULL,
+  CONSTRAINT workout_exercises_log_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE SET NULL
+);
+CREATE TABLE public.pr_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  exercise_id uuid,
+  exercise_name text NOT NULL,
+  source text NOT NULL DEFAULT 'manual'::text CHECK (source = ANY (ARRAY['template'::text, 'manual'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT pr_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT pr_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT pr_entries_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE SET NULL
 );
 CREATE TABLE public.pr_history (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
+  pr_entry_id uuid,
   exercise_name text NOT NULL,
   weight real,
   reps integer,
@@ -192,7 +239,8 @@ CREATE TABLE public.pr_history (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT pr_history_pkey PRIMARY KEY (id),
   CONSTRAINT pr_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT pr_history_workout_completion_id_fkey FOREIGN KEY (workout_completion_id) REFERENCES public.workout_completion_log(id)
+  CONSTRAINT pr_history_pr_entry_id_fkey FOREIGN KEY (pr_entry_id) REFERENCES public.pr_entries(id) ON DELETE CASCADE,
+  CONSTRAINT pr_history_workout_completion_id_fkey FOREIGN KEY (workout_completion_id) REFERENCES public.workout_completion_log(id) ON DELETE CASCADE
 );
 CREATE TABLE public.body_measurements (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -527,3 +575,39 @@ CREATE TABLE public.gpa_scale_bands (
   CONSTRAINT gpa_scale_bands_pkey PRIMARY KEY (id),
   CONSTRAINT gpa_scale_bands_scale_id_fkey FOREIGN KEY (scale_id) REFERENCES public.gpa_scales(id)
 );
+-- ---------------------------------------------------------------------------
+-- Indexes
+--
+-- Every workout table is read by (user_id, something) and written once per day,
+-- so without these the client queries below are sequential scans over the
+-- user's whole history.
+-- ---------------------------------------------------------------------------
+-- Serves the library lookup and backs the (user_id, lower(name)) upsert target
+-- used when syncing from wger, so a re-sync updates rather than duplicating.
+CREATE UNIQUE INDEX exercises_user_id_name_idx ON public.exercises (user_id, lower(name));
+CREATE INDEX exercises_user_id_wger_idx ON public.exercises (user_id, wger_id);
+
+CREATE INDEX workout_template_exercises_template_day_idx
+  ON public.workout_template_exercises (workout_template_id, day_of_week, position);
+-- Serves "what is today's plan" without loading the whole template.
+CREATE INDEX workout_template_exercises_user_day_idx
+  ON public.workout_template_exercises (user_id, day_of_week);
+
+-- The unique constraint on (user_id, workout_date) already indexes the leading
+-- column; this one serves the history list, which is always ordered by date desc.
+CREATE INDEX workout_completion_log_user_date_idx
+  ON public.workout_completion_log (user_id, workout_date DESC);
+
+CREATE INDEX workout_exercises_log_completion_idx
+  ON public.workout_exercises_log (workout_completion_id);
+CREATE INDEX workout_exercises_log_user_exercise_idx
+  ON public.workout_exercises_log (user_id, exercise_id);
+CREATE INDEX workout_exercises_log_user_name_idx
+  ON public.workout_exercises_log (user_id, lower(exercise_name));
+
+CREATE INDEX pr_entries_user_id_idx ON public.pr_entries (user_id);
+CREATE INDEX pr_history_user_entry_idx ON public.pr_history (user_id, pr_entry_id, workout_date DESC);
+CREATE INDEX pr_history_user_name_idx ON public.pr_history (user_id, lower(exercise_name), workout_date DESC);
+
+CREATE UNIQUE INDEX workout_templates_single_active_idx
+  ON public.workout_templates (user_id) WHERE is_active;

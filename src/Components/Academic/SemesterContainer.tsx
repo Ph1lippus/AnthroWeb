@@ -75,31 +75,31 @@ const SemesterContainer: React.FC<SemesterContainerProps> = ({
     ].join(' · ');
 
     return (
-        <div className={`semester-card${open ? ' semester-card--open' : ''}`}>
+        <div className={`collapse-card${open ? ' collapse-card--open' : ''}`}>
             <button
                 type="button"
-                className="semester-head"
+                className="collapse-head"
                 onClick={() => setOpen(current => !current)}
                 aria-expanded={open}
             >
-                <span className="semester-head__text">
+                <span className="collapse-head__text">
                     <span className="semester-title">{title}</span>
                     <span className="semester-meta">{meta}</span>
                 </span>
 
-                <span className="semester-head__right">
+                <span className="collapse-head__right">
                     {semesterGpa.gpa !== null && (
                         <span className="semester-gpa" title={`Semester GPA on the ${scale.name} scale`}>
                             {formatGpa(semesterGpa.gpa, scale)}
                         </span>
                     )}
                     {courses.length === 0 && <span className="semester-count">empty</span>}
-                    <ChevronDown size={16} className="semester-chevron" />
+                    <ChevronDown size={16} className="collapse-chevron" />
                 </span>
             </button>
 
             {open && (
-                <div className="semester-body">
+                <div className="collapse-body">
                     {courses.length === 0 ? (
                         <div className="academic-empty">
                             <BookOpen size={32} className="academic-empty__icon" />

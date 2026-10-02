@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check, Copy, Dumbbell, Layers, Pencil, Pin, Plus, Search, Trash2, X } from 'lucide-react';
 import Title from '../Components/Title';
-import WorkoutsNav from '../Components/Workout/WorkoutsNav';
 import ConfirmModal from '../Components/ConfirmModal';
+import LoadingSpinner from '../Components/LoadingSpinner';
 import {
     useWorkoutTemplates,
     useCreateWorkoutTemplate,
@@ -10,10 +11,22 @@ import {
     useDuplicateWorkoutTemplate,
     useSetActiveTemplate,
 } from '../hooks/useWorkouts';
-import type { WorkoutTemplate } from '../services/workoutService';
-import { Plus, Layers, Pin, Pencil, Check, Copy, Trash2, Search, X } from 'lucide-react';
-import LoadingSpinner from '../Components/LoadingSpinner';
+import type { WorkoutTemplate, WorkoutTemplateExercise } from '../services/workoutService';
+import { todayString } from '../utils/dates';
 
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * The templates list: one card per routine, each expandable to show its week.
+ *
+ * Expandable rather than a grid of opaque cards, because the first question
+ * about a template is "what is in it" and the previous version made you open
+ * the editor to find out. It reuses the shared .collapse-card primitives, so
+ * the interaction is the same one a semester or a course row already has.
+ *
+ * Each day lists its exercise names, which is enough to tell a push day from a
+ * leg day without leaving the page.
+ */
 const WorkoutTemplatesPage: React.FC = () => {
     const navigate = useNavigate();
     const { data: templates = [], isLoading } = useWorkoutTemplates();
@@ -22,268 +35,193 @@ const WorkoutTemplatesPage: React.FC = () => {
     const duplicateTemplate = useDuplicateWorkoutTemplate();
     const setActive = useSetActiveTemplate();
 
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newTemplateName, setNewTemplateName] = useState('');
-    const [newTemplateDescription, setNewTemplateDescription] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
+    const [search, setSearch] = useState('');
+    const [expanded, setExpanded] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<WorkoutTemplate | null>(null);
+    // Creating inline rather than in a modal, the way the daily log adds a
+    // custom habit: two fields under the button that opened them, no overlay.
+    const [creating, setCreating] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newDescription, setNewDescription] = useState('');
 
-    const activeTemplate = templates.find(t => t.is_active) ?? null;
-    const filtered = templates.filter(t =>
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    const submitCreate = async (event: React.FormEvent) => {
+        event.preventDefault();
+        const name = newName.trim();
+        if (!name) return;
+        const created = await createTemplate.mutateAsync({
+            name,
+            description: newDescription.trim() || undefined,
+        });
+        setNewName('');
+        setNewDescription('');
+        setCreating(false);
+        // Straight into the editor, because a template with no exercises yet is
+        // not something anyone wants to look at twice.
+        if (created.id) navigate(`/Workouts/Template/${created.id}`);
+    };
+
+    const needle = search.trim().toLowerCase();
+    const filtered = needle
+        ? templates.filter(t =>
+            t.name.toLowerCase().includes(needle) ||
+            (t.description ?? '').toLowerCase().includes(needle))
+        : templates;
+    const active = filtered.find(t => t.is_active) ?? null;
     const inactive = filtered.filter(t => !t.is_active);
 
-    const handleCreate = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newTemplateName.trim()) return;
-        await createTemplate.mutateAsync({ name: newTemplateName, description: newTemplateDescription || undefined });
-        setNewTemplateName('');
-        setNewTemplateDescription('');
-        setShowCreateModal(false);
-    };
+    const toggle = (id?: string) => setExpanded(current => (current === id ? null : id ?? null));
 
     return (
         <>
             <Title title="Workout Templates" />
             <div className="books-page-wrapper">
                 <div className="dashboard-section workout-section">
-                    <div className="workout-card">
-                        <WorkoutsNav />
-
-                        <div className="dashboard-section__subtitle">
-                        Build and manage your weekly workout routines
-                    </div>
-
-                        <div className="workout-templates-stats">
-                            <div className="workout-templates-stat-item">
-                                <span className="workout-templates-stat-label">Total Templates</span>
-                                <span className="workout-templates-stat-value">{templates.length}</span>
-                            </div>
-                            <div className="workout-templates-stat-item">
-                                <span className="workout-templates-stat-label">Active</span>
-                                <span className="workout-templates-stat-value">{activeTemplate ? 1 : 0}</span>
-                            </div>
+                    <div className="workout-card workout-card--scroll">
+                        <div className="dashboard-section__subtitle" style={{ textAlign: 'left' }}>
+                            A template is a week: each day holds its own exercises. Editing one never
+                            changes a workout you already logged.
                         </div>
 
-                        <div className="workout-templates-top-bar">
-                            <button onClick={() => setShowCreateModal(true)} className="btn-action btn-action--primary">
-                                <Plus className="mr-1" />New Template
-                            </button>
-                            <div className="search-container workout-templates-search">
-                                <div className="search-input-wrapper">
-                                    <Search className="search-input-icon" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="search-input"
-                                        placeholder="Search templates..."
-                                    />
-                                    {searchQuery && (
-                                        <button className="search-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
-                                            <X />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {isLoading ? (
-                            <LoadingSpinner />
-                        ) : templates.length === 0 ? (
-                            <div className="workout-empty">
-                                <Layers className="workout-empty-icon" />
-                                <p className="workout-empty-title">No workout templates</p>
-                                <p className="workout-empty-text">Create your first workout template to start organizing your exercise routines.</p>
-                            </div>
-                        ) : (
-                            <div className="workout-templates-scroll-area">
-                                {activeTemplate && (
-                                    <div className="workout-templates-group">
-                                        <div className="workout-templates-group-header">
-                                            <Pin />
-                                            Active Template
-                                        </div>
-                                        <div className="workout-templates-grid">
-                                            {(
-                                                <div key={activeTemplate.id} className="workout-template-card-item">
-                                                    <div className="workout-template-card-item__top">
-                                                        <div className="workout-template-card-item__title-section">
-                                                            <h3 className="workout-template-card-item__title">
-                                                                {activeTemplate.is_active && <Pin className="workout-template-card-item__pin" />}
-                                                                {activeTemplate.name}
-                                                            </h3>
-                                                            {activeTemplate.description && (
-                                                                <p className="workout-template-card-item__description">{activeTemplate.description}</p>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex gap-1 shrink-0">
-                                                            <button
-                                                                onClick={() => navigate(`/Workouts/Template/${activeTemplate.id}`)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Edit template"
-                                                            >
-                                                                <Pencil />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => navigate(`/Workouts/Check`)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Log today's workout"
-                                                            >
-                                                                <Check />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => duplicateTemplate.mutate(activeTemplate.id!)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Duplicate template"
-                                                            >
-                                                                <Copy />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setDeleteTarget(activeTemplate)}
-                                                                className="workout-template-card-item__action workout-template-card-item__action--danger"
-                                                                title="Delete template"
-                                                            >
-                                                                <Trash2 />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="workout-template-card-item__footer">
-                                                        <span className="workout-template-card-item__meta">
-                                                            {(activeTemplate.days ?? []).length} exercises
-                                                        </span>
-                                                    </div>
-                                                </div>
+                        <div className="card">
+                            <div className="card-header">
+                                <h3 className="card-title"><Layers size={12} />Templates</h3>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto', alignItems: 'center' }}>
+                                    <div className="search-container" style={{ minWidth: '9rem' }}>
+                                        <div className="search-input-wrapper">
+                                            <Search className="search-input-icon" />
+                                            <input
+                                                type="text"
+                                                className="search-input"
+                                                value={search}
+                                                onChange={event => setSearch(event.target.value)}
+                                                placeholder="Search"
+                                                aria-label="Search templates"
+                                            />
+                                            {search && (
+                                                <button
+                                                    className="search-clear-btn"
+                                                    onClick={() => setSearch('')}
+                                                    aria-label="Clear search"
+                                                >
+                                                    <X size={13} />
+                                                </button>
                                             )}
                                         </div>
                                     </div>
+                                    <button
+                                        className="btn-action btn-action--primary"
+                                        onClick={() => setCreating(value => !value)}
+                                        aria-expanded={creating}
+                                    >
+                                        <Plus size={11} className="mr-1" />New
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="card-body">
+                                {creating && (
+                                    <form
+                                        onSubmit={submitCreate}
+                                        style={{ marginBottom: '0.85rem' }}
+                                    >
+                                        <div className="workout-ex__grid">
+                                            <div className="workout-ex__field">
+                                                <label className="form-label" htmlFor="tpl-new-name">Name</label>
+                                                <input
+                                                    id="tpl-new-name"
+                                                    type="text"
+                                                    className="form-control"
+                                                    value={newName}
+                                                    maxLength={60}
+                                                    placeholder="Push / Pull / Legs"
+                                                    autoFocus
+                                                    onChange={event => setNewName(event.target.value)}
+                                                />
+                                            </div>
+                                            <div className="workout-ex__field" style={{ gridColumn: 'span 2' }}>
+                                                <label className="form-label" htmlFor="tpl-new-desc">Description</label>
+                                                <input
+                                                    id="tpl-new-desc"
+                                                    type="text"
+                                                    className="form-control"
+                                                    value={newDescription}
+                                                    maxLength={200}
+                                                    placeholder="Optional"
+                                                    onChange={event => setNewDescription(event.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="workout-ex__actions" style={{ marginTop: '0.5rem' }}>
+                                            <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={() => setCreating(false)}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="btn-action btn-action--primary"
+                                                disabled={!newName.trim() || createTemplate.isPending}
+                                            >
+                                                {createTemplate.isPending ? 'Creating' : 'Create and edit'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 )}
-                                {inactive.length > 0 && (
-                                    <div className="workout-templates-group">
-                                        <div className="workout-templates-group-header">
-                                            <Layers />
-                                            All Templates ({inactive.length})
-                                        </div>
-                                        <div className="workout-templates-grid">
-                                            {inactive.map(template => (
-                                                <div key={template.id} className="workout-template-card-item">
-                                                    <div className="workout-template-card-item__top">
-                                                        <div className="workout-template-card-item__title-section">
-                                                            <h3 className="workout-template-card-item__title">{template.name}</h3>
-                                                            {template.description && (
-                                                                <p className="workout-template-card-item__description">{template.description}</p>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex gap-1 shrink-0">
-                                                            <button
-                                                                onClick={() => navigate(`/Workouts/Template/${template.id}`)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Edit template"
-                                                            >
-                                                                <Pencil />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setActive.mutate(template.id!)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Set as active"
-                                                                disabled={setActive.isPending}
-                                                            >
-                                                                <Check />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => duplicateTemplate.mutate(template.id!)}
-                                                                className="workout-template-card-item__action"
-                                                                title="Duplicate template"
-                                                            >
-                                                                <Copy />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setDeleteTarget(template)}
-                                                                className="workout-template-card-item__action workout-template-card-item__action--danger"
-                                                                title="Delete template"
-                                                            >
-                                                                <Trash2 />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="workout-template-card-item__footer">
-                                                        <span className="workout-template-card-item__meta">{(template.days ?? []).length} exercises</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                {isLoading ? <LoadingSpinner /> : templates.length === 0 ? (
+                                    <div className="workout-empty">
+                                        <p className="workout-empty__title">No templates yet</p>
+                                        <p className="workout-empty__text">
+                                            A template gives every day of the week its own exercises and
+                                            fills the session for you.
+                                        </p>
+                                    </div>
+                                ) : filtered.length === 0 ? (
+                                    <div className="workout-empty">
+                                        <p className="workout-empty__title">No match</p>
+                                        <p className="workout-empty__text">Try a different search.</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        {active && (
+                                            <TemplateRow
+                                                template={active}
+                                                expanded={expanded === active.id}
+                                                onToggle={() => toggle(active.id)}
+                                                onEdit={() => navigate(`/Workouts/Template/${active.id}`)}
+                                                onLog={() => navigate(`/Workouts?day=${todayString()}`)}
+                                                onDuplicate={() => duplicateTemplate.mutate(active.id!)}
+                                                onDelete={() => setDeleteTarget(active)}
+                                                isActivating={setActive.isPending}
+                                                onActivate={() => undefined}
+                                            />
+                                        )}
+                                        {inactive.map(template => (
+                                            <TemplateRow
+                                                key={template.id}
+                                                template={template}
+                                                expanded={expanded === template.id}
+                                                onToggle={() => toggle(template.id)}
+                                                onEdit={() => navigate(`/Workouts/Template/${template.id}`)}
+                                                onLog={() => navigate(`/Workouts?day=${todayString()}`)}
+                                                onDuplicate={() => duplicateTemplate.mutate(template.id!)}
+                                                onDelete={() => setDeleteTarget(template)}
+                                                isActivating={setActive.isPending}
+                                                onActivate={() => setActive.mutate(template.id!)}
+                                            />
+                                        ))}
                                     </div>
                                 )}
-                                {filtered.length === 0 && searchQuery && (
-                                    <p className="text-sm opacity-50 mt-4 text-center">No templates match your search.</p>
-                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Create Template Modal */}
-            {showCreateModal && (
-                <div className="import-modal-overlay" onClick={(e) => {
-                    if (e.target === e.currentTarget) {
-                        setNewTemplateName('');
-                        setNewTemplateDescription('');
-                        setShowCreateModal(false);
-                    }
-                }}>
-                    <div className="import-modal-card" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="mb-4">Create New Template</h3>
-                        <form onSubmit={handleCreate}>
-                            <div className="mb-4">
-                                <label className="form-label">Template Name</label>
-                                <input
-                                    type="text"
-                                    value={newTemplateName}
-                                    onChange={(e) => setNewTemplateName(e.target.value)}
-                                    className="form-control"
-                                    placeholder="e.g., Push Day, Leg Day, Full Body"
-                                    required
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <label className="form-label">Description (optional)</label>
-                                <textarea
-                                    value={newTemplateDescription}
-                                    onChange={(e) => setNewTemplateDescription(e.target.value)}
-                                    className="form-control"
-                                    placeholder="Describe this workout routine..."
-                                    rows={3}
-                                />
-                            </div>
-                            <div className="flex gap-2 justify-end mt-5">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setNewTemplateName('');
-                                        setNewTemplateDescription('');
-                                        setShowCreateModal(false);
-                                    }}
-                                    className="btn-form-cancel"
-                                >
-                                    Cancel
-                                </button>
-                                <button type="submit" className="btn-form-submit" disabled={createTemplate.isPending}>
-                                    {createTemplate.isPending ? 'Creating...' : 'Create Template'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Confirmation */}
             <ConfirmModal
                 open={!!deleteTarget}
                 title={`Delete "${deleteTarget?.name}"?`}
+                description="The template and its plan are removed. Workouts you already logged keep their own record."
                 confirmLabel="Delete"
                 danger
                 busy={deleteTemplate.isPending}
@@ -296,6 +234,111 @@ const WorkoutTemplatesPage: React.FC = () => {
                 onCancel={() => setDeleteTarget(null)}
             />
         </>
+    );
+};
+
+type RowTemplate = WorkoutTemplate & { days: WorkoutTemplateExercise[] };
+
+/** One template: its name, its week, and the actions on it. */
+const TemplateRow: React.FC<{
+    template: RowTemplate;
+    expanded: boolean;
+    onToggle: () => void;
+    onEdit: () => void;
+    onLog: () => void;
+    onDuplicate: () => void;
+    onDelete: () => void;
+    onActivate: () => void;
+    isActivating: boolean;
+}> = ({
+    template, expanded, onToggle, onEdit, onLog, onDuplicate, onDelete, onActivate, isActivating,
+}) => {
+    const byDay = new Map<number, string[]>();
+    for (const row of template.days ?? []) {
+        const list = byDay.get(row.day_of_week) ?? [];
+        list.push(row.exercise_name);
+        byDay.set(row.day_of_week, list);
+    }
+
+    const isActive = template.is_active;
+    const today = new Date().getDay();
+    const todayCount = byDay.get(today)?.length ?? 0;
+
+    return (
+        <div className={`collapse-card ${expanded ? 'collapse-card--open' : ''}`}>
+            <button className="collapse-head" onClick={onToggle} aria-expanded={expanded}>
+                <span className="collapse-head__text">
+                    <span className="semester-title">
+                        {isActive && <Pin size={11} style={{ marginRight: '0.3rem' }} />}
+                        {template.name}
+                    </span>
+                    <span className="semester-meta">
+                        {template.days?.length ?? 0} exercises · today {todayCount > 0 ? `has ${todayCount}` : 'is a rest day'}
+                    </span>
+                </span>
+                <span className="collapse-head__right">
+                    {isActive
+                        ? <span className="workout-chip"><Check size={10} />active</span>
+                        : <span className="workout-day__count workout-day__count--rest">{template.days?.length ?? 0}</span>}
+                </span>
+            </button>
+
+            {expanded && (
+                <div className="collapse-body">
+                    {template.description && (
+                        <p className="form-label" style={{ marginBottom: '0.5rem' }}>
+                            {template.description}
+                        </p>
+                    )}
+
+                    <div className="workout-days">
+                        {DAY_SHORT.map((label, index) => {
+                            const weekday = (index + 1) % 7;
+                            const names = byDay.get(weekday) ?? [];
+                            return (
+                                <div
+                                    key={label}
+                                    className={`workout-day ${names.length === 0 ? 'workout-day--empty' : ''}`}
+                                    style={{ cursor: 'default' }}
+                                >
+                                    <span className="workout-day__text">
+                                        <span className="workout-day__name">
+                                            {label}{weekday === today ? ' · today' : ''}
+                                        </span>
+                                        <span className="workout-day__meta">
+                                            {names.length > 0 ? names.join(', ') : 'rest'}
+                                        </span>
+                                    </span>
+                                    <span className={`workout-day__count ${names.length === 0 ? 'workout-day__count--rest' : ''}`}>
+                                        {names.length || '·'}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="workout-ex__actions">
+                        <button className="btn-action" onClick={onDelete}>
+                            <Trash2 size={11} className="mr-1" />Delete
+                        </button>
+                        <button className="btn-action" onClick={onDuplicate}>
+                            <Copy size={11} className="mr-1" />Duplicate
+                        </button>
+                        {!isActive && (
+                            <button className="btn-action" disabled={isActivating} onClick={onActivate}>
+                                <Check size={11} className="mr-1" />Set active
+                            </button>
+                        )}
+                        <button className="btn-action" onClick={onLog}>
+                            <Dumbbell size={11} className="mr-1" />Log today
+                        </button>
+                        <button className="btn-action btn-action--primary" onClick={onEdit}>
+                            <Pencil size={11} className="mr-1" />Edit
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

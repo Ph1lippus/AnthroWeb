@@ -5,6 +5,7 @@ import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
+import { BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import type { DateRange } from './dateRange';
 
@@ -190,7 +191,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
                 completedByDate.set(h.log_date, (completedByDate.get(h.log_date) ?? 0) + 1);
             }
         }
-        const habitTotal = 8 + (habits?.length ?? 0);
+        const habitTotal = BUILTIN_HABIT_COUNT + (habits?.length ?? 0);
         const habitPct = sorted.length > 0 && habitTotal > 0
             ? Math.round(
                 (sorted.reduce((sum, l) => {

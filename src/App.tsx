@@ -14,12 +14,8 @@ import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
 import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
 import WorkoutsPage from './Pages/WorkoutsPage'
-import WorkoutCheckPage from './Pages/WorkoutCheckPage'
 import WorkoutTemplatesPage from './Pages/WorkoutTemplatesPage'
 import WorkoutTemplateEditorPage from './Pages/WorkoutTemplateEditorPage'
-import WorkoutHistoryPage from './Pages/WorkoutHistoryPage'
-import WorkoutPRsPage from './Pages/WorkoutPRsPage'
-import WorkoutDashboardPage from './Pages/WorkoutDashboardPage'
 import ProjectsPage from './Pages/ProjectsPage'
 import AbstinencePage from './Pages/AbstinencePage'
 import AcademicPage from './Pages/AcademicPage'
@@ -36,9 +32,40 @@ import TermsOfServicePage from './Pages/TermsOfServicePage'
 import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, useSearchParams, Navigate } from 'react-router-dom'
 import { useBootFetchHandoff, useBootHold } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
+
+/**
+ * Sends a retired workout sub-page to the panel on /Workouts that replaced it.
+ *
+ * Workouts used to be six tabs; it is one page now, with the session editor at
+ * `?day=` and the records grid at `?view=records`. This exists so an old
+ * bookmark -- or the daily log's own Gym link, which still points at
+ * /Workouts/Check -- lands on the right thing instead of a 404.
+ *
+ * `searchParam` carries a query value across: /Workouts/Check?date=X becomes
+ * /Workouts?day=X, because the page reads `day` and nothing else.
+ */
+const WorkoutLegacyRedirect: React.FC<{
+    /** Either a full query string such as '?view=records', or a bare param name. */
+    to: string;
+    searchParam?: string;
+}> = ({ to, searchParam }) => {
+    const [params] = useSearchParams();
+
+    let query = '';
+    if (to.startsWith('?')) {
+        query = to;
+    } else if (searchParam) {
+        const value = params.get(searchParam);
+        if (value) query = `?${to}=${encodeURIComponent(value)}`;
+    } else if (to) {
+        query = `?${to}`;
+    }
+
+    return <Navigate to={`/Workouts${query}`} replace />;
+};
 
 const AuthenticatedFooter: React.FC = () => {
     const location = useLocation();
@@ -139,12 +166,30 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Measurements" element={<MeasurementsPage />} />
                 <Route path="/Books" element={<BooksPage />} />
                 <Route path="/Workouts" element={<WorkoutsPage />} />
-                <Route path="/Workouts/Dashboard" element={<WorkoutDashboardPage />} />
                 <Route path="/Workouts/Templates" element={<WorkoutTemplatesPage />} />
                 <Route path="/Workouts/Template/:id" element={<WorkoutTemplateEditorPage />} />
-                <Route path="/Workouts/Check" element={<WorkoutCheckPage />} />
-                <Route path="/Workouts/History" element={<WorkoutHistoryPage />} />
-                <Route path="/Workouts/PRs" element={<WorkoutPRsPage />} />
+                {/* Workouts used to be six tabs. They are one page now, with the
+                    session editor and the records grid reached through query
+                    parameters. These redirects carry old links and bookmarks onto
+                    the right panel of that page rather than 404ing, and `replace`
+                    keeps the Back button going where the user actually came from
+                    instead of bouncing them forward into the redirect again. */}
+                <Route
+                    path="/Workouts/Check"
+                    element={<WorkoutLegacyRedirect to="day" searchParam="date" />}
+                />
+                <Route
+                    path="/Workouts/History"
+                    element={<WorkoutLegacyRedirect to="/" />}
+                />
+                <Route
+                    path="/Workouts/Dashboard"
+                    element={<WorkoutLegacyRedirect to="/" />}
+                />
+                <Route
+                    path="/Workouts/PRs"
+                    element={<WorkoutLegacyRedirect to="?view=records" />}
+                />
                 <Route path="/Projects" element={<ProjectsPage />} />
                 <Route path="/Abstinence" element={<AbstinencePage />} />
                 <Route path="/Academic" element={<AcademicPage />} />

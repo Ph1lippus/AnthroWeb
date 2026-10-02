@@ -22,6 +22,7 @@ import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
+import { BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { addDays } from '../../utils/dates';
 import type { DateRange } from './dateRange';
@@ -712,11 +713,10 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             .sort((a, b) => a.log_date.localeCompare(b.log_date))
             .map(l => {
                 const builtinDone =
-                    [l.morning_routine, l.evening_routine, l.fruit_serving, l.studied, l.journal, l.stretching, l.reading, l.project_work_done]
-                        .filter(Boolean).length;
+                    BUILTIN_HABITS.filter(h => (l as unknown as Record<string, unknown>)[h.column]).length;
                 const customTotal = habits?.length || 0;
                 const customDone = completedByDate.get(l.log_date) ?? 0;
-                const habitTotal = 8 + customTotal;
+                const habitTotal = BUILTIN_HABIT_COUNT + customTotal;
                 return {
                     date: l.log_date,
                     label: fmtDate(l.log_date),

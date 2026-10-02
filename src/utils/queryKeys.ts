@@ -1,5 +1,11 @@
 // Central React Query keys so pages can share, invalidate, and prefetch the
 // same cached data (dashboard, daily log, history) without duplicating strings.
+// Roots, so a mutation can invalidate a family of keys without knowing which
+// arguments the components happened to query with.
+const workoutSessionsRoot = ['workout-sessions'] as const;
+const workoutPlanRoot = ['workout-plan'] as const;
+const templateExercisesRoot = ['workout-template-exercises'] as const;
+
 export const queryKeys = {
     dailyLogs: ['daily-logs'] as const,
     dailyLogByDate: (date: string) => ['daily-log', date] as const,
@@ -10,12 +16,19 @@ export const queryKeys = {
     // Workouts
     workoutTemplates: ['workout-templates'] as const,
     workoutTemplate: (id: string) => ['workout-template', id] as const,
-    workoutTemplateDays: (id: string) => ['workout-template-days', id] as const,
-    workoutPlan: (dayOfWeek: number) => ['workout-plan', dayOfWeek] as const,
+    workoutPlanRoot,
+    workoutPlan: (dayOfWeek: number) => [...workoutPlanRoot, dayOfWeek] as const,
+    workoutTemplateExercisesRoot: templateExercisesRoot,
+    workoutTemplateExercises: (id: string) => [...templateExercisesRoot, id] as const,
+    workoutSessionsRoot,
+    /** Every session in a window, exercises attached, in two queries. */
+    workoutSessions: (from: string, to: string) => [...workoutSessionsRoot, from, to] as const,
     workoutLogs: ['workout-logs'] as const,
     workoutLogByDate: (date: string) => ['workout-log', date] as const,
     workoutExercises: (completionId: string) => ['workout-exercises', completionId] as const,
     workoutPRs: ['workout-prs'] as const,
+    workoutPREntries: ['workout-pr-entries'] as const,
+    exerciseLibrary: ['exercise-library'] as const,
     // Measurements
     bodyMeasurements: ['body-measurements'] as const,
     bodyMeasurementByDate: (date: string) => ['body-measurement', date] as const,

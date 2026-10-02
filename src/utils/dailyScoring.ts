@@ -290,6 +290,32 @@ export interface DailyScoreResult {
     metrics: Record<string, MetricScore>;
 }
 
+/**
+ * The built-in habits, in display order.
+ *
+ * This list is the single definition of how many built-in habits exist. The
+ * count was previously written as a literal `8` in five different files -- the
+ * scorer, two dashboard charts, the analysis cards and the history chip -- so
+ * adding a habit silently produced charts that disagreed with the score ring.
+ * Gym is the ninth: it is a real habit that feeds both, and it is written by
+ * the workout pages rather than by this one.
+ */
+export const BUILTIN_HABITS = [
+    { key: 'morningRoutine', column: 'morning_routine', label: 'Morning Routine' },
+    { key: 'eveningRoutine', column: 'evening_routine', label: 'Evening Routine' },
+    { key: 'fruitServing', column: 'fruit_serving', label: 'Fruit Serving' },
+    { key: 'studied', column: 'studied', label: 'Studied' },
+    { key: 'journal', column: 'journal', label: 'Journaled' },
+    { key: 'stretching', column: 'stretching', label: 'Stretching' },
+    { key: 'reading', column: 'reading', label: 'Reading' },
+    { key: 'projectWorkDone', column: 'project_work_done', label: 'Projects' },
+    { key: 'gym', column: 'gym', label: 'Gym' },
+] as const;
+
+export const BUILTIN_HABIT_COUNT = BUILTIN_HABITS.length;
+
+export type BuiltinHabitKey = (typeof BUILTIN_HABITS)[number]['key'];
+
 export interface DailyScoringInput {
     wakeTime: string;
     bedtime: string;
@@ -309,16 +335,7 @@ export interface DailyScoringInput {
     weight: string;
     bodyFat: string;
     mood: string;
-    habits: {
-        morningRoutine: boolean;
-        eveningRoutine: boolean;
-        fruitServing: boolean;
-        studied: boolean;
-        stretching: boolean;
-        reading: boolean;
-        journal: boolean;
-        projectWorkDone: boolean;
-    };
+    habits: Record<BuiltinHabitKey, boolean>;
     customCompleted: number;
     customTotal: number;
     activeGoals: ActiveGoals | null | undefined;

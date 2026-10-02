@@ -6,7 +6,7 @@ import { deleteDailyLog } from '../services/dailyLogService';
 import type { DailyLog } from '../services/dailyLogService';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { queryKeys } from '../utils/queryKeys';
-import { getScoreColor } from '../utils/dailyScoring';
+import { getScoreColor, BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
 import LoadingSpinner from '../Components/LoadingSpinner';
 
 const DailyLogHistoryPage: React.FC = () => {
@@ -50,11 +50,8 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.weight) chips.push({ label: 'Weight', value: `${log.weight}kg` });
         if (log.body_fat) chips.push({ label: 'Body Fat', value: `${log.body_fat}%` });
         if (log.mood) chips.push({ label: 'Mood', value: `${log.mood}/10` });
-        const habits = [
-            log.morning_routine, log.evening_routine, log.fruit_serving,
-            log.studied, log.stretching, log.reading, log.journal, log.project_work_done,
-        ].filter(Boolean).length;
-        if (habits > 0) chips.push({ label: 'Habits', value: `${habits}/8` });
+        const habits = BUILTIN_HABITS.filter(h => (log as unknown as Record<string, unknown>)[h.column]).length;
+        if (habits > 0) chips.push({ label: 'Habits', value: `${habits}/${BUILTIN_HABIT_COUNT}` });
         return chips;
     };
 

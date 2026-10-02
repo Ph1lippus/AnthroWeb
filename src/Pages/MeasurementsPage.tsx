@@ -5,7 +5,7 @@ import MeasurementEditor from '../Components/Measurement/MeasurementEditor';
 import MeasurementStatsCards from '../Components/Measurement/MeasurementStatsCards';
 import { useBodyMeasurements, useLatestMeasurement } from '../hooks/useMeasurements';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { usePRs } from '../hooks/useWorkouts';
+import { usePREntries, usePRHistory } from '../hooks/useWorkouts';
 import { ageFromDob, measureDateToInput } from '../utils/measurementCalculations';
 import { addDays } from '../utils/dates';
 import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock, LineChart, ArrowRight } from 'lucide-react';
@@ -21,7 +21,16 @@ const MeasurementsPage: React.FC = () => {
     const { data: records = [], isLoading } = useBodyMeasurements();
     const { data: lastMeasurementDate } = useLatestMeasurement();
     const { settings } = useUserSettings();
-    const { data: prs = [] } = usePRs();
+    const { data: prEntries = [] } = usePREntries();
+    const { data: prHistory = [] } = usePRHistory();
+
+    // The strongest lift on record is the reference the derived body ratios use.
+    // Read from pr_entries + pr_history rather than the old flat list, so a
+    // seeded-but-unfilled entry does not count as a lift.
+    const maxPRWeight = useMemo(
+        () => prHistory.reduce((max, row) => (row.weight != null && row.weight > max ? row.weight : max), 0),
+        [prHistory],
+    );
 
     const byDate = useMemo(() => {
         const map = new Map<string, (typeof records)[number]>();
@@ -32,15 +41,14 @@ const MeasurementsPage: React.FC = () => {
     const initial = byDate.get(date) ?? null;
     const recordDates = records.map(r => r.measure_date).reverse();
 
-    const context = useMemo(() => {
-        const maxPRWeight = prs.reduce((max, p) => (p.weight != null && p.weight > max ? p.weight : max), 0);
-        return {
-            gender: settings?.gender ?? '',
-            height_cm: settings?.height_cm ?? null,
-            age: ageFromDob(settings?.date_of_birth),
-            relativeBestLift: maxPRWeight > 0 ? maxPRWeight : null,
-        };
-    }, [settings, prs]);
+    const context = useMemo(() => ({
+        gender: settings?.gender ?? '',
+        height_cm: settings?.height_cm ?? null,
+        age: ageFromDob(settings?.date_of_birth),
+        relativeBestLift: maxPRWeight > 0 ? maxPRWeight : null,
+    }), [settings, maxPRWeight]);
+
+    void prEntries;
 
     const recency = useMemo(() => {
         if (!lastMeasurementDate) return { kind: 'none' as const, days: null };
@@ -64,7 +72,7 @@ const MeasurementsPage: React.FC = () => {
                                 <div className="measurements-stats__head">
                                     <h2 className="measurements-stats__title">Body metrics</h2>
                                     <button
-                                        onClick={() => navigate('/Workouts/Dashboard')}
+                                        onClick={() => navigate('/Workouts')}
                                         className="btn-action"
                                     >
                                         <LineChart className="mr-1" />Trends
