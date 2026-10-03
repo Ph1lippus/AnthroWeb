@@ -70,7 +70,7 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
         rows: [
             ['Tab', 'Indent, or next table cell'],
             ['Shift + Tab', 'Outdent, or previous table cell'],
-            ['Enter in an empty to-do', 'Untick it'],
+            ['Enter in an empty to-do', 'Leave the list as a paragraph'],
         ],
     },
     {
@@ -82,14 +82,17 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
         ],
     },
     {
-        // The toolbar that appears above a selection. Its buttons carry `title`
-        // tooltips, which a mouse user sees on hover but a phone never does --
-        // there is no hover on a touch screen, so on mobile this section is the
-        // only description of what the row of icons does.
-        title: 'Selection toolbar',
+        // The grip left of each block opens this menu, and so does selecting
+        // text. Its buttons carry `title` tooltips, which a mouse user sees on
+        // hover but a phone never does -- there is no hover on a touch screen, so
+        // on mobile this section is the only description of what those rows and
+        // icons do.
+        title: 'Block menu',
         wide: true,
         rows: [
-            ['B', 'Bold — Ctrl+B', 'label'],
+            ['⋮⋮', 'Left of every block — drag to reorder, click for this menu. On a phone, the + button does the same', 'label'],
+            ['\u25B8', 'Selecting text opens this menu too, above the selection. Type to search it, arrows to move, Enter to run', 'label'],
+            ['B', 'Bold — Ctrl+B. With nothing selected it applies to what you type next', 'label'],
             ['I', 'Italic — Ctrl+I', 'label'],
             ['U', 'Underline — Ctrl+U', 'label'],
             ['S', 'Strikethrough — Ctrl+Shift+X', 'label'],
@@ -97,8 +100,11 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
             ['</>', 'Inline code — sets the text in a monospaced font', 'label'],
             ['x₂', 'Subscript — lowers and shrinks the text', 'label'],
             ['x²', 'Superscript — raises and shrinks the text', 'label'],
-            ['🔗', 'Link — Ctrl+K; turns the selection into a link, or edits the one it is already inside', 'label'],
-            ['🔗̸', 'Remove link — appears only while the selection is already a link', 'label'],
+            ['\u{1F517}', 'Link — turns the selection into a link, or edits the one it is already inside. An empty answer removes it', 'label'],
+            ['\u21C1', 'Turn into — the list of block types: headings, lists, to-dos, toggles, quote, divider, code', 'label'],
+            ['\u29C9', 'Duplicate — copies the block, or every block in a selection, below itself', 'label'],
+            ['↑ ↓', 'Move up or down — swaps the block with its neighbour', 'label'],
+            ['\u{1F5D1}', 'Delete — removes the block, or every block in a selection', 'label'],
         ],
     },
 ];
@@ -110,10 +116,10 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
  * perfectly ordinary character and swallowing it would be more annoying than
  * useful.
  *
- * Mostly shortcuts, with one section on the selection toolbar. That section is
- * not decoration: the toolbar buttons carry `title` tooltips, which only a mouse
- * with a hover ever sees. This is the only place the buttons are written down for
- * anyone on a phone.
+ * Mostly shortcuts, with one section on the block menu. That section is not
+ * decoration: the menu buttons carry `title` tooltips, which only a mouse with a
+ * hover ever sees. This is the only place they are written down for anyone on a
+ * phone.
  */
 const ShortcutsSheet: React.FC<ShortcutsSheetProps> = ({ open, onClose }) => {
     if (!open) return null;

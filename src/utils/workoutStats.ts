@@ -19,8 +19,12 @@ export interface DayRecord {
     completed: boolean;
     intensity?: number | null;
     exerciseCount: number;
+    /** Working sets across the day's exercises, for the grid's hover tooltip. */
+    sets?: number;
     volumeKg: number;
     durationMinutes?: number | null;
+    /** The plan session's name, when the day followed a named one. */
+    name?: string | null;
 }
 
 export const dayKey = (date: Date): string => toDateString(date);
@@ -208,6 +212,8 @@ export interface ExerciseRollup {
     key: string;
     exercise_name: string;
     activityType: ActivityType;
+    /** wger's muscle list for this exercise, from the library row. */
+    muscles: string[];
     /** Sessions in which this exercise was completed. */
     timesLogged: number;
     setsLogged: number;
@@ -226,6 +232,8 @@ export interface RollupSource {
     exercise_id?: string | null;
     exercise_name: string;
     activity_type?: ActivityType;
+    /** Muscle names, attached by the caller from the library row. */
+    muscles?: string[] | null;
     workout_date: string;
     completed: boolean;
     sets_detail?: unknown;
@@ -257,6 +265,7 @@ export const rollupExercises = (
                 key,
                 exercise_name: row.exercise_name,
                 activityType: (row.activity_type ?? 'strength') as ActivityType,
+                muscles: row.muscles ?? [],
                 timesLogged: 0,
                 setsLogged: 0,
                 volumeKg: 0,
@@ -298,4 +307,101 @@ export const rollupExercises = (
     }
 
     return [...rollups.values()];
+};
+
+// ---------------------------------------------------------------------------
+// Muscle groups and non-weight work
+// ---------------------------------------------------------------------------
+
+export interface MuscleGroupTotal {
+    /** wger's muscle name, as it appears in the library. */
+    muscle: string;
+    /** Completed sessions that included an exercise hitting this muscle. */
+    sessions: number;
+    setsLogged: number;
+    volumeKg: number;
+}
+
+/**
+ * How much work went through each muscle group.
+ *
+ * An exercise lists every muscle it works, so one session can land in several
+ * groups -- a barbell row counts for chest, shoulders and arms at once. That is
+ * the honest reading: the numbers answer "how much did I train this", not "how
+ * many sets of chest press did I do".
+ *
+ * Sorted by sessions, then volume, so the group you actually train is first.
+ * Groups that only ever appear on an unlogged plan row never make it in, which
+ * is what keeps this a record of work done rather than of a template.
+ *
+ * `sessions` sums `timesLogged`, so a muscle on three exercises logged across
+ * seven days reads 7. Counting rollups instead would answer a different
+ * question -- "how many of my exercises touch this" -- while the field, the doc
+ * above and the stats rail all call it sessions.
+ */
+export const muscleGroupTotals = (rollups: ExerciseRollup[]): MuscleGroupTotal[] => {
+    const totals = new Map<string, MuscleGroupTotal>();
+
+    for (const rollup of rollups) {
+        if (rollup.timesLogged === 0) continue;
+        for (const muscle of rollup.muscles) {
+            let total = totals.get(muscle);
+            if (!total) {
+                total = { muscle, sessions: 0, setsLogged: 0, volumeKg: 0 };
+                totals.set(muscle, total);
+            }
+            total.sessions += rollup.timesLogged;
+            total.setsLogged += rollup.setsLogged;
+            total.volumeKg += rollup.volumeKg;
+        }
+    }
+
+    return [...totals.values()].sort(
+        (a, b) => b.sessions - a.sessions || b.volumeKg - a.volumeKg || a.muscle.localeCompare(b.muscle),
+    );
+};
+
+export interface KindTotals {
+    strengthMinutes: number;
+    cardioMinutes: number;
+    mobilityMinutes: number;
+    cardioDistanceKm: number;
+    cardioSessions: number;
+    mobilitySessions: number;
+}
+
+/**
+ * Time spent on the two kinds of work that carry no weight.
+ *
+ * Cardio and mobility are measured in minutes and kilometres; folding them into
+ * tonnage would invent kilograms nobody lifted. Strength minutes are the same
+ * minutes attributed to strength rows, which is only useful as the denominator
+ * for a share.
+ */
+export const kindTotals = (rollups: ExerciseRollup[]): KindTotals => {
+    const totals: KindTotals = {
+        strengthMinutes: 0,
+        cardioMinutes: 0,
+        mobilityMinutes: 0,
+        cardioDistanceKm: 0,
+        cardioSessions: 0,
+        mobilitySessions: 0,
+    };
+
+    for (const rollup of rollups) {
+        if (rollup.timesLogged === 0) continue;
+        const minutes = rollup.minutesLogged;
+        if (rollup.activityType === 'cardio') {
+            totals.cardioMinutes += minutes;
+            totals.cardioDistanceKm += rollup.distanceKm;
+            totals.cardioSessions += 1;
+        } else if (rollup.activityType === 'mobility') {
+            totals.mobilityMinutes += minutes;
+            totals.mobilitySessions += 1;
+        } else {
+            totals.strengthMinutes += minutes;
+        }
+    }
+
+    return totals;
 };

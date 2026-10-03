@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core';
-import { Plugin, TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { Fragment } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -25,9 +26,10 @@ import type {
     SuggestionProps,
 } from '@tiptap/suggestion';
 import type { Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { ReactRenderer } from '@tiptap/react';
-import SlashMenu from '../Components/Notes/SlashMenu';
-import type { SlashMenuRef } from '../Components/Notes/SlashMenu';
+import BlockMenu from '../Components/Notes/BlockMenu';
+import type { BlockMenuRef } from '../Components/Notes/BlockMenu';
 import Callout from './noteCallout';
 import type { CalloutType } from './noteCallout';
 
@@ -117,16 +119,191 @@ const ToggleDetails = Details.extend({
 });
 
 /* ------------------------------------------------------------------ *
+ * Leaving an empty list item
+ * ------------------------------------------------------------------ */
+
+/**
+ * Enter on an empty to-do drops out of the list instead of adding another box.
+ *
+ * Without this, a to-do list is a one-way door: pressing Enter on a blank
+ * checkbox produces another blank checkbox, so there is no keyboard route from
+ * the end of a list back to a plain paragraph. The only ways out are clicking
+ * below the list or pressing Backspace, and both feel like workarounds for a
+ * menu decision that should have been one keystroke.
+ *
+ * Two cases, because one command cannot do both. When the empty item is the only
+ * one in its list, `liftListItem` strips the list and the item's own content
+ * becomes the paragraph -- which is the correct result and needs no help. When
+ * the list has siblings, lifting would splice every remaining item into this one
+ * (that is what prosemirror-schema-list's liftOutOfList does), so the item is
+ * deleted and a paragraph is opened immediately after the list instead.
+ *
+ * The extension's `priority` puts its keymap ahead of the one ListItem and
+ * TaskItem register for Enter. Returning false for anything but a collapsed caret
+ * in a blank item is what lets every other Enter fall through untouched.
+ */
+const ExitEmptyListItem = Extension.create({
+    name: 'exitEmptyListItem',
+    // Above ListItem/TaskItem, which sit at the default 100.
+    priority: 200,
+
+    addKeyboardShortcuts() {
+        return {
+            Enter: () => {
+                const { editor } = this;
+                if (editor.isDestroyed) return false;
+
+                const { state } = editor;
+                const { selection } = state;
+                if (!selection.empty) return false;
+
+                const { $from } = selection;
+                // Depth of the nearest list item above the caret, and its node
+                // name. Read off the resolved position rather than tested with
+                // isActive, because TaskItem is a distinct node with its own name
+                // and isActive cannot ask for one generically.
+                let itemDepth = -1;
+                let itemName = '';
+                for (let depth = $from.depth; depth > 0; depth--) {
+                    const name = $from.node(depth).type.name;
+                    if (name === 'listItem' || name === 'taskItem') {
+                        itemDepth = depth;
+                        itemName = name;
+                        break;
+                    }
+                }
+                if (itemDepth === -1) return false;
+
+                const item = $from.node(itemDepth);
+                // An item holding a nested list has non-empty textContent but no
+                // text of its own, and Enter there should still split normally
+                // rather than swallow the whole subtree.
+                if (item.textContent.trim().length > 0) return false;
+
+                const listDepth = itemDepth - 1;
+                const list = $from.node(listDepth);
+                const isOnlyItem = list.childCount === 1;
+
+                if (isOnlyItem) {
+                    return editor.chain().focus().liftListItem(itemName).run();
+                }
+
+                const itemFrom = $from.before(itemDepth);
+                const itemTo = $from.after(itemDepth);
+                const listTo = $from.after(listDepth);
+
+                const paragraph = state.schema.nodes.paragraph;
+                // If the list's own parent has no room for a sibling paragraph
+                // the insertion below would be a silent no-op, so hand back to
+                // the default Enter rather than appearing to do nothing.
+                const parentDepth = listDepth - 1;
+                const parent = $from.node(parentDepth);
+                const indexAfterList = $from.index(parentDepth) + 1;
+                if (
+                    !paragraph ||
+                    !parent.canReplace(indexAfterList, indexAfterList, Fragment.from(paragraph.create()))
+                ) {
+                    return false;
+                }
+
+                const tr = state.tr.delete(itemFrom, itemTo);
+                // Where the list now ends. Mapped through the delete so the
+                // paragraph lands after it rather than inside the gap.
+                const insertPos = tr.mapping.map(listTo, -1);
+                tr.insert(insertPos, paragraph.create());
+                tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
+                tr.scrollIntoView();
+                editor.view.dispatch(tr);
+                return true;
+            },
+        };
+    },
+});
+
+/* ------------------------------------------------------------------ *
+ * Keys for menus that do not hold focus
+ * ------------------------------------------------------------------ */
+
+/** A menu's answer to a keystroke: true when it consumed it. */
+export type BlockMenuKeyHandler = (event: KeyboardEvent) => boolean;
+
+const blockMenuKeys = new PluginKey<BlockMenuKeyHandler | null>('noteBlockMenuKeys');
+
+/**
+ * Hands navigation keys to whichever menu is currently open.
+ *
+ * The menu opened from the drag handle or the header button can take DOM focus
+ * for its own search box, so its keys arrive directly. The menu opened by
+ * selecting text cannot: focus has to stay in the document, or the selection
+ * disappears and Ctrl+B stops being bold. That menu is therefore a foreign body
+ * to ProseMirror, and the only way it can see an arrow key is if the editor
+ * forwards it.
+ *
+ * Installing through a transaction rather than a module-level variable keeps the
+ * handler out of plugin state that any other transaction could reset, and makes
+ * the teardown path identical to the setup path -- clearing it is just another
+ * dispatch.
+ */
+const BlockMenuKeys = Extension.create({
+    name: 'blockMenuKeys',
+    // Ahead of everything else, including the arrow-key handling the table
+    // extensions register: a menu that is open should see navigation first.
+    priority: 300,
+
+    addProseMirrorPlugins() {
+        return [
+            new Plugin<BlockMenuKeyHandler | null>({
+                key: blockMenuKeys,
+                state: {
+                    init: () => null,
+                    apply: (tr, current) => {
+                        const next = tr.getMeta(blockMenuKeys);
+                        // `undefined` means this transaction is not ours and the
+                        // installed handler stands. An explicit `null` is how it is
+                        // removed -- `?? current` would treat the two as the same
+                        // and leave a dead handler swallowing arrow keys forever.
+                        return next === undefined ? current : next;
+                    },
+                },
+                props: {
+                    handleKeyDown: (view, event) =>
+                        blockMenuKeys.getState(view.state)?.(event) ?? false,
+                },
+            }),
+        ];
+    },
+});
+
+/** Let `handler` see keys first, or pass `null` to stop it seeing them. */
+export const setBlockMenuKeyHandler = (
+    editor: Editor,
+    handler: BlockMenuKeyHandler | null,
+): void => {
+    if (editor.isDestroyed) return;
+    editor.view.dispatch(editor.state.tr.setMeta(blockMenuKeys, handler));
+};
+
+/* ------------------------------------------------------------------ *
  * The "/" command catalogue
  * ------------------------------------------------------------------ */
 
+/**
+ * Every icon the menus can draw, as a name rather than a component.
+ *
+ * The union spans both what "/" offers and what the block handle adds -- inline
+ * marks, duplicate, delete, move, and the table controls -- so both menus share
+ * one type and, more usefully, one icon map: a row that renders in the slash
+ * menu renders identically in the block menu, and neither needs a fallback for
+ * an icon the other knows about.
+ */
 export type SlashIconName =
+    // Block types
     | 'Type'
     | 'Heading1'
     | 'Heading2'
     | 'Heading3'
-    | 'Heading'
-    | 'ChevronDown'
+| 'Heading'
+    | 'ChevronRight'
     | 'Quote'
     | 'Info'
     | 'Minus'
@@ -136,8 +313,26 @@ export type SlashIconName =
     | 'Table'
     | 'Code'
     | 'Sigma'
-    | 'Image';
-export type SlashGroup = 'Basic' | 'Lists' | 'Insert' | 'Media';
+    | 'Image'
+    // Inline marks
+    | 'Bold'
+    | 'Italic'
+    | 'Underline'
+    | 'Strikethrough'
+    | 'Highlighter'
+    | 'Subscript'
+    | 'Superscript'
+    | 'Link'
+    | 'LinkOff'
+    // Whole-block actions
+    | 'Copy'
+    | 'Trash'
+    | 'ArrowUp'
+    | 'ArrowDown'
+    // Table controls
+    | 'Rows'
+    | 'Columns';
+export type SlashGroup = 'Basic' | 'Lists' | 'Insert' | 'Media' | 'Actions' | 'Table';
 
 export interface SlashCommand {
     /** Stable across renames, so it can key the favourites list. */
@@ -156,6 +351,11 @@ export interface SlashCommand {
  * Wraps the current block in a toggle, or unwraps it when the same toggle is
  * already active. `level` of null gives a plain toggle; 1-3 styles the summary
  * as a heading, which is Notion's toggle heading.
+ *
+ * The block's own text becomes the toggle's summary. That is what every editor
+ * does, and it is also the only version that does not look like data loss:
+ * turning "my important sentence" into a toggle has to leave "my important
+ * sentence" visible, and pressing the menu item again has to bring it back.
  */
 const runToggle =
     (level: number | null) =>
@@ -164,35 +364,58 @@ const runToggle =
         // than build a nested one.
         if (editor.isActive('details')) {
             const current = (editor.getAttributes('details').toggleLevel ?? null) as number | null;
-            if (current === level) {
-                editor.chain().focus().unsetDetails().run();
-            } else {
+            if (current !== level) {
                 editor
                     .chain()
                     .focus()
                     .updateAttributes('details', { toggleLevel: level })
                     .run();
+                return;
             }
+            // Unwrapping by hand rather than with unsetDetails, which replaces the
+            // toggle with the summary's text *followed by everything in the body*.
+            // A toggle that was never opened still has an empty paragraph in its
+            // body, so every round trip through the menu left a blank line under
+            // the restored sentence.
+            editor.chain().focus().command(({ tr, state, dispatch }) => {
+                if (dispatch === undefined) return true;
+                const { $from } = state.selection;
+                let depth = -1;
+                for (let d = $from.depth; d > 0; d--) {
+                    if ($from.node(d).type.name === 'details') {
+                        depth = d;
+                        break;
+                    }
+                }
+                if (depth === -1) return false;
+
+                const details = $from.node(depth);
+                const from = $from.before(depth);
+                const summary = details.child(0);
+                const body = details.child(1);
+
+                // Body blocks worth keeping: everything except the empty
+                // paragraphs that exist only because the content is `block+`.
+                const kept: PMNode[] = [];
+                body.forEach(child => {
+                    if (!(child.isTextblock && child.content.size === 0)) kept.push(child);
+                });
+
+                const paragraph = state.schema.nodes.paragraph.create(null, summary.content);
+                tr.replaceWith(from, from + details.nodeSize, [paragraph, ...kept]);
+                tr.setSelection(TextSelection.near(tr.doc.resolve(from + 1), -1));
+                return true;
+            }).run();
             return;
         }
 
-        // `setDetails` replaces whatever block range the cursor sits in, which
-        // inside a list is the paragraph within the list item. That produced
-        // <li><details>...</details></li>, which is not a valid document: a
-        // <details> is not permitted inside a list item, so the browser re-parsed
-        // it and what appeared on screen was an empty bullet next to the toggle.
-        // Lifting the item out first turns the list into (new paragraph) followed
-        // by (the rest of the list), which is what the user meant anyway -- a
-        // toggle is a top-level block, not something a bullet can contain.
-        //
-        // The lift is chained rather than run separately so ProseMirror maps the
-        // selection through it and the toggle lands where the cursor is.
-        //
-        // The node name is read off the selection rather than tested with
-        // isActive('listItem'), because TaskItem is a separate node with its own
-        // name. `liftListItem` matches on the name it is given, so asking for
-        // 'listItem' inside a task list lifts nothing and the invalid nesting
-        // still happens -- just inside a checkbox instead of a bullet.
+        // A toggle is a top-level block: <details> is not permitted inside a list
+        // item, so converting from inside one has to lift the item out first or
+        // the browser re-parses the result and shows an empty bullet beside an
+        // empty toggle. Reading the node name off the resolved position rather
+        // than testing isActive('listItem') matters here -- TaskItem is a separate
+        // node with its own name, so asking for 'listItem' inside a task list
+        // lifts nothing and the invalid nesting happens inside a checkbox.
         const { $from } = editor.state.selection;
         let listItemType: string | null = null;
         for (let depth = $from.depth; depth > 0; depth--) {
@@ -203,11 +426,46 @@ const runToggle =
             }
         }
 
-        const chain = editor.chain().focus();
-        if (listItemType) {
-            chain.liftListItem(listItemType);
-        }
-        chain.setDetails().updateAttributes('details', { toggleLevel: level }).run();
+        editor
+            .chain()
+            .focus()
+            // Chained rather than run on its own so ProseMirror maps the selection
+            // through the lift and the toggle lands where the caret is.
+            .liftListItem(listItemType ?? 'listItem')
+            .command(({ tr, state, dispatch }) => {
+                if (dispatch === undefined) return true;
+                const { $from: afterLift } = state.selection;
+                const range = afterLift.blockRange();
+                if (!range) return false;
+
+                // Only the block's inline content becomes the summary. The
+                // surrounding block node is dropped: a paragraph cannot contain a
+                // summary, and a <details> is its own block.
+                const block = state.doc.slice(range.start, range.end).content.firstChild;
+                const summaryContent = block && block.isTextblock ? block.content : Fragment.empty;
+
+                // details > detailsSummary > <inline>. The inline run starts two
+                // positions in and is one position per node wide.
+                const summaryEnd = range.start + 2 + summaryContent.childCount;
+
+                tr.replaceWith(
+                    range.start,
+                    range.end,
+                    state.schema.nodes.details.create({ toggleLevel: level }, [
+                        state.schema.nodes.detailsSummary.create(null, summaryContent),
+                        // detailsContent is `block+`, so it cannot be left empty.
+                        state.schema.nodes.detailsContent.create(
+                            null,
+                            state.schema.nodes.paragraph.create(),
+                        ),
+                    ]),
+                );
+                // Backwards, so the caret lands after the summary text rather than
+                // jumping past it into the body.
+                tr.setSelection(TextSelection.near(tr.doc.resolve(summaryEnd), -1));
+                return true;
+            })
+            .run();
     };
 
 /** Toggles a callout of the given type, so a second press unwraps it. */
@@ -273,7 +531,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         id: 'toggle',
         title: 'Toggle list',
         hint: 'Collapsible content',
-        icon: 'ChevronDown',
+        icon: 'ChevronRight',
         group: 'Basic',
         keywords: ['toggle', 'collapse', 'fold', 'details', 'disclosure', 'close', 'hide'],
         run: runToggle(null),
@@ -447,7 +705,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
 ];
 
-export const SLASH_GROUP_ORDER: SlashGroup[] = ['Basic', 'Lists', 'Insert', 'Media'];
+export const SLASH_GROUP_ORDER: SlashGroup[] = [
+    'Basic',
+    'Lists',
+    'Insert',
+    'Media',
+    'Actions',
+    'Table',
+];
 
 const filterCommands = ({ query }: { query: string }) => {
     const q = query.toLowerCase().trim();
@@ -483,6 +748,21 @@ export const writeFavourites = (ids: string[]) => {
 };
 
 export { readFavourites };
+
+/**
+ * The commands that turn the block they are applied to into another kind.
+ *
+ * The block handle menu offers exactly these, because that menu is opened
+ * against a block that already exists. The rest of the catalogue inserts new
+ * content -- a table, an image, some LaTeX -- and each prompts for input, so they
+ * belong to "/" and its empty query rather than to a menu that is already
+ * pointed at a block. Converting to a code block stays; it is a conversion, not
+ * an insertion, despite sharing a group with the things that are not.
+ */
+const CONVERSION_ONLY = new Set(['inline-math', 'block-math', 'image', 'table']);
+
+export const blockConversions = (): SlashCommand[] =>
+    SLASH_COMMANDS.filter(command => !CONVERSION_ONLY.has(command.id));
 
 /* ------------------------------------------------------------------ *
  * The "/" suggestion plugin
@@ -529,6 +809,23 @@ const PreserveSelectionOnSlash = Extension.create({
     },
 });
 
+/**
+ * Whether the "/" menu is on screen right now.
+ *
+ * A plain exported object rather than a hook or context, because the "/" menu is
+ * mounted by TipTap's suggestion plugin from inside `addOptions`, so there is no
+ * component tree to thread state through, and because it is read from a selection
+ * handler in the editor component that must find out without scheduling a render
+ * of its own.
+ *
+ * Set by the menu itself on mount and unmount -- see BlockMenu -- rather than by
+ * the plugin's onStart and onExit. Those are the same two moments in normal
+ * operation, but onExit is not called if the editor is torn down with the menu
+ * open, and a flag stuck at true would silently stop the selection menu from ever
+ * opening again.
+ */
+export const slashMenuOpen = { current: false };
+
 export const SlashCommandExtension = Extension.create({
     name: 'slashCommand',
 
@@ -567,14 +864,14 @@ export const SlashCommandExtension = Extension.create({
                 },
                 items: ({ query }: { query: string }) => filterCommands({ query }),
                 render: () => {
-                    let component: ReactRenderer<SlashMenuRef, SuggestionProps<SlashCommand>> | null =
+                    let component: ReactRenderer<BlockMenuRef, SuggestionProps<SlashCommand>> | null =
                         null;
                     let unmount: (() => void) | null = null;
 
                     return {
                         onStart: (props: SuggestionProps<SlashCommand>) => {
-                            component = new ReactRenderer<SlashMenuRef, SuggestionProps<SlashCommand>>(
-                                SlashMenu,
+                            component = new ReactRenderer<BlockMenuRef, SuggestionProps<SlashCommand>>(
+                                BlockMenu,
                                 { props, editor: props.editor },
                             );
                             unmount = props.mount(component.element);
@@ -671,7 +968,21 @@ export const buildNoteExtensions = ({
         includeChildren: false,
     }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    TaskItem.configure({
+        // Deliberately not `nested: true`. That option widens a to-do's content
+        // from `paragraph+` to `paragraph block*`, and splitListItem respects it:
+        // Enter at the end of a to-do then adds a second paragraph *inside the
+        // same checkbox* instead of a new checkbox. The result is that a to-do
+        // list cannot be left from the keyboard at all -- every Enter lands
+        // inside the last row, which is exactly the "I can't write after a to-do"
+        // dead end.
+        //
+        // With `paragraph+`, Enter makes a fresh checkbox and ExitEmptyListItem
+        // handles the blank one. The cost is that Tab no longer nests a to-do
+        // inside another to-do, which is the right trade: nested checkboxes read
+        // as a broken list far more often than as structure.
+        nested: false,
+    }),
     Callout,
     InlineMath,
     BlockMath,
@@ -706,6 +1017,12 @@ export const buildNoteExtensions = ({
     Typography,
     CharacterCount,
     PreserveSelectionOnSlash,
+    // Ahead of ListItem and TaskItem in the keymap, so Enter on a blank to-do
+    // leaves the list. See the extension for why that is not just liftListItem.
+    ExitEmptyListItem,
+    // Forwards arrow keys to the block menu while the caret stays in the
+    // document, so a menu opened on a text selection is still operable.
+    BlockMenuKeys,
     // Adds `has-focus` to the block the caret is in. The dimming itself is CSS
     // driven off the editor's focus-mode class, which is why there is no command.
     Focus.configure({ className: 'has-focus', mode: 'deepest' }),

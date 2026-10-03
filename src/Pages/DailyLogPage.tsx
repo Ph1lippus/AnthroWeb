@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings, updateUserSettings } from '../services/profileService';
@@ -19,6 +19,7 @@ import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
 import ConfirmModal from '../Components/ConfirmModal';
 import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
+import { hasJournalContent } from '../utils/journalHabit';
 import { isDateString, todayString } from '../utils/dates';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
@@ -154,7 +155,11 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         setEveningRoutine(log.evening_routine || false);
         setFruitServing(log.fruit_serving || false);
         setStudied(log.studied || false);
-        setJournal(log.journal || false);
+        // Content wins over the stored tick: a day with a journal entry is a
+        // journalled day, however the boolean got left. A day with no entry keeps
+        // whatever the user ticked, which is the whole point of the asymmetry in
+        // journalHabitFor.
+        setJournal(hasJournalContent(log.journal_entry) || (log.journal || false));
         setStretching(log.stretching || false);
         setReading(log.reading || false);
         setNoSleep(log.no_sleep || false);
@@ -816,13 +821,13 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
             <span className="text-sm opacity-90">
                 Gym
                 {gym && (
-                    <a
+                    <Link
                         className="daily-log-habits__gym-link"
-                        href={`/Workouts?day=${logDate}`}
+                        to={`/Workouts?day=${logDate}`}
                         onClick={event => event.stopPropagation()}
                     >
                         detail
-                    </a>
+                    </Link>
                 )}
             </span>
         </label>

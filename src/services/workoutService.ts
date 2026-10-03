@@ -179,6 +179,8 @@ const fail = (context: string, error: { message?: string } | null): never => {
 /** Everything a read path needs to attach exercise rows to their session. */
 export interface SessionWithExercises extends WorkoutCompletionLog {
     exercises: WorkoutExerciseLog[];
+    /** The named plan session this day followed, when it did. */
+    plan_session?: { name: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -774,9 +776,12 @@ export const getSessionsWithExercises = async (
     const userId = await getCurrentUserId();
     if (!userId) return [];
 
+    // The plan-session embed rides along for free (the FK
+    // workout_completion_log_plan_session_fkey joins them), so the heatmap's
+    // tooltip can name a day's session without a third query.
     let query = supabase
         .from('workout_completion_log')
-        .select('*')
+        .select('*, plan_session:workout_plan_sessions(name)')
         .eq('user_id', userId)
         .order('workout_date', { ascending: false });
 
@@ -819,7 +824,12 @@ export const getSessionsWithExercises = async (
 };
 
 export const createSession = async (
-    input: Omit<WorkoutCompletionLog, 'id' | 'user_id' | 'created_at' | 'updated_at'>,
+    // `completed` is optional. It was required, so every caller passed it
+    // explicitly and an editor saving a day's exercises had to guess -- and one
+    // caller guessed `false`, which un-completed a day the daily log had ticked.
+    // Omitted, the column default applies: a new row is not yet a trained day.
+    input: Omit<WorkoutCompletionLog, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'completed'>
+        & { completed?: boolean },
 ): Promise<WorkoutCompletionLog> => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
@@ -830,7 +840,7 @@ export const createSession = async (
             user_id: userId,
             workout_date: input.workout_date,
             workout_template_id: input.workout_template_id ?? null,
-            completed: input.completed,
+            ...(input.completed != null ? { completed: input.completed } : {}),
             intensity: input.intensity ?? null,
             duration_minutes: input.duration_minutes ?? null,
             notes: input.notes ?? null,
@@ -1438,7 +1448,19 @@ export const getExercises = async (): Promise<LibraryExercise[]> => {
     return data as LibraryExercise[];
 };
 
-/** Add an exercise the user typed themselves. */
+/** Add an exercise the user typed themselves.
+ *
+ * Throws on a rejected write rather than returning null and logging it. The
+ * caller is `ExerciseNameInput.createAndPick`, and it commits the typed name
+ * locally either way -- so a silent failure looked exactly like success, while
+ * the exercise quietly never became reusable anywhere else in the app. A custom
+ * exercise that is not in the library is a name the user has to retype on every
+ * template, which is the whole thing the library exists to prevent.
+ *
+ * Migration 0009 made `(user_id, lower(name))` non-unique, so a duplicate name
+ * is no longer refused: the picker offers to create one only when nothing in the
+ * library matches, and Postgres treats NULLs as distinct inside the remaining
+ * `(user_id, wger_id)` unique index, which a custom row leaves NULL. */
 export const createCustomExercise = async (
     name: string,
     activityType: ActivityType = 'strength',
@@ -1458,12 +1480,7 @@ export const createCustomExercise = async (
         .select()
         .maybeSingle();
 
-    if (error) {
-        // The (user_id, lower(name)) index makes a duplicate a no-op rather
-        // than a crash: the user picks the existing exercise instead.
-        console.error('Could not save exercise:', error.message);
-        return null;
-    }
+    if (error) fail('Could not save the exercise to your library', error);
     return data as LibraryExercise;
 };
 

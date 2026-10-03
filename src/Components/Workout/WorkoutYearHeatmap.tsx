@@ -1,16 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Flame } from 'lucide-react';
-import { LEVEL_FOR, HEAT_LEVEL_LABELS, levelForIntensity } from '../../utils/workoutSets';
-import type { HeatWeek } from '../../utils/workoutStats';
+import React, { useEffect, useMemo, useState } from 'react';
+import { LEVEL_FOR } from '../../utils/workoutSets';
+import type { HeatCell, HeatWeek } from '../../utils/workoutStats';
 import { formatWeight, type WeightUnit } from '../../utils/units';
 import { formatDayLabel } from '../../utils/dates';
 
 interface WorkoutYearHeatmapProps {
     weeks: HeatWeek[];
-    /** Only the intensity slider writes; clicking a day only reads. */
-    onSetIntensity?: (date: string, intensity: number) => void;
     weightUnit?: WeightUnit;
-    isSaving?: boolean;
     isLoading?: boolean;
 }
 
@@ -31,55 +27,83 @@ const DAY_ROWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * all derived from --color-primary so it follows whatever accent the app wears
  * rather than being a second, fixed green.
  *
- * Clicking a square only reads: it opens a panel of what happened that day.
- * There is no "mark trained" button here, and that is deliberate -- reaching a
- * day you went to the gym should never be the side effect of clicking to look at
- * it. Marking a day is done from the week card, and correcting a weight belongs
- * in the session itself.
+ * The grid is read-only. Hovering a square shows a styled tooltip of what the
+ * day held -- the plan session's name when the day followed a named one,
+ * exercises, sets, volume, duration, intensity -- and nothing here writes.
+ * This replaces a click-popover with an intensity slider: a slider living
+ * under the year meant a drag aimed at the calendar could quietly regrade a
+ * past day, and a panel of facts does not need a dialog role. Marking a day
+ * trained is the daily log's Gym habit; correcting a weight belongs in the
+ * day editor.
  */
+
+/**
+ * The tooltip's fact line. Future days read as rest rather than as plans,
+ * because a tooltip that says "rest day" about next Tuesday invites
+ * correcting a day that has not happened.
+ */
+const dayFacts = (cell: HeatCell, weightUnit: WeightUnit): string[] => {
+    const record = cell.record;
+    if (cell.isFuture || cell.level === 0 || !record) return [];
+    const facts = [
+        `${record.exerciseCount} ${record.exerciseCount === 1 ? 'exercise' : 'exercises'}`,
+        `${record.sets ?? 0} sets`,
+    ];
+    if (record.volumeKg > 0) facts.push(`${formatWeight(record.volumeKg, weightUnit, 0)} moved`);
+    if (record.durationMinutes) facts.push(`${record.durationMinutes} min`);
+    if (record.intensity != null) facts.push(`intensity ${record.intensity}/10`);
+    return facts;
+};
+
+/** The tooltip, in viewport coordinates so no ancestor can clip it. */
+interface TipState {
+    cell: HeatCell;
+    left: number;
+    top: number;
+    /** Open under the cell, when there is no room above it. */
+    below: boolean;
+}
+
+/** Half the tooltip's maximum width, for keeping it inside the viewport. */
+const TIP_HALF_WIDTH = 120;
+
 const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     weeks,
-    onSetIntensity,
     weightUnit = 'kg',
-    isSaving = false,
     isLoading = false,
 }) => {
-    const [openDate, setOpenDate] = useState<string | null>(null);
-    const popoverRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!openDate) return;
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setOpenDate(null);
-        };
-        const onPointer = (event: MouseEvent) => {
-            if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-                setOpenDate(null);
-            }
-        };
-        document.addEventListener('keydown', onKey);
-        document.addEventListener('mousedown', onPointer);
-        return () => {
-            document.removeEventListener('keydown', onKey);
-            document.removeEventListener('mousedown', onPointer);
-        };
-    }, [openDate]);
-
-    const active = useMemo(
-        () => (openDate ? weeks.flatMap(week => week.cells).find(cell => cell.date === openDate) : undefined),
-        [openDate, weeks],
-    );
-
     const trained = useMemo(
         () => weeks.reduce((total, week) => total + week.cells.reduce((n, cell) => n + (cell.level > 0 ? 1 : 0), 0), 0),
         [weeks],
     );
 
-    const activate = useCallback((date: string, isFuture: boolean) => {
-        // A day in the future is not a mistake to correct; it is a plan.
-        if (isFuture) return;
-        setOpenDate(current => (current === date ? null : date));
-    }, []);
+    const [tip, setTip] = useState<TipState | null>(null);
+
+    /* One shared tooltip rather than one per cell: 371 invisible nodes would be
+       paid for every render. It is positioned at the hovered cell in viewport
+       coordinates -- fixed-position escapes every overflow clipping ancestor --
+       clamped so the edge weeks cannot push it offscreen, and flipped under the
+       cell when the grid is near the top of the window. */
+    const showTip = (cell: HeatCell, event: React.MouseEvent<HTMLElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const center = rect.left + rect.width / 2;
+        const nearTop = rect.top < 180;
+        setTip({
+            cell,
+            left: Math.min(Math.max(center, TIP_HALF_WIDTH), window.innerWidth - TIP_HALF_WIDTH),
+            top: nearTop ? rect.bottom : rect.top,
+            below: nearTop,
+        });
+    };
+
+    // Scrolling with the pointer parked on a cell would leave the tooltip
+    // anchored where the cell used to be, so any scroll retires it.
+    useEffect(() => {
+        if (!tip) return;
+        const hide = () => setTip(null);
+        window.addEventListener('scroll', hide, true);
+        return () => window.removeEventListener('scroll', hide, true);
+    }, [tip]);
 
     return (
         <div className="workout-heat">
@@ -96,27 +120,24 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                         style={{ opacity: isLoading ? 0.4 : 1, transition: 'opacity .2s ease' }}
                         role="grid"
                         aria-label="Training activity by day"
+                        onMouseLeave={() => setTip(null)}
                     >
                         {weeks.map((week, weekIndex) => (
                             <div className="workout-heat__week" role="row" key={weekIndex}>
                                 {week.cells.map(cell => (
-                                    <button
+                                    <span
                                         key={cell.date}
-                                        type="button"
                                         role="gridcell"
                                         className={[
                                             'workout-heat__cell',
                                             `workout-heat__cell--${LEVEL_FOR(cell.level)}`,
                                             cell.isToday ? 'workout-heat__cell--today' : '',
                                             cell.isFuture ? 'workout-heat__cell--future' : '',
-                                            openDate === cell.date ? 'workout-heat__cell--open' : '',
                                         ].filter(Boolean).join(' ')}
-                                        disabled={cell.isFuture || isSaving}
-                                        title={`${formatDayLabel(cell.date)} — ${cell.level > 0 ? 'trained' : 'rest'}`}
+                                        onMouseEnter={event => showTip(cell, event)}
                                         aria-label={`${formatDayLabel(cell.date)}, ${cell.level > 0
                                             ? `trained at intensity ${cell.record?.intensity ?? 'unknown'}`
                                             : 'rest day'}`}
-                                        onClick={() => activate(cell.date, cell.isFuture)}
                                     />
                                 ))}
                             </div>
@@ -136,44 +157,24 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                 <span>more</span>
             </div>
 
-            {active && (
+            {tip && (
                 <div
-                    className="workout-heat-popover"
-                    ref={popoverRef}
-                    role="dialog"
-                    aria-label={`Edit ${formatDayLabel(active.date)}`}
+                    className={`workout-heat__tip${tip.below ? ' workout-heat__tip--below' : ''}`}
+                    style={{ left: tip.left, top: tip.top }}
+                    aria-hidden="true"
                 >
-                    <div className="workout-heat-popover__title">
-                        <span>{formatDayLabel(active.date)}</span>
-                        {active.isToday && <span className="workout-chip">today</span>}
-                    </div>
-
-                    {active.level > 0 && active.record ? (
-                        <div className="workout-heat-popover__facts">
-                            <span>
-                                {active.record.exerciseCount}{' '}
-                                {active.record.exerciseCount === 1 ? 'exercise' : 'exercises'}
-                            </span>
-                            {active.record.volumeKg > 0 && (
-                                <span>{formatWeight(active.record.volumeKg, weightUnit, 0)} moved</span>
-                            )}
-                            {active.record.durationMinutes ? <span>{active.record.durationMinutes} min</span> : null}
-                        </div>
+                    <span className="workout-heat__tip-date">{formatDayLabel(tip.cell.date)}</span>
+                    {tip.cell.isFuture || tip.cell.level === 0 || !tip.cell.record ? (
+                        <span className="workout-heat__tip-rest">rest day</span>
                     ) : (
-                        <p className="workout-heat-popover__note">Nothing logged for this day.</p>
-                    )}
-
-                    {/* Only for a day that already has a session. The slider's write goes through
-                        setGymForDate, which creates the day if it is missing -- so
-                        showing it on an unmarked day would mean dragging a slider
-                        to look at a rest day quietly logged a workout. */}
-                    {onSetIntensity && active.level > 0 && (
-                        <IntensityControl
-                            date={active.date}
-                            initial={active.record?.intensity ?? 5}
-                            disabled={active.isFuture || isSaving}
-                            onCommit={value => onSetIntensity(active.date, value)}
-                        />
+                        <>
+                            {tip.cell.record.name && (
+                                <span className="workout-heat__tip-name">{tip.cell.record.name}</span>
+                            )}
+                            <span className="workout-heat__tip-facts">
+                                {dayFacts(tip.cell, weightUnit).join(' · ')}
+                            </span>
+                        </>
                     )}
                 </div>
             )}
@@ -182,55 +183,3 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
 };
 
 export default WorkoutYearHeatmap;
-
-/**
- * The intensity slider, committed on release rather than on every movement.
- *
- * A range input fires change continuously while dragging, so committing
- * directly turned one drag across the track into up to nine writes, each
- * invalidating the overview and refetching a year of sessions. The timer
- * collapses that into one write per pause.
- */
-const IntensityControl: React.FC<{
-    date: string;
-    initial: number;
-    disabled: boolean;
-    onCommit: (value: number) => void;
-}> = ({ date, initial, disabled, onCommit }) => {
-    // Keyed on the day and the value the server holds, so moving the popover to
-    // another day re-seeds during render rather than in an effect that would
-    // briefly show the previous day's intensity.
-    const source = `${date}:${initial}`;
-    const [state, setState] = useState({ for: source, value: initial, committed: initial });
-
-    const stale = state.for !== source;
-    const value = stale ? initial : state.value;
-    const committed = stale ? initial : state.committed;
-
-    useEffect(() => {
-        if (value === committed || disabled) return;
-        const timer = setTimeout(() => {
-            setState(current => ({ ...current, value, committed: value }));
-            onCommit(value);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [value, committed, disabled, onCommit]);
-
-    return (
-        <div className="workout-heat-popover__field">
-            <label className="form-label" htmlFor={`heat-intensity-${date}`}>
-                <Flame size={11} />Intensity — {HEAT_LEVEL_LABELS[levelForIntensity(value) + 1]}
-            </label>
-            <input
-                id={`heat-intensity-${date}`}
-                type="range"
-                min={1}
-                max={10}
-                value={value}
-                disabled={disabled}
-                style={{ width: '100%', accentColor: 'var(--color-primary)' }}
-                onChange={event => setState(current => ({ ...current, value: Number(event.target.value) }))}
-            />
-        </div>
-    );
-};

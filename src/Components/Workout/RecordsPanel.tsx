@@ -60,6 +60,10 @@ const RecordsPanel: React.FC = () => {
 
     const [search, setSearch] = useState('');
     const [newName, setNewName] = useState('');
+    /* Kept so a library pick can hand its id to the PR row. Without it the entry
+       was written with `exercise_id: null`, which is the same missing join that
+       left muscle groups unreachable from a logged session. */
+    const [newExerciseId, setNewExerciseId] = useState<string | null>(null);
     const [removing, setRemoving] = useState<string | null>(null);
 
     const cards = useMemo(() => buildPRCards(entries, history), [entries, history]);
@@ -126,15 +130,22 @@ const RecordsPanel: React.FC = () => {
                                 event.preventDefault();
                                 const trimmed = newName.trim();
                                 if (!trimmed) return;
-                                addEntry.mutate({ exercise_name: trimmed });
+                                addEntry.mutate({ exercise_name: trimmed, exercise_id: newExerciseId });
                                 setNewName('');
+                                setNewExerciseId(null);
                             }}
                         >
                             {/* Enter with nothing highlighted falls through to this
                                 form, so a lift typed by hand submits here. */}
                             <ExerciseNameInput
                                 value={newName}
-                                onChange={setNewName}
+                                onChange={value => {
+                                    setNewName(value);
+                                    // A different name is a different exercise, so the
+                                    // id picked for the old one no longer applies.
+                                    setNewExerciseId(null);
+                                }}
+                                onPick={picked => setNewExerciseId(picked.exercise_id ?? null)}
                                 className="form-control"
                                 placeholder="Track a lift not in any template"
                             />

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     getWorkoutTemplates,
@@ -318,8 +318,10 @@ const useOverviewFrom = (
             completed: session.completed,
             intensity: session.intensity ?? null,
             exerciseCount: session.exercises.length,
+            sets: session.exercises.reduce((total, row) => total + (row.sets_detail?.length ?? 0), 0),
             volumeKg,
             durationMinutes: session.duration_minutes ?? null,
+            name: session.plan_session?.name ?? null,
         });
         if (session.completed) recent.push(session);
     }
@@ -354,10 +356,30 @@ export const useExerciseStats = (
         ? new Set(only.map(row => exerciseKey({ exercise_id: row.exercise_id, exercise_name: row.exercise_name })))
         : undefined;
 
+    /* Muscles live on the library row, not on the log, so the join happens here:
+       the log carries `exercise_id` and the picker already put the id on the
+       row when it was created. Naming the exercise without the id would fall
+       back to a normalized-name match, which is the join that silently dropped
+       the metadata before. */
+    const { data: library = [] } = useQuery({
+        queryKey: queryKeys.exerciseLibrary,
+        queryFn: getExercises,
+        staleTime: 60 * 60 * 1000,
+    });
+    const musclesById = useMemo(
+        () => new Map(library.map(row => [row.id, row.muscles ?? []] as const)),
+        [library],
+    );
+    const musclesByName = useMemo(
+        () => new Map(library.map(row => [exerciseKey({ exercise_name: row.name }), row.muscles ?? []] as const)),
+        [library],
+    );
+
     const flat: Array<{
         exercise_id?: string | null;
         exercise_name: string;
         activity_type?: ActivityType;
+        muscles?: string[] | null;
         workout_date: string;
         completed: boolean;
         sets_detail?: WorkoutSet[] | null;
@@ -371,6 +393,9 @@ export const useExerciseStats = (
                 exercise_id: row.exercise_id,
                 exercise_name: row.exercise_name,
                 activity_type: row.activity_type,
+                muscles: (row.exercise_id ? musclesById.get(row.exercise_id) : undefined)
+                    ?? musclesByName.get(exerciseKey({ exercise_name: row.exercise_name }))
+                    ?? null,
                 workout_date: session.workout_date,
                 completed: row.completed,
                 sets_detail: row.sets_detail,
@@ -556,8 +581,7 @@ export const useDeleteTemplateExercise = (templateId: string) => {
 
 /**
  * Mark or unmark a day. The only path to `workout_completion_log.completed`
- * outside a full session save, shared by the daily log's Gym checkbox and the
- * workouts page's popover.
+ * outside a full session save -- the daily log's Gym checkbox.
  */
 export const useSetGymForDate = (onNewPRs?: (prs: NewPR[]) => void) => {
     const invalidate = useInvalidateWorkouts();
@@ -575,7 +599,7 @@ export const useSetGymForDate = (onNewPRs?: (prs: NewPR[]) => void) => {
         onSuccess: (result, input) => {
             invalidate();
             // The day view is cached by date; a mark made elsewhere has to
-            // refresh it or the popover will disagree with the heatmap.
+            // refresh it or the day editor will disagree with the heatmap.
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
             if (result.newPRs.length) onNewPRs?.(result.newPRs);
         },
@@ -634,9 +658,16 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
 
             if (!sessionId) {
                 if (!input.createIfMissing) return [];
-                const created = await createSession({ workout_date: input.date, completed: false, ...input.header });
+                // `completed` is not defaulted here. A brand-new session is
+                // incomplete until the daily log's Gym habit says otherwise, which
+                // is the column's default -- so an edit that creates the row cannot
+                // decide whether the day was trained. Callers that do mean to
+                // complete a day pass it explicitly (setGymForDate).
+                const created = await createSession({ workout_date: input.date, ...input.header });
                 sessionId = created.id;
-            } else {
+            } else if (Object.keys(input.header).length > 0) {
+                // An empty header would be a no-op write, but `updateSession`
+                // spreads it into the payload, so guard rather than send one.
                 await updateSession(sessionId, input.header);
             }
 

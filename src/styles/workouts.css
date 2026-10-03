@@ -11,7 +11,7 @@
 
      1. .workout-mosaic       the page grid (the daily log's three-track
                               grid-template-areas pattern, specialised)
-     2. .workout-heat*        the year grid, its five shades and the day popover
+     2. .workout-heat*        the year grid, its five shades and hover tooltips
      3. .workout-set-*        one editable row per working set
 
    An earlier version of this file invented its own vocabulary -- workout-panel,
@@ -100,6 +100,36 @@
   display: none;
 }
 
+/* -------------------------------------------------------------------------
+   No container outlines.
+
+   Everything here used to be a box drawn around content that already had a
+   fill, which put two edges around one thing: the card's own radius and a
+   hairline that did not follow it. A hairline earns its place by marking
+   state -- what is trained today, which square is today, what a record is worth.
+   A hairline around a container marks nothing, so it goes.
+
+   Scoped to `.workout-section` rather than hoisted onto the shared primitives:
+   `.collapse-card` and `.card-header` are the academic pages' too, and the same
+   "no chrome" argument does not apply to a semester list. Overriding globally
+   would have flattened containers on Books, Projects and Journal along the way.
+
+   What survives, deliberately: the dashed empty states, the accent-outlined
+   banner and chips that announce something, the heat-map and week cells that
+   colour themselves by state, focus rings on inputs, and the table's row rules
+   -- those are the ones carrying meaning.
+   ------------------------------------------------------------------------- */
+.workout-section .collapse-card,
+.workout-section .card-header {
+  border: none;
+}
+.workout-section .card-header {
+  padding-bottom: 0.5rem;
+}
+.workout-section .intensity-vs {
+  border: none;
+}
+
 @media (min-width: 1280px) {
   .workout-mosaic {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr) minmax(0, 1fr);
@@ -115,12 +145,12 @@
 }
 
 /* The two-track variant, for pages with one subject and one detail column --
-   the template editor, where the week sits beside the selected day. The day
-   column is narrow and fixed because its contents are seven short labels;
-   giving it a fraction of the width makes them drift far apart on a wide
-   screen. */
+   the day editor, where the effort card sits beside the exercises. The day
+   column keeps a fixed fraction so the two halves read as subject and detail
+   rather than drifting apart on a wide screen, and it is wide enough that the
+   notes field and intensity slider have room to breathe. */
 .workout-mosaic--split {
-  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
   grid-template-areas: 'days inputs';
 }
 .workout-mosaic__days { grid-area: days; }
@@ -136,7 +166,7 @@
 }
 
 /* Below 768px the areas are unused and the DOM order is the reading order:
-   recent, stats, plan, template, exercise stats, mark a day, this week, chart.
+   recent, stats, plan, template, exercise stats, mark a day, chart.
    Marking a day therefore sits above the chart rather than below the fold. */
 .workout-mosaic__col > *,
 .workout-mosaic__wide { min-width: 0; }
@@ -154,24 +184,24 @@
    back to `auto` and both the recent strip and the whole right-hand column
    dropped into implicit rows below the design.
 
-   Order is templates, work, stats -- the mirror of the academic page, whose
-   figures sit on the left. A band's height is the sum of what it holds, so the
-   rails divide what is left between them.
+   Order is work, then stats -- the mirror of the academic page, whose figures sit
+   on the left. A band's height is the sum of what it holds, so the rails divide
+   what is left between them.
    ========================================================================= */
 .workout-rails {
   display: grid;
-  /* Both outer rails are the same width now. The left one holds the records
-     panel, whose search box, add form and per-record cards were cramped at
-     17rem; the right one holds the figures two to a row, which still fits at
-     22rem because each tile is about 10.5rem. The middle takes what is left. */
-  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr) minmax(0, 22rem);
+  /* Two columns, and the work takes what is left. The three-rail version gave
+     the tabs a middle strip between two 22rem rails, which squeezed the
+     templates list into something narrower than the records panel it replaced.
+     The figures only need enough width for three tiles to a row. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
   /* `minmax(0, 1fr)`, not the default `auto`, and this is the whole bug.
 
      A grid row sized `auto` has a *min-content* floor. This column holds a
      Templates tab that can be arbitrarily tall, so the row was pushed past the
      height of `.workout-rails` itself. `.workout-rails` is `flex: 1` with
      `min-height: 0`, so it had exactly the height it was given -- but the row
-     inside it overflowed, the middle rail then had more height than the column
+     inside it overflowed, the work rail then had more height than the column
      it sits in, and `.workout-panels`'s `overflow-y: auto` never engaged
      because it was handed a tall box to live in.
 
@@ -184,9 +214,9 @@
   flex: 1;
   min-height: 0;
 }
-/* The middle column does not scroll itself -- it owns a scroll region for the
-   tab panels and holds the year below them, so `overflow` stays visible here and
-   `.workout-panels` does the scrolling. The two outer rails are the plain case. */
+/* The work column does not scroll itself -- it owns a scroll region for the tab
+   panels -- so `overflow` stays visible here and `.workout-panels` does the
+   scrolling. The figures rail is the plain case. */
 .workout-rail {
   display: flex;
   flex-direction: column;
@@ -197,10 +227,9 @@
   overflow-x: hidden;
   padding-right: 0.25rem;
 }
-.workout-rail--work {
+.workout-rail--main {
   overflow: hidden;
   padding-right: 0;
-  padding-left: 0.25rem;
 }
 .workout-rail::-webkit-scrollbar { width: 4px; }
 .workout-rail::-webkit-scrollbar-thumb {
@@ -234,27 +263,11 @@
   border-radius: 25px;
 }
 
-/* The figures rail: bare tiles, two to a row, no headings. */
+/* The figures rail: bare tiles, three to a row, no headings. */
 .stats-rail {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-}
-
-/* Not enough width for three rails: stats move under templates so the middle
-   column keeps a usable width rather than all three being squeezed. */
-@media (max-width: 1400px) {
-  .workout-rails {
-    grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .workout-rail--plan { grid-row: 1; grid-column: 1; }
-  .workout-rail--work { grid-row: 1 / span 2; grid-column: 2; }
-  .workout-rail--stats {
-    grid-row: 2;
-    grid-column: 1;
-    max-height: 30vh;
-  }
 }
 
 /* One column, and every height lock released so the page itself is the
@@ -273,15 +286,14 @@
     overflow: visible !important;
     flex: none !important;
   }
-  .workout-rail--plan,
-  .workout-rail--work,
+  .workout-rail--main,
   .workout-rail--stats {
     grid-row: auto;
     grid-column: 1;
     max-height: none;
     padding-left: 0;
   }
-  .workout-rail--work,
+  .workout-rail--main,
   .workout-panels { padding-right: 0.25rem; }
   .workout-year { padding-top: 0; }
   .books-page-wrapper {
@@ -350,52 +362,6 @@
   white-space: nowrap;
 }
 
-/* Seven day chips, Monday-first. The figure is how many exercises the template
-   plans for that day; the filled accent means the day was actually trained.
-   A planned-but-unlogged day therefore reads as actionable rather than as a
-   tick you cannot interpret. `.workout-chip--muted` is an empty rest day. */
-.workout-week {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.25rem;
-}
-.workout-week__day {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  padding: 0.35rem 0.15rem;
-  border-radius: 12px;
-  background: #ffffff08;
-  border: 1px solid transparent;
-  font-family: var(--font-mono);
-}
-/* Planned but not yet trained: a hairline rather than the full accent fill. */
-.workout-week__day--planned {
-  border-color: #ffffff1f;
-}
-.workout-week__day--on {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-}
-.workout-week__day--today { border-color: var(--color-primary); }
-.workout-week__day--on.workout-week__day--today {
-  box-shadow: inset 0 0 0 1px var(--color-primary);
-}
-.workout-week__label {
-  font-size: 0.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  opacity: 0.5;
-}
-.workout-week__count {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--color-primary);
-}
-.workout-week__count--rest { color: var(--color-light); opacity: 0.25; }
-
 /* A plain list of rows: today's plan, a template's exercise summary. */
 .workout-rows { display: flex; flex-direction: column; gap: 0.3rem; }
 .workout-row {
@@ -451,8 +417,7 @@
   opacity: 0.45;
   text-align: right;
 }
-/* Every other label stays blank, matching the visual rhythm of the grid. */
-.workout-heat__day:empty { visibility: hidden; }
+/* All seven rows carry a label now that every weekday reads as itself. */
 .workout-heat__weeks {
   display: grid;
   /* Column flow is the whole trick: each item is one week, so the cursor fills
@@ -472,26 +437,24 @@
 }
 
 .workout-heat__cell {
+  display: block;
   width: 100%;
   /* Square without knowing the column width, which is what lets the grid be
      fluid. */
   aspect-ratio: 1;
-  padding: 0;
   border: 1px solid transparent;
   border-radius: clamp(1px, 0.25vw, 3px);
   background: #ffffff0f;
-  cursor: pointer;
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
-.workout-heat__cell:hover:not(:disabled) {
+/* The cells are read-only, so the hover is about the tooltip, not a click --
+   the scale still makes the square you are reading about findable. */
+.workout-heat__cell:hover {
   transform: scale(1.45);
   border-color: var(--color-light);
 }
-.workout-heat__cell:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
-.workout-heat__cell--future,
-.workout-heat__cell:disabled { cursor: default; background: transparent; border-color: #ffffff0a; }
+.workout-heat__cell--future { background: transparent; border-color: #ffffff0a; }
 .workout-heat__cell--today { border-color: var(--color-light); }
-.workout-heat__cell--open { border-color: var(--color-primary); transform: scale(1.45); }
 
 /* Five shades of the accent, so the grid follows the theme instead of being a
    second palette. Level 0 is an untracked day; level 1 is "trained, no
@@ -519,44 +482,36 @@
   background: #ffffff0f;
 }
 
-/* The day panel sits directly under the grid, in normal flow.
-
-   It used to be `position: sticky; bottom: 0` so the day you clicked stayed
-   editable while you moved up and down the year. That was a bad trade: a panel
-   pinned to the foot of the column reads as the year chart itself being fixed to
-   the bottom of the window, which is the opposite of what it is. Nothing inside
-   this card pins -- the whole card is reached by scrolling to the end. */
-.workout-heat-popover {
-  width: min(20rem, 100%);
-  margin: 0.75rem 0 0 auto;
+/* The hover tooltip. A styled replacement for the native `title`, which was
+   slow to appear, unstyleable and blind to the day's session name. The
+   component positions it in viewport coordinates (so no overflow ancestor can
+   clip it) and flips it under the cell near the top of the window.
+   `pointer-events: none` keeps the tooltip from stealing the hover that is
+   showing it. */
+.workout-heat__tip {
+  position: fixed;
+  z-index: 80;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 20px;
-  background: #ffffff0f;
+  gap: 0.1rem;
+  max-width: 15rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  background: #1a1a1a;
   border: 1px solid #ffffff1f;
-  backdrop-filter: blur(12px);
-}
-.workout-heat-popover__title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--color-light);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 0.5rem));
 }
-.workout-heat-popover__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.15rem 0.9rem;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  opacity: 0.6;
-}
-.workout-heat-popover__note { margin: 0; font-family: var(--font-mono); font-size: 0.65rem; opacity: 0.55; }
-.workout-heat-popover__field { display: flex; flex-direction: column; gap: 0.2rem; }
+.workout-heat__tip--below { transform: translate(-50%, 0.5rem); }
+.workout-heat__tip-date { opacity: 0.55; }
+.workout-heat__tip-name { color: var(--color-primary); font-weight: 700; }
+.workout-heat__tip-rest { opacity: 0.65; font-style: italic; }
 
 /* =========================================================================
    3. PER-SET TABLE
@@ -724,6 +679,24 @@ button.workout-ex__empty:hover {
 }
 .exercise-add .workout-ex__field { flex: 1; min-width: 0; }
 .exercise-add > .btn-action { flex-shrink: 0; margin-bottom: 0.1rem; }
+
+/* Why a rejected write did not happen.
+   A failed add used to be silent: `onAdd` rejected, nobody caught it, and the
+   form simply stopped. A stale unique constraint survived a whole rewrite that
+   way, because the symptom looked like a broken button rather than the database
+   refusing the row. The message sits under the form rather than in a toast
+   because it belongs to that field, and has to still be there on looking back. */
+.workout-ex__error {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: #ff9d9d;
+}
+/* The same reason, inside the picker, when saving a new name to the library
+   failed. The row still gets created from the typed name; this says what did not
+   stick, rather than leaving the user to assume it all worked. */
+.workout-picker__error { color: #ff9d9d; }
 .workout-ex__empty {
   margin: 0;
   padding: 1.1rem;
@@ -753,18 +726,26 @@ button.workout-ex__empty:hover {
    states -- is the existing shared vocabulary.
    ========================================================================= */
 
-/* The exercise picker has to sit above the cards below it, so its list is
-   absolutely positioned inside a relative wrapper. The surface is the same
-   translucent white every other raised panel uses -- an opaque near-black here
-   read as a foreign element dropped onto the page. */
+/* The exercise picker list is portalled to `document.body` and positioned from
+   the field's `getBoundingClientRect()`, so it carries none of the geometry that
+   used to live here -- no `top: calc(100% + 4px)`, no `left/right: 0`, no
+   `max-height`. All of that is inline, because all of it depends on where the
+   field is and whether the list had to open upward instead.
+
+   That is the whole fix. It used to be absolutely positioned inside a relative
+   wrapper, which put it in the same clipping chain as the field: a
+   `.collapse-card` with `overflow: hidden` above a `.workout-rail--main` with
+   `overflow: hidden`, above a scrollable `.workout-panels`, above a
+   `.workout-card`. Six boxes, and the list was cut off by whichever it reached
+   first -- which read as the search not working.
+
+   250 clears the four surfaces that share 200 (dropdowns, both modal overlays,
+   the sidebar tooltip) and stays under `.chart-modal-overlay` at 300 and
+   `.toast-container` at 9999. */
 .workout-picker { position: relative; width: 100%; }
 .workout-picker__list {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  max-height: 15rem;
+  position: fixed;
+  z-index: 250;
   overflow-y: auto;
   margin: 0;
   padding: 0.3rem;
@@ -772,7 +753,6 @@ button.workout-ex__empty:hover {
   border-radius: 20px;
   background: #1a1a1ae6;
   backdrop-filter: blur(16px);
-  border: 1px solid #ffffff26;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 .workout-picker__list::-webkit-scrollbar { width: 4px; }
@@ -797,9 +777,26 @@ button.workout-ex__empty:hover {
 .workout-picker__option:hover { background: #ffffff14; }
 .workout-picker__option--active { background: var(--accent-bg); }
 .workout-picker__option--create { color: var(--color-primary); }
+/* Group headings. Quieter than the option they sit above rather than louder --
+   the point is to say "these are the cardio ones", not to compete with a name
+   the user is reading. `sticky` because a list scrolled past its own heading
+   should not leave the remaining rows unlabelled. */
+.workout-picker__group {
+  position: sticky;
+  top: -0.3rem;
+  z-index: 1;
+  padding: 0.45rem 0.5rem 0.2rem;
+  background: #1a1a1ae6;
+  backdrop-filter: blur(16px);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.45;
+}
 .workout-picker__icon { display: inline-flex; opacity: 0.55; flex-shrink: 0; }
 .workout-picker__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workout-picker__category { margin-left: auto; font-size: 0.55rem; opacity: 0.4; flex-shrink: 0; }
+.workout-picker__category { margin-left: auto; font-size: 0.55rem; opacity: 0.4; flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* What the dropdown says when a search found nothing. Without it an empty panel
    and a broken search are the same thing. It holds a message and, in the empty
    state, a retry -- so it stacks. */
@@ -1198,7 +1195,6 @@ button.workout-ex__empty:hover {
      are the first thing to become unreadable at this size and the least useful. */
   .workout-heat__days { display: none; }
   .workout-heat__body { gap: 0; }
-  .workout-heat-popover { width: 100%; }
   .workout-set-table__head,
   .workout-set-table__row { grid-template-columns: 1.2rem minmax(0, 1fr) minmax(0, 1fr) 1.4rem; }
   /* 16px stops iOS Safari zooming the viewport when a field takes focus. */
@@ -1212,6 +1208,5 @@ button.workout-ex__empty:hover {
 @media (prefers-reduced-motion: reduce) {
   .workout-heat__cell,
   .collapse-chevron { transition: none; }
-  .workout-heat__cell:hover:not(:disabled),
-  .workout-heat__cell--open { transform: none; }
+  .workout-heat__cell:hover { transform: none; }
 }

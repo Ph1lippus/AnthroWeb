@@ -75,6 +75,26 @@ export const absoluteTime = (dateStr?: string | null): string => {
 };
 
 /**
+ * Whether a checkbox is already part of a task list this editor wrote.
+ *
+ * TaskItem serialises to `<li data-type="taskItem"><label><input type="checkbox">…`,
+ * so a *modern* to-do contains an `<input>` exactly as often as a legacy one
+ * does. Telling them apart therefore cannot be done by looking for inputs at all
+ * -- it has to be done by asking whether this particular input already has a
+ * task list around it.
+ *
+ * Getting this wrong is not cosmetic. The rewrite below lifts whatever follows
+ * the checkbox into a fresh `<li>`, and in modern markup what follows is the
+ * a11y `<span>` -- which serialises empty -- so every existing to-do is replaced
+ * by an empty one and its text is left behind outside the list. Worse, the
+ * injected `<ul>` lands *inside* the original `<label>`, and a label wrapping
+ * the row makes the entire row a click target for its checkbox.
+ */
+const isTaskListCheckbox = (input: Element): boolean =>
+    input.closest('[data-type="taskItem"]') !== null ||
+    input.closest('[data-type="taskList"]') !== null;
+
+/**
  * Rewrite the checkbox markup written by the old editor into task-list HTML the
  * new editor can parse.
  *
@@ -83,6 +103,11 @@ export const absoluteTime = (dateStr?: string | null): string => {
  * schema-based editor drops input elements it does not recognise, so without
  * this pass every to-do list already in the database would silently lose its
  * checkboxes the first time it was opened and saved.
+ *
+ * Checkboxes that already belong to a task list are left alone -- see
+ * `isTaskListCheckbox`. The original string is returned untouched when there was
+ * nothing to migrate, so a healthy note round-trips byte for byte rather than
+ * being re-serialised for no reason.
  *
  * Runs against a parsed DOM rather than the HTML string so the surrounding
  * structure can be rebuilt properly instead of pattern-matched.
@@ -95,7 +120,10 @@ export const normalizeLegacyCheckboxes = (html: string): string => {
     const inputs = Array.from(doc.body.querySelectorAll('input[type="checkbox"]'));
     if (inputs.length === 0) return html;
 
+    let migrated = false;
     for (const input of inputs) {
+        if (isTaskListCheckbox(input)) continue;
+        migrated = true;
         const list = doc.createElement('ul');
         list.setAttribute('data-type', 'taskList');
 
@@ -134,8 +162,68 @@ export const normalizeLegacyCheckboxes = (html: string): string => {
         input.replaceWith(list);
     }
 
-    return doc.body.innerHTML;
+    return migrated ? doc.body.innerHTML : html;
 };
+
+/**
+ * A block whose inline content can be lifted into a `<summary>`.
+ *
+ * A summary holds inline content only, so only a textblock qualifies. Anything
+ * with block children (a nested list, a second paragraph) is left alone rather
+ * than half-migrated.
+ */
+const LIFTABLE_TEXT_BLOCK = /^(P|H[1-6]|BLOCKQUOTE|PRE)$/;
+
+/**
+ * Move text out of the body of a toggle whose summary is empty.
+ *
+ * An earlier version of the to-toggle conversion put the line's text in the
+ * body instead of the summary. That saved perfectly valid HTML which rendered as
+ * a collapsed, untitled toggle with its text hidden inside, so the text was there
+ * in the database and simply invisible -- the exact opposite of the to-do bug,
+ * where the text was destroyed. Everything written since keeps the text in the
+ * summary, so this only touches the notes that were converted by the broken
+ * build.
+ *
+ * Only the first body block moves, and only if it is a textblock: `detailsContent`
+ * holds blocks, so the body has to keep at least one, and the emptied original
+ * is already a valid empty paragraph.
+ */
+export const normalizeLegacyToggles = (html: string): string => {
+    if (!html || !html.includes('<details')) return html;
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const details = Array.from(doc.body.querySelectorAll('details'));
+    if (details.length === 0) return html;
+
+    let repaired = false;
+    for (const node of details) {
+        const summary = node.querySelector(':scope > summary');
+        // A summary with anything in it was written correctly and is left alone.
+        if (!summary || (summary.textContent ?? '').trim() !== '') continue;
+
+        const body =
+            node.querySelector(':scope > [data-type="detailsContent"]') ??
+            Array.from(node.children).find(child => child !== summary);
+        if (!body) continue;
+
+        const first = body.firstElementChild;
+        if (!first || !LIFTABLE_TEXT_BLOCK.test(first.tagName)) continue;
+
+        // Moved, not copied: the inline nodes keep their marks, and the block they
+        // came from stays behind as the body's now-empty first paragraph.
+        while (first.firstChild) {
+            summary.appendChild(first.firstChild);
+        }
+        repaired = true;
+    }
+
+    return repaired ? doc.body.innerHTML : html;
+};
+
+/** Every load-time repair to stored note HTML, in one call. */
+export const normalizeNoteHtml = (html: string): string =>
+    normalizeLegacyToggles(normalizeLegacyCheckboxes(html));
 
 /** True when a note has nothing in it yet: no text and no embedded media. */
 export const isBlankNote = (html?: string | null): boolean => {

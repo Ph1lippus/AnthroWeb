@@ -4770,8 +4770,12 @@ textarea.form-control {
   line-height: 1;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.note-action-btn:hover {
-  background: var(--accent-bg);
+/* The block menu's second entry point. Only drawn where the drag grip is not:
+   the gutter has no room below 768px and there is no hover to reveal it. */
+.note-block-menu-btn {
+  display: none;
+}
+.note-action-btn:hover {  background: var(--accent-bg);
   color: var(--color-primary);
 }
 .note-action-btn--danger {
@@ -4997,48 +5001,6 @@ textarea.form-control {
 .note-prose ul[data-type='taskList'] li[data-type='taskItem'] > div {
   flex: 1;
   min-width: 0;
-}
-
-/* ---------- selection bubble ---------- */
-.note-bubble {
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-  padding: 0.25rem;
-  border: 1px solid #ffffff1f;
-  border-radius: 25px;
-  background: #111;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
-}
-.note-bubble-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 25px;
-  background: transparent;
-  color: var(--color-light);
-  opacity: 0.65;
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
-}
-.note-bubble-btn:hover {
-  background: #ffffff12;
-  opacity: 1;
-  color: var(--color-primary);
-}
-.note-bubble-btn--on {
-  background: var(--accent-bg);
-  color: var(--color-primary);
-  opacity: 1;
-}
-.note-bubble-sep {
-  width: 1px;
-  height: 18px;
-  margin: 0 0.2rem;
-  background: #ffffff1f;
 }
 
 /* ---------- tags ---------- */
@@ -5595,54 +5557,9 @@ textarea.form-control {
   width: 100%;
 }
 
-/* ---------- contextual block controls ----------
-   One toolbar, swapped by what the caret is inside, rather than a separate one
-   per block type. Rendered by BlockControls above the document. */
-.note-block-controls {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #ffffff0f;
-  border-radius: 25px;
-  background: #ffffff06;
-}
-.note-block-controls-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-right: 0.25rem;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.note-block-controls button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.55rem;
-  border: 1px solid transparent;
-  border-radius: 25px;
-  background: #ffffff08;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.note-block-controls button:hover {
-  background: var(--accent-bg);
-  color: var(--color-primary);
-}
-.note-block-controls-danger:hover {
-  background: var(--color-danger-dark);
-  color: #ff6b70;
-}
+/* ---------- code block language ----------
+   Shown as a footer inside the block menu rather than in a toolbar above the
+   document, so it can never push the page around when it appears. */
 .note-code-language {
   padding: 0.25rem 0.5rem;
   border: 1px solid #ffffff14;
@@ -5830,10 +5747,15 @@ textarea.form-control {
   border: none;
 }
 .note-prose details.note-toggle > summary.note-toggle-summary {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.35rem;
-  padding: 0.2rem 0;
+  /* The summary holds the text of whatever block was converted into a toggle,
+     so it is normally bare text rather than an element. `display: flex` would
+     promote that to an anonymous flex item, which cannot be given `flex: 1` --
+     so it would neither fill the row nor wrap under a long heading, and the
+     click target would stop at the end of the first line. The chevron is
+     positioned instead, and the text is left to flow as an ordinary block. */
+  position: relative;
+  display: block;
+  padding: 0.2rem 0.2rem 0.2rem 1.15rem;
   cursor: pointer;
   list-style: none;
   border-radius: 8px;
@@ -5849,10 +5771,11 @@ textarea.form-control {
    inherits the accent colour and animates. */
 .note-prose details.note-toggle > summary.note-toggle-summary::before {
   content: '';
-  flex-shrink: 0;
+  position: absolute;
+  top: 0.5rem;
+  left: 0.2rem;
   width: 0.42rem;
   height: 0.42rem;
-  margin-top: 0.45rem;
   border-right: 1.5px solid var(--color-light);
   border-bottom: 1.5px solid var(--color-light);
   opacity: 0.55;
@@ -5888,7 +5811,9 @@ textarea.form-control {
 .note-prose details.note-toggle[data-toggle-level='2'] > summary.note-toggle-summary { font-size: 1.25rem; }
 .note-prose details.note-toggle[data-toggle-level='3'] > summary.note-toggle-summary { font-size: 1.05rem; }
 .note-prose details.note-toggle[data-toggle-level] > summary.note-toggle-summary::before {
-  margin-top: 0.4em;
+  /* Tracks the summary's own font size rather than a fixed offset, so the
+     chevron stays centred on the first line of a heading. */
+  top: 0.4em;
 }
 
 /* ---------- focus mode ----------
@@ -5903,10 +5828,10 @@ textarea.form-control {
 }
 
 /* ---------- drag handles ---------- */
+/* Position comes from the plugin's own Floating UI pass and is written inline,
+   so left/top are not set here; the gutter gap is the negative offset passed as
+   computePositionConfig. Only the box and the reveal are styled here. */
 .note-drag-handle {
-  position: absolute;
-  left: -1.6rem;
-  top: 0.15rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5918,6 +5843,24 @@ textarea.form-control {
   cursor: grab;
   background: #ffffff0a;
   transition: opacity 0.12s ease;
+}
+.note-drag-handle-btn {
+  display: grid;
+  place-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: inherit;
+}
+/* The handle is a button now, so it needs its own focus ring: it is reachable by
+   keyboard and silently swallowing that would leave no way in but "/". */
+.note-drag-handle-btn:focus-visible {
+  outline: 1px solid var(--accent-border);
 }
 /* Only the handle for the hovered block shows, and the editor itself gets a
    little left padding so it never sits under the gutter. */
@@ -5933,6 +5876,15 @@ textarea.form-control {
 }
 .note-drag-handle:active {
   cursor: grabbing;
+}
+
+/* ---------- block menu ----------
+   The handle menu is positioned by the editor from the handle's own rect, since
+   there is no caret to anchor to. "/" still positions itself through TipTap's
+   suggestion mount. */
+.block-menu-anchor {
+  position: fixed;
+  z-index: 60;
 }
 
 /* ---------- sub / superscript ---------- */
@@ -6014,7 +5966,11 @@ textarea.form-control {
   font-weight: 600;
 }
 
-/* ---------- slash menu ---------- */
+/* ---------- block menu ----------
+   One popup behind both entry points: "/" at the caret, and the grip beside a
+   block. The handle menu adds a search box and a formatting strip above the
+   command rows; neither is drawn for "/" because there is nothing to filter away
+   from and nothing selected to mark. */
 .slash-menu {
   display: flex;
   flex-direction: column;
@@ -6034,6 +5990,149 @@ textarea.form-control {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   animation: slash-menu-in 0.12s ease-out;
+}
+/* The handle menu takes focus so typing filters it. That focus is not the user's
+   idea of focus and the browser ring around the whole panel says so. */
+.slash-menu:focus,
+.slash-menu:focus-visible {
+  outline: none;
+}
+.slash-menu-heading {
+  padding: 0.3rem 0.5rem 0.4rem;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.slash-menu-formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  padding: 0.15rem 0.15rem 0.45rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid #ffffff1a;
+}
+.slash-menu-format {
+  display: grid;
+  place-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 25px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.65;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+.slash-menu-format:hover {
+  background: #ffffff12;
+  opacity: 1;
+  color: var(--color-primary);
+}
+.slash-menu-format--on {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+.slash-menu-search {
+  padding: 0.1rem 0.15rem 0.4rem;
+}.slash-menu-input {
+  width: 100%;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #ffffff1a;
+  border-radius: 10px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.slash-menu-input:focus {
+  outline: 1px solid var(--accent-border);
+}
+.slash-menu-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.2rem 0.1rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid #ffffff1a;
+  color: var(--color-primary);
+}
+.slash-menu-item--danger .slash-menu-icon {
+  color: #ff6b70;
+}
+.slash-menu-item--danger.slash-menu-item--active .slash-menu-icon {
+  background: var(--color-danger-dark);
+}
+
+/* The handle menu carries a search box and a formatting strip on top of a list
+   that already scrolls, so those two stay pinned. The negative offsets cancel
+   the container's own padding, which is what sticky positions against. The
+   selection menu is the same menu without the search box, so it needs the same
+   pinning for the same reason. */
+.slash-menu--block,
+.slash-menu--selection {
+  /* A fixed width, so the rows do not reflow as hints of different lengths come
+     and go with the query. */
+  width: 280px;
+  min-width: 0;
+  max-height: min(420px, 70vh);
+}
+.slash-menu--block .slash-menu-formats,
+.slash-menu--block .slash-menu-search,
+.slash-menu--selection .slash-menu-formats,
+.slash-menu--selection .slash-menu-back {
+  position: sticky;
+  z-index: 1;
+  background: #111;
+}
+.slash-menu--block .slash-menu-formats,
+.slash-menu--selection .slash-menu-formats {
+  top: -0.3rem;
+}
+.slash-menu--block .slash-menu-search,
+.slash-menu--selection .slash-menu-back {
+  top: -0.3rem;
+}
+.slash-menu--block .slash-menu-footer,
+.slash-menu--selection .slash-menu-footer {
+  position: sticky;
+  bottom: -0.3rem;
+  background: #111;
+}
+/* The way out of "Turn into". Pinned for the same reason the formats are: the
+   list below it scrolls, and Left/Escape is not available to a mouse. */
+.slash-menu-back {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-bottom: 1px solid #ffffff1a;
+  background: transparent;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.slash-menu-back:hover {
+  background: #ffffff12;
+}
+/* "Turn into" is the one row that opens something rather than doing something, so
+   it carries a chevron where the others carry a favourite star. */
+.slash-menu-item--submenu {
+  color: var(--color-primary);
+}
+.slash-menu-item--submenu .slash-menu-title {
+  font-weight: 600;
 }
 .slash-menu::-webkit-scrollbar { width: 4px; }
 .slash-menu::-webkit-scrollbar-track { background: transparent; }
@@ -6186,9 +6285,12 @@ textarea.form-control {
     font-size: 0.9rem;
   }
   /* The drag gutter has nowhere to sit on a phone, and there is no hover to
-     reveal it with anyway. */
+     reveal it with anyway. The header's own button stands in for it there. */
   .note-drag-handle {
     display: none;
+  }
+  .note-block-menu-btn {
+    display: inline-flex;
   }
   .slash-menu-star {
     opacity: 0.5;
@@ -6586,6 +6688,20 @@ textarea.form-control {
    phone widths are forced back to one column by .daily-log-form .grid above. */
 .daily-log-habits {
   min-width: 0;
+}
+/* The "detail" link that appears beside the Gym habit once the day is trained.
+   It is rendered as a sibling of the word inside one span, with no whitespace
+   between them in the markup, so this rule is the only thing separating them --
+   without it the habit reads as "Gymdetail". The margin does that; the colour and
+   the underline on hover are what make it look like a link rather than more
+   label. */
+.daily-log-habits__gym-link {
+  margin-left: 0.35rem;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.daily-log-habits__gym-link:hover {
+  text-decoration: underline;
 }
 .puzzle-card {
   display: block;
@@ -7248,6 +7364,15 @@ select.form-control option {
   opacity: 0.7;
   line-height: 1.4;
 }
+.workout-rails {
+    display: grid!important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40rem)!important;
+    grid-auto-rows: minmax(0, 1fr)!important;
+    gap: 1rem!important;
+    flex: 1!important;
+    min-height: 0!important;
+}
+
 .workout-exercise-card.completed {
   background: rgba(0, 255, 166, 0.05);
 }
@@ -7348,10 +7473,6 @@ select.form-control option {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* `auto` rather than `hidden`. The rails absorb all the slack, so this never
-     produces a scrollbar on a normal desktop viewport -- it is the fallback for
-     the two full-width bands plus the rails together exceeding a short window,
-     where clipping would have made part of the page unreachable. */
   overflow-y: auto;
   overflow-x: hidden;
   backdrop-filter: blur(10px);

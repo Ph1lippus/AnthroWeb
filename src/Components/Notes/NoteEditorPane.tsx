@@ -9,6 +9,7 @@ import {
     ListTree,
     Palette,
     Pin,
+    Plus,
     Smile,
     Trash2,
     X,
@@ -18,6 +19,7 @@ import ShortcutsSheet from './ShortcutsSheet';
 import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
+import type { NoteEditorHandle } from './NoteEditor';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
 import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
@@ -86,6 +88,11 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     const [focusMode, setFocusMode] = useState(false);
     const [showToc, setShowToc] = useState(false);
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
+
+    // The editor is lazy, so the header's block-menu button cannot reach into it
+    // during render. It asks through this handle on click instead.
+    const editorRef = useRef<NoteEditorHandle>(null);
+    const blockMenuButtonRef = useRef<HTMLButtonElement>(null);
 
     // Stable identity on purpose: NoteEditor reports the outline through an effect
     // keyed on this callback, so a fresh function each render would loop forever.
@@ -301,6 +308,26 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         aria-pressed={focusMode}
                     >
                         <Eye size={14} />
+                    </button>
+
+                    {/* The block menu's only way in on a phone. The grip it opens
+                        from lives in a gutter that has nowhere to go at this width,
+                        and there is no hover to reveal it with. Hidden above the
+                        breakpoint, where the grip is available and better aimed. */}
+                    <button
+                        type="button"
+                        ref={blockMenuButtonRef}
+                        className="note-action-btn note-block-menu-btn"
+                        onClick={() => {
+                            const button = blockMenuButtonRef.current;
+                            if (button) {
+                                editorRef.current?.openBlockMenu(button.getBoundingClientRect());
+                            }
+                        }}
+                        title="Block menu for the current block"
+                        aria-label="Block menu"
+                    >
+                        <Plus size={14} />
                     </button>
 
                     {/* Only offered once the page has enough headings for an outline
@@ -587,6 +614,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         document body waits on the editor chunk. */}
                     <Suspense fallback={<div className="note-prose-loading" />}>
                         <NoteEditor
+                            ref={editorRef}
                             initialHtml={note.content ?? ''}
                             onChange={handleContent}
                             autoFocus={isBlank}

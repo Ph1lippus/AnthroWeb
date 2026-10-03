@@ -8,6 +8,7 @@ import type { UserSettings } from '../services/profileService';
 import { PenTool } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import { journalHabitFor } from '../utils/journalHabit';
 
 const JournalEditPage: React.FC = () => {
     const navigate = useNavigate();
@@ -54,6 +55,9 @@ const JournalEditPage: React.FC = () => {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
                 journal_entry: journalEntry || null,
+                // See journalHabitFor: content ticks the habit, absence leaves
+                // the stored tick alone.
+                journal: journalHabitFor(journalEntry, existingLog?.journal),
                 daily_score: existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 

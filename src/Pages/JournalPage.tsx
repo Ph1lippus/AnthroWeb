@@ -7,6 +7,7 @@ import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import { Lightbulb, X, RotateCw, PenTool } from 'lucide-react';
 import { todayString } from '../utils/dates';
+import { journalHabitFor } from '../utils/journalHabit';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 
@@ -119,6 +120,11 @@ const JournalPage: React.FC = () => {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: logDate,
                 journal_entry: journalEntry || null,
+                // Writing an entry ticks the "Journaled" habit for this day, so
+                // the habit charts and the daily score agree with the fact that
+                // something was written. An empty entry carries the stored tick
+                // forward rather than clearing it -- see journalHabitFor.
+                journal: journalHabitFor(journalEntry, existingLog?.journal),
                 daily_score: isEditing && existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 

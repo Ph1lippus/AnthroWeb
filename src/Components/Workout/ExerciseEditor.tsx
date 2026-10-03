@@ -338,23 +338,37 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     const [name, setName] = useState('');
     const [type, setType] = useState<ActivityType>(defaultActivityType);
     const [exerciseId, setExerciseId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const addId = useId();
 
+    /* A failed add used to be invisible. `onAdd` rejects, the rejection was never
+       caught, and the form just stopped -- no row, no message, nothing on screen
+       to say the save had been refused by the database. That is how a stale unique
+       constraint survived the sessions rewrite: it looked like the button was
+       broken rather than the schema disagreeing with the code.
+
+       The typed name is deliberately kept on failure, so the answer to "it did not
+       save" is a visible reason and a retry, not retyping. */
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         const trimmed = name.trim();
         if (!trimmed) return;
-        await onAdd({
-            exercise_id: exerciseId,
-            exercise_name: trimmed,
-            activity_type: type,
-            day_of_week: dayOfWeek,
-            session_id: sessionId,
-            position: exercises.length,
-        });
-        setName('');
-        setExerciseId(null);
-        setType(defaultActivityType);
+        setError(null);
+        try {
+            await onAdd({
+                exercise_id: exerciseId,
+                exercise_name: trimmed,
+                activity_type: type,
+                day_of_week: dayOfWeek,
+                session_id: sessionId,
+                position: exercises.length,
+            });
+            setName('');
+            setExerciseId(null);
+            setType(defaultActivityType);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Could not add the exercise.');
+        }
     };
 
     return (
@@ -380,10 +394,22 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                     <ExerciseNameInput
                         id={addId}
                         value={name}
-                        onChange={setName}
+                        onChange={value => {
+                            setName(value);
+                            /* A typed edit is a different exercise. The id picked
+                               for the previous name would otherwise be submitted
+                               with it, so "Bench Press" turned into "Bench Press,
+                               narrow grip" and stored the barbell row's muscles.
+                               The pick clears nothing on its own -- `commit` calls
+                               `onChange` first and `onPick` second, so the order
+                               here ends with the picked id either way. */
+                            setExerciseId(null);
+                            if (error) setError(null);
+                        }}
                         onPick={picked => {
                             setExerciseId(picked.exercise_id ?? null);
                             setType(picked.activity_type);
+                            setError(null);
                         }}
                         onActivityTypeChange={setType}
                         activityType={type}
@@ -399,6 +425,13 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                     Add
                 </button>
             </form>
+
+            {/* `role="alert"` rather than a toast: the reason belongs next to the
+                field that caused it, and it has to still be there if the user looks
+                away and comes back. */}
+            {error && (
+                <p className="workout-ex__error" role="alert">{error}</p>
+            )}
         </>
     );
 };

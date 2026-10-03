@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
 import {
+    Activity,
     CalendarCheck,
     CalendarRange,
     Dumbbell,
     Flame,
+    HeartPulse,
     Layers,
     Timer,
     TrendingUp,
@@ -12,7 +14,16 @@ import {
 } from 'lucide-react';
 import { usePREntries, usePRHistory } from '../../hooks/useWorkouts';
 import { currentBestOf, buildPRCards } from '../../utils/prs';
-import { totalsBetween, type DayRecord, type PeriodTotals, type ExerciseRollup } from '../../utils/workoutStats';
+import {
+    kindTotals,
+    muscleGroupTotals,
+    totalsBetween,
+    type DayRecord,
+    type PeriodTotals,
+    type ExerciseRollup,
+    type KindTotals,
+    type MuscleGroupTotal,
+} from '../../utils/workoutStats';
 import { formatWeight, type WeightUnit } from '../../utils/units';
 import { addDays, formatDayLabel, todayString } from '../../utils/dates';
 
@@ -40,7 +51,7 @@ interface Tile {
 }
 
 /**
- * Every figure worth having, as bare tiles two to a row.
+ * Every figure worth having, as bare tiles three to a row.
  *
  * No group headings. They were "This week", "Consistency", "Last 30 days" and so
  * on, which read as instructions rather than as labels and put a line of type
@@ -107,6 +118,15 @@ const WorkoutStatsRail: React.FC<WorkoutStatsRailProps> = ({
                 .sort((a, b) => (b.bestWeight ?? 0) - (a.bestWeight ?? 0))[0],
         };
     }, [rollups]);
+
+    /* Muscle groups and time-based work. Both are derived from the same rollups
+       the exercise tiles read, so they cost no query and cannot disagree with
+       them about what was logged. */
+    const muscles = useMemo<MuscleGroupTotal[]>(() => muscleGroupTotals(rollups), [rollups]);
+    const kinds = useMemo<KindTotals>(() => kindTotals(rollups), [rollups]);
+    const loggedMinutes = kinds.strengthMinutes + kinds.cardioMinutes + kinds.mobilityMinutes;
+
+    const hours = (minutes: number) => (minutes >= 60 ? `${Math.round(minutes / 60)}h` : `${minutes}m`);
 
     const records = useMemo(() => {
         const cards = buildPRCards(entries, history).filter(card => card.best);
@@ -313,6 +333,55 @@ const WorkoutStatsRail: React.FC<WorkoutStatsRailProps> = ({
                 ? kgs(records.bestGain.gain)
                 : '—',
             hint: records.bestGain?.name ?? 'needs two records',
+            tone: 'flat',
+        },
+
+        // --- muscle groups ---
+        /* The first three are the groups that have had the most sessions. Three
+           because the rail is three to a row, and a fourth would break the
+           shape the rest of the tiles set. */
+        ...muscles.slice(0, 3).map((total): Tile => ({
+            key: `muscle-${total.muscle}`,
+            icon: Activity,
+            label: total.muscle,
+            value: String(total.sessions),
+            hint: total.volumeKg > 0 ? kgs(total.volumeKg) : `${total.setsLogged} sets`,
+            tone: 'flat',
+        })),
+        {
+            key: 'muscle-count',
+            icon: Layers,
+            label: 'Muscle groups',
+            value: String(muscles.length),
+            hint: muscles.length > 0 ? 'worked in 12 months' : 'none logged yet',
+            tone: 'flat',
+        },
+
+        // --- cardio and mobility ---
+        {
+            key: 'cardio-time',
+            icon: HeartPulse,
+            label: 'Cardio',
+            value: kinds.cardioMinutes > 0 ? hours(kinds.cardioMinutes) : '—',
+            hint: kinds.cardioSessions > 0
+                ? `${kinds.cardioSessions} sessions${kinds.cardioDistanceKm > 0 ? ` · ${kinds.cardioDistanceKm.toFixed(1)} km` : ''}`
+                : 'nothing logged yet',
+            tone: 'flat',
+        },
+        {
+            key: 'mobility-time',
+            icon: Activity,
+            label: 'Mobility',
+            value: kinds.mobilityMinutes > 0 ? hours(kinds.mobilityMinutes) : '—',
+            hint: kinds.mobilitySessions > 0 ? `${kinds.mobilitySessions} sessions` : 'nothing logged yet',
+            tone: 'flat',
+        },
+        {
+            key: 'balance',
+            icon: TrendingUp,
+            label: 'Strength share',
+            value: loggedMinutes > 0 ? `${Math.round(kinds.strengthMinutes / loggedMinutes * 100)}%` : '—',
+            hint: 'of time logged',
             tone: 'flat',
         },
     ];

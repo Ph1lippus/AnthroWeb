@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, Flag, Loader2, Plus, Trash2 } from 'lucide-react';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
@@ -27,6 +27,8 @@ import {
 interface DraftRow {
     id?: string;
     exercise_name: string;
+    /** The library row this came from, so the log joins back to `exercises`. */
+    exercise_id?: string | null;
     activity_type: ActivityType;
     planned: boolean;
     completed: boolean;
@@ -190,8 +192,15 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const [saved, setSaved] = useState(false);
     const [newName, setNewName] = useState('');
     const [newType, setNewType] = useState<ActivityType>('strength');
+    // Held alongside the name rather than read back off the input, because the
+    // picker clears the id on every keystroke and only onPick sets it again.
+    const [newExerciseId, setNewExerciseId] = useState<string | null>(null);
 
     const saveSession = useSaveSession();
+    // A wrapper rather than a ref forwarded into ExerciseNameInput: that component
+    // owns its input ref internally, and reaching the input by query keeps the
+    // two components from having to agree on one.
+    const addInputRef = useRef<HTMLDivElement | null>(null);
 
     // Reset when the day changes, or the next day's data would render under the
     // previous day's heading.
@@ -215,6 +224,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         setRows((stored ?? []).map(row => ({
             id: row.id,
             exercise_name: row.exercise_name,
+            exercise_id: row.exercise_id,
             activity_type: row.activity_type,
             planned: row.planned,
             completed: row.completed,
@@ -236,14 +246,22 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const totalSets = visible.filter(row => row.completed).reduce((n, row) => n + row.sets_detail.length, 0);
     const progress = visible.length > 0 ? doneCount / visible.length * 100 : 0;
 
-    const handleSave = async (completed: boolean) => {
+    // Wrapped rather than a plain function so `scheduleSave` below keeps a stable
+    // identity -- a new one every render would restart the debounce timer on every
+    // keystroke and the save would never fire.
+    const handleSave = useCallback(async () => {
         setSaving(true);
         try {
             await saveSession.mutateAsync({
                 date,
                 createIfMissing: true,
+                // `completed` is deliberately absent. This used to be written from a
+                // "Save progress" button that passed `false`, so saving your work
+                // silently un-completed a day the daily log had already ticked --
+                // which is what made the year chart show a trained day as empty.
+                // Completing a day is the daily log's Gym habit and nothing else;
+                // see useSaveSession's note on not defaulting it either.
                 header: {
-                    completed,
                     intensity,
                     duration_minutes: duration ? parseInt(duration, 10) : undefined,
                     notes: notes || undefined,
@@ -252,6 +270,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                 exercises: rows.map(row => ({
                     id: row.id,
                     exercise_name: row.exercise_name,
+                    exercise_id: row.exercise_id ?? null,
                     activity_type: row.activity_type,
                     completed: row.completed,
                     sets_detail: rowsToDetail(row.sets_detail),
@@ -265,7 +284,36 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         } finally {
             setSaving(false);
         }
-    };
+    }, [saveSession, date, intensity, duration, notes, activeTemplate, rows]);
+
+    /* Autosave on leaving a field, the way the daily log autosaves.
+     *
+     * This replaced a "Save progress" and a "Complete" button. Both were wrong in
+     * the same way: the first wrote `completed: false`, so saving your work on a
+     * day the daily log had already ticked as trained silently un-completed it and
+     * the year chart went blank for that square. The second completed a day as a
+     * side effect of logging it, from a page that has no business deciding whether
+     * a day counts.
+     *
+     * On blur rather than on every keystroke, because rows here change
+     * structurally -- adding, removing or ticking a row is not a keystroke, and
+     * those changes need saving just as much. A short debounce still applies so
+     * tabbing through four fields in a row is one write rather than four.
+     *
+     * Nothing is saved for a day with no rows and no header content, so merely
+     * opening a future day does not create an empty session for it. */
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const scheduleSave = useCallback(() => {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+            void handleSave();
+        }, 600);
+    }, [handleSave]);
+
+    // A pending save must not be lost to a day change or an unmount.
+    useEffect(() => () => {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    }, []);
 
     const step = (delta: number) => {
         const next = addDays(date, delta);
@@ -346,6 +394,12 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             max={10}
                             value={intensity}
                             onChange={event => setIntensity(Number(event.target.value))}
+                            // A slider never blurs, so `change` fires continuously
+                            // while dragging. Committing on release is the only way
+                            // to get one write per drag rather than one per pixel.
+                            onMouseUp={scheduleSave}
+                            onTouchEnd={scheduleSave}
+                            onKeyUp={scheduleSave}
                         />
 
                         {/* The plan asked for one number; this day produced
@@ -376,11 +430,12 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 value={duration}
                                 placeholder="45"
                                 onChange={event => setDuration(event.target.value)}
+                                onBlur={scheduleSave}
                             />
                         </div>
 
                         <div className="workout-meter-row" style={{ marginTop: '0.85rem' }}>
-                            <span>{doneCount}/{visible.length} done</span>
+                            <span>{doneCount}/{visible.length} exercises done</span>
                             <strong style={{ marginLeft: 'auto' }}>{totalSets} sets</strong>
                         </div>
                         <div className="workout-meter">
@@ -396,6 +451,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 placeholder="How did it go?"
                                 value={notes}
                                 onChange={event => setNotes(event.target.value)}
+                                onBlur={scheduleSave}
                             />
                         </div>
 
@@ -431,9 +487,17 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                         key={row.id ?? `new-${row.exercise_name}`}
                                         row={row}
                                         weightUnit={weightUnit}
-                                        onChange={next => setRows(current => current.map(
-                                            item => (item === row ? next : item),
-                                        ))}
+                                        onChange={next => {
+                                            setRows(current => current.map(
+                                                item => (item === row ? next : item),
+                                            ));
+                                            // Ticking a row done and deleting one are
+                                            // clicks, not blurs, so they save at once.
+                                            // The debounce collapses a click that
+                                            // follows straight into a field edit.
+                                            scheduleSave();
+                                        }}
+                                        onCommit={scheduleSave}
                                     />
                                 ))}
                             </div>
@@ -449,6 +513,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                     ...current,
                                     {
                                         exercise_name: trimmed,
+                                        exercise_id: newExerciseId,
                                         activity_type: newType,
                                         planned: false,
                                         completed: false,
@@ -456,43 +521,51 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                     },
                                 ]);
                                 setNewName('');
+                                setNewExerciseId(null);
+                                // Focus goes back to the input so several exercises can
+                                // be typed in a row, and adding a row is a structural
+                                // change rather than a blur, so it saves here.
+                                addInputRef.current?.querySelector('input')?.focus();
+                                void handleSave();
                             }}
                         >
+                            <div ref={addInputRef} style={{ flex: 1 }}>
                             <ExerciseNameInput
                                 value={newName}
-                                onChange={setNewName}
-                                onPick={picked => setNewType(picked.activity_type)}
+                                // Typing invalidates the pick: a name that no longer
+                                // matches what was chosen must not keep its id, or the
+                                // log row would join to the wrong library entry.
+                                onChange={value => { setNewName(value); setNewExerciseId(null); }}
+                                onPick={picked => {
+                                    setNewType(picked.activity_type);
+                                    setNewExerciseId(picked.exercise_id ?? null);
+                                }}
                                 activityType={newType}
                                 className="form-control"
                                 placeholder="Add an exercise"
                             />
+                            </div>
                             <button type="submit" className="btn-action" disabled={!newName.trim()}>
                                 <Plus size={11} className="mr-1" />Add
                             </button>
                         </form>
 
                         <div className="workout-ex__actions" style={{ marginTop: '0.85rem' }}>
+                            {/* No save button. Leaving a field saves it, and the
+                                daily log's Gym habit is the only thing that decides
+                                whether a day counts as trained -- so there is nothing
+                                left here for a button to decide. */}
                             {saving && (
                                 <span className="form-label">
                                     <Loader2 size={11} className="mr-1" />Saving
                                 </span>
                             )}
                             {!saving && saved && <span className="workout-chip">saved</span>}
-                            <button
-                                className="btn-action"
-                                style={{ marginLeft: 'auto' }}
-                                disabled={saving}
-                                onClick={() => handleSave(false)}
-                            >
-                                Save progress
-                            </button>
-                            <button
-                                className="btn-action btn-action--primary"
-                                disabled={saving || doneCount === 0}
-                                onClick={() => handleSave(true)}
-                            >
-                                <Flag size={11} className="mr-1" />Complete
-                            </button>
+                            {!saving && !saved && (
+                                <span className="form-label" style={{ marginLeft: 'auto' }}>
+                                    changes save on their own
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -506,7 +579,9 @@ const SessionRow: React.FC<{
     row: DraftRow;
     weightUnit: 'kg' | 'lbs';
     onChange: (next: DraftRow) => void;
-}> = ({ row, weightUnit, onChange }) => {
+    /** Leaving any input in this row saves the session. */
+    onCommit?: () => void;
+}> = ({ row, weightUnit, onChange, onCommit }) => {
     const isStrength = row.activity_type === 'strength';
 
     return (
@@ -563,12 +638,16 @@ const SessionRow: React.FC<{
                                     sets_detail: detailToRows(row.sets_detail, count),
                                 })}
                             />
-                            <SetTable
-                                sets={row.sets_detail}
-                                weightUnit={weightUnit}
-                                showNumbers={false}
-                                onChange={sets => onChange({ ...row, sets_detail: sets })}
-                            />
+                            {/* SetTable owns its inputs, so the blur is caught on the
+                                wrapper rather than on each cell. */}
+                            <div onBlur={onCommit}>
+                                <SetTable
+                                    sets={row.sets_detail}
+                                    weightUnit={weightUnit}
+                                    showNumbers={false}
+                                    onChange={sets => onChange({ ...row, sets_detail: sets })}
+                                />
+                            </div>
                         </>
                     ) : (
                         <div className="workout-ex__grid">
@@ -586,6 +665,7 @@ const SessionRow: React.FC<{
                                         ...row,
                                         duration_minutes: parseInputNumber(event.target.value) ?? null,
                                     })}
+                                    onBlur={onCommit}
                                 />
                             </div>
                             {row.activity_type === 'cardio' && (
@@ -604,6 +684,7 @@ const SessionRow: React.FC<{
                                             ...row,
                                             distance_km: parseInputNumber(event.target.value) ?? null,
                                         })}
+                                        onBlur={onCommit}
                                     />
                                 </div>
                             )}

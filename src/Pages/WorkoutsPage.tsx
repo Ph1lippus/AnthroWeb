@@ -5,7 +5,6 @@ import Title from '../Components/Title';
 import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
 import WorkoutStatsRail from '../Components/Workout/WorkoutStatsRail';
-import WeekCard from '../Components/Workout/WeekCard';
 import SessionList from '../Components/Workout/SessionList';
 import SessionEditor from '../Components/Workout/SessionEditor';
 import RecordsPanel from '../Components/Workout/RecordsPanel';
@@ -17,7 +16,6 @@ import {
     useActiveTemplate,
     useWorkoutsOverview,
     useExerciseStats,
-    useSetGymForDate,
     useCreateWorkoutTemplate,
     useUpdateWorkoutTemplate,
     useDeleteWorkoutTemplate,
@@ -32,39 +30,28 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { isDateString, todayString } from '../utils/dates';
 import { describeTargets } from '../utils/workoutSets';
 
-const SUBTITLE: Record<string, string> = {
-    day: 'What you actually did. This changes that day only — the template stays as it is.',
-};
-
 /**
- * Two tabs, not four. Sessions and Progress were tabs of their own and neither
- * earned it: what you have done sits beside today in the Today tab, because that
- * is when you want it, and the per-exercise table belongs under the template it
- * describes. A tab per view of the same data is four places to look and one more
- * thing to remember.
+ * Three tabs. Records used to be a permanent panel in the left rail, which put
+ * two unrelated lists side by side and left the tabs a third of the page. It is
+ * a tab now: read when you want it, and gone when you want the room.
  */
 const TABS: TabDefinition[] = [
     { id: 'today', label: 'Today' },
     { id: 'templates', label: 'Templates' },
+    { id: 'records', label: 'Records' },
 ];
 
 /**
  * Workouts, as one page.
  *
- * Three rails inside one height-locked card, which is the academic page's shape:
- * a narrow rail of glanceable facts, the work in a wide column beside it, and the
- * figures on the right. Each rail scrolls on its own, so nothing reflows as you
- * move down one, and below 1023px every lock is released and the page itself
- * scrolls -- nested scroll areas trap content on a touch device.
+ * Two columns inside one height-locked card: the work on the left, the figures
+ * on the right. Each scrolls on its own, so nothing reflows as you move down one,
+ * and below 1023px every lock is released and the page itself scrolls -- nested
+ * scroll areas trap content on a touch device.
  *
- * What is in each rail, and why:
- *   left    the week at a glance, then your records. Both are facts you read
- *           rather than work you do, both fit a narrow rail as stacked rows, and
- *           both are worth having on screen while you work on anything else.
- *   middle  the work. A top bar whose buttons open dialogs, tabs over the four
- *           things you can do here, and the year pinned below all of them --
- *           it is the one thing true across every tab, and clicking any square
- *           in it opens that day.
+ * What is in each column, and why:
+ *   left    a top bar whose buttons open dialogs, tabs over the three things
+ *           you can do here, and the year at the end of them.
  *   right   the figures.
  *
  * Everything is URL-driven, as it was: `?day=`, `?tab=` and `?tpl=` (the dialog
@@ -124,9 +111,6 @@ const WorkoutsPage: React.FC = () => {
     // ---- Data ----
     const overview = useWorkoutsOverview();
     const { activeTemplate, templates } = useActiveTemplate();
-    const setGym = useSetGymForDate(onPRs => {
-        setNotice(`New record — ${onPRs.map(pr => pr.exercise_name).join(', ')}`);
-    });
 
     const createTemplate = useCreateWorkoutTemplate();
     const updateTemplate = useUpdateWorkoutTemplate();
@@ -144,7 +128,12 @@ const WorkoutsPage: React.FC = () => {
     const createSession = useCreatePlanSession(sessionTemplateId ?? '');
     const updateSessionMutation = useUpdatePlanSession(sessionTemplateId ?? '');
 
-    const stats = useExerciseStats(overview.sessions, activeTemplate?.days);
+    /* Unfiltered on purpose. This used to be restricted to the active
+       template's exercises, which is right for a table of the plan and wrong
+       for a rail describing what you have actually trained -- an exercise you
+       logged and then dropped from the template was invisible to every figure
+       on the right, including the muscle groups. */
+    const stats = useExerciseStats(overview.sessions);
     const todayRecord = overview.days.get(today);
 
     const editingTemplate = useMemo(
@@ -181,18 +170,6 @@ const WorkoutsPage: React.FC = () => {
                     <div className="dashboard-section workout-section">
                         <div className="workout-card workout-card--pane">
                             <div className="workout-card__pane">
-                                <div className="books-top-bar">
-                                    <button
-                                        type="button"
-                                        className="btn-action"
-                                        onClick={() => go({ day: undefined })}
-                                    >
-                                        Back to workouts
-                                    </button>
-                                </div>
-                                <div className="dashboard-section__subtitle" style={{ textAlign: 'left' }}>
-                                    {SUBTITLE.day}
-                                </div>
                                 <SessionEditor date={openDay} onNavigate={next => go({ day: next })} />
                             </div>
                         </div>
@@ -233,19 +210,8 @@ const WorkoutsPage: React.FC = () => {
                             something the controls underneath already said. */}
                         {loading ? <LoadingSpinner /> : (
                             <div className="workout-rails">
-                                {/* ---- Left: the week, then your records ---- */}
-                                <div className="workout-rail workout-rail--plan">
-                                    <WeekCard
-                                        plan={activeTemplate?.days ?? []}
-                                        days={overview.days}
-                                        sessionsThisWeek={overview.last7.sessions}
-                                        setsThisWeek={overview.last7.sets}
-                                    />
-                                    <RecordsPanel />
-                                </div>
-
-                                {/* ---- Middle: the work ---- */}
-                                <div className="workout-rail workout-rail--work">
+                                {/* ---- Left: the work ---- */}
+                                <div className="workout-rail workout-rail--main">
                                     <div className="books-top-bar">
                                         {/* Only "Add template". "Edit template" and
                                             "Log workout" used to sit here as well, and
@@ -424,6 +390,10 @@ const WorkoutsPage: React.FC = () => {
                                             )}
                                         </TabPanel>
 
+                                        <TabPanel id="records" hidden={tab !== 'records'}>
+                                            <RecordsPanel />
+                                        </TabPanel>
+
                                         {/* The year closes the column: always
                                             last, so the tabs' own content is what
                                             you land on. */}
@@ -431,17 +401,14 @@ const WorkoutsPage: React.FC = () => {
                                             <div className="card-header">
                                                 <h3 className="card-title">The last year</h3>
                                                 <span className="semester-meta" style={{ marginLeft: 'auto' }}>
-                                                    click a square to open that day
+                                                    hover a square for that day's log
                                                 </span>
                                             </div>
                                             <div className="card-body">
                                                 <WorkoutYearHeatmap
                                                     weeks={overview.weeks}
-                                                    isSaving={setGym.isPending}
                                                     isLoading={overview.isLoading}
                                                     weightUnit={weightUnit}
-                                                    onSetIntensity={(date, intensity) =>
-                                                        setGym.mutate({ date, trained: true, intensity })}
                                                 />
                                             </div>
                                         </div>

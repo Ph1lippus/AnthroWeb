@@ -39,8 +39,7 @@ import { useAuthSession } from './hooks/useAuthSession'
  *
  * Workouts used to be six tabs, then two pages of templates; it is one page now,
  * with the session editor at `?day=` and a routine's week at `?template=`. This
- * exists so an old bookmark -- or the daily log's own Gym link, which still
- * points at /Workouts/Check -- lands on the right thing instead of a 404.
+ * exists so an old bookmark lands on the right thing instead of a 404.
  *
  * `searchParam` carries a query value across: /Workouts/Check?date=X becomes
  * /Workouts?day=X, because the page reads `day` and nothing else. `fromRoute`
