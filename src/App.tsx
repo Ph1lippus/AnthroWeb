@@ -14,8 +14,6 @@ import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
 import MeasurementsPage from './Pages/MeasurementsPage'
 import BooksPage from './Pages/BooksPage'
 import WorkoutsPage from './Pages/WorkoutsPage'
-import WorkoutTemplatesPage from './Pages/WorkoutTemplatesPage'
-import WorkoutTemplateEditorPage from './Pages/WorkoutTemplateEditorPage'
 import ProjectsPage from './Pages/ProjectsPage'
 import AbstinencePage from './Pages/AbstinencePage'
 import AcademicPage from './Pages/AcademicPage'
@@ -32,34 +30,46 @@ import TermsOfServicePage from './Pages/TermsOfServicePage'
 import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
-import { BrowserRouter, Routes, Route, useLocation, useSearchParams, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom'
 import { useBootFetchHandoff, useBootHold } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
 
 /**
  * Sends a retired workout sub-page to the panel on /Workouts that replaced it.
  *
- * Workouts used to be six tabs; it is one page now, with the session editor at
- * `?day=` and the records grid at `?view=records`. This exists so an old
- * bookmark -- or the daily log's own Gym link, which still points at
- * /Workouts/Check -- lands on the right thing instead of a 404.
+ * Workouts used to be six tabs, then two pages of templates; it is one page now,
+ * with the session editor at `?day=` and a routine's week at `?template=`. This
+ * exists so an old bookmark -- or the daily log's own Gym link, which still
+ * points at /Workouts/Check -- lands on the right thing instead of a 404.
  *
  * `searchParam` carries a query value across: /Workouts/Check?date=X becomes
- * /Workouts?day=X, because the page reads `day` and nothing else.
+ * /Workouts?day=X, because the page reads `day` and nothing else. `fromRoute`
+ * does the same for a path segment, which is how /Workouts/Template/:id keeps
+ * the template it was pointing at.
  */
 const WorkoutLegacyRedirect: React.FC<{
-    /** Either a full query string such as '?view=records', or a bare param name. */
+    /** Either a full query string such as '?day=2026-01-01', or a bare param name. */
     to: string;
     searchParam?: string;
-}> = ({ to, searchParam }) => {
+    /** Read the value from a path segment rather than the query string. */
+    fromRoute?: string;
+}> = ({ to, searchParam, fromRoute }) => {
     const [params] = useSearchParams();
+    const routeParams = useParams();
+
+    const value = fromRoute
+        ? routeParams[fromRoute]
+        : searchParam ? params.get(searchParam) : null;
 
     let query = '';
     if (to.startsWith('?')) {
         query = to;
-    } else if (searchParam) {
-        const value = params.get(searchParam);
-        if (value) query = `?${to}=${encodeURIComponent(value)}`;
+    } else if (to === '/') {
+        // The bare page, no query at all. Not `?/`, which would be a stray
+        // parameter the page then has to learn to ignore.
+        query = '';
+    } else if (searchParam && value) {
+        query = `?${to}=${encodeURIComponent(value)}`;
     } else if (to) {
         query = `?${to}`;
     }
@@ -166,14 +176,24 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Measurements" element={<MeasurementsPage />} />
                 <Route path="/Books" element={<BooksPage />} />
                 <Route path="/Workouts" element={<WorkoutsPage />} />
-                <Route path="/Workouts/Templates" element={<WorkoutTemplatesPage />} />
-                <Route path="/Workouts/Template/:id" element={<WorkoutTemplateEditorPage />} />
+                {/* Workouts is one page. These used to be pages of their own; their
+                    routes now carry a query value across so an old bookmark, a
+                    notification or the daily log's own links land on the right
+                    panel instead of a 404. */}
+                <Route
+                    path="/Workouts/Templates"
+                    element={<WorkoutLegacyRedirect to="/" />}
+                />
+                <Route
+                    path="/Workouts/Template/:id"
+                    element={<WorkoutLegacyRedirect to="template" searchParam="id" fromRoute="id" />}
+                />
                 {/* Workouts used to be six tabs. They are one page now, with the
-                    session editor and the records grid reached through query
-                    parameters. These redirects carry old links and bookmarks onto
-                    the right panel of that page rather than 404ing, and `replace`
-                    keeps the Back button going where the user actually came from
-                    instead of bouncing them forward into the redirect again. */}
+                    session editor reached through a query parameter. These
+                    redirects carry old links and bookmarks onto the right panel of
+                    that page rather than 404ing, and `replace` keeps the Back button
+                    going where the user actually came from instead of bouncing them
+                    forward into the redirect again. */}
                 <Route
                     path="/Workouts/Check"
                     element={<WorkoutLegacyRedirect to="day" searchParam="date" />}
@@ -186,10 +206,7 @@ const AuthenticatedApp: React.FC = () => {
                     path="/Workouts/Dashboard"
                     element={<WorkoutLegacyRedirect to="/" />}
                 />
-                <Route
-                    path="/Workouts/PRs"
-                    element={<WorkoutLegacyRedirect to="?view=records" />}
-                />
+                <Route path="/Workouts/PRs" element={<WorkoutLegacyRedirect to="/" />} />
                 <Route path="/Projects" element={<ProjectsPage />} />
                 <Route path="/Abstinence" element={<AbstinencePage />} />
                 <Route path="/Academic" element={<AcademicPage />} />

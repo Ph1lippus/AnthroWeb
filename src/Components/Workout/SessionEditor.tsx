@@ -1,12 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, Flag, Loader2, Plus, Trash2 } from 'lucide-react';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
-import { useActiveTemplate, useSessionByDate, useSessionExercises, useSaveSession } from '../../hooks/useWorkouts';
+import {
+    useActiveTemplate,
+    useSessionByDate,
+    useSessionExercises,
+    useSaveSession,
+    useWorkoutPlan,
+    useStartSessionFromPlan,
+    usePlanSession,
+    useTodaysPlanSessions,
+} from '../../hooks/useWorkouts';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { formatDayLabel, todayString, addDays } from '../../utils/dates';
 import { DAY_NAMES } from '../../utils/workoutStats';
-import { detailToRows, rowsToDetail, parseInputNumber, type ActivityType, type WorkoutSet } from '../../utils/workoutSets';
+import {
+    detailToRows,
+    rowsToDetail,
+    parseInputNumber,
+    describeTargets,
+    type ActivityType,
+    type WorkoutSet,
+} from '../../utils/workoutSets';
 
 interface DraftRow {
     id?: string;
@@ -18,6 +34,122 @@ interface DraftRow {
     duration_minutes?: number | null;
     distance_km?: number | null;
 }
+
+/**
+ * What the active template offers for a day that has no session yet.
+ *
+ * This is the answer to "I went to the gym and today is Friday and the template
+ * has something for Friday" -- the plan is shown, and starting the session
+ * copies it in. Two things it deliberately does not do:
+ *
+ * It does not create the session on arrival. Opening a day you are only looking
+ * at should not leave an empty session behind for every date you browse.
+ *
+ * It does not mark the day trained. That is the difference between opening a
+ * session and finishing one, and conflating them would put a half-filled session
+ * into the streak, the heatmap and the daily log's score.
+ *
+ * The copy used to say "the active template has no exercises for this day",
+ * which was simply false in the common case: the template did have them, the day
+ * had just never been marked, so nothing had copied them across yet.
+ */
+const PlanPreview: React.FC<{
+    date: string;
+    weekday: number;
+    onStarted: () => void;
+}> = ({ date, weekday, onStarted }) => {
+    const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
+    const { activeTemplate } = useActiveTemplate();
+    const { data: plan = [], isLoading } = useWorkoutPlan(weekday);
+    /* Today's planned sessions, so the day can be started from one of them and
+       remember which. That back-reference is what makes the target intensity
+       comparable with what the day actually was. */
+    const { data: todaysSessions = [] } = useTodaysPlanSessions(weekday);
+    const start = useStartSessionFromPlan();
+
+    const hasPlan = plan.length > 0;
+    const exercisesBySession = useMemo(() => {
+        const map = new Map<string, typeof plan>();
+        for (const session of todaysSessions) {
+            map.set(session.id!, plan.filter(row => row.session_id === session.id));
+        }
+        return map;
+    }, [todaysSessions, plan]);
+
+    return (
+        <div className="plan-preview">
+            <div className="plan-preview__head">
+                <p className="workout-empty__title" style={{ margin: 0 }}>
+                    {hasPlan
+                        ? `${DAY_NAMES[weekday]} — ${activeTemplate?.name ?? 'the active template'} has ${plan.length} exercise${plan.length === 1 ? '' : 's'}`
+                        : `Nothing planned for ${DAY_NAMES[weekday]}`}
+                </p>
+                <p className="workout-empty__text" style={{ marginTop: '0.3rem' }}>
+                    {hasPlan
+                        ? 'Starting copies the plan in so you fill in what you actually did. It edits this day only — the template stays as it is.'
+                        : activeTemplate
+                            ? 'The active template has no exercises for this day. You can still log a session and add what you did below.'
+                            : 'No active template. Add what you did below, or make a template for the week.'}
+                </p>
+            </div>
+
+            {hasPlan && (
+                <div className="workout-rows" style={{ marginTop: '0.75rem' }}>
+                    {plan.map(row => (
+                        <div className="workout-row" key={row.id}>
+                            <span className="workout-row__name">{row.exercise_name}</span>
+                            <span className="workout-row__value">{describeTargets(row, weightUnit)}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="plan-preview__actions">
+                {todaysSessions.map(session => {
+                    const rows = exercisesBySession.get(session.id!) ?? [];
+                    return (
+                        <button
+                            key={session.id}
+                            className="btn-action btn-action--primary"
+                            disabled={start.isPending || isLoading}
+                            onClick={async () => {
+                                await start.mutateAsync({ date, planSessionId: session.id });
+                                onStarted();
+                            }}
+                        >
+                            <Flag size={11} className="mr-1" />
+                            {start.isPending ? 'Starting…' : `Start ${session.name}`}
+                            {rows.length > 0 && ` · ${rows.length}`}
+                        </button>
+                    );
+                })}
+                {todaysSessions.length === 0 && hasPlan && (
+                    <button
+                        className="btn-action btn-action--primary"
+                        disabled={start.isPending || isLoading}
+                        onClick={async () => {
+                            await start.mutateAsync({ date });
+                            onStarted();
+                        }}
+                    >
+                        <Flag size={11} className="mr-1" />
+                        {start.isPending ? 'Starting…' : 'Start session'}
+                    </button>
+                )}
+                <button
+                    className="btn-action"
+                    disabled={start.isPending}
+                    onClick={async () => {
+                        await start.mutateAsync({ date });
+                        onStarted();
+                    }}
+                >
+                    Start empty
+                </button>
+            </div>
+        </div>
+    );
+};
 
 interface SessionEditorProps {
     date: string;
@@ -45,6 +177,10 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const { activeTemplate } = useActiveTemplate();
     const { data: session, isLoading: sessionLoading } = useSessionByDate(date);
     const { data: stored, isLoading: exercisesLoading } = useSessionExercises(session?.id);
+    /* The planned session this day was started from, for the target/actual
+       comparison below. Read from the log row's own back-reference, so it stays
+       correct after the plan is edited. */
+    const { data: planSession = null } = usePlanSession(session?.plan_session_id);
 
     const [rows, setRows] = useState<DraftRow[]>([]);
     const [intensity, setIntensity] = useState(5);
@@ -139,6 +275,15 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const loading = sessionLoading || (session?.id ? exercisesLoading : false);
     if (loading) return <p className="form-label">Loading&hellip;</p>;
 
+    /* What the planned session asked for, against what this day turned out to
+       be. Only available once the log row records which plan session it
+       followed, which happens when the day is started from one. */
+    const targetIntensity = planSession?.target_intensity ?? null;
+    const actualIntensity = session?.intensity ?? null;
+    const delta = targetIntensity != null && actualIntensity != null
+        ? actualIntensity - targetIntensity
+        : null;
+
     return (
         <div className="workout-mosaic workout-mosaic--split">
             {/* ---- Date, effort, notes ---- */}
@@ -184,19 +329,42 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             </button>
                         </div>
 
-                        <div className="workout-meter-row">
-                            <span>Intensity</span>
-                            <strong style={{ marginLeft: 'auto' }}>{intensity}/10</strong>
+                        <div className="intensity-head">
+                            <label className="form-label" htmlFor="session-actual-intensity">
+                                How hard it was
+                            </label>
+                            <output className="intensity-readout" htmlFor="session-actual-intensity">
+                                {intensity}
+                                <span>/10</span>
+                            </output>
                         </div>
                         <input
+                            id="session-actual-intensity"
                             type="range"
+                            className="intensity-slider"
                             min={1}
                             max={10}
                             value={intensity}
-                            aria-label="Session intensity"
-                            style={{ width: '100%', accentColor: 'var(--color-primary)' }}
                             onChange={event => setIntensity(Number(event.target.value))}
                         />
+
+                        {/* The plan asked for one number; this day produced
+                            another. The difference is the point of storing a
+                            target at all -- without it, 7/10 is just a number
+                            with nothing to be more or less than. */}
+                        {delta != null && (
+                            <div className={`intensity-vs intensity-vs--${delta === 0 ? 'even' : delta > 0 ? 'over' : 'under'}`}>
+                                <span>
+                                    Target <strong>{targetIntensity}</strong>
+                                </span>
+                                <span>
+                                    You did <strong>{actualIntensity}</strong>
+                                </span>
+                                <span className="intensity-vs__delta">
+                                    {delta === 0 ? 'on target' : `${delta > 0 ? '+' : ''}${delta}`}
+                                </span>
+                            </div>
+                        )}
 
                         <div className="workout-ex__field" style={{ marginTop: '0.6rem' }}>
                             <label className="form-label" htmlFor="se-duration">Duration (min)</label>
@@ -251,14 +419,11 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                     </div>
                     <div className="card-body">
                         {visible.length === 0 ? (
-                            <div className="workout-empty">
-                                <p className="workout-empty__title">Nothing on {DAY_NAMES[weekday]}</p>
-                                <p className="workout-empty__text">
-                                    {activeTemplate
-                                        ? 'The active template has no exercises for this day. Add them below — this edits only this session.'
-                                        : 'No active template. Add what you did below.'}
-                                </p>
-                            </div>
+                            <PlanPreview
+                                date={date}
+                                weekday={weekday}
+                                onStarted={() => undefined}
+                            />
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 {visible.map(row => (

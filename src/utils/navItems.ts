@@ -41,8 +41,9 @@ export const navItems: NavItem[] = [
     { to: '/Profile', label: 'Profile', icon: CircleUserRound },
 ];
 
-// Sub-routes keep their section highlighted: /Workouts/Templates counts as
-// Workouts, /Daily-Log/History as Daily Log, and so on.
+// Sub-routes keep their section highlighted: a workout template's week at
+// /Workouts?template=X counts as Workouts, /Daily-Log/History as Daily Log, and
+// so on.
 export const isNavItemActive = (pathname: string, to: string): boolean => {
     const path = pathname.toLowerCase().replace(/\/+$/, '');
     const target = to.toLowerCase();
@@ -68,8 +69,6 @@ const PAGE_TITLES: Record<string, string> = {
     '/Measurements': 'Measurements',
     '/Books': 'Books',
     '/Workouts': 'Workouts',
-    '/Workouts/Templates': 'Templates',
-    '/Workouts/Template': 'Edit Template',
     '/Projects': 'Projects',
     '/Abstinence': 'Abstinence',
     '/Academic': 'Academic',

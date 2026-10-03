@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Flame, Undo2, Dumbbell } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { LEVEL_FOR, HEAT_LEVEL_LABELS, levelForIntensity } from '../../utils/workoutSets';
 import type { HeatWeek } from '../../utils/workoutStats';
 import { formatWeight, type WeightUnit } from '../../utils/units';
@@ -7,15 +7,21 @@ import { formatDayLabel } from '../../utils/dates';
 
 interface WorkoutYearHeatmapProps {
     weeks: HeatWeek[];
-    onToggleDay: (date: string, currentlyTrained: boolean) => void;
+    /** Only the intensity slider writes; clicking a day only reads. */
     onSetIntensity?: (date: string, intensity: number) => void;
     weightUnit?: WeightUnit;
     isSaving?: boolean;
     isLoading?: boolean;
 }
 
-/** Only alternate weekday labels get text, matching the grid's visual rhythm. */
-const DAY_ROWS = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
+/**
+ * Every weekday is labelled. This alternated before -- Sunday, Tuesday, Thursday,
+ * Saturday only -- on the reasoning that it matched the grid's visual rhythm, but
+ * it meant the row you had to identify was the row you could not identify, and
+ * the labels are `aria-hidden` decoration anyway, so the cost was real and the
+ * benefit was not. Sunday-first, because that is what `Date.getDay()` counts.
+ */
+const DAY_ROWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * A year of training as a git-contribution grid.
@@ -25,13 +31,14 @@ const DAY_ROWS = ['Sun', '', 'Tue', '', 'Thu', '', 'Sat'];
  * all derived from --color-primary so it follows whatever accent the app wears
  * rather than being a second, fixed green.
  *
- * A day with a session always has a visible square even when no intensity was
- * typed, so "trained" is never confused with "trained hard" and neither is
- * confused with "did nothing".
+ * Clicking a square only reads: it opens a panel of what happened that day.
+ * There is no "mark trained" button here, and that is deliberate -- reaching a
+ * day you went to the gym should never be the side effect of clicking to look at
+ * it. Marking a day is done from the week card, and correcting a weight belongs
+ * in the session itself.
  */
 const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     weeks,
-    onToggleDay,
     onSetIntensity,
     weightUnit = 'kg',
     isSaving = false,
@@ -77,12 +84,6 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     return (
         <div className="workout-heat">
             <div className="workout-heat__scroll">
-                <div className="workout-heat__months" aria-hidden="true">
-                    {weeks.map((week, index) => (
-                        <span className="workout-heat__month" key={index}>{week.label ?? ''}</span>
-                    ))}
-                </div>
-
                 <div className="workout-heat__body">
                     <div className="workout-heat__days" aria-hidden="true">
                         {DAY_ROWS.map((label, index) => (
@@ -162,7 +163,11 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                         <p className="workout-heat-popover__note">Nothing logged for this day.</p>
                     )}
 
-                    {onSetIntensity && (
+                    {/* Only for a day that already has a session. The slider's write goes through
+                        setGymForDate, which creates the day if it is missing -- so
+                        showing it on an unmarked day would mean dragging a slider
+                        to look at a rest day quietly logged a workout. */}
+                    {onSetIntensity && active.level > 0 && (
                         <IntensityControl
                             date={active.date}
                             initial={active.record?.intensity ?? 5}
@@ -170,22 +175,6 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                             onCommit={value => onSetIntensity(active.date, value)}
                         />
                     )}
-
-                    <div className="workout-heat-popover__actions">
-                        <button
-                            type="button"
-                            className="btn-action btn-action--primary"
-                            disabled={isSaving}
-                            onClick={() => {
-                                onToggleDay(active.date, active.level > 0);
-                                setOpenDate(null);
-                            }}
-                        >
-                            {active.level > 0
-                                ? <><Undo2 size={11} className="mr-1" />Remove</>
-                                : <><Dumbbell size={11} className="mr-1" />Mark trained</>}
-                        </button>
-                    </div>
                 </div>
             )}
         </div>

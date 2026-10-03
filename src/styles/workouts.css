@@ -25,7 +25,7 @@
    ========================================================================= */
 
 /* =========================================================================
-   1. THE MOSAIC
+   1. THE PAGE SHELL
 
    Copied from the daily log's layout, which is the app's mature example:
 
@@ -50,57 +50,60 @@
   text-align: left;
 }
 
+/* -------------------------------------------------------------------------
+   The card primitives.
+
+   `.card` is defined globally as `border: none` and nothing else -- the only
+   real definition anywhere is scoped to `.daily-log-form`, so every card on the
+   workouts pages was rendering as a bare box: no fill, no radius, no padding,
+   and an unstyled title. These are the daily log's rules verbatim, scoped to
+   `.workout-card` rather than hoisted onto `.card` itself, because Books,
+   Projects, Abstinence, Journal and every modal also use a bare `.card` and
+   unscoping would restyle all of them.
+
+   `box-shadow: none` is explicit because a bare `.card` may pick one up from a
+   utility class in the markup.
+   ------------------------------------------------------------------------- */
+.workout-card .card {
+  background: #ffffff08;
+  box-shadow: none;
+  border-radius: 20px;
+  padding: 1rem;
+}
+.workout-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #ffffff14;
+}
+.workout-card .card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.workout-card .card-body {
+  display: flex;
+  flex-direction: column;
+}
+/* A card that is the only thing in a rail has nothing to separate it from. */
+.workout-card > .card-header:only-child,
+.workout-card .card-body:empty {
+  display: none;
+}
+
 @media (min-width: 1280px) {
   .workout-mosaic {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr) minmax(0, 1fr);
-    /* Every named area must be a clean rectangle: a name that appears in two
-       rows and another name that lands inside those rows is an overlap, and the
-       browser discards the whole template when it sees one -- which collapses
-       the mosaic to a single unlabelled column. Reading top to bottom:
-         col 1  stats, then the week strip spanning the rest
-         col 2  today's plan, the session list, the exercise table
-         col 3  mark a day, then records */
-    grid-template-areas:
-      'stats  plan     mark'
-      'tpl    plan     mark'
-      'tpl    history  records'
-      'tpl    exstats  records'
-      'chart  chart    chart';
   }
-  .workout-mosaic__recent { grid-area: recent; }
-  .workout-mosaic__stats { grid-area: stats; }
-  .workout-mosaic__tpl { grid-area: tpl; }
-  .workout-mosaic__plan { grid-area: plan; }
-  .workout-mosaic__mark { grid-area: mark; }
-  .workout-mosaic__history { grid-area: history; }
-  .workout-mosaic__records { grid-area: records; }
-  .workout-mosaic__exstats { grid-area: exstats; }
-  .workout-mosaic__chart { grid-area: chart; }
-}
-
-/* Two tracks: the plan keeps its own column, and the three small cards pair up
-   beneath it so the eye lands on one place rather than three. */
-@media (min-width: 768px) and (max-width: 1279px) {
-  .workout-mosaic {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      'recent  recent'
-      'stats   plan'
-      'tpl     plan'
-      'tpl     history'
-      'tpl     exstats'
-      'mark    records'
-      'chart   chart';
-  }
-  .workout-mosaic__recent { grid-area: recent; }
-  .workout-mosaic__stats { grid-area: stats; }
-  .workout-mosaic__tpl { grid-area: tpl; }
-  .workout-mosaic__plan { grid-area: plan; }
-  .workout-mosaic__mark { grid-area: mark; }
-  .workout-mosaic__history { grid-area: history; }
-  .workout-mosaic__records { grid-area: records; }
-  .workout-mosaic__exstats { grid-area: exstats; }
-  .workout-mosaic__chart { grid-area: chart; }
 }
 
 /* A column of cards that packs independently of its neighbours. */
@@ -130,14 +133,6 @@
       'days'
       'inputs';
   }
-  /* A seven-across row of day cards, scrollable, beats a tall column that
-     pushes the day's exercises below the fold. */
-  .workout-mosaic--split .workout-days {
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-  }
-  .workout-mosaic--split .workout-day { flex: 0 0 auto; min-width: 8rem; }
 }
 
 /* Below 768px the areas are unused and the DOM order is the reading order:
@@ -147,104 +142,199 @@
 .workout-mosaic__wide { min-width: 0; }
 .workout-mosaic__wide { grid-column: 1 / -1; }
 
-/* The page has to scroll. .books-page-wrapper is a fixed-height, non-scrolling
-   shell (see index.css) sized for a single card; a mosaic plus a year grid
-   cannot fit inside it. */
-.workout-card--scroll {
-  overflow: visible;
-  height: auto;
-  flex: none;
+/* =========================================================================
+   1b. THE RAILS
+
+   The shape the academic page already uses: a stats rail, a tall middle column
+   and an optional narrow rail, each scrolling inside a single height-locked
+   card. This replaces a `grid-template-areas` template that named nine areas
+   while only six of its items were actually grid children -- four of the
+   `grid-area` rules sat inside a flex column, where they do nothing, and
+   `grid-area: recent` named an area the template did not declare, so it fell
+   back to `auto` and both the recent strip and the whole right-hand column
+   dropped into implicit rows below the design.
+
+   Order is templates, work, stats -- the mirror of the academic page, whose
+   figures sit on the left. A band's height is the sum of what it holds, so the
+   rails divide what is left between them.
+   ========================================================================= */
+.workout-rails {
+  display: grid;
+  /* Both outer rails are the same width now. The left one holds the records
+     panel, whose search box, add form and per-record cards were cramped at
+     17rem; the right one holds the figures two to a row, which still fits at
+     22rem because each tile is about 10.5rem. The middle takes what is left. */
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr) minmax(0, 22rem);
+  /* `minmax(0, 1fr)`, not the default `auto`, and this is the whole bug.
+
+     A grid row sized `auto` has a *min-content* floor. This column holds a
+     Templates tab that can be arbitrarily tall, so the row was pushed past the
+     height of `.workout-rails` itself. `.workout-rails` is `flex: 1` with
+     `min-height: 0`, so it had exactly the height it was given -- but the row
+     inside it overflowed, the middle rail then had more height than the column
+     it sits in, and `.workout-panels`'s `overflow-y: auto` never engaged
+     because it was handed a tall box to live in.
+
+     So the year card was not pinned by anything: nothing was scrolling, and it
+     simply rendered below the templates wherever that happened to fall. The
+     `minmax(0, ...)` floor lets the row shrink back to the real column height,
+     which is what makes the inner scroller a scroller again. */
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+/* The middle column does not scroll itself -- it owns a scroll region for the
+   tab panels and holds the year below them, so `overflow` stays visible here and
+   `.workout-panels` does the scrolling. The two outer rails are the plain case. */
+.workout-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+}
+.workout-rail--work {
+  overflow: hidden;
+  padding-right: 0;
+  padding-left: 0.25rem;
+}
+.workout-rail::-webkit-scrollbar { width: 4px; }
+.workout-rail::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+}
+.workout-rail::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
-/* A heading row of figures, as one card's body rather than four boxes. Four
-   separate cards next to each other is four borders and four titles for four
-   numbers; this reads as one stat. */
+/* The tab panels' scroll region. The year lives inside it now rather than pinned
+   below, so `flex: 1` is all it takes. */
+.workout-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+}
+/* Flex children default to `flex-shrink: 1`, and in a *column* container that
+   applies to height. Left alone, the column squeezed the cards to fit instead of
+   overflowing, so `overflow-y: auto` never came into play and the year sat
+   permanently on screen rather than at the end of a scroll. */
+.workout-panels > * { flex-shrink: 0; }
+.workout-panels::-webkit-scrollbar { width: 4px; }
+.workout-panels::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+}
+
+/* The figures rail: bare tiles, two to a row, no headings. */
+.stats-rail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+/* Not enough width for three rails: stats move under templates so the middle
+   column keeps a usable width rather than all three being squeezed. */
+@media (max-width: 1400px) {
+  .workout-rails {
+    grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .workout-rail--plan { grid-row: 1; grid-column: 1; }
+  .workout-rail--work { grid-row: 1 / span 2; grid-column: 2; }
+  .workout-rail--stats {
+    grid-row: 2;
+    grid-column: 1;
+    max-height: 30vh;
+  }
+}
+
+/* One column, and every height lock released so the page itself is the
+   scroller: a nested scroll area on a touch device traps the content. Mirrors
+   the academic page's 1023px rule exactly. */
+@media (max-width: 1023px) {
+  .workout-rails { grid-template-columns: minmax(0, 1fr); }
+  .workout-section,
+  .workout-card,
+  .workout-rails,
+  .workout-rail,
+  .workout-panels {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+  .workout-rail--plan,
+  .workout-rail--work,
+  .workout-rail--stats {
+    grid-row: auto;
+    grid-column: 1;
+    max-height: none;
+    padding-left: 0;
+  }
+  .workout-rail--work,
+  .workout-panels { padding-right: 0.25rem; }
+  .workout-year { padding-top: 0; }
+  .books-page-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* The single-card views -- a session, the records grid, the first-run state --
+   have no rails to divide, so the card scrolls its own body instead. */
+.workout-card--pane .workout-card__pane {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-right: 0.25rem;
+}
+.workout-card--pane .workout-card__pane::-webkit-scrollbar { width: 4px; }
+.workout-card--pane .workout-card__pane::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+}
+
+/* A heading row of figures. These are the shared `.analysis-card` tiles, at the
+   same density the academic and measurements rails use, rather than a private
+   set of `workout-stat*` rules: the numbers in the right rail then look like the
+   numbers on every other page, which is the entire point of the shared tiles.
+   `auto-fit` collapses the grid to one column in a 17rem rail on its own. */
+/* Two to a row, always. `auto-fit` was collapsing this to a single column in a
+   narrow rail, which is what a rail of single tiles looks like. */
 .workout-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-.workout-stat { min-width: 0; }
-.workout-stat__label {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  opacity: 0.55;
-}
-.workout-stat__value {
-  display: block;
-  margin-top: 0.15rem;
-  font-family: var(--font-mono);
-  font-size: 1.4rem;
-  font-weight: 700;
-  line-height: 1.15;
-  color: var(--color-light);
-}
-.workout-stat__value--accent { color: var(--color-primary); }
-.workout-stat__foot {
-  display: block;
-  margin-top: 0.1rem;
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  opacity: 0.45;
-}
-.workout-stat__foot--accent { color: var(--color-primary); opacity: 0.7; }
-
-/* The recent-sessions strip: a single row of compact cards that scrolls
-   sideways rather than wrapping, so it stays one band tall. */
-.workout-recent {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(11rem, 1fr);
   gap: 0.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  scrollbar-width: thin;
+  margin-bottom: 0;
 }
-.workout-recent__item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: 20px;
-  background: #ffffff08;
-  border: 1px solid #ffffff14;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  text-align: left;
-  cursor: pointer;
+.workout-stats .analysis-card {
+  padding: 0.6rem 0.7rem;
 }
-.workout-recent__item:hover {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
+.workout-stats .analysis-card-value {
+  font-size: 1.05rem;
 }
-.workout-recent__date {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-.workout-recent__meta {
+.workout-stats .analysis-card-label {
   font-size: 0.6rem;
-  opacity: 0.55;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.workout-recent__empty {
-  grid-column: 1 / -1;
-  padding: 0.9rem;
-  border: 1px dashed #ffffff1f;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  opacity: 0.6;
-  text-align: center;
+.workout-stats .analysis-card-hint {
+  font-size: 0.62rem;
 }
 
-/* Shared with the heatmap legend and the day chips. */
+/* Shared with the heatmap legend and the template cards' active chip. */
 .workout-chip {
   display: inline-flex;
   align-items: center;
@@ -260,14 +350,17 @@
   white-space: nowrap;
 }
 
-/* Seven day chips, Monday-first, each showing how many exercises that day holds.
-   `.workout-chip--muted` is an empty rest day. */
+/* Seven day chips, Monday-first. The figure is how many exercises the template
+   plans for that day; the filled accent means the day was actually trained.
+   A planned-but-unlogged day therefore reads as actionable rather than as a
+   tick you cannot interpret. `.workout-chip--muted` is an empty rest day. */
 .workout-week {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
 }
 .workout-week__day {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -278,11 +371,18 @@
   border: 1px solid transparent;
   font-family: var(--font-mono);
 }
+/* Planned but not yet trained: a hairline rather than the full accent fill. */
+.workout-week__day--planned {
+  border-color: #ffffff1f;
+}
 .workout-week__day--on {
   background: var(--accent-bg);
   border-color: var(--accent-border);
 }
 .workout-week__day--today { border-color: var(--color-primary); }
+.workout-week__day--on.workout-week__day--today {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
 .workout-week__label {
   font-size: 0.55rem;
   text-transform: uppercase;
@@ -315,38 +415,39 @@
 /* =========================================================================
    2. THE YEAR GRID
 
-   53 columns of 11px squares with a 3px gap, Sunday-first so the rows are
-   weekdays. Fixed cell size rather than fluid: at 53 columns a fluid layout
-   reaches 4px cells on a phone, which is a smear rather than a heatmap, so
-   below the point where 11px stops fitting this becomes a horizontal scroll.
+   53 week-columns of 7 day-squares, Sunday-first so the rows are weekdays,
+   left to right through the year.
+
+   The columns are fluid rather than fixed, and the squares are sized by
+   `aspect-ratio` rather than by a hard 11px. That matters because this grid now
+   lives in the middle column rather than across the whole page: at 53 columns a
+   fixed 11px needs ~740px, which is wider than that column on most screens, so
+   the fixed version could only ever be seen by scrolling a strip sideways. The
+   gap shrinks with the width for the same reason -- at phone width a 3px gap
+   between 5px squares is more gap than square.
+
+   The old version also declared `grid-template-rows: repeat(7, 11px)` on the
+   weeks container while each of its children was itself a 95px-tall grid. The
+   two heights happened to coincide in total, so it looked right and measured
+   wrong; the rows are `auto` now and the squares define the height.
    ========================================================================= */
-.workout-heat { min-width: 0; }
-.workout-heat__scroll { overflow-x: auto; padding-bottom: 0.35rem; scrollbar-width: thin; }
-.workout-heat__months {
-  display: grid;
-  grid-template-columns: repeat(53, minmax(11px, 1fr));
-  gap: 3px;
-  margin-left: 2.1rem;
-  margin-bottom: 0.3rem;
+.workout-heat {
+  --heat-gap: clamp(1px, 0.32vw, 3px);
+  min-width: 0;
 }
-.workout-heat__month {
-  font-family: var(--font-mono);
-  font-size: 0.55rem;
-  opacity: 0.5;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.workout-heat__body { display: flex; gap: 0.4rem; }
+.workout-heat__scroll { min-width: 0; }
+.workout-heat__body { display: flex; gap: 0.4rem; align-items: start; min-width: 0; }
 .workout-heat__days {
   display: grid;
-  grid-template-rows: repeat(7, 11px);
-  gap: 3px;
+  grid-template-rows: repeat(7, auto);
+  gap: var(--heat-gap);
   width: 1.75rem;
+  flex-shrink: 0;
 }
 .workout-heat__day {
   font-family: var(--font-mono);
   font-size: 0.55rem;
-  line-height: 11px;
+  line-height: 1.6;
   opacity: 0.45;
   text-align: right;
 }
@@ -354,20 +455,30 @@
 .workout-heat__day:empty { visibility: hidden; }
 .workout-heat__weeks {
   display: grid;
+  /* Column flow is the whole trick: each item is one week, so the cursor fills
+     seven rows down a column before stepping right. Without it the weeks lay
+     out as a tall narrow block instead of a year. */
   grid-auto-flow: column;
-  grid-template-columns: repeat(53, minmax(11px, 1fr));
-  grid-template-rows: repeat(7, 11px);
-  grid-auto-rows: 11px;
-  gap: 3px;
+  grid-template-columns: repeat(53, minmax(0, 1fr));
+  gap: var(--heat-gap);
+  min-width: 0;
+  flex: 1;
 }
-.workout-heat__week { display: grid; grid-template-rows: repeat(7, 11px); gap: 3px; }
+.workout-heat__week {
+  display: grid;
+  grid-template-rows: repeat(7, auto);
+  gap: var(--heat-gap);
+  min-width: 0;
+}
 
 .workout-heat__cell {
-  width: 11px;
-  height: 11px;
+  width: 100%;
+  /* Square without knowing the column width, which is what lets the grid be
+     fluid. */
+  aspect-ratio: 1;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: clamp(1px, 0.25vw, 3px);
   background: #ffffff0f;
   cursor: pointer;
   transition: transform 0.12s ease, border-color 0.12s ease;
@@ -408,15 +519,14 @@
   background: #ffffff0f;
 }
 
-/* The day popover is sticky at the foot of the card rather than anchored to the
-   square. The grid sits inside a horizontal scroll container, so a
-   cell-anchored popover is either clipped or positioned against the wrong
-   coordinate space, and the alternative -- measuring every cell -- is not worth
-   it for a panel that is always the same size. */
+/* The day panel sits directly under the grid, in normal flow.
+
+   It used to be `position: sticky; bottom: 0` so the day you clicked stayed
+   editable while you moved up and down the year. That was a bad trade: a panel
+   pinned to the foot of the column reads as the year chart itself being fixed to
+   the bottom of the window, which is the opposite of what it is. Nothing inside
+   this card pins -- the whole card is reached by scrolling to the end. */
 .workout-heat-popover {
-  position: sticky;
-  bottom: 0;
-  z-index: 20;
   width: min(20rem, 100%);
   margin: 0.75rem 0 0 auto;
   display: flex;
@@ -447,8 +557,6 @@
 }
 .workout-heat-popover__note { margin: 0; font-family: var(--font-mono); font-size: 0.65rem; opacity: 0.55; }
 .workout-heat-popover__field { display: flex; flex-direction: column; gap: 0.2rem; }
-.workout-heat-popover__actions { display: flex; gap: 0.4rem; }
-.workout-heat-popover__actions .btn-action { flex: 1; justify-content: center; }
 
 /* =========================================================================
    3. PER-SET TABLE
@@ -465,9 +573,15 @@
 .workout-set-table__head,
 .workout-set-table__row {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 1fr) 1.5rem;
+  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 1fr) 3rem;
   gap: 0.35rem;
   align-items: center;
+}
+.workout-set-table__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  justify-content: flex-end;
 }
 .workout-set-table__head-cell {
   font-family: var(--font-mono);
@@ -518,13 +632,12 @@
 }
 .workout-set-table__action:hover:not(:disabled) { opacity: 1; color: var(--color-primary); }
 .workout-set-table__action:disabled { opacity: 0.15; cursor: default; }
-.workout-set-table__footer {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  margin-top: 0.4rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #ffffff0f;
+/* Removing a set is destructive, so it borrows the danger colour rather than
+   the accent one -- otherwise the two buttons on a row look like the same action
+   with different icons. */
+.workout-set-table__action--danger:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--color-danger);
 }
 
 /* Set count stepper. */
@@ -575,9 +688,9 @@
 .workout-ex__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
-.workout-ex__field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.workout-ex__field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
 .workout-ex__field > label {
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -585,7 +698,32 @@
   letter-spacing: 0.3px;
   opacity: 0.7;
 }
-.workout-ex__actions { display: flex; justify-content: flex-end; gap: 0.4rem; }
+.workout-ex__actions { display: flex; justify-content: flex-end; gap: 0.4rem; flex-wrap: wrap; }
+/* The empty-template button: a dashed box that is itself the "add" control, so
+   an empty template is not a dead end you have to find an Add button for. */
+button.workout-ex__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-family: var(--font-mono);
+  color: var(--color-light);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+button.workout-ex__empty:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+/* The add-exercise form: the picker takes the width, the button does not. */
+.exercise-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.exercise-add .workout-ex__field { flex: 1; min-width: 0; }
+.exercise-add > .btn-action { flex-shrink: 0; margin-bottom: 0.1rem; }
 .workout-ex__empty {
   margin: 0;
   padding: 1.1rem;
@@ -596,45 +734,16 @@
   text-align: center;
 }
 
-/* The template editor's day column. Same anatomy as a collapsed card, so the
-   week reads as a list of things that open. */
-.workout-day {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  border-radius: 20px;
-  background: #ffffff05;
-  border: 1px solid #ffffff0f;
+/* The seven days inside an open template card are `.collapse-card`s like every
+   other expandable thing in the app, so the old bespoke `.workout-days` list is
+   gone. The only thing it needed that the shared primitives do not is a quieter
+   count chip for a day with nothing planned. */
+.semester-count--rest {
+  background: #ffffff08;
+  border-color: transparent;
   color: var(--color-light);
-  font-family: var(--font-mono);
-  text-align: left;
-  cursor: pointer;
+  opacity: 0.4;
 }
-.workout-day:hover { background: var(--accent-bg); }
-.workout-day--active { background: var(--accent-bg); border-color: var(--accent-border); }
-.workout-day--empty { opacity: 0.5; }
-.workout-day__text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.workout-day__name { font-size: 0.78rem; font-weight: 600; }
-.workout-day__meta {
-  font-size: 0.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  opacity: 0.5;
-}
-.workout-day__count {
-  padding: 0.1rem 0.4rem;
-  border-radius: 25px;
-  background: var(--accent-bg);
-  border: 1px solid var(--accent-border);
-  color: var(--color-primary);
-  font-size: 0.65rem;
-  font-weight: 700;
-}
-.workout-day__count--rest { background: #ffffff0a; border-color: transparent; color: var(--color-light); opacity: 0.4; }
-.workout-days { display: flex; flex-direction: column; gap: 0.35rem; }
 
 /* =========================================================================
    5. SMALL EXTRAS
@@ -645,7 +754,9 @@
    ========================================================================= */
 
 /* The exercise picker has to sit above the cards below it, so its list is
-   absolutely positioned inside a relative wrapper. */
+   absolutely positioned inside a relative wrapper. The surface is the same
+   translucent white every other raised panel uses -- an opaque near-black here
+   read as a foreign element dropped onto the page. */
 .workout-picker { position: relative; width: 100%; }
 .workout-picker__list {
   position: absolute;
@@ -656,29 +767,53 @@
   max-height: 15rem;
   overflow-y: auto;
   margin: 0;
-  padding: 0.25rem;
+  padding: 0.3rem;
   list-style: none;
   border-radius: 20px;
-  background: #151515;
-  border: 1px solid #ffffff1f;
+  background: #1a1a1ae6;
+  backdrop-filter: blur(16px);
+  border: 1px solid #ffffff26;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.workout-picker__list::-webkit-scrollbar { width: 4px; }
+.workout-picker__list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
 }
 .workout-picker__option {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.45rem;
+  padding: 0.4rem 0.5rem;
   border-radius: 12px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
+  color: var(--color-light);
   cursor: pointer;
+  transition: background 0.12s ease;
 }
+/* Pointer users get no keyboard highlight to follow, so the row under the cursor
+   has to light up itself. */
+.workout-picker__option:hover { background: #ffffff14; }
 .workout-picker__option--active { background: var(--accent-bg); }
 .workout-picker__option--create { color: var(--color-primary); }
 .workout-picker__icon { display: inline-flex; opacity: 0.55; flex-shrink: 0; }
 .workout-picker__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workout-picker__category { margin-left: auto; font-size: 0.55rem; opacity: 0.4; flex-shrink: 0; }
-.workout-picker__empty { padding: 0.4rem; }
-.workout-picker__empty .btn-action { width: 100%; justify-content: center; }
+/* What the dropdown says when a search found nothing. Without it an empty panel
+   and a broken search are the same thing. It holds a message and, in the empty
+   state, a retry -- so it stacks. */
+.workout-picker__none {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.6rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  opacity: 0.6;
+  line-height: 1.5;
+}
 
 /* A table inside a card. The header row and the numeric right-alignment are
    the only parts worth naming; the borders are hairlines. */
@@ -720,6 +855,19 @@
 }
 .workout-empty__title { margin: 0 0 0.25rem; font-size: 0.75rem; font-weight: 600; }
 .workout-empty__text { margin: 0; font-size: 0.7rem; opacity: 0.6; line-height: 1.5; }
+/* The page-level empty state, when the whole page has nothing to show. It gets
+   room to breathe rather than sitting in a hairline box in the middle of a
+   screen. */
+.workout-empty--lead {
+  padding: 2.5rem 1.5rem;
+  border-radius: 25px;
+}
+.workout-empty__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.9rem;
+}
 
 /* A transient banner. */
 .workout-notice {
@@ -763,8 +911,277 @@
   opacity: 0.7;
 }
 
-/* Native date inputs draw their indicator in near-black, which is invisible on
-   a dark surface. */
+/* =========================================================================
+   5b. THE TEMPLATE CARDS
+
+   Each template is a `.collapse-card` in the Templates tab, holding its seven
+   days as `.collapse-card`s in turn -- the academic page's grading tree with the
+   units swapped. There are no styles of its own, which is the point: a tree that
+   invents its own vocabulary is the thing that made this page look like a
+   different app pasted into the same one.
+   ========================================================================= */
+
+/* Sessions inside a template, grouped under the weekday they belong to, so three
+   sessions on a Friday read as three Friday sessions rather than three rows with
+   no visible relationship. */
+.tpl-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.tpl-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.tpl-day__label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.5;
+}
+.tpl-day__today {
+  padding: 0.05rem 0.4rem;
+  border-radius: 25px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  color: var(--color-primary);
+  font-size: 0.55rem;
+  letter-spacing: 0.3px;
+  opacity: 1;
+}
+
+/* The intensity control -- the one thing in these dialogs that has no academic
+   equivalent. Everything around it is the academic page's own vocabulary:
+   `mb-4` between blocks, `grid grid-cols-2 gap-4` for a pair,
+   `flex gap-2 justify-end mt-5` for the actions.
+
+   A label and its number on one line, because a slider with the value hidden is
+   a control you cannot set on the first try. */
+.intensity-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.intensity-head .form-label { margin-bottom: 0; }
+.intensity-readout {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+.intensity-readout span {
+  font-size: 0.6rem;
+  font-weight: 400;
+  opacity: 0.55;
+  margin-left: 0.1rem;
+}
+.intensity-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+.intensity-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.15rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+/* Target against actual. `target_intensity` on a session is what it was meant
+   to feel like; this is the same day as it turned out, so the pair can finally
+   be read against each other. */
+.intensity-vs {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 14px;
+  background: #ffffff08;
+  border: 1px solid #ffffff0f;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+.intensity-vs strong { font-weight: 700; }
+.intensity-vs__delta {
+  margin-left: auto;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.intensity-vs--over {
+  border-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+.intensity-vs--over .intensity-vs__delta { color: var(--color-primary); }
+.intensity-vs--under .intensity-vs__delta { color: #ffb84d; }
+.intensity-vs--even .intensity-vs__delta { color: var(--color-light); opacity: 0.6; }
+
+/* The plan offered for a day with no session yet. Reads as a thing to accept
+   rather than an error, because the common case is a day the user simply has
+   not opened yet. */
+.plan-preview {
+  padding: 0.75rem;
+  border: 1px dashed #ffffff1f;
+  border-radius: 16px;
+}
+.plan-preview__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+/* =========================================================================
+   6. PERSONAL RECORDS
+
+   A record is a claim the user makes about themselves, and a claim can be wrong
+   -- a mistyped 120 for 12 would otherwise win every comparison forever. So the
+   number is a button, and clicking it opens an editor on that exact row.
+
+   The figure shown is the heaviest row the card holds, re-derived on every
+   render rather than stored. Lowering the current best therefore promotes
+   whatever is genuinely second-best, which needs no special case to work.
+   ========================================================================= */
+.pr-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.pr-toolbar .search-container { flex: 1; min-width: 9rem; }
+.pr-toolbar__add { flex: 1; min-width: 12rem; }
+
+.pr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.6rem;
+  align-items: start;
+}
+.pr-card .card { padding: 0.75rem 0.8rem; }
+.pr-card .card-header { margin-bottom: 0.5rem; padding-bottom: 0.3rem; }
+
+/* The best, as the page's headline figure for this lift. */
+.pr-best {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.2rem 0.3rem;
+  margin: -0.2rem -0.3rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.pr-best:hover { background: var(--accent-bg); border-color: var(--accent-border); }
+.pr-best__value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--color-primary);
+}
+.pr-best__unit { font-size: 0.7rem; }
+.pr-best__reps { font-size: 0.8rem; }
+.pr-best__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6rem;
+  opacity: 0.55;
+}
+.pr-best__edit {
+  margin-left: auto;
+  align-self: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.pr-best:hover .pr-best__edit,
+.pr-best:focus-visible .pr-best__edit { opacity: 0.6; }
+
+.pr-delta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--color-primary);
+  opacity: 0.8;
+}
+
+.pr-entry-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.pr-history { margin-top: 0.6rem; }
+.pr-history > summary { cursor: pointer; }
+/* `.workout-row` is a div elsewhere; as a button it needs the same reset the
+   collapsible headers already carry. */
+.pr-history__row {
+  width: 100%;
+  text-align: left;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.pr-history__row:hover { border-color: var(--accent-border); }
+
+.pr-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.55rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  background: var(--accent-bg);
+}
+.pr-editor__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 7.5rem;
+  gap: 0.35rem;
+}
+.pr-editor__note {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.6rem;
+  opacity: 0.6;
+  line-height: 1.4;
+}
+.pr-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.pr-reset { margin-top: 0.5rem; align-self: flex-start; }
+
+/* Native date inputs draw their indicator in near-black, invisible on a dark
+   surface. */
 .workout-card input[type='date']::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 0.5;
@@ -775,14 +1192,12 @@
    6. NARROW SCREENS
    ========================================================================= */
 @media (max-width: 767px) {
-  .workout-recent {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-  }
-  .workout-recent__item { width: 100%; }
   .workout-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .workout-heat__months,
-  .workout-heat__weeks { grid-template-columns: repeat(53, 11px); }
+  /* The grid stays fluid -- forcing 11px columns here is what used to force a
+     sideways scroll on a phone. What goes instead is the weekday labels, which
+     are the first thing to become unreadable at this size and the least useful. */
+  .workout-heat__days { display: none; }
+  .workout-heat__body { gap: 0; }
   .workout-heat-popover { width: 100%; }
   .workout-set-table__head,
   .workout-set-table__row { grid-template-columns: 1.2rem minmax(0, 1fr) minmax(0, 1fr) 1.4rem; }

@@ -94,7 +94,9 @@ const SemesterContainer: React.FC<SemesterContainerProps> = ({
                         </span>
                     )}
                     {courses.length === 0 && <span className="semester-count">empty</span>}
-                    <ChevronDown size={16} className="collapse-chevron" />
+                    <span className="collapse-chevron">
+                        <ChevronDown size={16} />
+                    </span>
                 </span>
             </button>
 
