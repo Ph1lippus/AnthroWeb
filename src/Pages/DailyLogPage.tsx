@@ -323,14 +323,45 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         return noSleep ? null : calculateSleepDuration(wakeTime, bedtime);
     }, [noSleep, wakeTime, bedtime]);
 
-// Only `active`, by exact match. Everything else is work that is not being
-    // worked on right now: not started, deliberately halted, shipped and being
-    // fixed, done, or filed away. In particular a project in `maintenance` stays
-    // out of the log -- the fix is still happening, but attaching today's sleep
-    // and score to it would read as progress on the build, which it is not.
-    const activeProjects = useMemo(() => {
-        return projects.filter(p => p.status === 'active');
-    }, [projects]);
+// What can honestly be ticked off as "worked on today": work that is live
+    // (`active`) or shipped-and-being-fixed (`maintenance`).
+    //
+    // `maintenance` belongs here. It means the build shipped and something in it
+    // needs fixing, which is real work a person genuinely spends a day on -- it
+    // just doesn't move the build forward. Reading it as "not really worked on"
+    // is what made maintenance work impossible to log, which in turn made the
+    // honest answer to a day spent fixing things impossible to record.
+    //
+    // Still excluded: not started, deliberately halted, done, filed away.
+    //
+    // Anything already attached to this log is force-included whatever its status.
+    // `saveDailyLogProjects` replaces the whole association set, and the 2s
+    // debounced autosave calls it on any form change -- so a project that was
+    // `active` when it was logged and has since been paused would be invisible
+    // here *and* silently deleted from the log on the next save. Visibility is
+    // what keeps an existing association from being a write-once liability.
+    //
+    // Ordered so the two live groups read in the same order as the projects page:
+    // active, then maintenance, then anything else, each by priority, then
+    // deadline, then title.
+    const selectableProjects = useMemo(() => {
+        const statusRank = (p: Project) =>
+            p.status === 'active' ? 0 : p.status === 'maintenance' ? 1 : 2;
+        const priorityRank = { high: 0, medium: 1, low: 2 } as const;
+
+        return projects
+            .filter(p =>
+                p.status === 'active'
+                || p.status === 'maintenance'
+                || selectedProjectIds.has(p.id!))
+            .sort((a, b) =>
+                statusRank(a) - statusRank(b)
+                || priorityRank[a.priority] - priorityRank[b.priority]
+                // Projects with no deadline sort last rather than first, hence
+                // the sentinel: an empty string would compare before any date.
+                || (a.deadline || '\uffff').localeCompare(b.deadline || '\uffff')
+                || a.title.localeCompare(b.title));
+    }, [projects, selectedProjectIds]);
 
     // --- Scoring (fair, grouped) ---
     const scoreResult = useMemo(() => computeDailyScore({
@@ -1110,8 +1141,8 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                                     <div className="projects-checkbox-list">
                                                         {loadingProjects ? (
                                                             <p className="text-xs opacity-50">Loading projects...</p>
-                                                        ) : activeProjects.length > 0 ? (
-                                                            activeProjects.map(project => (
+                                                        ) : selectableProjects.length > 0 ? (
+                                                            selectableProjects.map(project => (
                                                                 <label key={project.id} className="checkbox-label">
                                                                     <input
                                                                         type="checkbox"
@@ -1119,11 +1150,18 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                                                         onChange={() => handleProjectToggle(project.id!)}
                                                                         className="checkbox-input"
                                                                     />
-                                                                    <span className="text-sm opacity-90">{project.title}</span>
+                                                                    <span className="text-sm opacity-90 truncate min-w-0 flex-1">{project.title}</span>
+                                                                    {/* Only the force-included strays get a tag; active
+                                                                        and maintenance are already ordered above. Uppercase
+                                                                        to read as a tag, matching the project section
+                                                                        headers. */}
+                                                                    {project.status !== 'active' && project.status !== 'maintenance' && (
+                                                                        <span className="text-xs uppercase opacity-40 shrink-0">{project.status}</span>
+                                                                    )}
                                                                 </label>
                                                             ))
                                                         ) : (
-                                                            <p className="text-xs opacity-50">No active projects</p>
+                                                            <p className="text-xs opacity-50">No active or maintenance projects</p>
                                                         )}
                                                     </div>
                                                 </div>

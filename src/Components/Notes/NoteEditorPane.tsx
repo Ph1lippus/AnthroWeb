@@ -9,7 +9,6 @@ import {
     ListTree,
     Palette,
     Pin,
-    PinOff,
     Smile,
     Trash2,
     X,
@@ -410,7 +409,13 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         title={note.is_pinned ? 'Unpin' : 'Pin'}
                         aria-label="Toggle pin"
                     >
-                        {note.is_pinned ? <Pin size={14} /> : <PinOff size={14} />}
+                        {/* One glyph, inverted fill. It used to swap between `Pin`
+                            and `PinOff`, which left "pinned" signalled only by the
+                            absence of a diagonal slash -- and since the button's
+                            hover and `--pinned` states are the same colour, a
+                            hovered unpinned pin read as pinned. A solid fill is
+                            legible at a glance and at any size. */}
+                        <Pin size={14} fill={note.is_pinned ? 'currentColor' : 'none'} />
                     </button>
 
                     <button

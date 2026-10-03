@@ -13,11 +13,15 @@ const priorityColors: Record<string, string> = {
 };
 
 /**
- * `maintenance` sits between `paused` and `completed` on purpose: the build
- * shipped and something in it needs fixing, so it is neither upcoming nor done.
- * `Wrench` in the section header and the orange in `statusColors` are the same
- * signal the `paused` section uses for "needs attention", which is the honest
- * reading of both.
+ * `maintenance` means the build shipped and something in it needs fixing, so it
+ * is neither upcoming nor done. It renders in the right-hand column directly
+ * under Active rather than in lifecycle order in the left one, because a fix is
+ * work in progress: it wants reading next to what is currently being built, not
+ * filed between "not started" and "done".
+ *
+ * The `Wrench` in the section header and the purple in `statusColors` are that
+ * reading -- distinct from the orange `paused` uses, because stopping work and
+ * patching shipped work are different problems.
  */
 const statusLabels: Record<ProjectStatus, string> = {
     planned: 'Planned',
@@ -279,6 +283,8 @@ const ProjectsPage: React.FC = () => {
     // `loading` terminates on every path, including the rejected one.
     useBootHold(loading);
 
+    // Declaration order is not render order: Active and Maintenance render
+    // together in the right-hand column, the rest down the left.
     const plannedProjects = byStatus.planned;
     const activeProjects = byStatus.active;
     const maintenanceProjects = byStatus.maintenance;
@@ -621,22 +627,6 @@ const ProjectsPage: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Shipped but being fixed. Sits after Paused
-                                            so the page still reads top to bottom in
-                                            lifecycle order: upcoming, in progress,
-                                            stalled, in maintenance, done, filed away. */}
-                                        {!submittedSearch && maintenanceProjects.length > 0 && (
-                                            <div className="projects-status-group">
-                                                <div className="projects-section-header">
-                                                    <i className="i-lucide-wrench"></i>
-                                                    In Maintenance ({maintenanceProjects.length})
-                                                </div>
-                                                <div className="flex flex-col gap-2">
-                                                    {maintenanceProjects.map(renderProjectCard)}
-                                                </div>
-                                            </div>
-                                        )}
-
                                         {!submittedSearch && completedProjects.length > 0 && (
                                             <div className="projects-status-group">
                                                 <div className="projects-section-header">
@@ -661,18 +651,44 @@ const ProjectsPage: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Active and In Maintenance share this column and
+                                    this one scroll area, so the shipped-but-being-fixed
+                                    work sits directly under the live work instead of
+                                    being filed between "not started" and "done" in
+                                    the far column.
+
+                                    Both headers are inside the scroll area rather
+                                    than above it, which is what lets the second
+                                    group scroll with the first. `.projects-scroll-area`
+                                    is the flex child that fills the column, so the
+                                    column still grows to the viewport with or
+                                    without the maintenance group. */}
                                 <div className="projects-right-col">
-                                    <div className="projects-section-header">
-                                        Active ({activeProjects.length})
-                                    </div>
                                     <div className="projects-scroll-area">
-                                        {activeProjects.length > 0 ? (
-                                            <div className="flex flex-col gap-2 mt-3">
-                                                {activeProjects.map(renderProjectCard)}
+                                        <div className="projects-status-group">
+                                            <div className="projects-section-header">
+                                                Active ({activeProjects.length})
                                             </div>
-                                        ) : (
-                                            <div className="projects-empty py-6">
-                                                <p className="projects-empty-text">No active projects.</p>
+                                            {activeProjects.length > 0 ? (
+                                                <div className="flex flex-col gap-2 mt-3">
+                                                    {activeProjects.map(renderProjectCard)}
+                                                </div>
+                                            ) : (
+                                                <div className="projects-empty py-6">
+                                                    <p className="projects-empty-text">No active projects.</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {maintenanceProjects.length > 0 && (
+                                            <div className="projects-status-group">
+                                                <div className="projects-section-header">
+                                                    <i className="i-lucide-wrench"></i>
+                                                    In Maintenance ({maintenanceProjects.length})
+                                                </div>
+                                                <div className="flex flex-col gap-2 mt-3">
+                                                    {maintenanceProjects.map(renderProjectCard)}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
