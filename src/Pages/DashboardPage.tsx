@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Title from '../Components/Title';
 import AnalysisCards from '../Components/Dashboard/AnalysisCards';
+import DashboardExtras from '../Components/Dashboard/DashboardExtras';
 import { DEFAULT_RANGE, RANGES } from '../Components/Dashboard/dateRange';
 import type { DateRange } from '../Components/Dashboard/dateRange';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { useHabitData } from '../hooks/useHabitData';
 import { useUserSettings } from '../hooks/useUserSettings';
+import { useDashboardExtras } from '../hooks/useDashboardExtras';
 import { useBootHold } from '../services/bootScreen';
 import type { MetricsChartsProps } from '../Components/Dashboard/MetricsCharts';
 
@@ -22,6 +24,7 @@ const DashboardPage: React.FC = () => {
     const { logs, isLoading: logsLoading } = useDailyLogs();
     const { habits, habitLogs, isLoading: habitsLoading } = useHabitData();
     const { settings, isLoading: settingsLoading } = useUserSettings();
+    const extras = useDashboardExtras();
     // Lifted so the insight cards and the charts always describe the same window.
     const [range, setRange] = useState<DateRange>(DEFAULT_RANGE);
 
@@ -36,6 +39,7 @@ const DashboardPage: React.FC = () => {
     // to paint, because by the time this renders the chunk is already here.
     const [Charts, setCharts] = useState<React.ComponentType<MetricsChartsProps> | null>(null);
     const [chartsSettled, setChartsSettled] = useState(false);
+    const [chartsRevealed, setChartsRevealed] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -58,22 +62,18 @@ const DashboardPage: React.FC = () => {
         return () => { active = false; };
     }, []);
 
-    // One gate for everything. The page is nothing but charts and the cards that
-    // describe them, so rendering before both the chunk and the data are in hand
-    // only produced a page that was briefly wrong: the cards, then the charts
-    // landing on top of them a moment later. Nothing is painted until the finished
-    // page can be painted in one go.
-    const ready = chartsSettled && !logsLoading && !habitsLoading && !settingsLoading;
+    useEffect(() => {
+        if (!chartsSettled || !Charts) return;
+        const reveal = window.setTimeout(() => setChartsRevealed(true), 80);
+        return () => window.clearTimeout(reveal);
+    }, [chartsSettled, Charts]);
 
-    // The splash comes down when this gate opens, not when the auth session
-    // resolves. It renders nothing while loading, so without this there is
-    // nothing to reveal but the navbars -- which is what made the dashboard's boot
-    // a splash, then an empty page, then the charts arriving underneath.
-    //
-    // A hold rather than a dismissal: the app-level signal ("nothing is fetching")
-    // is satisfied as soon as the queries land, which is before the chart chunk
-    // has. Both have to agree, or the fast one wins and the slow page is the one
-    // left half-painted. See `useBootHold`.
+    // Only critical health data gates the first paint. Charts and secondary
+    // sections are deliberately allowed to arrive after the useful summary.
+    const ready = !logsLoading && !habitsLoading && !settingsLoading;
+
+    // The splash comes down when the critical summary is ready. Secondary data
+    // and charts have their own local loading states.
     useBootHold(!ready);
 
     if (!ready) return null;
@@ -103,14 +103,21 @@ const DashboardPage: React.FC = () => {
                         settings={settings}
                         range={range}
                     />
-                    {Charts && (
-                        <Charts
-                            logs={logs}
-                            habits={habits}
-                            habitLogs={habitLogs}
-                            settings={settings}
-                            range={range}
-                        />
+                    <DashboardExtras {...extras} />
+                    {!chartsSettled && <div className="dashboard-chart-loading">Loading charts...</div>}
+                    {chartsSettled && Charts && (
+                        <div className={`dashboard-charts-enter ${chartsRevealed ? 'dashboard-charts-enter--ready' : 'dashboard-charts-enter--pending'}`}>
+                            <Charts
+                                logs={logs}
+                                habits={habits}
+                                habitLogs={habitLogs}
+                                settings={settings}
+                                range={range}
+                            />
+                        </div>
+                    )}
+                    {chartsSettled && !Charts && (
+                        <div className="dashboard-chart-loading">Charts are temporarily unavailable.</div>
                     )}
                 </div>
             </div>

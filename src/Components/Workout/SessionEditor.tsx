@@ -249,7 +249,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     // Wrapped rather than a plain function so `scheduleSave` below keeps a stable
     // identity -- a new one every render would restart the debounce timer on every
     // keystroke and the save would never fire.
-    const handleSave = useCallback(async () => {
+    const handleSave = useCallback(async (draftRows = rows) => {
         setSaving(true);
         try {
             await saveSession.mutateAsync({
@@ -267,7 +267,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                     notes: notes || undefined,
                     workout_template_id: activeTemplate?.id ?? null,
                 },
-                exercises: rows.map(row => ({
+                exercises: draftRows.map(row => ({
                     id: row.id,
                     exercise_name: row.exercise_name,
                     exercise_id: row.exercise_id ?? null,
@@ -303,6 +303,12 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
      * Nothing is saved for a day with no rows and no header content, so merely
      * opening a future day does not create an empty session for it. */
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const scheduleSaveRows = useCallback((draftRows: DraftRow[]) => {
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+            void handleSave(draftRows);
+        }, 600);
+    }, [handleSave]);
     const scheduleSave = useCallback(() => {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
@@ -488,14 +494,13 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                         row={row}
                                         weightUnit={weightUnit}
                                         onChange={next => {
-                                            setRows(current => current.map(
-                                                item => (item === row ? next : item),
-                                            ));
+                                            const nextRows = rows.map(item => item === row ? next : item);
+                                            setRows(nextRows);
                                             // Ticking a row done and deleting one are
                                             // clicks, not blurs, so they save at once.
                                             // The debounce collapses a click that
                                             // follows straight into a field edit.
-                                            scheduleSave();
+                                            scheduleSaveRows(nextRows);
                                         }}
                                         onCommit={scheduleSave}
                                     />
@@ -509,8 +514,8 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 event.preventDefault();
                                 const trimmed = newName.trim();
                                 if (!trimmed) return;
-                                setRows(current => [
-                                    ...current,
+                                const nextRows = [
+                                    ...rows,
                                     {
                                         exercise_name: trimmed,
                                         exercise_id: newExerciseId,
@@ -519,14 +524,15 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                         completed: false,
                                         sets_detail: detailToRows([], 1),
                                     },
-                                ]);
+                                ];
+                                setRows(nextRows);
                                 setNewName('');
                                 setNewExerciseId(null);
                                 // Focus goes back to the input so several exercises can
                                 // be typed in a row, and adding a row is a structural
                                 // change rather than a blur, so it saves here.
                                 addInputRef.current?.querySelector('input')?.focus();
-                                void handleSave();
+                                void handleSave(nextRows);
                             }}
                         >
                             <div ref={addInputRef} style={{ flex: 1 }}>

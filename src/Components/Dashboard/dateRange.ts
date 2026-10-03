@@ -7,8 +7,8 @@ export interface DateRange {
 // cards read from this so both always describe the same time window.
 //
 // The list runs shortest first so switching windows is a single tap away, and
-// All Time is the default because the dashboard is meant to be read as the
-// whole picture; the shorter windows are there to zoom in on.
+// The recent window is the default so the dashboard opens quickly and answers
+// the most useful question first: how have things been going lately?
 export const RANGES: DateRange[] = [
     { label: '7 Days', days: 7 },
     { label: '30 Days', days: 30 },
@@ -16,4 +16,4 @@ export const RANGES: DateRange[] = [
     { label: 'All Time', days: null },
 ];
 
-export const DEFAULT_RANGE: DateRange = RANGES.find(r => r.days === null) ?? RANGES[RANGES.length - 1];
+export const DEFAULT_RANGE: DateRange = RANGES.find(r => r.days === 7) ?? RANGES[0];

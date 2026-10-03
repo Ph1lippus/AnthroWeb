@@ -11,10 +11,12 @@ export const useHabitData = (): {
     const { data: habits, isLoading: habitsLoading } = useQuery({
         queryKey: queryKeys.habits,
         queryFn: getUserHabits,
+        staleTime: 30_000,
     });
     const { data: habitLogs, isLoading: logsLoading } = useQuery({
         queryKey: queryKeys.habitLogs,
         queryFn: getAllHabitLogs,
+        staleTime: 30_000,
     });
 
     return {

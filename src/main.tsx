@@ -1,9 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-// After index.css on purpose: the workouts screens override shared form and
-// button primitives, so they need to win on equal specificity.
-import './styles/workouts.css'
 import App from './App.tsx'
 import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'

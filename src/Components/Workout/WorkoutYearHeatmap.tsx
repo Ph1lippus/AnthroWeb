@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { LEVEL_FOR } from '../../utils/workoutSets';
 import type { HeatCell, HeatWeek } from '../../utils/workoutStats';
 import { formatWeight, type WeightUnit } from '../../utils/units';
@@ -60,12 +60,29 @@ interface TipState {
     cell: HeatCell;
     left: number;
     top: number;
-    /** Open under the cell, when there is no room above it. */
-    below: boolean;
+    maxWidth: number;
 }
 
-/** Half the tooltip's maximum width, for keeping it inside the viewport. */
-const TIP_HALF_WIDTH = 120;
+interface HeatCellViewProps {
+    cell: HeatCell;
+    onHover: (cell: HeatCell, event: React.MouseEvent<HTMLElement>) => void;
+}
+
+const HeatCellView = memo<HeatCellViewProps>(({ cell, onHover }) => (
+    <span
+        role="gridcell"
+        className={[
+            'workout-heat__cell',
+            `workout-heat__cell--${LEVEL_FOR(cell.level)}`,
+            cell.isToday ? 'workout-heat__cell--today' : '',
+            cell.isFuture ? 'workout-heat__cell--future' : '',
+        ].filter(Boolean).join(' ')}
+        onMouseEnter={event => onHover(cell, event)}
+        aria-label={`${formatDayLabel(cell.date)}, ${cell.level > 0
+            ? `trained at intensity ${cell.record?.intensity ?? 'unknown'}`
+            : 'rest day'}`}
+    />
+));
 
 const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     weeks,
@@ -78,36 +95,48 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     );
 
     const [tip, setTip] = useState<TipState | null>(null);
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const [visibleWeekCount, setVisibleWeekCount] = useState(weeks.length);
 
-    /* One shared tooltip rather than one per cell: 371 invisible nodes would be
-       paid for every render. It is positioned at the hovered cell in viewport
-       coordinates -- fixed-position escapes every overflow clipping ancestor --
-       clamped so the edge weeks cannot push it offscreen, and flipped under the
-       cell when the grid is near the top of the window. */
-    const showTip = (cell: HeatCell, event: React.MouseEvent<HTMLElement>) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const center = rect.left + rect.width / 2;
-        const nearTop = rect.top < 180;
-        setTip({
-            cell,
-            left: Math.min(Math.max(center, TIP_HALF_WIDTH), window.innerWidth - TIP_HALF_WIDTH),
-            top: nearTop ? rect.bottom : rect.top,
-            below: nearTop,
-        });
-    };
-
-    // Scrolling with the pointer parked on a cell would leave the tooltip
-    // anchored where the cell used to be, so any scroll retires it.
     useEffect(() => {
-        if (!tip) return;
-        const hide = () => setTip(null);
-        window.addEventListener('scroll', hide, true);
-        return () => window.removeEventListener('scroll', hide, true);
-    }, [tip]);
+        const element = scrollRef.current;
+        if (!element) return;
+
+        const updateCount = () => {
+            const width = element.clientWidth;
+            if (width >= 1024) {
+                setVisibleWeekCount(weeks.length);
+                return;
+            }
+            const cellAndGap = 14;
+            const availableWeeks = Math.max(5, Math.floor((width - 2.15 * 16) / cellAndGap));
+            setVisibleWeekCount(width < 768 ? availableWeeks : Math.min(26, availableWeeks));
+        };
+
+        updateCount();
+        const observer = new ResizeObserver(updateCount);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, [weeks.length]);
+
+    /* One shared tooltip and memoized cells keep hovering local: changing the
+       tooltip must not rerender the entire grid. */
+    const showTip = useCallback((cell: HeatCell, event: React.MouseEvent<HTMLElement>) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const nextTip = {
+            cell,
+            left: rect.right + 8,
+            top: rect.top + rect.height / 2,
+            maxWidth: Math.max(140, window.innerWidth - rect.right - 16),
+        };
+        setTip(previous => previous?.cell.date === cell.date ? previous : nextTip);
+    }, []);
+
+    const hideTip = useCallback(() => setTip(null), []);
 
     return (
         <div className="workout-heat">
-            <div className="workout-heat__scroll">
+            <div className="workout-heat__scroll" ref={scrollRef}>
                 <div className="workout-heat__body">
                     <div className="workout-heat__days" aria-hidden="true">
                         {DAY_ROWS.map((label, index) => (
@@ -117,27 +146,23 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
 
                     <div
                         className="workout-heat__weeks"
-                        style={{ opacity: isLoading ? 0.4 : 1, transition: 'opacity .2s ease' }}
+                        style={{
+                            '--heat-week-count': visibleWeekCount,
+                            gridTemplateColumns: `repeat(${visibleWeekCount}, minmax(0, 1fr))`,
+                            opacity: isLoading ? 0.4 : 1,
+                            transition: 'opacity .2s ease',
+                        } as CSSProperties}
                         role="grid"
                         aria-label="Training activity by day"
-                        onMouseLeave={() => setTip(null)}
+                        onMouseLeave={hideTip}
                     >
-                        {weeks.map((week, weekIndex) => (
+                        {weeks.slice(-visibleWeekCount).map((week, weekIndex) => (
                             <div className="workout-heat__week" role="row" key={weekIndex}>
                                 {week.cells.map(cell => (
-                                    <span
+                                    <HeatCellView
                                         key={cell.date}
-                                        role="gridcell"
-                                        className={[
-                                            'workout-heat__cell',
-                                            `workout-heat__cell--${LEVEL_FOR(cell.level)}`,
-                                            cell.isToday ? 'workout-heat__cell--today' : '',
-                                            cell.isFuture ? 'workout-heat__cell--future' : '',
-                                        ].filter(Boolean).join(' ')}
-                                        onMouseEnter={event => showTip(cell, event)}
-                                        aria-label={`${formatDayLabel(cell.date)}, ${cell.level > 0
-                                            ? `trained at intensity ${cell.record?.intensity ?? 'unknown'}`
-                                            : 'rest day'}`}
+                                        cell={cell}
+                                        onHover={showTip}
                                     />
                                 ))}
                             </div>
@@ -159,8 +184,8 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
 
             {tip && (
                 <div
-                    className={`workout-heat__tip${tip.below ? ' workout-heat__tip--below' : ''}`}
-                    style={{ left: tip.left, top: tip.top }}
+                    className="workout-heat__tip"
+                    style={{ left: tip.left, top: tip.top, maxWidth: tip.maxWidth }}
                     aria-hidden="true"
                 >
                     <span className="workout-heat__tip-date">{formatDayLabel(tip.cell.date)}</span>
@@ -172,7 +197,9 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                                 <span className="workout-heat__tip-name">{tip.cell.record.name}</span>
                             )}
                             <span className="workout-heat__tip-facts">
-                                {dayFacts(tip.cell, weightUnit).join(' · ')}
+                                {dayFacts(tip.cell, weightUnit).map(fact => (
+                                    <span key={fact}>{fact}</span>
+                                ))}
                             </span>
                         </>
                     )}

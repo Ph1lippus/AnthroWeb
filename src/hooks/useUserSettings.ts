@@ -7,6 +7,7 @@ export const useUserSettings = (): { settings: UserSettings | null; isLoading: b
     const { data, isLoading } = useQuery({
         queryKey: queryKeys.userSettings,
         queryFn: getUserSettings,
+        staleTime: 30_000,
     });
     return { settings: data ?? null, isLoading };
 };

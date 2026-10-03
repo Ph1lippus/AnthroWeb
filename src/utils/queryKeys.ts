@@ -51,4 +51,7 @@ export const queryKeys = {
     gpaScales: ['gpa-scales'] as const,
     // Derived from courses + items, so it is invalidated whenever either is.
     academicAlerts: ['academic-alerts'] as const,
+    books: ['books'] as const,
+    abstinenceGoals: ['abstinence-goals'] as const,
+    abstinenceHistory: ['abstinence-history'] as const,
 } as const;

@@ -6665,6 +6665,111 @@ textarea.form-control {
   align-items: start;
   min-width: 0;
 }
+
+.dashboard-extras {
+  margin-top: 0;
+}
+
+.dashboard-extras-grid {
+  margin-top: 0;
+}
+
+.dashboard-extras-loading,
+.dashboard-chart-loading {
+  display: flex;
+  min-height: 10rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--chart-axis);
+  font-size: 0.8rem;
+  border: 1px solid var(--chart-tooltip-border);
+  border-radius: 20px;
+  background:
+    linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.08) 45%, transparent 70%),
+    #ffffff06;
+  background-size: 220% 100%;
+  animation: dashboard-chart-placeholder 1.5s ease-in-out infinite;
+}
+
+.dashboard-charts-enter {
+  transform-origin: top center;
+}
+
+.dashboard-charts-enter--pending {
+  opacity: 0;
+  transform: translateY(1rem) scale(0.985);
+  filter: blur(5px);
+}
+
+.dashboard-charts-enter--ready {
+  animation: dashboard-content-in 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-charts-enter--ready .dashboard-daily-card,
+.dashboard-charts-enter--ready .metrics-chart-card {
+  animation: dashboard-chart-card-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-charts-enter--ready .metrics-chart-card:nth-child(2) {
+  animation-delay: 70ms;
+}
+
+.dashboard-charts-enter--ready .metrics-chart-card:nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.dashboard-charts-enter--ready .metrics-chart-card:nth-child(4) {
+  animation-delay: 210ms;
+}
+
+@keyframes dashboard-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.985);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes dashboard-chart-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes dashboard-chart-placeholder {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-charts-enter,
+  .dashboard-charts-enter--pending,
+  .dashboard-charts-enter--ready,
+  .dashboard-charts-enter--ready .dashboard-daily-card,
+  .dashboard-charts-enter--ready .metrics-chart-card,
+  .dashboard-chart-loading {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
 .daily-log-puzzle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7761,11 +7866,12 @@ select.form-control option {
   border-radius: 20px;
   padding: 0.85rem 0.95rem;
   min-width: 0;
+  text-align: center;
 }
 .analysis-card-head {
-  place-self: center;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   color: var(--color-light);
   opacity: 0.65;
@@ -7786,7 +7892,7 @@ select.form-control option {
 }
 .analysis-card-value {
   text-align: center;
-  place-self: center;
+  justify-content: center;
   font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 700;
@@ -7803,12 +7909,12 @@ select.form-control option {
   opacity: 0.5;
 }
 .analysis-card-hint {
-  text-align: -webkit-center;
+  display: block;
+  text-align: center;
   margin-top: 0.3rem;
   font-size: 0.7rem;
   color: var(--color-light);
   opacity: 0.55;
-  place-self: center;
   line-height: 1.35;
 }
 .analysis-card--good .analysis-card-icon,
@@ -10442,6 +10548,11 @@ body {
   display: flex;
   flex-direction: column;
 }
+.workout-year,
+.workout-year .card-body {
+  width: 100%;
+  min-width: 0;
+}
 .workout-card > .card-header:only-child,
 .workout-card .card-body:empty {
   display: none;
@@ -10540,7 +10651,11 @@ body {
 }
 
 @media (max-width: 1023px) {
-  .workout-rails { grid-template-columns: minmax(0, 1fr); }
+  .workout-rails {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    width: 100%;
+  }
   .workout-section,
   .workout-card,
   .workout-rails,
@@ -10558,10 +10673,15 @@ body {
     grid-column: 1;
     max-height: none;
     padding-left: 0;
+    width: 100%;
   }
   .workout-rail--main,
-  .workout-panels { padding-right: 0.25rem; }
+  .workout-panels { padding-right: 0; }
   .workout-year { padding-top: 0; }
+  .stats-rail {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
   .books-page-wrapper {
     height: auto !important;
     overflow: visible !important;
@@ -10592,6 +10712,7 @@ body {
 }
 .workout-stats .analysis-card {
   padding: 0.6rem 0.7rem;
+  min-height: 7rem;
 }
 .workout-stats .analysis-card-value {
   font-size: 1.05rem;
@@ -10635,36 +10756,50 @@ body {
 
 .workout-heat {
   --heat-gap: clamp(1px, 0.32vw, 3px);
+  width: 100%;
   min-width: 0;
 }
-.workout-heat__scroll { min-width: 0; }
-.workout-heat__body { display: flex; gap: 0.4rem; align-items: start; min-width: 0; }
+.workout-heat__scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.workout-heat__body {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.4rem;
+  align-items: stretch;
+  min-width: 100%;
+  width: 100%;
+}
 .workout-heat__days {
   display: grid;
-  grid-template-rows: repeat(7, auto);
+  grid-template-rows: repeat(7, minmax(0, 1fr));
   gap: var(--heat-gap);
   width: 1.75rem;
   flex-shrink: 0;
 }
 .workout-heat__day {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   font-family: var(--font-mono);
   font-size: 0.55rem;
-  line-height: 1.6;
+  line-height: 1;
   opacity: 0.45;
   text-align: right;
 }
 .workout-heat__weeks {
   display: grid;
-
   grid-auto-flow: column;
-  grid-template-columns: repeat(53, minmax(0, 1fr));
   gap: var(--heat-gap);
   min-width: 0;
-  flex: 1;
+  width: 100%;
 }
 .workout-heat__week {
   display: grid;
-  grid-template-rows: repeat(7, auto);
+  grid-template-rows: repeat(7, minmax(0, 1fr));
   gap: var(--heat-gap);
   min-width: 0;
 }
@@ -10672,6 +10807,7 @@ body {
 .workout-heat__cell {
   display: block;
   width: 100%;
+  min-width: 0;
   aspect-ratio: 1;
   border: 1px solid transparent;
   border-radius: clamp(1px, 0.25vw, 3px);
@@ -10681,8 +10817,9 @@ body {
 /* The cells are read-only, so the hover is about the tooltip, not a click --
    the scale still makes the square you are reading about findable. */
 .workout-heat__cell:hover {
-  transform: scale(1.45);
   border-color: var(--color-light);
+  position: relative;
+  z-index: 1;
 }
 .workout-heat__cell--future { background: transparent; border-color: #ffffff0a; }
 .workout-heat__cell--today { border-color: var(--color-light); }
@@ -10726,14 +10863,31 @@ body {
   font-size: 0.62rem;
   line-height: 1.5;
   color: var(--color-light);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   pointer-events: none;
-  transform: translate(-50%, calc(-100% - 0.5rem));
+  transform: translateY(-50%);
 }
-.workout-heat__tip--below { transform: translate(-50%, 0.5rem); }
 .workout-heat__tip-date { opacity: 0.55; }
 .workout-heat__tip-name { color: var(--color-primary); font-weight: 700; }
 .workout-heat__tip-rest { opacity: 0.65; font-style: italic; }
+.workout-heat__tip-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.stats-rail .analysis-card-label,
+.stats-rail .analysis-card-hint {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.stats-rail .analysis-card-value {
+  min-width: 0;
+  font-size: clamp(0.72rem, 1.5vw, 1.05rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 .workout-set-table {
   display: flex;
@@ -11308,13 +11462,30 @@ button.workout-ex__empty:hover {
 @media (max-width: 767px) {
   .workout-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .workout-heat__days { display: none; }
-  .workout-heat__body { gap: 0; }
+  .workout-heat__body {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    width: 100%;
+  }
+  .workout-heat__weeks {
+    width: 100%;
+  }
   .workout-set-table__head,
   .workout-set-table__row { grid-template-columns: 1.2rem minmax(0, 1fr) minmax(0, 1fr) 1.4rem; }
   .workout-card input,
   .workout-card select,
   .workout-card textarea { font-size: 16px; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .workout-heat__body {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    min-width: 0;
+    width: 100%;
+  }
+  .workout-heat__weeks {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

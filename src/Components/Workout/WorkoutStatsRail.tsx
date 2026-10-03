@@ -124,7 +124,6 @@ const WorkoutStatsRail: React.FC<WorkoutStatsRailProps> = ({
        them about what was logged. */
     const muscles = useMemo<MuscleGroupTotal[]>(() => muscleGroupTotals(rollups), [rollups]);
     const kinds = useMemo<KindTotals>(() => kindTotals(rollups), [rollups]);
-    const loggedMinutes = kinds.strengthMinutes + kinds.cardioMinutes + kinds.mobilityMinutes;
 
     const hours = (minutes: number) => (minutes >= 60 ? `${Math.round(minutes / 60)}h` : `${minutes}m`);
 
@@ -374,14 +373,6 @@ const WorkoutStatsRail: React.FC<WorkoutStatsRailProps> = ({
             label: 'Mobility',
             value: kinds.mobilityMinutes > 0 ? hours(kinds.mobilityMinutes) : '—',
             hint: kinds.mobilitySessions > 0 ? `${kinds.mobilitySessions} sessions` : 'nothing logged yet',
-            tone: 'flat',
-        },
-        {
-            key: 'balance',
-            icon: TrendingUp,
-            label: 'Strength share',
-            value: loggedMinutes > 0 ? `${Math.round(kinds.strengthMinutes / loggedMinutes * 100)}%` : '—',
-            hint: 'of time logged',
             tone: 'flat',
         },
     ];

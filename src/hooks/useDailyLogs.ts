@@ -7,6 +7,7 @@ export const useDailyLogs = (): { logs: DailyLog[] | null; isLoading: boolean } 
     const { data, isLoading } = useQuery({
         queryKey: queryKeys.dailyLogs,
         queryFn: getUserDailyLogs,
+        staleTime: 30_000,
     });
     return { logs: data ?? null, isLoading };
 };
