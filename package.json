@@ -11,7 +11,8 @@
       "verify:migrations": "node scripts/verify-migrations.mjs",
       "verify:grid": "node scripts/verify-grid.mjs",
       "verify:editor-dom": "node scripts/verify-editor-dom.mjs",
-      "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom",
+      "verify:markdown": "node scripts/verify-markdown.mjs",
+      "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:markdown",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -434,6 +434,12 @@ export interface SlashCommand {
  * does, and it is also the only version that does not look like data loss:
  * turning "my important sentence" into a toggle has to leave "my important
  * sentence" visible, and pressing the menu item again has to bring it back.
+ *
+ * The toggle is created open, with the caret in its body rather than after its
+ * title, which is what Notion does. Converting a line is a decision to write
+ * *under* that line, so leaving the caret in the title means the next keystroke
+ * edits the heading instead of answering it -- and a collapsed body is a second
+ * click the reader did not ask for.
  */
 const runToggle =
     (level: number | null) =>
@@ -522,25 +528,29 @@ const runToggle =
                 const block = state.doc.slice(range.start, range.end).content.firstChild;
                 const summaryContent = block && block.isTextblock ? block.content : Fragment.empty;
 
-                // details > detailsSummary > <inline>. The inline run starts two
-                // positions in and is one position per node wide.
-                const summaryEnd = range.start + 2 + summaryContent.childCount;
+                // Built as named nodes so the caret can be placed from their own
+                // sizes below, rather than from arithmetic that has to be kept in
+                // step with the schema by hand.
+                const { details, detailsSummary, detailsContent, paragraph } = state.schema.nodes;
+                const summary = detailsSummary.create(null, summaryContent);
+                // detailsContent is `block+`, so it cannot be left empty.
+                const body = detailsContent.create(null, paragraph.create());
 
                 tr.replaceWith(
                     range.start,
                     range.end,
-                    state.schema.nodes.details.create({ toggleLevel: level }, [
-                        state.schema.nodes.detailsSummary.create(null, summaryContent),
-                        // detailsContent is `block+`, so it cannot be left empty.
-                        state.schema.nodes.detailsContent.create(
-                            null,
-                            state.schema.nodes.paragraph.create(),
-                        ),
-                    ]),
+                    // `open` so the body is already showing: the node view reads it
+                    // on mount and unfolds, which is the only way the extension has
+                    // of being open. It is also persisted, so a toggle saved shut
+                    // still comes back shut.
+                    details.create({ toggleLevel: level, open: true }, [summary, body]),
                 );
-                // Backwards, so the caret lands after the summary text rather than
-                // jumping past it into the body.
-                tr.setSelection(TextSelection.near(tr.doc.resolve(summaryEnd), -1));
+
+                // Into the body, ready to type. Walking the nodes rather than
+                // counting offsets: step inside <details>, past the summary, inside
+                // the body, and inside its first paragraph.
+                const caret = range.start + 1 + summary.nodeSize + 2;
+                tr.setSelection(TextSelection.near(tr.doc.resolve(caret)));
                 return true;
             })
             .run();

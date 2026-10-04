@@ -35,6 +35,7 @@ import {
     buildTableCommands,
 } from '../../utils/noteBlockMenuItems';
 import { normalizeNoteHtml } from '../../utils/noteContent';
+import { handleMarkdownPaste } from '../../utils/notePaste';
 import BlockMenu from './BlockMenu';
 import type { BlockMenuRef } from './BlockMenu';
 
@@ -282,6 +283,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 class: 'note-prose',
                 spellcheck: 'true',
             },
+            handlePaste: (view, event) => handleMarkdownPaste(view, event),
         },
         // Reported on every document change so the parent can debounce, rather
         // than saving inside this component, so autosave stays in one place.
