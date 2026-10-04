@@ -7,6 +7,7 @@ import {
     useRef,
     useState,
 } from 'react';
+import type { ComponentProps } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { DragHandle } from '@tiptap/extension-drag-handle-react';
@@ -20,6 +21,7 @@ import { GripVertical } from 'lucide-react';
 import {
     buildNoteExtensions,
     blockConversions,
+    canSplitSubmenu,
     slashMenuOpen,
     setBlockMenuKeyHandler,
 } from '../../utils/noteEditorExtensions';
@@ -67,14 +69,16 @@ interface MenuState {
     id: number;
     anchor: DOMRect;
     /**
-     * Which edge of the anchor to sit against.
+     * Which side of the main menu the "Turn into" panel opens on.
      *
-     * `right` beside the drag handle's button, because a gutter is narrow and the
-     * popup has to be out of the way of the text it is about to change. `above`
-     * over a text selection, which is where the popup belongs when the thing it
-     * acts on is the thing the reader is already looking at.
+     * `right` by default; `left` when the right would run off the screen. It is a
+     * panel of block types, not an overlay, so it is allowed to sit over the note
+     * if that is the only way to open it: a menu that cannot be reached is worse
+     * than one that briefly covers a paragraph.
      */
-    side: 'right' | 'above';
+    submenuSide: 'right' | 'left';
+    /** Whether "Turn into" is open, and so drawn beside the main menu. */
+    submenuOpen: boolean;
     /** Where the popup is pinned, in viewport coordinates. */
     left: number;
     top: number;
@@ -88,54 +92,124 @@ interface MenuState {
     source: 'handle' | 'selection';
 }
 
+/** Panel width, and so the space a placement has to find. Mirrors the CSS. */
+const MENU_WIDTH = 268;
+/** Gap between the anchor and the menu, and between the two menu panels. */
+const MENU_GAP = 8;
+/** Distance kept from the edge of the window. */
+const MENU_MARGIN = 8;
+
 /**
- * Places the popup against its anchor, flipping rather than leaving the window.
+ * Places the main panel against its anchor, flipping rather than leaving the
+ * window. The "Turn into" panel is positioned by CSS relative to this one, so
+ * only the main panel's own box is placed here.
  *
  * `position: fixed`, because the anchor rect is viewport-relative and the editor
  * scrolls inside its own pane rather than moving the page. Hand-rolled rather
  * than floating-ui: the menu is short-lived and closes on the first scroll
  * anyway, and @floating-ui is only here as an undeclared transitive dependency
  * of TipTap.
+ *
+ * A selection opens beside the text, never over it. Which side is settled from
+ * the anchor's own rect and the window -- not from the rendered popup -- so the
+ * menu cannot be seen jumping from one side of the text to the other.
+ *
+ * `height` is the taller of the two panels when the submenu is open, because the
+ * two share a top edge and the taller one is what decides whether they fit.
  */
 const placeMenu = (
     anchor: DOMRect,
-    menu: HTMLElement | null,
-    side: 'right' | 'above',
+    width: number,
+    height: number,
 ): { left: number; top: number } => {
-    const width = menu?.offsetWidth ?? 260;
-    const height = menu?.offsetHeight ?? 360;
-    const gap = 8;
-    const margin = 8;
-    const clampX = (value: number) =>
-        Math.max(margin, Math.min(value, window.innerWidth - width - margin));
+    // Right is the preference: that is the side the panel's own chevrons point,
+    // and the side with the menu icon already on it.
+    const roomRight = window.innerWidth - MENU_MARGIN - anchor.right - MENU_GAP;
+    const roomLeft = anchor.left - MENU_MARGIN - MENU_GAP;
+    const useRight = roomRight >= width || roomRight >= roomLeft;
 
-    let left: number;
-    let top: number;
+    const preferred = useRight
+        ? anchor.right + MENU_GAP
+        : anchor.left - width - MENU_GAP;
+    // A block narrower than the menu, or a viewport narrower than the menu: clamp
+    // to the margin rather than letting it hang off the edge.
+    const left = Math.max(
+        MENU_MARGIN,
+        Math.min(preferred, window.innerWidth - width - MENU_MARGIN),
+    );
 
-    if (side === 'above') {
-        left = clampX((anchor.left + anchor.right) / 2 - width / 2);
-        top = anchor.top - height - gap;
-        // Above the selection is the first choice, not a guarantee: the selection
-        // may be in the last few pixels of the viewport. Flip under it, and only
-        // clamp to the margin if flipping does not fit either.
-        if (top < margin) top = anchor.bottom + gap;
-        if (top + height > window.innerHeight - margin) {
-            top = Math.max(margin, window.innerHeight - height - margin);
-        }
-    } else {
-        left = anchor.right + gap;
-        if (left + width > window.innerWidth - margin) {
-            const flipped = anchor.left - width - gap;
-            // Prefer the flipped side only when it fits. Otherwise the popup is simply
-            // wider than the space beside the block and has to overlap it.
-            left = flipped >= margin ? flipped : clampX(window.innerWidth - width - margin);
-        }
-        // Taller than the window is possible on a phone with the list open, so this
-        // clamps to the margin rather than to a negative top.
-        top = Math.max(margin, Math.min(anchor.top, window.innerHeight - height - margin));
-    }
+    // Top-aligned with the anchor's first line, then pulled inside the window.
+    // Together with the side placement, that is what keeps the menu off the text:
+    // it can sit beside it, above it or below it, never across it.
+    const top = Math.max(
+        MENU_MARGIN,
+        Math.min(anchor.top, window.innerHeight - height - MENU_MARGIN),
+    );
 
     return { left, top };
+};
+
+/**
+ * Which side of the main menu the block-type panel goes on.
+ *
+ * Right by default; left when the right would run off the screen. Never "do not
+ * open it": the panel is narrow, and it is allowed to overlap the note rather
+ * than become unreachable.
+ */
+const submenuSideFor = (mainLeft: number, mainWidth: number): 'right' | 'left' => {
+    const needed = MENU_WIDTH + MENU_GAP;
+    if (mainLeft + mainWidth + needed <= window.innerWidth - MENU_MARGIN) return 'right';
+    if (mainLeft - needed >= MENU_MARGIN) return 'left';
+    return 'right';
+};
+
+/**
+ * The drag handle's positioning types, taken from the component's own props.
+ *
+ * `@floating-ui/dom` is reachable from here -- the drag handle is built on it --
+ * but it is not a declared dependency of this project, only a transitive one, so
+ * importing from it directly would tie the build to a package that a future
+ * dependency change could hoist away. Reaching the types through the prop keeps
+ * them honest without naming the package.
+ */
+type HandlePositionConfig = NonNullable<
+    ComponentProps<typeof DragHandle>['computePositionConfig']
+>;
+type HandleMiddleware = NonNullable<HandlePositionConfig['middleware']>[number];
+
+/**
+ * Nudges the drag handle down so its dots line up with the block's first line.
+ *
+ * `placement: 'left-start'` lines the handle's top edge up with the block's top
+ * edge, and the handle is a fixed 24px tall. That is only centred when the first
+ * line happens to be 24px. The prose line box here is 26.6px and a heading's is
+ * larger still, so the dots sat a few pixels high -- about 4px on an `h1`, which
+ * is enough to read as "not lined up" beside a row of text.
+ *
+ * The correction is half the difference between the first line's height and the
+ * handle's, so it is zero when they already agree and grows with the heading
+ * level. The first line is the block's own `line-height` rather than its full
+ * height, because a paragraph of five lines has to keep its grip beside the
+ * *first* one rather than drifting to the middle of the paragraph.
+ *
+ * `line-height` is read rather than assumed: elements that set none of their own
+ * -- a `<ul>`, a flex row -- report `normal`, which does not parse as a number,
+ * and fall back to the element's own height.
+ */
+const centreOnFirstLine: HandleMiddleware = {
+    name: 'centreOnFirstLine',
+    fn: state => {
+        const handle = state.elements.floating;
+        if (!(handle instanceof HTMLElement)) return {};
+        const reference = state.rects.reference;
+        const element = state.elements.reference;
+        const declared =
+            element instanceof Element ? parseFloat(getComputedStyle(element).lineHeight) : NaN;
+        const firstLine = Number.isFinite(declared)
+            ? Math.min(reference.height, declared)
+            : reference.height;
+        return { y: state.y + (firstLine - handle.offsetHeight) / 2 };
+    },
 };
 
 /**
@@ -143,7 +217,7 @@ const placeMenu = (
  *
  * ProseMirror's coords are viewport-relative, which is what `placeMenu` wants.
  * The selection's two ends are unioned rather than just taking the first: a
- * selection spanning three lines has to anchor the popup above the *first* line,
+ * selection spanning three lines has to put the menu beside the *first* of them,
  * and that only works if the top edge is the topmost of the two.
  *
  * Returns null for a collapsed selection, which is the caller's signal that there
@@ -184,9 +258,13 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
     const [menu, setMenu] = useState<MenuState | null>(null);
     // The popup's own position in the DOM, so the dismiss handlers can tell a
-    // click on the menu from a click outside it, and so the menu's size can be
-    // measured for placement.
+    // click on the menu from a click outside it. The block-type panel is a child
+    // of this element, positioned off to one side of it, so this measures the main
+    // panel and contains both.
     const menuRef = useRef<HTMLDivElement>(null);
+    // The block-type panel alone, so its height is known: it shares the main
+    // panel's top edge, and it is often the taller of the two.
+    const submenuRef = useRef<HTMLDivElement>(null);
     // The BlockMenu component itself, for the variant that cannot hold focus and
     // therefore has to be driven through ProseMirror.
     const menuComponentRef = useRef<BlockMenuRef>(null);
@@ -241,9 +319,16 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
     // Whether the selection was empty the last time it changed, which is how
     // "a new selection was made" is told from "the existing one was adjusted".
     const selectionWasEmptyRef = useRef(true);
+    // A selection made while the left button was still down. The menu waits on it
+    // rather than opening mid-drag -- see the effect on the transaction handler.
+    const pointerDownRef = useRef(false);
+    // Set when that happened, so the pointerup handler knows there is something
+    // waiting for it even if the selection has not changed again since.
+    const pendingSelectionRef = useRef(false);
 
     const closeMenu = useCallback(() => {
         menuSourceRef.current = null;
+        pendingSelectionRef.current = false;
         setMenu(null);
     }, []);
 
@@ -259,19 +344,20 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
             // Read off the same list the submenu draws from, so the label and the
             // rows it labels can never disagree about which type is current.
             const current = conversions.find(command => command.isActive?.(instance));
-            const side = source === 'selection' ? 'above' : 'right';
-            // Placed against the anchor's assumed size first, so the popup never
-            // renders a frame at the top-left corner while it waits to be measured.
-            const { left, top } = placeMenu(anchor, null, side);
+            // Placed from the anchor's own rect and an assumed panel size, so the
+            // popup never renders a frame at the top-left corner while it waits to
+            // be measured for real.
+            const assumed = placeMenu(anchor, MENU_WIDTH, 380);
 
             nextMenuIdRef.current += 1;
             menuSourceRef.current = source;
             setMenu({
                 id: nextMenuIdRef.current,
                 anchor,
-                side,
-                left,
-                top,
+                submenuSide: submenuSideFor(assumed.left, MENU_WIDTH),
+                submenuOpen: false,
+                left: assumed.left,
+                top: assumed.top,
                 source,
                 target,
                 // Always offered. With a collapsed caret these set the mark for
@@ -294,27 +380,101 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
         [],
     );
 
-    // Measured after the menu renders, so its real size is known. Keyed on the
-    // opening id, because writing the result back into the state this effect
-    // depends on would otherwise loop.
+    /**
+     * Re-settles the placement after the panels have been measured.
+     *
+     * Called once per opening and again whenever "Turn into" opens or closes,
+     * because that changes how tall the taller panel is. Writing `left`/`top` back
+     * is safe here even though the effect reads the object it writes into: the
+     * measurement is idempotent, so a second pass computes the same numbers and
+     * React bails out of the re-render.
+     */
+    const remeasure = useCallback((which: 'open' | 'submenu', id: number) => {
+        setMenu(current => {
+            if (!current || current.id !== id) return current;
+            if (which === 'open' && placedMenuIdRef.current === current.id) return current;
+            if (which === 'open') placedMenuIdRef.current = current.id;
+
+            const width = menuRef.current?.offsetWidth || MENU_WIDTH;
+            const mainHeight = menuRef.current?.offsetHeight || 380;
+            // Only counted when the panel is actually drawn beside the menu. Below
+            // the split width it stands in for the menu instead, and there is only
+            // one panel on screen.
+            const beside = current.submenuOpen && canSplitSubmenu();
+            const subHeight = beside ? submenuRef.current?.offsetHeight || 0 : 0;
+            // The two panels share a top edge, so it is the taller one that decides
+            // whether they clear the bottom of the window.
+            const height = beside ? Math.max(mainHeight, subHeight) : mainHeight;
+            const { left, top } = placeMenu(current.anchor, width, height);
+            const submenuSide = submenuSideFor(left, width);
+            if (
+                left === current.left &&
+                top === current.top &&
+                submenuSide === current.submenuSide
+            ) {
+                return current;
+            }
+            return { ...current, left, top, submenuSide };
+        });
+    }, []);
+
+    const setSubmenuOpen = useCallback((open: boolean) => {
+        setMenu(current =>
+            !current || current.submenuOpen === open ? current : { ...current, submenuOpen: open },
+        );
+    }, []);
+
+    // Read out as primitives rather than off the object, so the effects below key
+    // on what they actually care about and do not re-run on every state write.
+    const menuId = menu?.id ?? null;
+    const submenuOpen = menu?.submenuOpen ?? false;
+
+    // Measured after the menu renders, so its real size is known.
     useEffect(() => {
-        if (!menu || placedMenuIdRef.current === menu.id) return;
-        placedMenuIdRef.current = menu.id;
-        const { left, top } = placeMenu(menu.anchor, menuRef.current, menu.side);
-        setMenu(current => (current?.id === menu.id ? { ...current, left, top } : current));
-    }, [menu]);
+        if (menuId !== null) remeasure('open', menuId);
+    }, [menuId, remeasure]);
+
+    // Opening or closing "Turn into" changes how tall the taller panel is, and the
+    // two panels share a top edge, so the top has to be re-clamped against the
+    // window. Also runs on a fresh opening, which is free: `remeasure` is
+    // idempotent.
+    useEffect(() => {
+        if (menuId !== null) remeasure('submenu', menuId);
+    }, [menuId, submenuOpen, remeasure]);
 
     // Opening the menu on a text selection.
     //
-    // Every selection change comes through here, including the ones that are just
-    // the document settling, so the trigger is narrow on purpose: the selection
-    // has to have just gone from empty to not empty, and the transaction that did
-    // it must not have changed the document. That is what a drag or a Shift+Arrow
-    // looks like, and it excludes typing -- which also collapses the selection and
-    // would otherwise open the menu on every keystroke of a held-down arrow key.
+    // Two rules, and both of them are about *when*.
+    //
+    // Every selection change arrives here, including the ones that are just the
+    // document settling, so the trigger is narrow on purpose: the selection has to
+    // have just gone from empty to not empty, and the transaction that did it must
+    // not have changed the document. That is what a drag or a Shift+Arrow looks
+    // like, and it excludes typing -- which also collapses the selection and would
+    // otherwise open the menu on every keystroke of a held-down arrow key.
+    //
+    // And a drag has to be over first. ProseMirror reports the selection growing
+    // on every pointer move, so opening on the first one put the menu down in the
+    // middle of the text being selected -- on top of the caret, in front of the
+    // words the user was still dragging towards. So while the left button is held
+    // down the open is only noted, and `pointerup` is what actually opens it. A
+    // selection made with the keyboard has no button to wait for and opens at once.
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
         const instance = editor;
+
+        const openForSelection = (current: Editor) => {
+            if (current.isDestroyed) return;
+            // Only ever one menu. "/" owns the caret already, and the handle menu
+            // was opened deliberately against a block the reader already chose.
+            if (slashMenuOpen.current || menuSourceRef.current === 'handle') return;
+            if (current.isActive('codeBlock')) return;
+            const { from, to } = current.state.selection;
+            if (from === to) return;
+            const anchor = selectionRect(current);
+            if (!anchor) return;
+            openMenu(current, anchor, -1, 'selection');
+        };
 
         const onTransaction = ({
             editor: current,
@@ -331,6 +491,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 // A collapsed selection means the thing the menu was opened for is
                 // no longer there, whether because the user clicked away or because
                 // a command rearranged the document.
+                pendingSelectionRef.current = false;
                 if (menuSourceRef.current === 'selection') closeMenu();
                 return;
             }
@@ -338,19 +499,46 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
             const justMade = selectionWasEmptyRef.current;
             selectionWasEmptyRef.current = false;
             if (!justMade || transaction.docChanged) return;
-            // Only ever one menu. "/" owns the caret already, and the handle menu
-            // was opened deliberately against a block the reader already chose.
             if (slashMenuOpen.current || menuSourceRef.current === 'handle') return;
-            if (current.isActive('codeBlock')) return;
 
-            const anchor = selectionRect(current);
-            if (!anchor) return;
-            openMenu(current, anchor, -1, 'selection');
+            if (pointerDownRef.current) {
+                pendingSelectionRef.current = true;
+                return;
+            }
+            openForSelection(current);
+        };
+
+        const onDown = () => {
+            pointerDownRef.current = true;
+        };
+        const onUp = () => {
+            pointerDownRef.current = false;
+            if (!pendingSelectionRef.current) return;
+            pendingSelectionRef.current = false;
+            openForSelection(instance);
+        };
+        // A pointer that leaves the window, or a window that loses focus, ends the
+        // drag without a `pointerup`. Without this the button would look stuck down
+        // and every later selection would wait forever for a release that has
+        // already happened.
+        const onCancel = () => {
+            pointerDownRef.current = false;
+            pendingSelectionRef.current = false;
         };
 
         instance.on('transaction', onTransaction);
+        // Capture phase: the editor stops propagation on some of these, and a
+        // missed `pointerup` would leave the menu permanently unopened.
+        window.addEventListener('pointerdown', onDown, true);
+        window.addEventListener('pointerup', onUp, true);
+        window.addEventListener('pointercancel', onCancel, true);
+        window.addEventListener('blur', onCancel);
         return () => {
             instance.off('transaction', onTransaction);
+            window.removeEventListener('pointerdown', onDown, true);
+            window.removeEventListener('pointerup', onUp, true);
+            window.removeEventListener('pointercancel', onCancel, true);
+            window.removeEventListener('blur', onCancel);
         };
     }, [editor, closeMenu, openMenu]);
 
@@ -420,8 +608,17 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
     // dependency: an inline object would unregister and re-register the plugin on
     // every render. The negative offset is what puts the grip in the gutter
     // instead of on top of the block's first character.
-    const handlePositionConfig = useMemo(
-        () => ({ placement: 'left-start' as const, strategy: 'absolute' as const, offset: -8 }),
+    const handlePositionConfig = useMemo<HandlePositionConfig>(
+        () => ({
+            placement: 'left-start',
+            strategy: 'absolute',
+            offset: -8,
+            // floating-ui runs these after the placement is computed, which is
+            // where the vertical correction belongs. Its own `flip` and `shift`
+            // are deliberately absent: the grip belongs beside its block, even
+            // where that means sitting over the margin.
+            middleware: [centreOnFirstLine],
+        }),
         [],
     );
 
@@ -486,6 +683,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                             heading={menu.heading}
                             currentType={menu.currentType}
                             formats={menu.formats}
+                            submenuSide={menu.submenuSide}
+                            split={canSplitSubmenu()}
+                            onSubmenuOpenChange={setSubmenuOpen}
+                            submenuRef={submenuRef}
                             codeLanguage={
                                 menu.language === null
                                     ? undefined

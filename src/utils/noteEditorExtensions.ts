@@ -119,6 +119,58 @@ const ToggleDetails = Details.extend({
 });
 
 /* ------------------------------------------------------------------ *
+ * Opening a toggle by clicking its line
+ * ------------------------------------------------------------------ */
+
+/**
+ * Clicking anywhere on a toggle's label opens or closes it.
+ *
+ * The Details extension only wires its own little chevron button, so without this
+ * the label -- which is where the reader's pointer already is, and which is the
+ * whole width of the line -- did nothing at all. That is not how a toggle reads
+ * anywhere else: the line is the control.
+ *
+ * Done as a click handler rather than by making the label a button, because the
+ * label is editable text inside the document and has to stay that way: putting a
+ * real button there would put a focusable, non-editable element in the middle of
+ * a sentence.
+ *
+ * The transaction is the only thing written. The node view watches the `open`
+ * attribute, so folding and unfolding the body is its job -- doing it here as well
+ * would toggle it twice and leave it exactly where it started.
+ */
+const ToggleSummaryClick = Extension.create({
+    name: 'toggleSummaryClick',
+
+    addProseMirrorPlugins() {
+        return [
+            new Plugin({
+                props: {
+                    handleClickOn: (view, _pos, node, nodePos) => {
+                        // Only the label itself. A click inside the body must still
+                        // place the caret and do nothing else.
+                        if (node.type.name !== 'detailsSummary') return false;
+
+                        // The summary is the details node's first child, so its own
+                        // position is one before the summary's.
+                        const detailsPos = nodePos - 1;
+                        const details = view.state.doc.nodeAt(detailsPos);
+                        if (!details || details.type.name !== 'details') return false;
+
+                        view.dispatch(
+                            view.state.tr.setNodeMarkup(detailsPos, undefined, {
+                                open: !details.attrs.open,
+                            }),
+                        );
+                        return true;
+                    },
+                },
+            }),
+        ];
+    },
+});
+
+/* ------------------------------------------------------------------ *
  * Leaving an empty list item
  * ------------------------------------------------------------------ */
 
@@ -223,6 +275,22 @@ const ExitEmptyListItem = Extension.create({
 /* ------------------------------------------------------------------ *
  * Keys for menus that do not hold focus
  * ------------------------------------------------------------------ */
+
+/** Narrowest window the block menu's two panels are worth drawing side by side. */
+const SPLIT_MIN_WIDTH = 560;
+
+/**
+ * Whether the block menu has room for two panels at once.
+ *
+ * The menu draws its block types beside itself where it can. Below this width --
+ * a phone -- there is no room, and the block types stand in for the menu instead
+ * of joining it.
+ *
+ * Lives here rather than in the menu component because the editor positions the
+ * popup and has to reach the same conclusion: a caller that measured a second
+ * panel which is not on screen would clamp the first one to the wrong height.
+ */
+export const canSplitSubmenu = (): boolean => window.innerWidth >= SPLIT_MIN_WIDTH;
 
 /** A menu's answer to a keystroke: true when it consumed it. */
 export type BlockMenuKeyHandler = (event: KeyboardEvent) => boolean;
@@ -338,6 +406,16 @@ export interface SlashCommand {
     /** Stable across renames, so it can key the favourites list. */
     id: string;
     title: string;
+    /**
+     * What the command does, in a few words.
+     *
+     * Deliberately not drawn anywhere. Every row used to carry this under its
+     * title, which made each row twice as tall and meant the list of block types
+     * needed a scrollbar on an ordinary laptop -- and reading sixteen sentences to
+     * find "To-do" is slower than reading sixteen titles. It stays here as the
+     * catalogue's own documentation: the commands live in one table, this is the
+     * only place a reader has to look to find out what any of them is for.
+     */
     hint: string;
     icon: SlashIconName;
     group: SlashGroup;
@@ -1004,6 +1082,8 @@ export const buildNoteExtensions = ({
     }),
     DetailsSummary.configure({ HTMLAttributes: { class: 'note-toggle-summary' } }),
     DetailsContent.configure({ HTMLAttributes: { class: 'note-toggle-content' } }),
+    // The whole label line opens and closes a toggle, not just the chevron.
+    ToggleSummaryClick,
     Image.configure({
         allowBase64: false,
         HTMLAttributes: { class: 'note-image' },

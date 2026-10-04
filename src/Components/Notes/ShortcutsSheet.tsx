@@ -87,11 +87,11 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
         // hover but a phone never does -- there is no hover on a touch screen, so
         // on mobile this section is the only description of what those rows and
         // icons do.
-        title: 'Block menu',
+title: 'Block menu',
         wide: true,
         rows: [
             ['⋮⋮', 'Left of every block — drag to reorder, click for this menu. On a phone, the + button does the same', 'label'],
-            ['\u25B8', 'Selecting text opens this menu too, above the selection. Type to search it, arrows to move, Enter to run', 'label'],
+            ['▸', 'Selecting text opens this menu too, once you let go of the mouse. It sits beside the text, never on top of it. Arrows to move, Enter to run', 'label'],
             ['B', 'Bold — Ctrl+B. With nothing selected it applies to what you type next', 'label'],
             ['I', 'Italic — Ctrl+I', 'label'],
             ['U', 'Underline — Ctrl+U', 'label'],
@@ -100,11 +100,11 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
             ['</>', 'Inline code — sets the text in a monospaced font', 'label'],
             ['x₂', 'Subscript — lowers and shrinks the text', 'label'],
             ['x²', 'Superscript — raises and shrinks the text', 'label'],
-            ['\u{1F517}', 'Link — turns the selection into a link, or edits the one it is already inside. An empty answer removes it', 'label'],
-            ['\u21C1', 'Turn into — the list of block types: headings, lists, to-dos, toggles, quote, divider, code', 'label'],
-            ['\u29C9', 'Duplicate — copies the block, or every block in a selection, below itself', 'label'],
+            ['🔗', 'Link — turns the selection into a link, or edits the one it is already inside. An empty answer removes it', 'label'],
+            ['⇨', 'Turn into — hover it and the list of block types opens beside this menu: headings, lists, to-dos, toggles, quote, divider, code', 'label'],
+            ['⧉', 'Duplicate — copies the block, or every block in a selection, below itself', 'label'],
             ['↑ ↓', 'Move up or down — swaps the block with its neighbour', 'label'],
-            ['\u{1F5D1}', 'Delete — removes the block, or every block in a selection', 'label'],
+            ['🗑', 'Delete — removes the block, or every block in a selection', 'label'],
         ],
     },
 ];

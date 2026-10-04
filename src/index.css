@@ -60,7 +60,7 @@
     display: none;
   }
   .navbar-save-status {
-    max-width: 7rem;
+    max-width: 6rem;
     margin-right: 0.25rem;
     font-size: 0.6rem;
   }
@@ -436,8 +436,19 @@ body::before {
   min-width: 0;
   justify-content: flex-start;
 }
-.navbar-slot--start .navbar-day-nav,
-.navbar-slot--start .navbar-save-status {
+/* The right half of the bar: the day controls and the menu button, hard against
+   the right edge. Anchored to the rightmost grid column rather than
+   auto-placing, because the left slot already claims column one. */
+.navbar-slot--end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  grid-column: 3;
+  min-width: 0;
+}
+.navbar-slot--end .navbar-day-nav,
+.navbar-slot--end .navbar-save-status {
   margin-right: 0;
 }
 .navbar-page-title {
@@ -470,11 +481,10 @@ body::before {
   display: flex;
   gap: 1rem;
   align-items: center;
-  /* The top bar is a 3-column grid: [left content] [centered title] [right content].
-     Only the left slot and these actions are rendered, so anchor the actions to the
-     rightmost column instead of letting them auto-place into the middle. */
-  grid-column: 3;
-  justify-content: flex-end;
+  /* Now a child of `.navbar-slot--end`, which owns the rightmost grid column.
+     It used to be placed there itself, back when the day controls were still on
+     the left. */
+  flex-shrink: 0;
 }
 .navbar-brand-centered {
   position: absolute;
@@ -535,7 +545,6 @@ body::before {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  margin-right: auto;
 }
 .navbar-day-label {
   color: var(--color-light);
@@ -4945,21 +4954,44 @@ textarea.form-control {
 }
 
 /* ---------- to-do blocks ----------
-   TipTap renders a task item as label > input inside an li[data-type], so the
-   checkbox is styled here rather than through the note-checkbox-input class the
-   old editor wrote into stored HTML. */
+   What the editor actually renders, which is not what gets saved.
+
+   `TaskList` has no node view, so ProseMirror serialises its `renderHTML` and the
+   `<ul>` really does carry `data-type="taskList"`. `TaskItem` does have one, and
+   its view builds the `<li>` by hand -- setting only `data-checked`, never
+   `data-type`. The attribute appears in `renderHTML`, so it is in the saved HTML
+   and it is what the export and the load-time migration match against, but it is
+   *not* on the element in the page.
+
+   Every rule here is therefore scoped by the parent `<ul>`, which is the one
+   element whose attributes can be trusted, rather than by the item's own. Written
+   against `li[data-type='taskItem']` they matched nothing at all: the row was
+   never made a flex row, so the checkbox sat on a line of its own with the text
+   dropped below it, and the checked state never got its strikethrough. */
 .note-prose ul[data-type='taskList'] {
   list-style: none;
   padding-left: 0.25rem;
 }
-.note-prose ul[data-type='taskList'] li[data-type='taskItem'] {
+.note-prose ul[data-type='taskList'] > li {
+  /* The row: box on the left, text beside it. Without this the two are block
+     boxes and stack. */
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
 }
-.note-prose ul[data-type='taskList'] li[data-type='taskItem'] > label {
+/* The text is a grandchild, not a child: the node view wraps it in a div to make
+   it a flex sibling of the label. So `.note-prose li > p` does not match it, and
+   the row below resets its margin -- which is what pulled the text down away
+   from the box. */
+.note-prose ul[data-type='taskList'] > li > div > p {
+  margin: 0;
+}
+.note-prose ul[data-type='taskList'] > li > label {
   flex-shrink: 0;
-  margin-top: 0.3rem;
+  /* Centres the 16px box on the first line: half the difference between the box
+     and the line box, which is `1.75em` because that is the prose line height
+     here. Written in `em` so it stays right if the prose size ever changes. */
+  margin-top: calc((1.75em - 16px) / 2);
   user-select: none;
 }
 .note-prose ul[data-type='taskList'] input[type='checkbox'] {
@@ -4994,11 +5026,13 @@ textarea.form-control {
 .note-prose ul[data-type='taskList'] input[type='checkbox']:checked::after {
   opacity: 1;
 }
-.note-prose ul[data-type='taskList'] li[data-type='taskItem'][data-checked='true'] > div {
+/* `data-checked` is the one attribute the node view does set, so this is safe to
+   match on. */
+.note-prose ul[data-type='taskList'] > li[data-checked='true'] > div {
   opacity: 0.45;
   text-decoration: line-through;
 }
-.note-prose ul[data-type='taskList'] li[data-type='taskItem'] > div {
+.note-prose ul[data-type='taskList'] > li > div {
   flex: 1;
   min-width: 0;
 }
@@ -5738,83 +5772,131 @@ textarea.form-control {
 }
 
 /* ---------- toggles ----------
-   The Details extension renders native <details>/<summary>, so the browser
-   handles open and close for free and the state survives a save. What is left is
-   making it look like a Notion toggle rather than a browser default. */
-.note-prose details.note-toggle {
+   What the DOM actually looks like.
+
+   `@tiptap/extension-details` does NOT render a native `<details>`/`<summary>`.
+   Its node view builds this instead:
+
+     div.note-toggle[data-type=details][data-toggle-level]
+     ├── button[type=button]        the extension's own open/close control
+     └── div                        contentDOM
+         ├── summary.note-toggle-summary   the label line
+         └── div.note-toggle-content[data-type=detailsContent][hidden]   the body
+
+   Everything below is written against that shape. The earlier version of this
+   block was written against native `<details>` and matched nothing at all, which
+   is why a toggle arrived as a bare unstyled button -- a dot -- in front of its
+   text, with no chevron, no indentation and nothing that looked collapsible.
+
+   The open state arrives twice and both are used: the extension puts `is-open` on
+   the wrapper and flips `hidden` on the body. `hidden` is what actually shows and
+   hides it, so it is stated explicitly rather than left to the UA, since the body
+   also needs a `display` for its border and padding. */
+.note-prose .note-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
   margin: 0.35rem 0;
   padding: 0;
   border: none;
 }
-.note-prose details.note-toggle > summary.note-toggle-summary {
-  /* The summary holds the text of whatever block was converted into a toggle,
-     so it is normally bare text rather than an element. `display: flex` would
-     promote that to an anonymous flex item, which cannot be given `flex: 1` --
-     so it would neither fill the row nor wrap under a long heading, and the
-     click target would stop at the end of the first line. The chevron is
-     positioned instead, and the text is left to flow as an ordinary block. */
-  position: relative;
-  display: block;
-  padding: 0.2rem 0.2rem 0.2rem 1.15rem;
+/* The extension's toggle control, which is the chevron's home. It ships empty, so
+   the arrow is drawn here out of two borders. */
+.note-prose .note-toggle > button {
+  display: grid;
+  place-content: center;
+  width: 1.2rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   cursor: pointer;
-  list-style: none;
-  border-radius: 8px;
-  transition: background 0.12s ease;
+  /* Centred on the first line of the label, the same calculation the to-do
+     checkbox uses -- see the task list rules above. */
+  margin-top: calc((1.75em - 20px) / 2);
+  user-select: none;
 }
-.note-prose details.note-toggle > summary.note-toggle-summary::-webkit-details-marker {
-  display: none;
-}
-.note-prose details.note-toggle > summary.note-toggle-summary:hover {
-  background: #ffffff08;
-}
-/* The chevron is drawn with a rotated border rather than a font glyph so it
-   inherits the accent colour and animates. */
-.note-prose details.note-toggle > summary.note-toggle-summary::before {
+.note-prose .note-toggle > button::before {
   content: '';
-  position: absolute;
-  top: 0.5rem;
-  left: 0.2rem;
   width: 0.42rem;
   height: 0.42rem;
   border-right: 1.5px solid var(--color-light);
   border-bottom: 1.5px solid var(--color-light);
-  opacity: 0.55;
+  border-radius: 1px;
+  opacity: 0.6;
+  /* Closed points right, open points down. */
   transform: rotate(-45deg);
   transition: transform 0.15s ease, opacity 0.15s ease;
 }
-.note-prose details.note-toggle[open] > summary.note-toggle-summary::before {
+.note-prose .note-toggle.is-open > button::before {
   transform: rotate(45deg);
   opacity: 1;
-  color: var(--color-primary);
   border-color: var(--color-primary);
 }
-.note-prose details.note-toggle > summary.note-toggle-summary > * {
+.note-prose .note-toggle > button:hover::before {
+  opacity: 1;
+  border-color: var(--color-primary);
+}
+/* The wrapper the extension hangs the summary and the body off. `flex: 1` so a
+   long heading wraps across the full width instead of stopping at the panel. */
+.note-prose .note-toggle > div:not([data-type='detailsContent']) {
   flex: 1;
   min-width: 0;
 }
-.note-prose details.note-toggle > div.note-toggle-content {
-  padding-left: 1.25rem;
-  border-left: 1px solid #ffffff0f;
-  margin-left: 0.15rem;
+.note-prose .note-toggle summary.note-toggle-summary {
+  /* Bare text, so it has to stay an ordinary block: `display: flex` would promote
+     it to an anonymous flex item that cannot be given `flex: 1`, and it would then
+     neither fill the row nor wrap under a long heading. The marker is suppressed
+     even though this is no longer inside a `<details>`, because the element is
+     still a `<summary>` and some engines still draw one for it. */
+  display: block;
+  padding: 0.15rem 0.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background 0.12s ease;
 }
-/* data-toggle-level turns the summary into a heading, which is how Notion's
-   toggle heading differs from a toggle list: same node, different summary. */
-.note-prose details.note-toggle[data-toggle-level='1'] > summary.note-toggle-summary,
-.note-prose details.note-toggle[data-toggle-level='2'] > summary.note-toggle-summary,
-.note-prose details.note-toggle[data-toggle-level='3'] > summary.note-toggle-summary {
+.note-prose .note-toggle summary.note-toggle-summary::-webkit-details-marker {
+  display: none;
+}
+.note-prose .note-toggle summary.note-toggle-summary::marker {
+  content: '';
+}
+.note-prose .note-toggle summary.note-toggle-summary:hover {
+  background: #ffffff08;
+}
+.note-prose .note-toggle > div > div.note-toggle-content {
+  padding-left: 1rem;
+  border-left: 1px solid #ffffff0f;
+  margin-left: 0.2rem;
+}
+/* The extension toggles this attribute itself when the body is opened or closed.
+   Stated rather than inherited so that nothing below can override it by giving
+   the body a `display`. */
+.note-prose .note-toggle > div > div.note-toggle-content[hidden] {
+  display: none;
+}
+/* data-toggle-level turns the summary into a heading, which is how a toggle
+   heading differs from a toggle list: same node, different label. */
+.note-prose .note-toggle[data-toggle-level='1'] summary.note-toggle-summary,
+.note-prose .note-toggle[data-toggle-level='2'] summary.note-toggle-summary,
+.note-prose .note-toggle[data-toggle-level='3'] summary.note-toggle-summary {
   color: var(--color-primary);
   font-weight: 700;
   line-height: 1.3;
-  margin-top: 0.5rem;
 }
-.note-prose details.note-toggle[data-toggle-level='1'] > summary.note-toggle-summary { font-size: 1.5rem; }
-.note-prose details.note-toggle[data-toggle-level='2'] > summary.note-toggle-summary { font-size: 1.25rem; }
-.note-prose details.note-toggle[data-toggle-level='3'] > summary.note-toggle-summary { font-size: 1.05rem; }
-.note-prose details.note-toggle[data-toggle-level] > summary.note-toggle-summary::before {
-  /* Tracks the summary's own font size rather than a fixed offset, so the
-     chevron stays centred on the first line of a heading. */
-  top: 0.4em;
-}
+.note-prose .note-toggle[data-toggle-level='1'] summary.note-toggle-summary { font-size: 1.5rem; }
+.note-prose .note-toggle[data-toggle-level='2'] summary.note-toggle-summary { font-size: 1.25rem; }
+.note-prose .note-toggle[data-toggle-level='3'] summary.note-toggle-summary { font-size: 1.05rem; }
+/* The chevron is a sibling of the label rather than inside it, so it cannot track
+   the label's font size with an `em` offset the way a `::before` would. Stepped by
+   level instead, to land on the first line of the heading. */
+.note-prose .note-toggle[data-toggle-level='1'] > button { margin-top: 0.5rem; }
+.note-prose .note-toggle[data-toggle-level='2'] > button { margin-top: 0.35rem; }
+.note-prose .note-toggle[data-toggle-level='3'] > button { margin-top: 0.15rem; }
 
 /* ---------- focus mode ----------
    The Focus extension marks the caret's block with `has-focus`; the dimming is
@@ -5970,21 +6052,34 @@ textarea.form-control {
    One popup behind both entry points: "/" at the caret, and the grip beside a
    block. The handle menu adds a search box and a formatting strip above the
    command rows; neither is drawn for "/" because there is nothing to filter away
-   from and nothing selected to mark. */
+   from and nothing selected to mark.
+
+   Two panels, not one: the block types open *beside* the actions rather than
+   replacing them, so the panel you came from is still there underneath. The
+   submenu is positioned off the anchor, which is itself the main panel's box --
+   see `.slash-menu--submenu`. */
+.slash-menu-shell {
+  /* Deliberately plain. It is the hover target for both panels at once, so it has
+     to be an ancestor of the submenu -- but it must not be a box of its own, or
+     the caller would measure the wrapper instead of the panel it is placing. The
+     submenu is absolutely positioned and escapes it; the main panel fills it. */
+  display: block;
+}
 .slash-menu {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 230px;
-  /* Every block type is listed, so this scrolls rather than truncating. Sized so
-     roughly eight rows are visible without the wheel being needed for the
-     common cases. */
-  max-height: 330px;
-  padding: 0.3rem;
+  padding: 0.25rem;
   border: 1px solid #ffffff1f;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #111;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  /* Everything the menu can draw fits without the wheel. The height is left to
+     the content -- the rows are sized so the longest list (every block type,
+     under its four group headings) still clears an ordinary window -- and this is
+     only the backstop for a short one. */
+  max-height: calc(100dvh - 1rem);
   overflow-y: auto;
   /* Keeps a wheel gesture over the menu from scrolling the page underneath it. */
   overscroll-behavior: contain;
@@ -5998,27 +6093,35 @@ textarea.form-control {
   outline: none;
 }
 .slash-menu-heading {
-  padding: 0.3rem 0.5rem 0.4rem;
+  padding: 0.25rem 0.5rem 0.3rem;
   color: var(--color-primary);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .slash-menu-formats {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.1rem;
-  padding: 0.15rem 0.15rem 0.45rem;
+  /* One line, always. These are ten buttons and the panel is 268px wide, so a
+     wrapping strip put nine on the first line and the tenth -- almost always the
+     link button -- alone on a second one, which read as two separate rows of
+     tools. `nowrap` states the intent; the button size below is what makes it fit. */
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.15rem 0.15rem 0.35rem;
   margin-bottom: 0.25rem;
   border-bottom: 1px solid #ffffff1a;
 }
 .slash-menu-format {
   display: grid;
   place-content: center;
-  width: 28px;
-  height: 28px;
+  /* 24px x ten, plus the gaps and the strip's own padding, is 249px inside a
+     259px content box. One pixel more and the last button wraps. */
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
   border: none;
   border-radius: 25px;
   background: transparent;
@@ -6038,16 +6141,17 @@ textarea.form-control {
   opacity: 1;
 }
 .slash-menu-search {
-  padding: 0.1rem 0.15rem 0.4rem;
-}.slash-menu-input {
+  padding: 0.1rem 0.15rem 0.3rem;
+}
+.slash-menu-input {
   width: 100%;
-  padding: 0.35rem 0.55rem;
+  padding: 0.3rem 0.5rem;
   border: 1px solid #ffffff1a;
-  border-radius: 10px;
+  border-radius: 9px;
   background: #ffffff08;
   color: var(--color-light);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
 }
 .slash-menu-input:focus {
   outline: 1px solid var(--accent-border);
@@ -6056,7 +6160,7 @@ textarea.form-control {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.45rem 0.2rem 0.1rem;
+  padding: 0.35rem 0.2rem 0.1rem;
   margin-top: 0.25rem;
   border-top: 1px solid #ffffff1a;
   color: var(--color-primary);
@@ -6068,39 +6172,66 @@ textarea.form-control {
   background: var(--color-danger-dark);
 }
 
-/* The handle menu carries a search box and a formatting strip on top of a list
-   that already scrolls, so those two stay pinned. The negative offsets cancel
-   the container's own padding, which is what sticky positions against. The
-   selection menu is the same menu without the search box, so it needs the same
-   pinning for the same reason. */
+/* The handle menu carries a search box and a formatting strip on top of a list,
+   so those stay pinned if the list ever does scroll on a very short window. The
+   negative offsets cancel the container's own padding, which is what sticky
+   positions against. The selection menu is the same menu without the search box,
+   so it needs the same pinning for the same reason. */
 .slash-menu--block,
-.slash-menu--selection {
+.slash-menu--selection,
+.slash-menu--submenu {
   /* A fixed width, so the rows do not reflow as hints of different lengths come
-     and go with the query. */
-  width: 280px;
+     and go with the query -- and so the caller can reserve the same width before
+     the panel has been measured. */
+  width: 268px;
   min-width: 0;
-  max-height: min(420px, 70vh);
+  max-height: calc(100dvh - 1rem);
+}
+/* Where the block types sit relative to the actions. Absolute, so opening the
+   submenu does not reflow the main panel or push it around under the pointer. */
+.slash-menu--submenu {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+}
+.slash-menu--submenu-right {
+  left: 100%;
+  margin-left: 8px;
+}
+.slash-menu--submenu-left {
+  right: 100%;
+  margin-right: 8px;
+}
+/* The "/" catalogue keeps a bound of its own. It is positioned by TipTap, whose
+   suggestion mount only knows how to flip -- it cannot shift a tall popup back
+   inside the window -- so an unbounded menu would hang off the bottom on a short
+   screen. Every block type is listed here, which is why it may scroll at all;
+   70dvh is the most that still leaves room for the flip. */
+.slash-menu--slash {
+  max-height: min(70dvh, 640px);
 }
 .slash-menu--block .slash-menu-formats,
 .slash-menu--block .slash-menu-search,
 .slash-menu--selection .slash-menu-formats,
-.slash-menu--selection .slash-menu-back {
+.slash-menu--submenu .slash-menu-back {
   position: sticky;
   z-index: 1;
   background: #111;
 }
 .slash-menu--block .slash-menu-formats,
-.slash-menu--selection .slash-menu-formats {
-  top: -0.3rem;
+.slash-menu--selection .slash-menu-formats,
+.slash-menu--submenu .slash-menu-formats {
+  top: -0.25rem;
 }
 .slash-menu--block .slash-menu-search,
-.slash-menu--selection .slash-menu-back {
-  top: -0.3rem;
+.slash-menu--submenu .slash-menu-back {
+  top: -0.25rem;
 }
 .slash-menu--block .slash-menu-footer,
-.slash-menu--selection .slash-menu-footer {
+.slash-menu--selection .slash-menu-footer,
+.slash-menu--submenu .slash-menu-footer {
   position: sticky;
-  bottom: -0.3rem;
+  bottom: -0.25rem;
   background: #111;
 }
 /* The way out of "Turn into". Pinned for the same reason the formats are: the
@@ -6110,13 +6241,13 @@ textarea.form-control {
   align-items: center;
   gap: 0.3rem;
   width: 100%;
-  padding: 0.35rem 0.5rem;
+  padding: 0.3rem 0.5rem;
   border: none;
   border-bottom: 1px solid #ffffff1a;
   background: transparent;
   color: var(--color-primary);
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -6150,10 +6281,13 @@ textarea.form-control {
 .slash-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.4rem 0.5rem;
+  gap: 0.45rem;
+  /* Tight, because the panel has to hold every block type without scrolling. The
+     row is one line tall: title and hint sit side by side rather than stacked. */
+  padding: 0.12rem 0.4rem;
+  min-height: 1.45rem;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: var(--color-light);
   text-align: left;
@@ -6162,37 +6296,57 @@ textarea.form-control {
 .slash-menu-item--active {
   background: #ffffff12;
 }
+/* The block's own type, in the list of types it could be changed to. State, not
+   an explanation, so it is marked on the row rather than written out in words. */
+.slash-menu-item--current {
+  background: var(--accent-bg);
+}
+.slash-menu-item--current .slash-menu-icon {
+  color: var(--color-primary);
+  border-color: var(--accent-border);
+}
+.slash-menu-item--current .slash-menu-title {
+  color: var(--color-primary);
+}
 .slash-menu-icon {
   display: grid;
   place-content: center;
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   border: 1px solid #ffffff14;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #ffffff08;
   color: var(--color-primary);
 }
 .slash-menu-text {
-  display: flex;
-  flex-direction: column;
+  /* One line, truncating. The rows carry a title and nothing else: a hint
+     explaining what each command does turned every row into two lines, and a list
+     of sixteen block types then did not fit on a laptop screen without a
+     scrollbar. What the commands are called is enough -- that is what the user
+     is scanning for -- and the editor's help sheet ("?") is where the
+     descriptions live. */
+  flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .slash-menu-title {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
 }
-.slash-menu-hint {
-  color: var(--color-light);
-  opacity: 0.45;
-  font-size: 0.66rem;
+/* "Turn into" keeps its chevron, and is the row that opened the panel beside it,
+   so it stays lit while that panel is up. */
+.slash-menu-item--open {
+  background: #ffffff0f;
 }
 .slash-menu-group {
-  padding: 0.4rem 0.5rem 0.2rem;
+  padding: 0.32rem 0.5rem 0.1rem;
   color: var(--color-light);
   opacity: 0.35;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -6203,8 +6357,8 @@ textarea.form-control {
 .slash-menu-star {
   display: grid;
   place-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   border-radius: 6px;
   color: var(--color-light);
@@ -8646,9 +8800,8 @@ select.form-control option {
     padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
   }
 
-  /* Mobile: the day nav competes with the centered page title, so drop the
-     History shortcut, tighten the label, and shorten the save status to an
-     icon + time. */
+  /* Mobile: the day nav competes with the centered page title and the fixed-width
+     warning strip, so drop the History shortcut and tighten the label. */
   .navbar-day-nav .navbar-day-btn:last-child {
     display: none;
   }
@@ -8657,8 +8810,7 @@ select.form-control option {
     font-size: 0.68rem;
   }
   .navbar-save-status {
-    margin-right: 0.5rem;
-    max-width: 6.5rem;
+    max-width: 5.5rem;
   }
 
   .navbar-user-wrap {
@@ -8704,7 +8856,9 @@ select.form-control option {
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  width: 50rem;
+  max-width: 100%;
   height: 1.85rem;
   padding: 0 0.6rem;
   border: none;
@@ -8712,7 +8866,7 @@ select.form-control option {
   background: linear-gradient(90deg, rgba(255, 46, 74, 0.26), rgba(255, 46, 74, 0.08));
   color: #ff8a94;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   line-height: 1;
   text-align: left;
   cursor: pointer;
@@ -8761,6 +8915,10 @@ select.form-control option {
 @media (max-width: 768px) {
   .academic-alert {
     height: 1.5rem;
+    /* The same fixed width idea at a size that fits: the bar is carrying the day
+       controls and the menu button as well, so the strip keeps a predictable
+       fraction of the screen and truncates the rest. */
+    width: 8.5rem;
     gap: 0.25rem;
     padding: 0 0.45rem;
     font-size: 0.62rem;

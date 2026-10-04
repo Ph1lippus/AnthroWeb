@@ -128,16 +128,24 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                 )}
             </nav>
 
-            {trashedCount > 0 && (
-                <button
-                    type="button"
-                    className={`notes-trash-btn${showTrash ? ' notes-trash-btn--on' : ''}`}
-                    onClick={onToggleTrash}
-                >
-                    {showTrash ? <RotateCcw size={13} /> : <Trash2 size={13} />}
-                    {showTrash ? 'Back to notes' : `Trash (${trashedCount})`}
-                </button>
-            )}
+            {/* Always rendered, never behind a count.
+                This one button is both "open the trash" and "leave the trash",
+                and hiding it when the trash is empty meant that emptying the
+                trash from inside the trash view removed the only way out of it.
+                The count is still there when there is something to count. */}
+            <button
+                type="button"
+                className={`notes-trash-btn${showTrash ? ' notes-trash-btn--on' : ''}`}
+                onClick={onToggleTrash}
+                aria-pressed={showTrash}
+            >
+                {showTrash ? <RotateCcw size={13} /> : <Trash2 size={13} />}
+                {showTrash
+                    ? 'Back to notes'
+                    : trashedCount > 0
+                      ? `Trash (${trashedCount})`
+                      : 'Trash'}
+            </button>
         </aside>
     );
 };
