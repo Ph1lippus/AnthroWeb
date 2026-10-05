@@ -170,19 +170,26 @@ export const updateUserSettings = async (settings: UserSettings) => {
     return data;
 };
 
-// Get latest body measurements for progress calculation
+/**
+ * The most recent body composition on record.
+ *
+ * Reads `body_measurements`, which is where weight and body fat have lived since
+ * migration 0013. It read `daily_logs` before that despite the name, so the
+ * Profile page was showing whatever happened to be typed into the daily form
+ * rather than an actual measurement.
+ */
 export const getLatestBodyMeasurements = async () => {
     const userId = await getCurrentUserId();
     if (!userId) return null;
-    
+
     const { data, error } = await supabase
-        .from('daily_logs')
-        .select('weight, body_fat, log_date')
+        .from('body_measurements')
+        .select('weight, body_fat, measure_date')
         .eq('user_id', userId)
-        .not('weight', 'is', null)
-        .order('log_date', { ascending: false })
+        .or('weight.not.is.null,body_fat.not.is.null')
+        .order('measure_date', { ascending: false })
         .limit(1);
-    
+
     if (error) {
         console.error('Error fetching body measurements:', error.message);
         return null;

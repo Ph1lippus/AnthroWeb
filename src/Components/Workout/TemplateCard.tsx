@@ -153,7 +153,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
                                 type="button"
                                 className="book-action-btn"
                                 onClick={onEdit}
-                                title="Edit template"
+                                data-tip="Edit template"
                             >
                                 <SquarePen />
                             </button>
@@ -161,7 +161,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
                                 type="button"
                                 className="book-action-btn book-action-btn--danger"
                                 onClick={() => setDropping(true)}
-                                title="Delete template"
+                                data-tip="Delete template"
                             >
                                 <Trash2 />
                             </button>

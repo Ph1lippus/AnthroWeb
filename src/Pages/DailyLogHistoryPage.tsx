@@ -47,8 +47,6 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.carbs) chips.push({ label: 'Carbs', value: `${log.carbs}g` });
         if (log.fat) chips.push({ label: 'Fat', value: `${log.fat}g` });
         if (log.water) chips.push({ label: 'Water', value: `${log.water}ml` });
-        if (log.weight) chips.push({ label: 'Weight', value: `${log.weight}kg` });
-        if (log.body_fat) chips.push({ label: 'Body Fat', value: `${log.body_fat}%` });
         if (log.mood) chips.push({ label: 'Mood', value: `${log.mood}/10` });
         const habits = BUILTIN_HABITS.filter(h => (log as unknown as Record<string, unknown>)[h.column]).length;
         if (habits > 0) chips.push({ label: 'Habits', value: `${habits}/${BUILTIN_HABIT_COUNT}` });
@@ -114,21 +112,21 @@ const DailyLogHistoryPage: React.FC = () => {
                                             <button
                                                 onClick={() => navigate(`/Daily-Log/Edit/${log.id}`)}
                                                 className="log-history-action"
-                                                title="Edit log"
+                                                data-tip="Edit log"
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => navigate(`/Journal/Edit/${log.id}`)}
                                                 className="log-history-action"
-                                                title="Edit journal"
+                                                data-tip="Edit journal"
                                             >
                                                 Journal
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(log)}
                                                 className="log-history-action log-history-action--danger"
-                                                title="Delete log"
+                                                data-tip="Delete log"
                                             >
                                                 Delete
                                             </button>

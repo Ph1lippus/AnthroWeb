@@ -89,7 +89,7 @@ const SemesterContainer: React.FC<SemesterContainerProps> = ({
 
                 <span className="collapse-head__right">
                     {semesterGpa.gpa !== null && (
-                        <span className="semester-gpa" title={`Semester GPA on the ${scale.name} scale`}>
+                        <span className="semester-gpa" data-tip={`Semester GPA on the ${scale.name} scale`}>
                             {formatGpa(semesterGpa.gpa, scale)}
                         </span>
                     )}
@@ -135,14 +135,14 @@ const SemesterContainer: React.FC<SemesterContainerProps> = ({
                         <button type="button" className="btn-action" onClick={() => onAddCourse(semester)}>
                             <Plus size={13} /> Add course
                         </button>
-                        <button type="button" className="book-action-btn" onClick={() => onEdit(semester)} title="Edit semester">
+                        <button type="button" className="book-action-btn" onClick={() => onEdit(semester)} data-tip="Edit semester">
                             <SquarePen />
                         </button>
                         <button
                             type="button"
                             className="book-action-btn book-action-btn--danger"
                             onClick={() => onDelete(semester)}
-                            title="Delete semester"
+                            data-tip="Delete semester"
                         >
                             <Trash2 />
                         </button>

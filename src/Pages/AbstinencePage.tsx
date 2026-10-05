@@ -395,7 +395,7 @@ const AbstinencePage: React.FC = () => {
                         <button
                             onClick={() => openEditModal(goal)}
                             className="abstinence-action-btn"
-                            title="Edit goal"
+                            data-tip="Edit goal"
                             aria-label="Edit goal"
                         >
                             <SquarePen />
@@ -403,7 +403,7 @@ const AbstinencePage: React.FC = () => {
                         <button
                             onClick={() => setEndTarget(goal)}
                             className="abstinence-action-btn abstinence-action-btn--end"
-                            title="End streak (move to history)"
+                            data-tip="End streak (move to history)"
                             aria-label="End streak"
                         >
                             <Flag />
@@ -414,7 +414,7 @@ const AbstinencePage: React.FC = () => {
                                 setDeleteType('goal');
                             }}
                             className="abstinence-action-btn abstinence-action-btn--danger"
-                            title="Delete goal"
+                            data-tip="Delete goal"
                             aria-label="Delete goal"
                         >
                             <Trash2 />
@@ -474,7 +474,7 @@ const AbstinencePage: React.FC = () => {
                             setDeleteType('history');
                         }}
                         className="abstinence-action-btn abstinence-action-btn--danger"
-                        title="Delete history entry"
+                        data-tip="Delete history entry"
                         aria-label="Delete history entry"
                     >
                         <Trash2 />
@@ -783,14 +783,14 @@ const AbstinencePage: React.FC = () => {
                                         openEditModal(g);
                                     }}
                                     className="abstinence-action-btn"
-                                    title="Edit"
+                                    data-tip="Edit"
                                 >
                                     <SquarePen />
                                 </button>
                                 <button
                                     onClick={() => setViewGoal(null)}
                                     className="abstinence-action-btn"
-                                    title="Close"
+                                    data-tip="Close"
                                 >
                                     <X />
                                 </button>

@@ -59,7 +59,7 @@ const UpcomingPanel: React.FC<UpcomingPanelProps> = ({ courses, items, now, onSe
                             className={`upcoming-row${urgent ? ' upcoming-row--urgent' : ''}`}
                             onClick={() => onSelect?.(entry)}
                             disabled={!onSelect}
-                            title={`${entry.item.name} · ${entry.course.name}${
+                            data-tip={`${entry.item.name} · ${entry.course.name}${
                                 entry.item.weight > 0 ? ` · worth ${entry.item.weight}%` : ''
                             }`}
                         >

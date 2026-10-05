@@ -564,14 +564,29 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
                                 isSelected ? ' slash-menu-item--active' : ''
                             }${submenuVisible ? ' slash-menu-item--open' : ''}`}
                             onMouseDown={event => {
+                                // Not `selectRow`, which opens the panel. For a mouse
+                                // the panel is already open -- the pointer had to be on
+                                // this row to press it, and hovering is what opens it.
+                                // Routing the press through `selectRow` meant the panel
+                                // could be standing with the pointer somewhere else
+                                // entirely, which is the opposite of hover-to-open.
+                                // The keyboard still comes through `selectRow`, from
+                                // Enter, and has its own path in ArrowRight.
                                 event.preventDefault();
-                                selectRow(row);
+                                cancelClose();
+                                setSelectedMain(index);
                             }}
                             onMouseEnter={() => {
                                 cancelClose();
                                 setTurnIntoOpen(true);
                                 setSelectedMain(index);
                             }}
+                            // Leaving the row sideways -- into the panel's padding, or
+                            // out towards the panel it opens -- closes it again. Without
+                            // this the only ways to close were entering another row and
+                            // leaving the whole menu, so a pointer that left the row
+                            // through the gap beside it left the panel standing.
+                            onMouseLeave={scheduleClose}
                         >
                             <span className="slash-menu-icon">
                                 <Type size={14} strokeWidth={1.8} />
@@ -631,7 +646,12 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
                             role="button"
                             tabIndex={-1}
                             className={`slash-menu-star${isStarred ? ' slash-menu-star--on' : ''}`}
-                            title={isStarred ? 'Remove from favourites' : 'Add to favourites'}
+                            data-tip={isStarred ? 'Remove from favourites' : 'Add to favourites'}
+                            // It is a `role="button"` with nothing but a glyph inside it,
+                            // so `title` was its entire accessible name. Renaming the
+                            // attribute would have left a control that announces as
+                            // "button" and nothing else.
+                            aria-label={isStarred ? 'Remove from favourites' : 'Add to favourites'}
                             onMouseDown={event => toggleFavourite(event, item.id)}
                         >
                             <Star size={12} fill={isStarred ? 'currentColor' : 'none'} />
@@ -726,7 +746,7 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
                                             type="button"
                                             key={format.id}
                                             className={`slash-menu-format${format.active ? ' slash-menu-format--on' : ''}`}
-                                            title={format.label}
+                                            data-tip={format.label}
                                             aria-label={format.label}
                                             aria-pressed={format.active ?? false}
                                             onMouseDown={event => {
@@ -790,6 +810,13 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
                         data-panel="submenu"
                         role="listbox"
                         aria-label="Block types"
+                        // Its own pair, not the shell's. Both panels are children of
+                        // one shell, so crossing from the "Turn into" row into this
+                        // panel never leaves the shell and the shell's mouseenter
+                        // never fires again -- which means this is the only thing
+                        // that can call off the close that leaving the row started.
+                        onMouseEnter={cancelClose}
+                        onMouseLeave={scheduleClose}
                     >
                         {/* The way out, where there is nowhere else to go: with the
                             panel beside the menu, Left and Escape are available to a

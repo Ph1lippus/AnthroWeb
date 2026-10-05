@@ -37,7 +37,8 @@ interface UserSettingsData {
 interface LatestMeasurements {
     weight: number | null;
     body_fat: number | null;
-    log_date: string | null;
+    /** A measurement's own date. Was `log_date`, back when this read the log. */
+    measure_date: string | null;
 }
 
 const ProfilePage: React.FC = () => {
@@ -192,10 +193,10 @@ const ProfilePage: React.FC = () => {
                             <p className="profile-email">{userEmail}</p>
                         </div>
                         <div className="profile-header-actions">
-                            <Link to="/Daily-Log/Setup" className="profile-edit-btn" aria-label="Edit daily goals" title="Edit daily goals">
+                            <Link to="/Daily-Log/Setup" className="profile-edit-btn" aria-label="Edit daily goals" data-tip="Edit daily goals">
                                 <Target />
                             </Link>
-                            <Link to="/profile/edit" className="profile-edit-btn" aria-label="Edit profile" title="Edit profile">
+                            <Link to="/profile/edit" className="profile-edit-btn" aria-label="Edit profile" data-tip="Edit profile">
                                 <Pencil />
                             </Link>
                         </div>
@@ -271,7 +272,7 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                     <div className="profile-info-item">
                                         <span className="profile-info-label">Measurements Logged</span>
-                                        <span className="profile-info-value">{latestMeasurements?.log_date || 'Never'}</span>
+                                        <span className="profile-info-value">{latestMeasurements?.measure_date || 'Never'}</span>
                                     </div>
                                 </div>
                             </div>

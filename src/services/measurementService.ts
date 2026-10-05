@@ -1,10 +1,37 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
+import { buildCompositionPayload } from '../utils/compositionPayload';
 import type { MeasurementInput } from '../utils/measurementCalculations';
+
+/**
+ * How a body-fat percentage was obtained.
+ *
+ * `navy` is the odd one out: it is derived from circumference measurements by
+ * the US Navy method rather than read off anything. Kept distinct so the chart
+ * and the score can tell an estimate from a measurement.
+ */
+export type BodyFatMethod = 'scale' | 'calipers' | 'navy' | 'manual';
 
 export interface BodyMeasurement extends MeasurementInput {
     id?: string;
     user_id?: string;
     measure_date: string;
+    /**
+     * Body fat percentage. Migration 0013.
+     *
+     * A real column, because there was nowhere to put a number you actually read.
+     * The Navy circumference method has always derived one into `fat_mass` --
+     * stored as weight x bodyFat% / 100 -- so before this the only way to see a
+     * body fat percentage for a measurement was to divide it back out.
+     */
+    body_fat?: number | null;
+    /**
+     * How `body_fat` was arrived at. Migration 0013.
+     *
+     * Without it a tape estimate is indistinguishable from a weigh-in, which
+     * matters most when the two disagree. Null means unknown, which is the honest
+     * default for a column added to existing rows.
+     */
+    body_fat_method?: BodyFatMethod | null;
     waist_hip_ratio?: number | null;
     waist_height_ratio?: number | null;
     shoulder_waist_ratio?: number | null;
@@ -131,6 +158,8 @@ export const deleteBodyMeasurement = async (id: string) => {
 // Derived touches a lot of columns; keep the payload building explicit.
 const rawMeasurementFields = (m: BodyMeasurement) => ({
     weight: m.weight ?? null,
+    body_fat: m.body_fat ?? null,
+    body_fat_method: m.body_fat ?? null ? m.body_fat_method ?? null : null,
     wrist_left: m.wrist_left ?? null,
     wrist_right: m.wrist_right ?? null,
     neck: m.neck ?? null,
@@ -174,16 +203,24 @@ const derivedMeasurementFields = (m: BodyMeasurement) => ({
     dynamic_strength: m.dynamic_strength ?? null,
 });
 
+/**
+ * The latest weight on record.
+ *
+ * Reads `body_measurements`, which is where weight lives. It used to read
+ * `daily_logs.weight` -- a column that no longer exists -- and its name always
+ * said measurements while its body said daily log, so the Measurements page
+ * prefilled from the wrong table and the two drifted apart.
+ */
 export const getLatestWeightForMeasurement = async (): Promise<number | null> => {
     const userId = await getCurrentUserId();
     if (!userId) return null;
 
     const { data, error } = await supabase
-        .from('daily_logs')
+        .from('body_measurements')
         .select('weight')
         .eq('user_id', userId)
         .not('weight', 'is', null)
-        .order('log_date', { ascending: false })
+        .order('measure_date', { ascending: false })
         .limit(1);
 
     if (error) {
@@ -191,4 +228,55 @@ export const getLatestWeightForMeasurement = async (): Promise<number | null> =>
         return null;
     }
     return data[0]?.weight ?? null;
+};
+
+/**
+ * Records a weight and/or body fat for one date, leaving the rest of that day's
+ * measurement alone.
+ *
+ * `saveBodyMeasurement` cannot be used for this. It builds its payload from the
+ * whole `BodyMeasurement` shape and nulls every field it was not given, so
+ * writing a morning weight through it would blank the circumference measurements
+ * for the same day -- and vice versa, filling in a tape measurement would wipe a
+ * weight. This sends only the columns actually being written, which is what
+ * makes it safe to call from a form that knows nothing about circumferences.
+ *
+ * `undefined` and `null` mean different things, and the difference is the whole
+ * point of having a second writer:
+ *
+ * - `undefined` -- not mentioned, leave the column alone. This is what keeps a
+ *   two-box Daily Log from deleting the tape measurements recorded for the same
+ *   date.
+ * - `null` -- write the null. An emptied box means the reading is gone, and it
+ *   has to be removable from here as well as from the Measurements page,
+ *   otherwise a mistyped weight is wedged in forever.
+ */
+export const logBodyComposition = async (input: {
+    measure_date: string;
+    weight?: number | null;
+    body_fat?: number | null;
+    body_fat_method?: BodyFatMethod | null;
+}): Promise<BodyMeasurement | null> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    const payload = buildCompositionPayload(userId, input.measure_date, input);
+    if (input.body_fat !== undefined) {
+        payload.body_fat = input.body_fat;
+        // A body fat that has been removed takes its method with it, or a cleared
+        // reading would go on claiming it was measured on a scale.
+        payload.body_fat_method = input.body_fat === null ? null : input.body_fat_method ?? 'manual';
+    }
+
+    const { data, error } = await supabase
+        .from('body_measurements')
+        .upsert(payload, { onConflict: 'user_id,measure_date' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error logging body composition:', error.message);
+        return null;
+    }
+    return data as BodyMeasurement;
 };

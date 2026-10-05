@@ -80,7 +80,7 @@ const SetTable: React.FC<SetTableProps> = ({ sets, onChange, weightUnit, showNum
                         <button
                             type="button"
                             className="workout-set-table__action"
-                            title="Copy this set's values to every other set"
+                            data-tip="Copy this set's values to every other set"
                             aria-label={`Apply set ${index + 1} to all sets`}
                             disabled={disabled || sets.length < 2}
                             onClick={() => applyRowToAll(index)}
@@ -90,7 +90,7 @@ const SetTable: React.FC<SetTableProps> = ({ sets, onChange, weightUnit, showNum
                         <button
                             type="button"
                             className="workout-set-table__action workout-set-table__action--danger"
-                            title={`Remove set ${index + 1}`}
+                            data-tip={`Remove set ${index + 1}`}
                             aria-label={`Remove set ${index + 1}`}
                             disabled={disabled}
                             onClick={() => onChange(sets.filter((_, i) => i !== index))}

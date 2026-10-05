@@ -54,7 +54,11 @@ const GpaScalePicker: React.FC<GpaScalePickerProps> = ({
                 className="scale-picker__select"
                 value={active.id ?? ''}
                 onChange={event => onSelect(event.target.value)}
-                title="Choose which scale grades are shown in"
+                data-tip="Choose which scale grades are shown in"
+                // The select has no visible label, so `title` was its only
+                // accessible name. Renaming the attribute to `data-tip` would
+                // have left a control with no name at all.
+                aria-label="Grading scale"
             >
                 {scales.map(scale => (
                     <option key={scale.id} value={scale.id ?? ''}>
@@ -64,7 +68,7 @@ const GpaScalePicker: React.FC<GpaScalePickerProps> = ({
             </select>
 
             {showRounding && (
-                <label className="scale-picker__rounding" title="How a running result becomes the whole grade the teacher reports">
+                <label className="scale-picker__rounding" data-tip="How a running result becomes the whole grade the teacher reports">
                     <span className="academic-kicker">Rounding</span>
                     <select
                         value={active.rounding}
@@ -83,7 +87,7 @@ const GpaScalePicker: React.FC<GpaScalePickerProps> = ({
             {others.length > 0 && (
                 <span
                     className="weight-badge weight-badge--empty"
-                    title={`${sample}% reads as...`}
+                    data-tip={`${sample}% reads as...`}
                 >
                     {others.map(scale => `${readout(sample, scale)} ${scale.name}`).join('  ·  ')}
                 </span>

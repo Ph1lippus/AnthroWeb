@@ -8,6 +8,16 @@ import {
 import { getUserAbstinenceGoals, getUserAbstinenceHistory } from '../services/abstinenceService';
 import { queryKeys } from '../utils/queryKeys';
 
+/** One flag per card, so a slow query cannot hold up a card that does not need it. */
+export interface DashboardExtrasPending {
+    reading: boolean;
+    academics: boolean;
+    courses: boolean;
+    study: boolean;
+    abstinence: boolean;
+    streak: boolean;
+}
+
 export const useDashboardExtras = () => {
     const books = useQuery({ queryKey: queryKeys.books, queryFn: getUserBooks, staleTime: 30_000 });
     const courses = useQuery({ queryKey: queryKeys.academicCourses, queryFn: getUserAcademicCourses, staleTime: 30_000 });
@@ -23,13 +33,18 @@ export const useDashboardExtras = () => {
         studySessions: studySessions.data ?? [],
         abstinenceGoals: goals.data ?? [],
         abstinenceHistory: history.data ?? [],
-        isLoading: [
-            books,
-            courses,
-            academicItems,
-            studySessions,
-            goals,
-            history,
-        ].some(query => query.isLoading),
+        // Per card, not one flag for the lot. A single `some(isLoading)` made the
+        // slowest of the six hold all six at their placeholder until it landed, so
+        // the row filled in as one block at the end rather than as each answer
+        // arrived -- which is what made it look like the row was loading while the
+        // row above it had finished.
+        pending: {
+            reading: books.isLoading,
+            academics: books.isLoading,
+            courses: courses.isLoading || academicItems.isLoading,
+            study: studySessions.isLoading,
+            abstinence: goals.isLoading,
+            streak: history.isLoading,
+        } satisfies DashboardExtrasPending,
     };
 };

@@ -1,7 +1,14 @@
 import type { Editor } from '@tiptap/core';
 import type { SlashCommand, SlashIconName } from './noteEditorExtensions';
 import type { BlockTarget } from './noteBlockActions';
-import { deleteBlocks, duplicateBlocks, moveBlocks, setLinkOnSelection } from './noteBlockActions';
+import {
+    deleteBlocks,
+    duplicateBlocks,
+    isMarkedOver,
+    moveBlocks,
+    overTarget,
+    setLinkOnSelection,
+} from './noteBlockActions';
 
 /**
  * The items the block menu is built from, other than the type conversions.
@@ -25,12 +32,22 @@ export interface FormatAction {
 }
 
 /**
- * The inline marks, for a selection rather than a block.
+ * The inline marks, for a range of the document rather than a selection.
  *
  * These sit in a strip above the command list instead of in rows of their own,
  * because they read as one row of formatting buttons -- which is exactly what
  * they were in the toolbar this replaced, and the point of replacing it was
  * where that toolbar appeared, not what it looked like.
+ *
+ * They act on `target`, the same block range every other action in this menu gets,
+ * and that is the whole reason they take it. `toggleMark` works off
+ * `state.selection`, which is the caret's own position and has nothing to do with
+ * the block whose grip was clicked. Left that way, marking from the handle put a
+ * *pending* mark on the caret's block -- so the line under the pointer did not
+ * change, and the button looked broken rather than mis-aimed. Underline and
+ * strikethrough were the ones noticed; every mark here was affected, and the
+ * selection menu only worked because there the target and the selection are the
+ * same range.
  *
  * Offered on a collapsed caret too, which is what they do in every other editor:
  * ProseMirror keeps the mark as a pending one, so the text typed next comes out
@@ -38,7 +55,7 @@ export interface FormatAction {
  * nothing, and it worked backwards -- a menu opened from the block handle showed
  * no formatting at all, so the buttons looked absent rather than deferred.
  */
-export const buildFormatActions = (editor: Editor): FormatAction[] => {
+export const buildFormatActions = (editor: Editor, target: BlockTarget): FormatAction[] => {
     // Every inline mark in the set is a plain mark, so one command covers all of
     // them. The per-mark shortcuts the old toolbar advertised (toggleCode,
     // toggleSubscript, ...) are all this same call with a different name, and
@@ -47,8 +64,10 @@ export const buildFormatActions = (editor: Editor): FormatAction[] => {
         id,
         label,
         icon,
-        active: editor.isActive(markName),
-        run: () => editor.chain().focus().toggleMark(markName).run(),
+        // Read over the target range rather than the selection, or the button
+        // lights up because of whatever block the caret happens to be in.
+        active: isMarkedOver(editor, target, markName),
+        run: () => overTarget(editor, target, () => editor.chain().focus().toggleMark(markName).run()),
     });
 
     const actions: FormatAction[] = [
@@ -64,19 +83,22 @@ export const buildFormatActions = (editor: Editor): FormatAction[] => {
 
     actions.push({
         id: 'link',
-        label: editor.isActive('link') ? 'Edit link' : 'Link',
+        label: isMarkedOver(editor, target, 'link') ? 'Edit link' : 'Link',
         icon: 'Link',
-        active: editor.isActive('link'),
-        run: () => setLinkOnSelection(editor),
+        active: isMarkedOver(editor, target, 'link'),
+        run: () => setLinkOnSelection(editor, target),
     });
-    // Only drawn while the selection is already a link, so the second button is
-    // the one that undoes what the first did.
-    if (editor.isActive('link')) {
+    // Only drawn while the target is already a link, so the second button is the
+    // one that undoes what the first did.
+    if (isMarkedOver(editor, target, 'link')) {
         actions.push({
             id: 'unlink',
             label: 'Remove link',
             icon: 'LinkOff',
-            run: () => editor.chain().focus().extendMarkRange('link').unsetLink().run(),
+            run: () =>
+                overTarget(editor, target, () =>
+                    editor.chain().focus().extendMarkRange('link').unsetLink().run(),
+                ),
         });
     }
 

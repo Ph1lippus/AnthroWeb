@@ -35,7 +35,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
 
     if (check.balanced) {
         return (
-            <span className="weight-badge weight-badge--ok" title="Weights add up to 100%">
+            <span className="weight-badge weight-badge--ok" data-tip="Weights add up to 100%">
                 100%
             </span>
         );
@@ -50,7 +50,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
                     className="weight-fix"
                     onClick={distribute}
                     disabled={busy || !canAssign}
-                    title="Give every input an equal share of 100%"
+                    data-tip="Give every input an equal share of 100%"
                 >
                     Distribute
                 </button>
@@ -62,7 +62,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
     const shortfall = Math.abs(check.missing);
 
     return (
-        <span className="weight-badge weight-badge--off" title={overshoot ? 'Weights overshoot 100%' : 'Weights do not add up to 100% yet'}>
+        <span className="weight-badge weight-badge--off" data-tip={overshoot ? 'Weights overshoot 100%' : 'Weights do not add up to 100% yet'}>
             {check.total}%
             <span style={{ opacity: 0.8 }}>
                 {overshoot ? `+${shortfall} over` : `${shortfall} left`}
@@ -72,7 +72,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
                 className="weight-fix"
                 onClick={distribute}
                 disabled={busy || !canAssign}
-                title="Split 100% equally between these inputs"
+                data-tip="Split 100% equally between these inputs"
             >
                 Distribute
             </button>
@@ -81,7 +81,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
                 className="weight-fix"
                 onClick={normalize}
                 disabled={busy || !canAssign}
-                title="Rescale these inputs to sum to 100%, keeping their ratios"
+                data-tip="Rescale these inputs to sum to 100%, keeping their ratios"
             >
                 Normalise
             </button>

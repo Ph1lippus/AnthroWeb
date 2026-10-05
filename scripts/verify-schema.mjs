@@ -173,7 +173,7 @@ const cols = (await db.query(
       where table_schema='public' and table_name='notes' order by column_name`,
 )).rows.map(r => r.column_name);
 for (const c of ['id', 'user_id', 'title', 'content', 'is_pinned', 'notes_color', 'notes_icon',
-    'notes_cover', 'notes_parent_id', 'notes_deleted_at', 'notes_tags']) {
+    'notes_cover', 'notes_parent_id', 'notes_position', 'notes_deleted_at', 'notes_tags']) {
     check(`column ${c}`, cols.includes(c), cols.join(','));
 }
 // A real regression: notes used a bare `deleted_at`, which collided with the
@@ -188,12 +188,89 @@ const titleNull = (await db.query(
 // the blank page the editor inserts impossible to create.
 check('title allows null (untitled sub-pages)', titleNull === 'YES', titleNull);
 
+// notes_position orders the rail and is written by every drag. It has to default
+// to a value rather than to null: the client reads it as `?? 0` and sorts on it,
+// so a nullable column would make the default branch of that read the only branch
+// ever taken and the drag order silently meaningless.
+const positionColumn = (await db.query(
+    `select is_nullable, column_default, data_type from information_schema.columns
+      where table_schema='public' and table_name='notes' and column_name='notes_position'`,
+)).rows[0];
+check('notes_position is not nullable',
+    positionColumn?.is_nullable === 'NO', String(positionColumn?.is_nullable));
+check('notes_position defaults to a number',
+    /^\s*'?0'?\s*$/.test(String(positionColumn?.column_default ?? '')),
+    String(positionColumn?.column_default));
+// The type is load-bearing, not cosmetic. A drag stores the midpoint of two
+// positions, so the column has to hold a fraction: on an `integer` one, 0.5 is
+// stored as 1, every drop between two siblings lands on top of one of them, and
+// the reorder does nothing while looking like it worked. Asserted here because
+// nothing else would notice -- the list still renders, still in a valid order,
+// just not the order that was asked for.
+check('notes_position holds fractions',
+    positionColumn?.data_type === 'numeric', positionColumn?.data_type);
+
+// And proved on the actual column rather than by its type alone, since a numeric
+// column declared with a scale of 0 would satisfy the type check and round all the
+// same.
+const USER = '00000000-0000-0000-0000-0000000000aa';
+await db.query(`insert into auth.users (id) values ('${USER}')`).catch(() => {});
+await db.query(
+    `insert into public.notes (user_id, title, notes_position) values ($1, 'midpoint', 0.25)`,
+    [USER],
+);
+const { rows: midpoint } = await db.query(
+    `select notes_position from public.notes where title = 'midpoint'`,
+);
+check('a fractional position round-trips through the column',
+    Number(midpoint[0]?.notes_position) === 0.25, String(midpoint[0]?.notes_position));
+
 const parentFk = (await db.query(
     `select count(*)::int as n from pg_constraint
       where conrelid = 'public.notes'::regclass and contype = 'f'
         and confrelid = 'public.notes'::regclass`,
 )).rows[0]?.n;
 check('notes_parent_id references notes', parentFk > 0, `foreign keys to self: ${parentFk}`);
+
+// ---------------------------------------------------------------------------
+// Body composition. Migration 0013 collapsed weight and body fat out of
+// `daily_logs` and into `body_measurements`, which already held weight. The whole
+// point was one record per date in one place, so "the old columns are gone" is
+// as much a part of the shape as the new ones being there: leaving them would
+// leave a second place to write a weight, which is the redundancy the migration
+// removed.
+// ---------------------------------------------------------------------------
+console.log('\n== body composition ==');
+const measCols = (await db.query(
+    `select column_name from information_schema.columns
+      where table_schema='public' and table_name='body_measurements'`,
+)).rows.map(r => r.column_name);
+check('body_measurements holds body_fat', measCols.includes('body_fat'), measCols.join(','));
+check('body_measurements holds body_fat_method', measCols.includes('body_fat_method'), measCols.join(','));
+check('body_measurements still holds weight', measCols.includes('weight'), measCols.join(','));
+
+const dailyLogCols = (await db.query(
+    `select column_name from information_schema.columns
+      where table_schema='public' and table_name='daily_logs'`,
+)).rows.map(r => r.column_name);
+check('daily_logs no longer holds weight', !dailyLogCols.includes('weight'), dailyLogCols.join(','));
+check('daily_logs no longer holds body_fat', !dailyLogCols.includes('body_fat'), dailyLogCols.join(','));
+
+// The method vocabulary is load-bearing: the chart and the score use it to tell
+// a reading off a scale from an estimate derived from circumferences, and an
+// unexpected word there is silently indistinguishable from a typo.
+const { rows: methodVocabulary } = await db.query(
+    `select pg_get_constraintdef(oid) as def from pg_constraint
+      where conrelid = 'public.body_measurements'::regclass and contype = 'c'
+        and pg_get_constraintdef(oid) ilike '%body_fat_method%'`,
+);
+for (const method of ['scale', 'calipers', 'navy', 'manual']) {
+    check(`body_fat_method accepts '${method}'`,
+        (methodVocabulary[0]?.def ?? '').includes(method), methodVocabulary[0]?.def ?? 'no constraint');
+}
+check('body_fat_method allows null, meaning unknown',
+    (methodVocabulary[0]?.def ?? '').toUpperCase().includes('NULL'),
+    methodVocabulary[0]?.def ?? 'no constraint');
 
 // ---------------------------------------------------------------------------
 // Workouts. Everything here is an invariant the client assumes and Postgres is

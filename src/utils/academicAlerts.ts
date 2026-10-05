@@ -22,16 +22,62 @@ export interface UpcomingEntry {
 
 export interface AcademicAlert {
     id: string;
-    /** The full sentence shown in the navbar. */
-    message: string;
-    /** Short form for narrow layouts. */
-    shortMessage: string;
+    /**
+     * The one line the navigation rail shows.
+     *
+     * Says what the work *is*, not how many subjects it spans. "3 exams in 5
+     * days" tells you what to sit down and do; "3 subjects in 5 days" does not,
+     * and it was the form the old grouping produced because it counted courses.
+     */
+    text: string;
     /** Days until the soonest item in this cluster. */
     days: number;
     count: number;
     urgent: boolean;
     entries: UpcomingEntry[];
 }
+
+/**
+ * How each kind of work is named in a sentence, singular and plural.
+ *
+ * Plural is a separate string rather than an `s` appended, because "quiz" does
+ * not take one.
+ */
+const CATEGORY_NOUNS: Record<ItemCategory, { one: string; many: string }> = {
+    exam: { one: 'exam', many: 'exams' },
+    homework: { one: 'homework', many: 'homeworks' },
+    quiz: { one: 'quiz', many: 'quizzes' },
+    project: { one: 'project', many: 'projects' },
+    lab: { one: 'lab report', many: 'lab reports' },
+    participation: { one: 'participation grade', many: 'participation grades' },
+    other: { one: 'item', many: 'items' },
+};
+
+const nounFor = (category: ItemCategory) => CATEGORY_NOUNS[category] ?? CATEGORY_NOUNS.other;
+
+const whenPhrase = (days: number): string => {
+    if (days <= 0) return 'today';
+    if (days === 1) return 'tomorrow';
+    return `in ${pluralDays(days)}`;
+};
+
+/**
+ * "exam" for one, "3 exams" for three.
+ *
+ * `always` forces the count on for a single item. The multi-item list is
+ * truncated, so a bare noun sitting next to "+1 more" is indistinguishable from a
+ * count that got cut off -- "2 quizzes · lab report +1 more" reads as three
+ * things when it is four.
+ */
+const describeCategory = (
+    category: ItemCategory,
+    count: number,
+    always = false,
+): string => {
+    const nouns = nounFor(category);
+    if (count === 1) return always ? `1 ${nouns.one}` : nouns.one;
+    return `${count} ${nouns.many}`;
+};
 
 const MS_PER_DAY = 86_400_000;
 
@@ -123,39 +169,47 @@ export const clusterUpcoming = (
 };
 
 /**
- * One line per subject, not per deadline.
+ * One line per kind of work, not per course and not per deadline.
  *
- * Deliberately not the item's own name: auto-named inputs read as "First Exam"
- * and "Second Exam", so naming them turns the warning into a list of
- * placeholders. What the user needs is which subjects the deadlines belong to
- * and how long there is, and a subject with three deadlines in a fortnight is
- * one thing to worry about, not three.
+ * Counting by course is what produced "3 subjects in 5 days", which is a
+ * category of thing rather than a thing to do. Every item already carries the
+ * type it was given on the Academic page, so the count is over that instead, and
+ * the types are ranked by `ITEM_CATEGORIES` so an exam always reads before the
+ * homework no matter what order the rows arrived in.
  */
-const bySubject = (entries: UpcomingEntry[]): { course: AcademicCourse; soonest: UpcomingEntry; count: number }[] => {
-    const groups = new Map<string, { course: AcademicCourse; soonest: UpcomingEntry; count: number }>();
-
+const byCategory = (entries: UpcomingEntry[]): { category: ItemCategory; count: number }[] => {
+    const counts = new Map<ItemCategory, number>();
     for (const entry of entries) {
-        const key = entry.course.id ?? entry.course.name;
-        const existing = groups.get(key);
-        if (!existing) groups.set(key, { course: entry.course, soonest: entry, count: 1 });
-        else existing.count++;
+        counts.set(entry.item.category, (counts.get(entry.item.category) ?? 0) + 1);
     }
-
-    return [...groups.values()];
+    return [...counts.entries()]
+        .map(([category, count]) => ({ category, count }))
+        .sort(
+            (a, b) =>
+                ITEM_CATEGORIES.indexOf(a.category) - ITEM_CATEGORIES.indexOf(b.category),
+        );
 };
 
-const describeGroup = (group: { course: AcademicCourse; soonest: UpcomingEntry; count: number }): string =>
-    group.count > 1
-        ? `${group.course.name} ×${group.count} in ${pluralDays(group.soonest.days)}`
-        : `${group.course.name} in ${pluralDays(group.soonest.days)}`;
+/** Types named before the count runs out. */
+const LIMIT = 2;
 
-/** Keep the sentence readable rather than an endless list. */
-const LIMIT = 3;
+const buildText = (entries: UpcomingEntry[]): string => {
+    const soonest = entries[0];
+    const when = whenPhrase(soonest.days);
 
-const summarise = (groups: ReturnType<typeof bySubject>): string => {
-    const shown = groups.slice(0, LIMIT).map(describeGroup);
+    // One deadline is the whole message: the subject and the kind of work. This
+    // is the common case and the only one where the course name fits.
+    if (entries.length === 1) {
+        return `${soonest.course.name} ${nounFor(soonest.item.category).one} ${when}`;
+    }
+
+    const groups = byCategory(entries);
+    const shown = groups
+        .slice(0, LIMIT)
+        .map(group => describeCategory(group.category, group.count, true));
     const hidden = groups.length - shown.length;
-    return hidden > 0 ? `${shown.join(' · ')} · +${hidden} more` : shown.join(' · ');
+    const list = hidden > 0 ? `${shown.join(' · ')} +${hidden} more` : shown.join(' · ');
+    return `${list} ${when}`;
 };
 
 export const buildAcademicAlerts = (
@@ -165,22 +219,9 @@ export const buildAcademicAlerts = (
 ): AcademicAlert[] =>
     clusterUpcoming(collectUpcoming(courses, items, now)).map((entries, index) => {
         const soonest = entries[0];
-        const groups = bySubject(entries);
-
-        const message =
-            groups.length === 1
-                ? `Next deadline: ${describeGroup(groups[0])}`
-                : `${entries.length} deadlines within ${CLUSTER_WINDOW_DAYS} days — ${summarise(groups)}`;
-
-        const shortMessage =
-            groups.length === 1
-                ? describeGroup(groups[0])
-                : `${groups.length} subjects in ${pluralDays(soonest.days)}`;
-
         return {
             id: `cluster-${index}-${soonest.item.id ?? ''}`,
-            message,
-            shortMessage,
+            text: buildText(entries),
             days: soonest.days,
             count: entries.length,
             urgent: soonest.days <= URGENT_WITHIN_DAYS,

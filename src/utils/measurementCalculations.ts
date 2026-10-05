@@ -5,6 +5,15 @@
 
 export interface MeasurementInput {
     weight?: number | null;
+    /**
+     * A body-fat percentage the user actually supplied.
+     *
+     * Preferred over the Navy circumference derivation below. A number off a scale
+     * is a measurement and a figure derived from tape is an estimate, and when
+     * both are available the measurement is the one worth keeping -- which is why
+     * this is not merged into the derived set.
+     */
+    body_fat?: number | null;
     wrist_left?: number | null;
     wrist_right?: number | null;
     neck?: number | null;
@@ -142,7 +151,13 @@ export const computeBodyCalculations = (
     const avgBicepFlexed = avg(m.bicep_left_flexed, m.bicep_right_flexed);
     const avgForearmFlexed = avg(m.forearm_left_flexed, m.forearm_right_flexed);
 
-    const bodyFat = navyBodyFatPercent(m, ctx);
+    // A body-fat percentage the user supplied beats the Navy derivation. Both
+    // exist now that body_fat is a real column: one is a reading off a scale, the
+    // other an estimate from tape, and the reading is the one to keep. The Navy
+    // value still fills in when nothing was entered, so an existing tape-only
+    // measurement is not left with nothing.
+    const measuredFat = m.body_fat ?? null;
+    const bodyFat = measuredFat ?? navyBodyFatPercent(m, ctx);
 
     const fatMass = weight != null && bodyFat != null ? round2((weight * bodyFat) / 100) : null;
     const leanMass = weight != null && fatMass != null ? round2(weight - fatMass) : null;

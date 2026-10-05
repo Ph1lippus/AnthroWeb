@@ -4,7 +4,9 @@ import {
     getBodyMeasurementByDate,
     getLatestMeasurement,
     saveBodyMeasurement,
+    logBodyComposition,
     deleteBodyMeasurement,
+    type BodyFatMethod,
     type BodyMeasurement,
 } from '../services/measurementService';
 import { queryKeys } from '../utils/queryKeys';
@@ -46,6 +48,32 @@ export const useSaveBodyMeasurement = (onDone?: (saved: BodyMeasurement) => void
             qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurementByDate(saved.measure_date) });
             qc.invalidateQueries({ queryKey: queryKeys.userSettings });
             onDone?.(saved);
+        },
+    });
+};
+
+/**
+ * Writes just the weight and body fat for a date, from anywhere.
+ *
+ * Separate from `useSaveBodyMeasurement` because that one replaces the whole row:
+ * it nulls every field it was not handed, so the Daily Log cannot use it or a
+ * morning weigh-in would erase the tape measurements for the same day. This is
+ * the second door onto the same single record.
+ */
+export const useLogBodyComposition = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (input: {
+            measure_date: string;
+            weight?: number | null;
+            body_fat?: number | null;
+            body_fat_method?: BodyFatMethod | null;
+        }) => logBodyComposition(input),
+        onSuccess: saved => {
+            if (!saved) return;
+            qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurements });
+            qc.invalidateQueries({ queryKey: queryKeys.latestMeasurement });
+            qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurementByDate(saved.measure_date) });
         },
     });
 };

@@ -47,6 +47,7 @@ export const useCreateNote = (onDone?: (note: Note) => void) => {
             notes_color?: string | null;
             notes_icon?: string | null;
             notes_parent_id?: string | null;
+            notes_position?: number;
         }) => createNote(note),
         onSuccess: (note) => {
             // Seeded into the cached list rather than only invalidated: the
@@ -145,13 +146,78 @@ export const useEmptyTrash = (onDone?: () => void) => {
     });
 };
 
+/**
+ * Moving a page within the list: under a different parent, to a different place
+ * among its siblings, or both.
+ *
+ * Optimistic, and this is the one write whose result the user is already looking
+ * at. The rail leaves the page where it was dropped and waits for the round trip;
+ * without this the row jumps back to its old position for as long as the request
+ * takes and then jumps again, which reads as the drop having been refused.
+ *
+ * The snapshot is a rollback as much as a first guess. onError puts the previous
+ * list back, so a move the database refuses cannot leave the rail showing an
+ * order that does not exist -- which is the failure mode a purely optimistic
+ * update has on its own.
+ */
+/**
+ * Renaming a page from the rail.
+ *
+ * Separate from `useUpdateNote`, which is bound to one id because the editor
+ * page owns a single note for its whole life. The rail does the opposite: one
+ * component, any page, and the id is only known at the moment of the click --
+ * which a hook argument cannot be. Narrow to the title on purpose; every other
+ * write a row offers goes through its own mutation.
+ */
+export const useRenameNote = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, title }: { id: string; title: string }) =>
+            updateNote(id, { title }),
+        onSuccess: updated => {
+            qc.setQueryData(queryKeys.note(updated.id ?? ''), updated);
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+        },
+    });
+};
+
 export const useMoveNote = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, parentId }: { id: string; parentId: string | null }) =>
-            moveNote(id, parentId),
-        onSuccess: moved => {
-            qc.setQueryData(queryKeys.note(moved.id ?? ''), moved);
+        mutationFn: ({
+            id,
+            parentId,
+            position,
+        }: {
+            id: string;
+            parentId: string | null;
+            position?: number;
+        }) => moveNote(id, parentId, position),
+        onMutate: async ({ id, parentId, position }) => {
+            // A refetch landing between the drop and this write would overwrite
+            // the patch below and put the row back where it came from.
+            await qc.cancelQueries({ queryKey: queryKeys.notes });
+            const previous = qc.getQueryData<Note[]>(queryKeys.notes);
+            qc.setQueryData<Note[]>(queryKeys.notes, existing =>
+                (existing ?? []).map(note =>
+                    note.id === id
+                        ? {
+                              ...note,
+                              notes_parent_id: parentId,
+                              ...(position === undefined ? {} : { notes_position: position }),
+                          }
+                        : note,
+                ),
+            );
+            return { previous };
+        },
+        onError: (_error, _variables, context) => {
+            if (context?.previous) qc.setQueryData(queryKeys.notes, context.previous);
+        },
+        onSettled: moved => {
+            // Undefined when the write failed, in which case onError has already
+            // put the previous list back and there is no fresh row to seed.
+            if (moved) qc.setQueryData(queryKeys.note(moved.id ?? ''), moved);
             qc.invalidateQueries({ queryKey: queryKeys.notes });
         },
     });

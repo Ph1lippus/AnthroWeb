@@ -1,5 +1,5 @@
-import Navbar from './Components/Navbar'
 import SidebarNav from './Components/SidebarNav'
+import TipLayer from './Components/TooltipLayer'
 import MobileNavbar from './Components/MobileNavbar'
 import UpdateModal from './Components/UpdateModal'
 import HomePage from './Pages/HomePage'
@@ -153,9 +153,14 @@ const AuthenticatedApp: React.FC = () => {
 
     return (
         <>
-            <Navbar />
             <SidebarNav />
             <MobileNavbar />
+            {/* Mounted once, here, because it works by delegation: any element
+                anywhere carrying `data-tip` is found from the document rather
+                than registered with it. Rendering it inside a route would mean
+                re-mounting it on every navigation, which drops a tip that was
+                up as the page changes underneath it. */}
+            <TipLayer />
             <UpdateModal />
             <Routes>
                 <Route path="/" element={<DefaultRoute />} />

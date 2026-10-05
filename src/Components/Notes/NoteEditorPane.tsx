@@ -1,20 +1,23 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Check,
+    ChevronLeft,
     Copy,
     Download,
     Eye,
     Keyboard,
-    Loader2,
     ListTree,
+    PanelLeft,
     Palette,
     Pin,
     Plus,
-    Smile,
+    SmilePlus,
     Trash2,
     X,
 } from 'lucide-react';
 import NoteToc from './NoteToc';
+import NoteIconBadge from './NoteIconBadge';
+import NoteColorPicker from './NoteColorPicker';
+import NoteIconPicker from './NoteIconPicker';
 import ShortcutsSheet from './ShortcutsSheet';
 import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
@@ -23,8 +26,9 @@ import type { NoteEditorHandle } from './NoteEditor';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
 import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
+import { resolveNoteColor } from '../../utils/noteColors';
+import { resolveNoteIcon } from '../../utils/noteIcons';
 import {
-    NOTE_COLORS,
     absoluteTime,
     isBlankNote,
     relativeTime,
@@ -39,8 +43,6 @@ const NoteEditor = lazy(() => import('./NoteEditor'));
 
 const AUTOSAVE_DELAY = 1500;
 
-type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
-
 interface Pending {
     title: string;
     content: string;
@@ -51,12 +53,26 @@ interface NoteEditorPaneProps {
     /** The live page list, so breadcrumbs can be resolved from the parent id. */
     allNotes: Note[];
     onDeleted: () => void;
+    /**
+     * Return to the page list. Optional on purpose: it is only reachable where
+     * the list is not already on screen, so leaving it undefined is what keeps
+     * the button off the split layout, where it would be a no-op next to a rail
+     * that is permanently visible.
+     */
     onClose?: () => void;
+    /**
+     * Whether the page list beside this one is closed. Drives the state of the
+     * rail toggle, which is also the only way to reopen it.
+     */
+    railHidden?: boolean;
+    /**
+     * Show or hide the page list. Optional on purpose: it is only meaningful on
+     * the split layout, where the rail and the page share the screen. Handing it
+     * undefined is what keeps the control off the stacked layout, where there is
+     * nothing to bring back.
+     */
+    onToggleRail?: () => void;
 }
-
-/** Emoji offered by the page icon picker. A short, opinionated list beats a
- *  full emoji search when the only job is to tell two pages apart. */
-const ICONS = ['📄', '📝', '📌', '⭐', '💡', '🔥', '📚', '🎯', '🧠', '⚙️', '🧪', '💻', '🌱', '✅', '❗', '🎓'];
 
 /**
  * The right half of the notes workspace: one open page, always editable.
@@ -69,7 +85,14 @@ const ICONS = ['📄', '📝', '📌', '⭐', '💡', '🔥', '📚', '🎯', '�
  * pane instead of trying to reconcile one document into another. That is what
  * keeps two notes from ever bleeding into each other.
  */
-const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDeleted }) => {
+const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
+    note,
+    allNotes,
+    onDeleted,
+    onClose,
+    railHidden = false,
+    onToggleRail,
+}) => {
     const updateNote = useUpdateNote(note.id);
     const trashNoteMutation = useTrashNote();
     const duplicateNoteMutation = useDuplicateNote();
@@ -77,17 +100,39 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
 
     const [title, setTitle] = useState(note.title ?? '');
     const [content, setContent] = useState(note.content ?? '');
-    const [saveState, setSaveState] = useState<SaveState>('idle');
-    const [showColors, setShowColors] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [showIcons, setShowIcons] = useState(false);
     const [newTag, setNewTag] = useState('');
     const [showExport, setShowExport] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [focusMode, setFocusMode] = useState(false);
     const [showToc, setShowToc] = useState(false);
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
+
+    /**
+     * Which picker is open, and the element it is anchored to.
+     *
+     * One piece of state rather than two booleans, because the two pickers are
+     * mutually exclusive and each needs the trigger's own element to place itself
+     * against. Captured from the click event rather than held in a ref: a ref would
+     * have to be read during render to be passed down, which is not a thing React
+     * allows, and eleven interchangeable 28px buttons are too alike to find again
+     * with a query.
+     */
+    const [openPicker, setOpenPicker] = useState<'color' | 'icon' | null>(null);
+    const [pickerAnchor, setPickerAnchor] = useState<HTMLElement | null>(null);
+
+    const openPickerAt = (which: 'color' | 'icon', trigger: HTMLElement) => {
+        // Clicking the other trigger moves the panel rather than leaving two of
+        // them fighting over the same dismissal.
+        setPickerAnchor(trigger);
+        setOpenPicker(current => (current === which ? null : which));
+    };
+
+    const closePicker = useCallback(() => {
+        setOpenPicker(null);
+        setPickerAnchor(null);
+    }, []);
 
     // The editor is lazy, so the header's block-menu button cannot reach into it
     // during render. It asks through this handle on click instead.
@@ -108,7 +153,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     // If a write is in flight a newer one waits behind it, rather than racing to
     // the server and landing out of order with the older payload.
     const inFlightRef = useRef(false);
-    const [savedAt, setSavedAt] = useState<string | null>(null);
     const persistRef = useRef<(p: Pending) => Promise<void>>(async () => {});
     // Mirrors of the two editable fields: each change handler pairs its own new
     // value with the sibling's current one, and reading the sibling from a ref
@@ -120,19 +164,24 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
         const persist = async (pending: Pending) => {
             if (inFlightRef.current) return;
             inFlightRef.current = true;
-            setSaveState('saving');
             try {
                 await updateNote.mutateAsync({ title: pending.title, content: pending.content });
                 // Only clear if nothing new was typed while this was in flight.
                 if (pendingRef.current === pending) {
                     pendingRef.current = null;
-                    setSavedAt(new Date().toISOString());
-                    setSaveState('saved');
+                    setActionError(null);
                 }
-            } catch {
+            } catch (error) {
                 // The payload stays in pendingRef so the next keystroke retries it
-                // instead of silently dropping the edit.
-                setSaveState('error');
+                // instead of silently dropping the edit, and the failure is reported
+                // through the same line as every other action error rather than
+                // through a save indicator in the header. With nothing in the header
+                // at all, a failure that never resolves on its own -- signed out, a
+                // row-level rejection -- would otherwise be completely silent, and
+                // the retry only ever comes from the next keystroke.
+                setActionError(
+                    `Could not save: ${error instanceof Error ? error.message : 'unknown error'}`,
+                );
             } finally {
                 inFlightRef.current = false;
             }
@@ -142,7 +191,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
 
     const scheduleSave = (nextTitle: string, nextContent: string) => {
         pendingRef.current = { title: nextTitle, content: nextContent };
-        setSaveState('dirty');
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
             timerRef.current = null;
@@ -178,6 +226,11 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     const handleColor = (color: string) => {
         setActionError(null);
         updateNote.mutate(
+            // An empty id is the removal, written as null. Sent as an empty string
+            // instead, Postgres stores it and `resolveNoteColor` treats it as
+            // Default anyway -- so the page *looked* uncoloured while still
+            // carrying a value, and re-picking the same colour afterwards was not
+            // distinguishable from a no-op.
             { notes_color: color || null },
             {
                 // Surfaced rather than swallowed. This mutation writes a column
@@ -191,18 +244,13 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
         );
     };
 
-    // Escape closes the palette. There is deliberately no outside-click handler:
-    // pointerdown fires before click, so one that closed on any click outside the
-    // trigger unmounted the swatches before the click on them could land, and no
-    // colour was ever selectable.
-    useEffect(() => {
-        if (!showColors) return;
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setShowColors(false);
-        };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [showColors]);
+    const handleIcon = (icon: string | null) => {
+        setActionError(null);
+        updateNote.mutate(
+            { notes_icon: icon },
+            { onError: error => setActionError(`Could not save icon: ${error.message}`) },
+        );
+    };
 
     const handleDelete = () => {
         // Clear the pending payload first: unmounting would otherwise flush an
@@ -267,18 +315,12 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
         return () => window.removeEventListener('keydown', onKey);
     }, [note, allNotes]);
 
-    const saveLabel =
-        saveState === 'saving'
-            ? 'Saving...'
-            : saveState === 'dirty'
-              ? 'Unsaved changes'
-              : saveState === 'error'
-                ? 'Save failed, will retry'
-                : savedAt
-                  ? `Saved ${relativeTime(savedAt)}`
-                  : 'All changes saved';
-
     const currentColor = note.notes_color ?? '';
+    // Resolved once here rather than at each of the six places that draw the
+    // colour, so the tint on the page, the rail dot, the accent rule and the icon
+    // cannot disagree about what colour this page is.
+    const tone = resolveNoteColor(currentColor);
+    const icon = resolveNoteIcon(note.notes_icon);
     const words = wordCount(content);
     // Ancestors resolve against the live list. A parent that is missing -- trashed,
     // or filtered out by a search -- simply drops out of the trail rather than
@@ -289,11 +331,54 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
     // for a page that was still empty when it loaded.
     const isBlank = isBlankNote(note.content);
 
-    return (
+return (
         <>
+            {/* The tint travels down from here as custom properties rather than as a
+                class, so the rule above the page and the icon cannot disagree
+                about what colour this page is. A page with no colour leaves them
+                unset and both rules fall back to the app's own accent. */}
+            <div
+                className="note-pane-shell"
+                style={{
+                    ['--note-solid' as string]: tone.id ? tone.solid : undefined,
+                    ['--note-text' as string]: tone.id ? tone.text : undefined,
+                } as React.CSSProperties}
+            >
             <div className="note-pane-bar">
+                {/* Rendered only where it does something: `margin-right: auto`
+                    pushes the rest of the bar to the right, so the back control
+                    sits against the left edge above the title's breadcrumb trail. */}
+                {onClose && (
+                    <button
+                        type="button"
+                        className="note-back-btn"
+                        onClick={onClose}
+                        aria-label="Back to the page list"
+                        data-tip="Back to the page list"
+                    >
+                        <ChevronLeft size={13} />
+                        Pages
+                    </button>
+                )}
 
                 <div className="note-pane-actions">
+                    {/* Left of the group, so `margin-right: auto` on this button
+                        pushes the rest of the bar to the right and leaves it
+                        against the edge it belongs to. Rendered only where it has
+                        something to toggle -- see onToggleRail. */}
+                    {onToggleRail && (
+                        <button
+                            type="button"
+                            className="note-action-btn note-rail-toggle-btn"
+                            onClick={onToggleRail}
+                            data-tip={railHidden ? 'Show the page list' : 'Hide the page list'}
+                            aria-label={railHidden ? 'Show the page list' : 'Hide the page list'}
+                            aria-pressed={railHidden}
+                        >
+                            <PanelLeft size={14} />
+                        </button>
+                    )}
+
                     {actionError && (
                         <span className="note-inline-error" role="alert">
                             {actionError}
@@ -304,7 +389,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         type="button"
                         className={`note-action-btn${focusMode ? ' note-action-btn--pinned' : ''}`}
                         onClick={() => setFocusMode(v => !v)}
-                        title="Focus mode: dim everything except the current line"
+                        data-tip="Focus mode: dim everything except the current line"
+                        aria-label="Focus mode"
                         aria-pressed={focusMode}
                     >
                         <Eye size={14} />
@@ -317,14 +403,13 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                     <button
                         type="button"
                         ref={blockMenuButtonRef}
-                        className="note-action-btn note-block-menu-btn"
-                        onClick={() => {
+                        className="note-action-btn note-block-menu-btn"                        onClick={() => {
                             const button = blockMenuButtonRef.current;
                             if (button) {
                                 editorRef.current?.openBlockMenu(button.getBoundingClientRect());
                             }
                         }}
-                        title="Block menu for the current block"
+                        data-tip="Block menu for the current block"
                         aria-label="Block menu"
                     >
                         <Plus size={14} />
@@ -337,35 +422,31 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                             type="button"
                             className={`note-action-btn${showToc ? ' note-action-btn--pinned' : ''}`}
                             onClick={() => setShowToc(v => !v)}
-                            title="Outline of this page"
+                            data-tip="Outline of this page"
+                            aria-label="Outline"
                             aria-pressed={showToc}
                         >
                             <ListTree size={14} />
                         </button>
                     )}
 
-                    <span className={`note-save-status note-save-status--${saveState}`}>
-                        {saveState === 'saving' && <Loader2 size={12} className="note-spin" />}
-                        {saveState === 'saved' && <Check size={12} />}
-                        {saveLabel}
-                    </span>
-
-                    <div className="note-color-wrap">
-                        <button
-                            type="button"
-                            className={`note-action-btn${showExport ? ' note-action-btn--pinned' : ''}`}
-                            onClick={() => setShowExport(v => !v)}
-                            title="Export this page"
-                            aria-label="Export this page"
-                        >
-                            <Download size={14} />
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className={`note-action-btn${showExport ? ' note-action-btn--pinned' : ''}`}
+                        onClick={() => setShowExport(v => !v)}
+                        data-tip="Export this page"
+                        aria-label="Export this page"
+                        aria-expanded={showExport}
+                    >
+                        <Download size={14} />
+                    </button>
 
                     {showExport && (
                         <div className="note-export-inline" role="group" aria-label="Export">
                             <button
                                 type="button"
+                                data-tip="Download as a .md file"
+                                aria-label="Download as Markdown"
                                 onClick={() => {
                                     downloadNoteMarkdown(note, allNotes);
                                     setShowExport(false);
@@ -375,6 +456,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                             </button>
                             <button
                                 type="button"
+                                data-tip="Download as a styled .html file"
+                                aria-label="Download as HTML"
                                 onClick={() => {
                                     downloadNoteHtml(note);
                                     setShowExport(false);
@@ -389,33 +472,38 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         type="button"
                         className="note-action-btn"
                         onClick={() => setShowShortcuts(true)}
-                        title="Editor help: shortcuts and the selection toolbar (?)"
+                        data-tip="Editor help: shortcuts and the selection toolbar (?)"
                         aria-label="Editor help"
                     >
                         <Keyboard size={14} />
                     </button>
 
-                    <div className="note-color-wrap">
-                        <button
-                            type="button"
-                            className={`note-action-btn${currentColor ? ' note-action-btn--pinned' : ''}`}
-                            onClick={() => setShowColors(v => !v)}
-                            title="Page colour"
-                            aria-label="Page colour"
-                            aria-expanded={showColors}
-                        >
-                            <Palette size={14} />
-                        </button>
-                    </div>
+                    {/* The two appearance triggers show the page's current colour and
+                        icon rather than a generic glyph. A palette button that stays
+                        grey on a pink page makes you open it to find out what you
+                        already set. */}
+                    <button
+                        type="button"
+                        className={`note-action-btn${openPicker === 'color' ? ' note-action-btn--pinned' : ''}`}
+                        onClick={event => openPickerAt('color', event.currentTarget)}
+                        data-tip={tone.id ? `Page colour: ${tone.label}` : 'Page colour'}
+                        aria-label="Page colour"
+                        aria-expanded={openPicker === 'color'}
+                    >
+                        <Palette size={14} style={{ color: tone.id ? tone.solid : undefined }} />
+                    </button>
 
                     <button
                         type="button"
-                        className={`note-action-btn${showIcons ? ' note-action-btn--pinned' : ''}`}
-                        onClick={() => setShowIcons(v => !v)}
-                        title="Page icon"
+                        className={`note-action-btn${openPicker === 'icon' ? ' note-action-btn--pinned' : ''}`}
+                        onClick={event => openPickerAt('icon', event.currentTarget)}
+                        data-tip={icon ? `Page icon: ${icon.label}` : 'Page icon'}
                         aria-label="Page icon"
+                        aria-expanded={openPicker === 'icon'}
                     >
-                        <Smile size={14} />
+                        {icon
+                            ? <icon.Icon size={14} />
+                            : <SmilePlus size={14} />}
                     </button>
 
                     <button
@@ -423,7 +511,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         className="note-action-btn"
                         onClick={() => duplicateNoteMutation.mutate(note)}
                         disabled={duplicateNoteMutation.isPending}
-                        title="Duplicate page"
+                        data-tip="Duplicate page"
                         aria-label="Duplicate page"
                     >
                         <Copy size={14} />
@@ -433,8 +521,9 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         type="button"
                         className={`note-action-btn${note.is_pinned ? ' note-action-btn--pinned' : ''}`}
                         onClick={() => togglePin.mutate({ id: note.id!, isPinned: note.is_pinned })}
-                        title={note.is_pinned ? 'Unpin' : 'Pin'}
+                        data-tip={note.is_pinned ? 'Unpin from the top' : 'Pin to the top'}
                         aria-label="Toggle pin"
+                        aria-pressed={note.is_pinned}
                     >
                         {/* One glyph, inverted fill. It used to swap between `Pin`
                             and `PinOff`, which left "pinned" signalled only by the
@@ -449,80 +538,35 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         type="button"
                         className="note-action-btn note-action-btn--danger"
                         onClick={() => setConfirmDelete(true)}
-                        title="Move to trash"
+                        data-tip="Move to trash"
                         aria-label="Move to trash"
                     >
                         <Trash2 size={14} />
                     </button>
                 </div>
-
-                {/* Inline, in normal flow in the bar. This started as a popover and
-                    was unfixable as one: the pane clips with overflow, the
-                    workspace carries backdrop-filter (which makes it a containing
-                    block for fixed descendants), and a dismiss-on-outside-click
-                    handler closed the menu on pointerdown -- before the click on a
-                    swatch could land. Nothing about a strip in the document flow can
-                    go wrong.
-
-                    It is a sibling of .note-pane-actions rather than a child, for
-                    one specific reason: that row holds ten controls and does not
-                    wrap, so a strip nested inside it had nowhere to go when it ran
-                    out of width -- it overflowed to the right and the pane clipped
-                    it, taking half the swatches with it. Out here it is given its own
-                    full-width row below the buttons and can wrap on a narrow phone. */}
-                {showColors && (
-                    <div className="note-color-inline" role="group" aria-label="Page colour">
-                        {NOTE_COLORS.map(color => (
-                            <button
-                                type="button"
-                                key={color.label}
-                                className={`note-color-swatch${
-                                    currentColor === color.value ? ' note-color-swatch--on' : ''
-                                }${color.value ? '' : ' note-color-swatch--none'}`}
-                                style={color.value ? { background: color.value } : undefined}
-                                onClick={() => handleColor(color.value)}
-                                title={color.label}
-                                aria-label={color.label}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {showIcons && (
-                    <div className="note-icon-inline" role="group" aria-label="Page icon">
-                        {ICONS.map(glyph => (
-                            <button
-                                type="button"
-                                key={glyph}
-                                className={`note-icon-swatch${
-                                    note.notes_icon === glyph ? ' note-icon-swatch--on' : ''
-                                }`}
-                                onClick={() => {
-                                    updateNote.mutate({
-                                        notes_icon: note.notes_icon === glyph ? null : glyph,
-                                    });
-                                    setShowIcons(false);
-                                }}
-                            >
-                                {glyph}
-                            </button>
-                        ))}
-                        {note.notes_icon && (
-                            <button
-                                type="button"
-                                className="note-icon-clear"
-                                onClick={() => {
-                                    updateNote.mutate({ notes_icon: null });
-                                    setShowIcons(false);
-                                }}
-                                title="Remove icon"
-                            >
-                                <X size={12} />
-                            </button>
-                        )}
-                    </div>
-                )}
             </div>
+
+            {/* Both panels are portalled to <body> by Popover, which is what makes
+                them work here at all -- see the note on that component for the four
+                containment rules they escape. Neither closes on a pick: a colour is
+                chosen by comparing it against the page, and an icon by comparing it
+                against the other five places it appears. */}
+            {openPicker === 'color' && (
+                <NoteColorPicker
+                    anchor={pickerAnchor}
+                    onClose={closePicker}
+                    value={currentColor}
+                    onChange={handleColor}
+                />
+            )}
+            {openPicker === 'icon' && (
+                <NoteIconPicker
+                    anchor={pickerAnchor}
+                    onClose={closePicker}
+                    value={note.notes_icon ?? ''}
+                    onChange={handleIcon}
+                />
+            )}
 
             <div className="note-pane-scroll">
                 {note.notes_cover && (
@@ -533,79 +577,124 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         aria-label="Page cover"
                     />
                 )}
-                {currentColor && (
-                    <div className="note-pane-accent" style={{ background: currentColor }} />
-                )}
+                {/* Unconditional. The rule only draws itself when the page has a
+                    colour -- it used to be unmounted entirely without one, which
+                    meant the bar below it moved up as the colour was set and back
+                    down as it was cleared, so removing a colour shifted the whole
+                    page by six pixels. */}
+                <div className="note-pane-accent" aria-hidden="true" />
 
                 <div className="note-pane-inner">
                     {ancestors.length > 0 && (
                         <nav className="note-breadcrumbs" aria-label="Breadcrumbs">
                             {ancestors.map(ancestor => (
                                 <span key={ancestor.id} className="note-crumb">
-                                    {ancestor.notes_icon && (
-                                        <span className="note-crumb-icon">{ancestor.notes_icon}</span>
-                                    )}
+                                    <NoteIconBadge
+                                        value={ancestor.notes_icon}
+                                        color={ancestor.notes_color}
+                                    />
                                     {ancestor.title?.trim() || 'Untitled'}
                                 </span>
                             ))}
                         </nav>
                     )}
 
-                    {note.notes_icon && <div className="note-page-icon">{note.notes_icon}</div>}
+                    {/* Icon and title share a row. The icon was a 3.25rem tile on its own line
+                        above the title, which read as a header block rather than as
+                        part of the page's name -- and a long title started below a
+                        row of its own instead of beside it. */}
+                    <div className="note-title-row">
+                        {/* Clicking it opens the picker from where the icon is,
+                            rather than only from the toolbar. It is the control people
+                            reach for first and there was no way to get an icon onto a
+                            page without finding the 28px button in the header. */}
+                        <button
+                            type="button"
+                            className="note-page-icon-btn"
+                            onClick={event => openPickerAt('icon', event.currentTarget)}
+                            data-tip={icon ? `Icon: ${icon.label}. Change it` : 'Give this page an icon'}
+                            aria-label={icon ? `Page icon: ${icon.label}. Change it` : 'Give this page an icon'}
+                        >
+                            {/*
+                            The plus is the fallback glyph, and it is invisible
+                            until the pointer comes near the row -- see
+                            `.note-icon-badge--empty`. A page with no icon shows
+                            no icon, and this is how you give it one without
+                            finding the toolbar.
+                        */}
+                            <NoteIconBadge
+                                value={note.notes_icon}
+                                color={currentColor}
+                                size="page"
+                                fallback={<Plus size={15} />}
+                            />
+                        </button>
 
-                    <input
-                        type="text"
-                        className="note-title-input"
-                        value={title}
-                        onChange={e => handleTitle(e.target.value)}
-                        placeholder="Untitled"
-                        aria-label="Note title"
-                    />
-
-                    <div className="note-tag-row">
-                        {(note.notes_tags ?? []).map(tag => (
-                            <span key={tag} className="note-tag">
-                                {tag}
-                                <button
-                                    type="button"
-                                    onClick={() => handleRemoveTag(tag)}
-                                    aria-label={`Remove tag ${tag}`}
-                                    title={`Remove ${tag}`}
-                                >
-                                    <X size={10} />
-                                </button>
-                            </span>
-                        ))}
                         <input
                             type="text"
-                            className="note-tag-input"
-                            value={newTag}
-                            placeholder="Add tag"
-                            onChange={e => setNewTag(e.target.value)}
-                            // Enter commits; Escape abandons without saving.
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddTag();
-                                } else if (e.key === 'Escape') {
-                                    setNewTag('');
-                                }
-                            }}
-                            // Losing focus with text in the box means a tag was
-                            // being written, so commit it rather than drop it.
-                            onBlur={() => {
-                                if (newTag.trim()) handleAddTag();
-                            }}
-                            aria-label="Add tag"
+                            className="note-title-input"
+                            value={title}
+                            onChange={e => handleTitle(e.target.value)}
+                            placeholder="Untitled"
+                            aria-label="Note title"
                         />
                     </div>
 
-                    <div
-                        className="note-meta-line"
-                        title={absoluteTime(note.updated_at ?? note.created_at)}
-                    >
-                        {relativeTime(note.updated_at ?? note.created_at)}
-                        {words > 0 && ` · ${words} ${words === 1 ? 'word' : 'words'}`}
+                    {/*
+                        Tags and the document's own facts share one row.
+
+                        They used to be two stacked blocks with the tags wedged
+                        between the title and the meta line, so neither had a clear
+                        home: the tags looked like part of the title, and the meta
+                        line was pushed a block further from the body it describes.
+                        Both are page metadata, so both belong on the metadata row.
+                    */}
+                    <div className="note-meta-row">
+                        <div className="note-tag-row">
+                            {(note.notes_tags ?? []).map(tag => (
+                                <span key={tag} className="note-tag">
+                                    {tag}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveTag(tag)}
+                                        aria-label={`Remove tag ${tag}`}
+                                        data-tip={`Remove the tag “${tag}”`}
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                </span>
+                            ))}
+                            <input
+                                type="text"
+                                className="note-tag-input"
+                                value={newTag}
+                                placeholder="Add tag"
+                                onChange={e => setNewTag(e.target.value)}
+                                // Enter commits; Escape abandons without saving.
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddTag();
+                                    } else if (e.key === 'Escape') {
+                                        setNewTag('');
+                                    }
+                                }}
+                                // Losing focus with text in the box means a tag was
+                                // being written, so commit it rather than drop it.
+                                onBlur={() => {
+                                    if (newTag.trim()) handleAddTag();
+                                }}
+                                aria-label="Add tag"
+                            />
+                        </div>
+
+                        <div
+                            className="note-meta-line"
+                            data-tip={absoluteTime(note.updated_at ?? note.created_at)}
+                        >
+                            {relativeTime(note.updated_at ?? note.created_at)}
+                            {words > 0 && ` · ${words} ${words === 1 ? 'word' : 'words'}`}
+                        </div>
                     </div>
 
                     {showToc && <NoteToc items={tocItems} onClose={() => setShowToc(false)} />}
@@ -623,6 +712,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({ note, allNotes, onDelet
                         />
                     </Suspense>
                 </div>
+            </div>
             </div>
 
             <ShortcutsSheet open={showShortcuts} onClose={() => setShowShortcuts(false)} />

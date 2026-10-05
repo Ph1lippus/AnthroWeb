@@ -80,7 +80,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                 {daysUntil !== null && (
                     <span
                         className={`item-row__due${urgent ? ' item-row__due--urgent' : ''}`}
-                        title={fullDue}
+                        data-tip={fullDue}
                     >
                         {shortDue} · {daysUntil === 0 ? 'today' : daysUntil === 1 ? '1 day' : `${daysUntil} days`}
                     </span>
@@ -90,7 +90,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                     // A parent's grade comes from its children, so it is shown read-only.
                     <span
                         className={`item-score__pct${percent === null ? ' item-score__pct--empty' : ''}`}
-                        title={percent === null ? 'No sub-work graded yet' : 'Average of the sub-works'}
+                        data-tip={percent === null ? 'No sub-work graded yet' : 'Average of the sub-works'}
                     >
                         {percent === null ? '—' : formatPoints(points, scale)}
                     </span>
@@ -112,7 +112,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                         />
                         <span
                             className={`item-score__pct${percent === null ? ' item-score__pct--empty' : ''}`}
-                            title={
+                            data-tip={
                                 offScale
                                     ? `Out of ${item.max_score} rather than the ${scale.max_value} on this scale`
                                     : undefined
@@ -124,7 +124,10 @@ const ItemRow: React.FC<ItemRowProps> = ({
                             <button
                                 type="button"
                                 className="item-rebase"
-                                title={`Change the denominator to ${scale.max_value} without changing the score. Only do this if the score was written on the ${scale.name} scale.`}
+                                data-tip={`Change the denominator to ${scale.max_value} without changing the score. Only do this if the score was written on the ${scale.name} scale.`}
+                                // Its own text is an arrow and a number, which on its
+                                // own says nothing about what pressing it does.
+                                aria-label={`Rebase the denominator to ${scale.max_value}`}
                                 onClick={() => onPatch(item, { max_score: scale.max_value })}
                             >
                                 → {scale.max_value}
@@ -133,7 +136,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                         {backSolve !== null && backSolve.itemId === item.id && percent === null && (
                             <span
                                 className={`item-inferred${backSolve.clamped ? ' item-inferred--warn' : ''}`}
-                                title="Worked back from the final grade. Every score in this range is reported as the same grade, so the input is only knowable as a range."
+                                data-tip="Worked back from the final grade. Every score in this range is reported as the same grade, so the input is only knowable as a range."
                             >
                                 ≈ {backSolve.loScore.toFixed(2)}–{backSolve.hiScore.toFixed(2)} / {backSolve.maxScore}
                                 {backSolve.clamped ? ' · impossible' : ''}
@@ -142,7 +145,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                     </span>
                 )}
 
-                <span className="item-score" title="Percentage of the course grade this input is worth">
+                <span className="item-score" data-tip="Percentage of the course grade this input is worth">
                     <InlineNumber
                         value={item.weight}
                         onCommit={value => onPatch(item, { weight: value ?? 0 })}
@@ -159,7 +162,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                         type="button"
                         className="book-action-btn"
                         onClick={() => onAddChild(item)}
-                        title="Add a sub-work under this"
+                        data-tip="Add a sub-work under this"
                     >
                         <Plus />
                     </button>
@@ -167,7 +170,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                         type="button"
                         className="book-action-btn"
                         onClick={() => onEdit(item)}
-                        title="Edit this input"
+                        data-tip="Edit this input"
                     >
                         <SquarePen />
                     </button>
@@ -175,7 +178,7 @@ const ItemRow: React.FC<ItemRowProps> = ({
                         type="button"
                         className="book-action-btn book-action-btn--danger"
                         onClick={() => onDelete(item)}
-                        title="Delete this input"
+                        data-tip="Delete this input"
                     >
                         <Trash2 />
                     </button>

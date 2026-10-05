@@ -115,7 +115,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                                 style={{ marginRight: 'auto' }}
                                 onClick={onTrackAsPRs}
                                 disabled={busy}
-                                title="Add every exercise in this template to your records list"
+                                data-tip="Add every exercise in this template to your records list"
                             >
                                 <Target size={11} className="mr-1" />Track as PRs
                             </button>

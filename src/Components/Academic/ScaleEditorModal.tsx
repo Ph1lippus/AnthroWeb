@@ -197,7 +197,7 @@ const ScaleEditorModal: React.FC<ScaleEditorModalProps> = ({ scale, onClose, onS
                                                 type="button"
                                                 className="book-action-btn book-action-btn--danger"
                                                 onClick={() => setDrafts(current => current.filter(d => d.key !== draft.key))}
-                                                title="Remove band"
+                                                data-tip="Remove band"
                                             >
                                                 <Trash2 />
                                             </button>

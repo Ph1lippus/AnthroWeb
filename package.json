@@ -10,9 +10,20 @@
 "verify:schema": "node scripts/verify-schema.mjs",
       "verify:migrations": "node scripts/verify-migrations.mjs",
       "verify:grid": "node scripts/verify-grid.mjs",
-      "verify:editor-dom": "node scripts/verify-editor-dom.mjs",
-      "verify:markdown": "node scripts/verify-markdown.mjs",
-      "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:markdown",
+    "verify:editor-dom": "node scripts/verify-editor-dom.mjs",
+    "verify:focus-mode": "node scripts/verify-focus-mode.mjs",
+    "verify:markdown": "node scripts/verify-markdown.mjs",
+    "verify:notes-tree": "node scripts/verify-notes-tree.mjs",
+    "verify:alerts": "node scripts/verify-alerts.mjs",
+"verify:body-series": "node scripts/verify-body-series.mjs",
+"verify:toggle-keys": "node scripts/verify-toggle-keys.mjs",
+  "verify:tab-indent": "node scripts/verify-tab-indent.mjs",
+    "verify:block-actions": "node scripts/verify-block-actions.mjs",
+    "verify:sidebar-menu": "node scripts/verify-sidebar-menu.mjs",
+  "verify:notes-appearance": "node scripts/verify-notes-appearance.mjs",
+  "verify:popover-dismissal": "node scripts/verify-popover-dismissal.mjs",
+  "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal",
+
     "preview": "vite preview"
   },
   "dependencies": {

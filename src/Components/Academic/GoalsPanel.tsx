@@ -260,7 +260,7 @@ const GoalsPanel: React.FC<GoalsPanelProps> = ({ courses, semesters, predictions
                                                 type="button"
                                                 className="book-action-btn"
                                                 onClick={() => openEdit(goal)}
-                                                title="Edit goal"
+                                                data-tip="Edit goal"
                                             >
                                                 <SquarePen />
                                             </button>
@@ -268,7 +268,7 @@ const GoalsPanel: React.FC<GoalsPanelProps> = ({ courses, semesters, predictions
                                                 type="button"
                                                 className="book-action-btn book-action-btn--danger"
                                                 onClick={() => setDeleteTarget(goal)}
-                                                title="Delete goal"
+                                                data-tip="Delete goal"
                                             >
                                                 <Trash2 />
                                             </button>

@@ -239,14 +239,11 @@ export const TOC_MIN_HEADINGS = 3;
 /** Whether a note has enough headings to be worth drawing an outline for. */
 export const shouldShowToc = (headingCount: number): boolean => headingCount >= TOC_MIN_HEADINGS;
 
-/** Accent options offered on the editor page. Null clears the accent. */
-export const NOTE_COLORS: { value: string; label: string }[] = [
-    { value: '', label: 'None' },
-    { value: '#00ffa6', label: 'Green' },
-    { value: '#4da6ff', label: 'Blue' },
-    { value: '#ff7ba9', label: 'Pink' },
-    { value: '#b48dff', label: 'Purple' },
-    { value: '#4dd8e0', label: 'Cyan' },
-    { value: '#ffb84d', label: 'Amber' },
-    { value: '#ff5a60', label: 'Red' },
-];
+/*
+ * NOTE_COLORS used to live here: eight raw hex values, with "null clears the
+ * accent" as the only comment and nowhere for a second shade of any colour to go.
+ * It is now `NOTE_PALETTE` in `utils/noteColors`, which stores an id and carries
+ * the three values a colour needs on a dark page -- see the note there on why a
+ * Notion palette cannot simply be copied onto near-black.
+ */
+

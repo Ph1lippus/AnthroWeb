@@ -8,7 +8,8 @@ export interface MeasurementFieldMeta {
 }
 
 export const MEASUREMENT_FIELDS: MeasurementFieldMeta[] = [
-    { id: 'weight', label: 'Weight', group: 'core', unit: 'kg', step: '0.1', help: 'Bodyweight — falls back to the latest daily-log weight if empty.' },
+    { id: 'weight', label: 'Weight', group: 'core', unit: 'kg', step: '0.1', help: 'Bodyweight — falls back to the last recorded weight if empty.' },
+    { id: 'body_fat', label: 'Body Fat', group: 'core', unit: '%', step: '0.1', help: 'Optional. Left empty, it is estimated from the tape measurements below.' },
     { id: 'neck', label: 'Neck', group: 'core', unit: 'cm', step: '0.1' },
     { id: 'shoulders', label: 'Shoulders', group: 'core', unit: 'cm', step: '0.1' },
     { id: 'chest', label: 'Chest', group: 'core', unit: 'cm', step: '0.1' },

@@ -9,20 +9,14 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const mod = isMac ? '⌘' : 'Ctrl';
 
 /**
- * A row is [left-hand label, what it does, kind?].
+ * A row is [what you press, what it does].
  *
- * The third element is there for the one section that is not about keys. Key
- * combinations are rendered as `<kbd>` chips, which is what they are; the names
- * of the toolbar buttons are not keystrokes and rendering them as keys would
- * teach the wrong thing, so those rows pass 'label' and get plain text instead.
- *
- * `wide` left-aligns a section's descriptions. The shortcut rows are short and
- * read fine pushed right against the chip column; the toolbar rows are sentences
- * and do not.
+ * The key combinations are rendered as `<kbd>` chips, which is what they are, and
+ * split on ` + ` so `Ctrl` and `K` are two keys rather than one long one.
  */
-type Row = [string, string] | [string, string, 'label'];
+type Row = [string, string];
 
-const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
+const GROUPS: { title: string; rows: Row[] }[] = [
     {
         title: 'Writing',
         rows: [
@@ -68,9 +62,20 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
     {
         title: 'Lists',
         rows: [
-            ['Tab', 'Indent, or next table cell'],
-            ['Shift + Tab', 'Outdent, or previous table cell'],
             ['Enter in an empty to-do', 'Leave the list as a paragraph'],
+        ],
+    },
+    {
+        // Split out from Lists because Tab means three different things depending
+        // on where the caret is, and one line cannot say so. It was listed as
+        // "Indent, or next table cell" under Lists, which was two thirds true and
+        // gave no hint that plain text -- where the complaint usually comes from --
+        // did nothing at all.
+        title: 'Indenting',
+        rows: [
+            ['Tab', 'Indent a line, nest a list, or go to the next table cell'],
+            ['Shift + Tab', 'Outdent, or go to the previous table cell'],
+            ['Escape, then Tab', 'Leave the page and move to the next control'],
         ],
     },
     {
@@ -79,32 +84,6 @@ const GROUPS: { title: string; wide?: boolean; rows: Row[] }[] = [
             [`${mod} + K`, 'Go to page'],
             [`${mod} + Shift + E`, 'Export this page'],
             ['?', 'This list'],
-        ],
-    },
-    {
-        // The grip left of each block opens this menu, and so does selecting
-        // text. Its buttons carry `title` tooltips, which a mouse user sees on
-        // hover but a phone never does -- there is no hover on a touch screen, so
-        // on mobile this section is the only description of what those rows and
-        // icons do.
-title: 'Block menu',
-        wide: true,
-        rows: [
-            ['⋮⋮', 'Left of every block — drag to reorder, click for this menu. On a phone, the + button does the same', 'label'],
-            ['▸', 'Selecting text opens this menu too, once you let go of the mouse. It sits beside the text, never on top of it. Arrows to move, Enter to run', 'label'],
-            ['B', 'Bold — Ctrl+B. With nothing selected it applies to what you type next', 'label'],
-            ['I', 'Italic — Ctrl+I', 'label'],
-            ['U', 'Underline — Ctrl+U', 'label'],
-            ['S', 'Strikethrough — Ctrl+Shift+X', 'label'],
-            ['H', 'Highlight — marks the text with a colour', 'label'],
-            ['</>', 'Inline code — sets the text in a monospaced font', 'label'],
-            ['x₂', 'Subscript — lowers and shrinks the text', 'label'],
-            ['x²', 'Superscript — raises and shrinks the text', 'label'],
-            ['🔗', 'Link — turns the selection into a link, or edits the one it is already inside. An empty answer removes it', 'label'],
-            ['⇨', 'Turn into — hover it and the list of block types opens beside this menu: headings, lists, to-dos, toggles, quote, divider, code', 'label'],
-            ['⧉', 'Duplicate — copies the block, or every block in a selection, below itself', 'label'],
-            ['↑ ↓', 'Move up or down — swaps the block with its neighbour', 'label'],
-            ['🗑', 'Delete — removes the block, or every block in a selection', 'label'],
         ],
     },
 ];
@@ -140,22 +119,18 @@ const ShortcutsSheet: React.FC<ShortcutsSheetProps> = ({ open, onClose }) => {
                 </div>
                 <div className="note-shortcuts-grid">
                     {GROUPS.map(group => (
-                        <section key={group.title} className={group.wide ? 'note-shortcut-section--wide' : undefined}>
+                        <section key={group.title}>
                             <h4>{group.title}</h4>
                             <dl>
-                                {group.rows.map(([keys, description, kind]) => (
+                                {group.rows.map(([keys, description]) => (
                                     <div key={keys} className="note-shortcut-row">
                                         <dt>
-                                            {kind === 'label' ? (
-                                                <span className="note-shortcut-label">{keys}</span>
-                                            ) : (
-                                                keys.split(' + ').map((part, index) => (
-                                                    <React.Fragment key={`${part}-${index}`}>
-                                                        {index > 0 && <span className="note-shortcut-plus">+</span>}
-                                                        <kbd>{part}</kbd>
-                                                    </React.Fragment>
-                                                ))
-                                            )}
+                                            {keys.split(' + ').map((part, index) => (
+                                                <React.Fragment key={`${part}-${index}`}>
+                                                    {index > 0 && <span className="note-shortcut-plus">+</span>}
+                                                    <kbd>{part}</kbd>
+                                                </React.Fragment>
+                                            ))}
                                         </dt>
                                         <dd>{description}</dd>
                                     </div>

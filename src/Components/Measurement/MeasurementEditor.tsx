@@ -119,7 +119,7 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
                         <div className="measurement-group__fields">
                             {MEASUREMENT_FIELDS.filter(f => f.group === group).map(field => (
                                 <div key={field.id} className="measurement-field">
-                                    <label className="measurement-field__label" title={field.help}>
+                                    <label className="measurement-field__label" data-tip={field.help}>
                                         {field.label} <span className="measurement-field__unit">({field.unit})</span>
                                     </label>
                                     <input

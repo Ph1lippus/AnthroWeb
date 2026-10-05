@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
+import type { BodyMeasurement } from '../../services/measurementService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
 import { BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
@@ -34,6 +35,8 @@ interface AnalysisCardsProps {
     habitLogs: DailyHabitLog[] | null;
     settings: UserSettings | null;
     range: DateRange;
+    /** Body measurements. Weight and body fat live here, not on the daily log. */
+    measurements: BodyMeasurement[] | null;
 }
 
 const mean = (values: (number | null | undefined)[]): number | null => {
@@ -73,7 +76,7 @@ const trend = (
     };
 };
 
-const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, settings, range }) => {
+const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, settings, range, measurements }) => {
     const goalHistory = useMemo(() => parseGoalHistory(settings?.goal_history), [settings?.goal_history]);
     const currentGoals = (settings?.active_goals as ActiveGoals | undefined) || null;
 
@@ -96,6 +99,11 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         const first = sorted.slice(0, half);
         const second = sorted.slice(half);
         const pick = (list: typeof sorted, key: keyof DailyLog) => list.map(l => l[key] as number | null | undefined);
+
+        const measurementsInRange = (measurements ?? [])
+            .filter(m => m.measure_date && inRange(m.measure_date, range.days))
+            .slice()
+            .sort((a, b) => a.measure_date.localeCompare(b.measure_date));
 
         const out: Stat[] = [];
 
@@ -157,10 +165,19 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             tone: water === null ? 'flat' : waterAttainment === null ? 'flat' : waterAttainment >= 90 ? 'good' : 'warn',
         });
 
-        // 4. Body - latest weight plus movement across the window.
-        const weights = sorted.filter(l => typeof l.weight === 'number');
-        const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight! : null;
-        const weightTrend = trend(mean(pick(second, 'weight')), mean(pick(first, 'weight')), false);
+        // 4. Body - latest weight plus movement across the window. Read from
+        // body_measurements rather than the daily log, which no longer has the
+        // columns: weight is one record per date and lives in one place.
+        const weights = measurementsInRange
+            .filter(m => typeof m.weight === 'number')
+            .map(m => m.weight as number);
+        const latestWeight = weights.length > 0 ? weights[weights.length - 1] : null;
+        const halfWeights = Math.floor(weights.length / 2);
+        const weightTrend = trend(
+            mean(weights.slice(halfWeights)),
+            mean(weights.slice(0, halfWeights)),
+            false,
+        );
         out.push({
             key: 'body',
             label: 'Body',
@@ -213,7 +230,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         });
 
         return out;
-    }, [logs, habits, habitLogs, goalsOn, range.days]);
+    }, [logs, habits, habitLogs, goalsOn, range.days, measurements]);
 
     if (stats.length === 0) return null;
 

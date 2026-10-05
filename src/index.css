@@ -8,11 +8,6 @@
   .note-pane-inner {
     max-width: 100% !important;
   }
-  .notes-workspace {
-    border-radius: 0px!important;
-    background: transparent !important;
-    border: none!important;
-  }
   .books-page-wrapper {
     padding: 2.5rem 0rem !important;
   }
@@ -50,29 +45,9 @@
   .daily-score-card {
     background: transparent !important; 
   }
-  .navbar-mobile-title{
-    display: none !important;
-  }
-  .navbar-page-title {
-    font-size: 0.85rem;
-  }
-  .navbar-day-label {
-    display: none;
-  }
-  .navbar-save-status {
-    max-width: 6rem;
-    margin-right: 0.25rem;
-    font-size: 0.6rem;
-  }
-  .navbar-inner {
-    gap: 0.4rem;
-  }
-  .navbar-brand-row{
-    backdrop-filter: blur(0px) !important;
-  }
   .daily-logs-page-wrapper {
     padding: 0rem !important;
-    padding-top: calc(var(--navbar-height) + env(safe-area-inset-top, 0px)) !important;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px)) !important;
   }
   .daily-log-form .card {
     padding: 0.5rem !important;
@@ -125,6 +100,16 @@
      component uses .chart-tooltip for the same values. */
   --chart-tooltip-bg: #151515;
   --chart-tooltip-border: rgba(255, 255, 255, 0.12);
+  /* ---- Floating layers ----
+     Named rather than repeated as bare numbers, because the ordering between
+     these four is load-bearing and was previously only discoverable by reading
+     every rule in the file: a popover has to land above a modal (200) and above
+     the chart modal (300) or it opens behind the dialog it was opened from, and
+     below toasts (9999) or its own confirmation is hidden behind the error it
+     just raised. */
+  --z-panel: 200;
+  --z-popover: 400;
+  --z-tooltip: 410;
   /* ---- Typography ----------------------------------------------------
      One terminal stack for the entire app. Every family variable below
      resolves to the same mono stack so that no element - not a Tailwind
@@ -158,7 +143,6 @@
      used to sit further down this block set to system-ui, which silently
      overrode the terminal stack declared above them; they are now defined once,
      with the whole app's type, at the top of the file. */
-  --navbar-height: 3rem;
   --shake-distance: 6px;
   --shake-overshoot: 4px;
   --shake-dur-a: 80ms;
@@ -297,6 +281,25 @@ body::before {
   width: 0;
   height: 0;
 }
+
+/* No native spinners on number inputs, anywhere.
+   Once, here, rather than per component class: there were four separate copies
+   of this (`.form-control`, `.measurement-field__input`, `.num-input`,
+   `.workout-set-table__input`), so every number field that did not happen to
+   carry one of those four class names kept its arrows. Firefox needs
+   `-moz-appearance: textfield` rather than the inner-spin-button selectors,
+   which is why this was never fixed by a webkit-only rule.
+   Date inputs are a different type and keep their picker. */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
 *::-webkit-scrollbar-track,
 *::-webkit-scrollbar-thumb {
   background: transparent;
@@ -324,8 +327,8 @@ body::before {
   flex-direction: column;
   justify-content: safe center;
   align-items: center;
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
 }
 /* Fallback for engines without `safe center` alignment. */
 @supports not (justify-content: safe center) {
@@ -341,9 +344,8 @@ body::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -357,9 +359,9 @@ body::before {
   flex-direction: column;
   justify-content: safe center;
   align-items: center;
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(2rem + 2.5rem + env(safe-area-inset-bottom, 0px)); /* Space for bottom navbar (approx 48px) */
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); /* Space for bottom navbar (approx 48px) */
 }
 .container {
   width: 100%;
@@ -367,35 +369,6 @@ body::before {
   padding-left: 1rem;
   margin-right: auto;
   margin-left: auto;
-}
-.navbar-hamburger {
-    width: 14px;
-    height: 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    position: relative;
-}
-.navbar-hamburger span {
-    display: block;
-    width: 100%;
-    height: 2px;
-    background-color: var(--color-light);
-    border-radius: 25px;
-}
-.navbar-menu-btn:hover .navbar-hamburger span {
-    background-color: var(--color-primary);
-}
-.navbar-hamburger.is-active span:nth-child(1) {
-    transform: translateY(5px) rotate(45deg);
-    background-color: var(--color-primary);
-}
-.navbar-hamburger.is-active span:nth-child(2) {
-    opacity: 0;
-}
-.navbar-hamburger.is-active span:nth-child(3) {
-    transform: translateY(-5px) rotate(-45deg);
-    background-color: var(--color-primary);
 }
 @media (width >= 576px) {
   .container, .container-sm { max-width: 540px; }
@@ -411,723 +384,6 @@ body::before {
 }
 @media (width >= 1400px) {
   .container, .container-lg, .container-md, .container-sm, .container-xl, .container-xxl { max-width: 1320px; }
-}
-.navbar-brand-row {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: transparent;
-  z-index: 100;
-  padding-top: env(safe-area-inset-top, 0px);
-}
-.navbar-inner {
-  display: grid;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  position: relative;
-  min-width: 98%;
-}
-.navbar-slot--start {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  justify-content: flex-start;
-}
-/* The right half of the bar: the day controls and the menu button, hard against
-   the right edge. Anchored to the rightmost grid column rather than
-   auto-placing, because the left slot already claims column one. */
-.navbar-slot--end {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  grid-column: 3;
-  min-width: 0;
-}
-.navbar-slot--end .navbar-day-nav,
-.navbar-slot--end .navbar-save-status {
-  margin-right: 0;
-}
-.navbar-page-title {
-  justify-self: center;
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--color-light);
-  margin: 0;
-  padding: 0 0.25rem;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: center;
-  pointer-events: none;
-  user-select: none;
-}
-.navbar-brand {
-  font-family: var(--font-logo);
-  font-size: 1rem;
-  color: var(--color-light);
-  text-decoration: none;
-  cursor: pointer;
-}
-.navbar-brand:hover { color: var(--color-primary); }
-.navbar-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  /* Now a child of `.navbar-slot--end`, which owns the rightmost grid column.
-     It used to be placed there itself, back when the day controls were still on
-     the left. */
-  flex-shrink: 0;
-}
-.navbar-brand-centered {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  justify-content: center;
-}
-/* Mobile-only page title in the primary navbar (see the max-width: 767px block) */
-.navbar-mobile-title {
-  display: none;
-  color: var(--color-light);
-  font-family: var(--font-logo);
-  font-size: 1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 60vw;
-}
-.navbar-user-wrap {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
-}
-.navbar-user {
-  color: var(--color-light);
-  font-size: 0.7rem;
-  cursor: pointer;
-}
-.navbar-user:hover {
-  color: var(--color-primary);
-}
-.navbar-action-link {
-  color: var(--color-light);
-  text-decoration: none;
-  font-weight: 500;
-  cursor: pointer;
-}
-.navbar-action-link:hover { color: var(--color-primary); }
-.navbar-menu-btn {
-  background: transparent;
-  border: none;
-  color: var(--color-light);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0.25rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.navbar-menu-btn:hover { color: var(--color-primary); }
-.navbar-day-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.navbar-day-label {
-  color: var(--color-light);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  min-width: 4.5rem;
-  text-align: center;
-  opacity: 0.9;
-  user-select: none;
-}
-.navbar-day-btn {
-  background: #ffffff0a;
-  border: none;
-  color: var(--color-light);
-  width: 1.9rem;
-  height: 1.9rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0.75;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
-}
-.navbar-day-btn:hover {
-  background: var(--accent-bg);
-  color: var(--color-primary);
-  opacity: 1;
-}
-.navbar-day-btn:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-}
-.navbar-day-btn:disabled:hover {
-  background: #ffffff0a;
-  color: var(--color-light);
-  opacity: 0.25;
-}
-/* The calendar button is a label wrapping a real date input, so the native
-   picker opens on click while the button keeps the round navbar styling. */
-.navbar-day-btn--picker {
-  position: relative;
-  overflow: hidden;
-}
-.navbar-day-picker-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  padding: 0;
-  background: transparent;
-}
-.navbar-save-status {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-right: 0.75rem;
-  font-size: 0.68rem;
-  color: var(--color-light);
-  opacity: 0.75;
-  white-space: nowrap;
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.navbar-save-status--saved {
-  color: var(--color-primary);
-  opacity: 0.9;
-}
-.navbar-save-status--error {
-  color: var(--color-danger);
-  opacity: 1;
-}
-.navbar-save-status-spinner {
-  animation: navbar-save-spin 1s linear infinite;
-}
-@keyframes navbar-save-spin {
-  to { transform: rotate(360deg); }
-}
-.navbar-icon-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.navbar-menu-icon {
-  display: inline-block;
-}
-.navbar-menu-icon.menu-open {
-  transform: rotate(90deg);
-}
-.t-dropdown-wrap { position: relative; }
-.home-wrapper { width: 100%; }
-.home-page {
-  text-align: center;
-  padding: 4rem 2rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-.showcase-section {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-}
-.showcase-content {
-  max-width: 700px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.showcase-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-  margin-bottom: 1.5rem;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-}
-.showcase-text {
-  color: var(--color-light);
-  font-size: 1.05rem;
-  opacity: 0.8;
-  margin-top: 1rem;
-  max-width: 600px;
-  line-height: 1.6;
-}
-.showcase-cta { gap: 0; }
-.showcase-btn {
-  margin-top: 2rem;
-  font-size: 0.95rem;
-  padding: 0.75rem 2rem;
-  text-decoration: none;
-  display: inline-block;
-}
-.slogan {
-  font-size: 3.5rem;
-  font-weight: 800;
-  letter-spacing: -2px;
-  margin-bottom: 1.5rem;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-}
-.animated-hr {
-  width: 100%;
-  max-width: 600px;
-  height: 3px;
-  background: linear-gradient(to right, transparent, var(--color-primary), transparent);
-  margin: 1.5rem auto;
-  border: none;
-  border-radius: 25px;
-  animation: growLine 1.5s ease-out forwards;
-  animation-delay: 0.3s;
-  opacity: 0;
-}
-@keyframes growLine {
-  0%   { transform: scaleX(0); opacity: 0; }
-  60%  { opacity: 0.8; }
-  100% { transform: scaleX(1); opacity: 1; }
-}
-.home-description {
-  color: var(--color-light);
-  font-size: 1.125rem;
-  opacity: 0.8;
-  margin-top: 1rem;
-  max-width: 600px;
-}
-.footer {
-  background-color: var(--color-primary);
-  padding: 2rem 0 0;
-  padding-bottom: 0;
-  margin-top: auto;
-}
-.footer--logged-in {
-  padding-bottom: 3rem;
-}
-.footer-inner { display: flex; flex-direction: column; }
-.navbar-hr {
-  width: 100%;
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.12), transparent);
-  border: none;
-  margin: 0;
-}
-.navbar-auth-link {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.25rem;
-  line-height: 1.2;
-  font-weight: 500;
-  cursor: pointer;
-}
-.navbar-auth-link:hover,
-.navbar-auth-link.active { color: var(--color-primary); }
-.footer__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-dark);
-}
-.footer__brand {
-  font-family: var(--font-logo);
-  font-size: 1.5rem!important;
-  color: var(--color-dark);
-  letter-spacing: 2px;
-  text-decoration: none;
-  cursor: pointer;
-}
-.footer__brand:hover { color: #000000; }
-.footer__back-btn {
-  background: #00000014;
-  color: var(--color-dark);
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  border: none;
-}
-.footer__back-btn:hover {
-  background: var(--color-dark);
-  color: var(--color-primary);
-  transform: translateY(-3px);
-}
-.footer__links {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 2rem;
-  padding: 1rem 0 1rem 0;
-}
-.footer__links-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-.footer__links-title {
-  font-weight: 800;
-  color: var(--color-dark);
-  font-size: 0.9rem;
-  letter-spacing: 1px;
-  margin-bottom: 0.2rem;
-}
-.footer a {
-  color: var(--color-dark);
-  opacity: 0.85;
-  text-decoration: none;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-.footer a:hover { opacity: 1; color: #000000; }
-.footer__bottom {
-  padding: 1rem 0;
-  border-top: 1px solid var(--color-dark);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.footer__copyright {
-  font-size: 0.95rem;
-  color: var(--color-dark);
-  opacity: 0.7;
-  margin: 0;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-}
-.footer__copyright a {
-  color: var(--color-dark);
-  opacity: 0.8;
-  text-decoration: none;
-  font-weight: 600;
-  cursor: pointer;
-}
-.footer__copyright a:hover { opacity: 1; text-decoration: underline; }
-.footer__social {
-  display: flex;
-  gap: 1rem;
-  margin-top: 0.5rem;
-  justify-content: flex-start;
-}
-.footer__social a {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #00000014;
-  color: var(--color-dark);
-  font-size: 1.2rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-.footer__social a:hover {
-  background: var(--color-dark);
-  color: var(--color-primary);
-  transform: translateY(-3px);
-  text-decoration: none;
-}
-.auth-page {
-  min-height: 100vh;
-  /* See the note on `body`: keeps every page wrapper on the same viewport box as
-     `#root`, so the document is not silently taller than the visible area. */
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-}
-/* Forms sit on their own panel. This used to be `background: transparent`, so a
-   long form had no surface of its own and read as loose text floating on the
-   starfield. */
-.auth-card {
-  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border-radius: 25px;
-  width: 100%;
-  max-width: 640px;
-  padding: 2rem;
-  text-align: center;
-  box-shadow: none;
-}
-/* The goals form is a 2-up grid of seven short numeric fields. The previous 960px
-   stretched each input so wide that the label stopped looking attached to it. */
-.auth-card-wide {
-  max-width: 720px;
-}
-/* Login and register hold two short fields each. At the 640px default a single
-   row of inputs stretched across half a monitor, so they get their own
-   narrower measure. */
-.auth-card-narrow {
-  max-width: 420px;
-}
-.auth-title {
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  font-size: 1.4rem;
-  font-weight: 700;
-  margin-bottom: 1.25rem;
-}
-.auth-card .form-label {
-  color: var(--color-light);
-  text-align: left;
-  font-size: 0.72rem;
-  font-weight: 500;
-  display: block;
-  margin-bottom: 0.3rem;
-  letter-spacing: 0.3px;
-}
-/* Matches the daily log's .scored-input: same fill, same 1.5px hairline and the
-   same 20px radius, so a form field looks identical wherever it appears. */
-.auth-card .form-control {
-  background: #ffffff0a;
-  color: var(--color-light);
-  border-radius: 20px;
-  padding: 0.7rem 0.9rem;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  outline: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  width: 100%;
-}
-.auth-card .form-control:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-}
-.auth-card .form-control:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
-  color: var(--color-light);
-}
-.auth-card .form-select {
-  background: #ffffff0a;
-  color: var(--color-light);
-  border-radius: 20px;
-  padding: 0.7rem 0.9rem;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  outline: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  width: 100%;
-}
-.auth-card .form-select:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-}
-.auth-card .form-select:focus {
-  background: #ffffff12;
-  border-color: var(--color-primary);
-}
-/* The "Registration Closed" notice. */
-.auth-closed-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 1.25rem;
-  border-radius: 50%;
-  background: #ffffff0a;
-  color: var(--color-primary);
-  font-size: 1.5rem;
-}
-.auth-text-muted {
-  opacity: 0.55;
-  font-size: 0.72rem;
-}
-.auth-card .form-control::placeholder { color: rgba(255, 255, 255, 0.4); }
-.password-input-wrap {
-  position: relative;
-  width: 100%;
-}
-.password-input-wrap .form-control {
-  padding-right: 2.75rem;
-  width: 100%;
-}
-.password-toggle {
-  position: absolute;
-  top: 50%;
-  right: 0.6rem;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  padding: 0.25rem;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.password-toggle:hover { color: var(--color-primary); }
-/* Form submit buttons. Solid primary fill so the action reads as the clear
-   next step, darkening on hover rather than inverting to a text-only state. */
-.auth-card .btn-primary,
-.auth-card-btn {
-  background: var(--color-primary);
-  color: #000000;
-  font-weight: 600;
-  border-radius: 20px;
-  padding: 0.65rem 1rem;
-  margin-top: 1rem;
-  font-size: 0.82rem;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
-}
-.auth-card .btn-primary:hover,
-.auth-card .btn-primary:focus-visible,
-.auth-card-btn:hover,
-.auth-card-btn:focus-visible {
-  background: var(--color-primary-dark);
-  color: #000000;
-}
-.auth-card .btn-primary:active,
-.auth-card-btn:active {
-  background: var(--color-primary-dark);
-  color: #000000;
-}
-/* While a submit is in flight the label says "Saving...", so the button should
-   stop inviting a second click. */
-.auth-card .btn-primary:disabled,
-.auth-card-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-  background: var(--color-primary);
-}
-.auth-card .btn-primary:disabled:hover,
-.auth-card-btn:disabled:hover {
-  background: var(--color-primary);
-}
-.auth-extra-links { margin-top: 0.85rem; }
-.auth-link {
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-.auth-link:hover { opacity: 0.8; text-decoration: underline; }
-.auth-text {
-  color: var(--color-light);
-  opacity: 0.8;
-  font-size: 0.78rem;
-}
-.auth-error {
-  background: rgba(219, 34, 42, 0.12);
-  color: #ff6b70;
-  border-radius: 25px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.75rem;
-  margin-bottom: 0.85rem;
-  text-align: left;
-}
-.mb-3 { margin-bottom: 0.7rem; }
-.mb-4 { margin-bottom: 1rem; }
-.mt-3 { margin-top: 1rem; }
-.mt-5 { margin-top: 1.5rem; }
-.w-100 { width: 100%; }
-.text-start { text-align: left; }
-.t-input {
-}
-.t-input.is-error {
-}
-.t-error-msg {
-  opacity: 0;
-  visibility: hidden;
-}
-.t-input-wrap.is-error .t-error-msg {
-  opacity: 1;
-  visibility: visible;
-}
-.t-input.is-shaking {
-  animation: t-input-shake calc(
-      var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2
-    ) linear;
-}
-@keyframes t-input-shake {
-  0%      { transform: translateX(0);                                 animation-timing-function: var(--shake-ease); }
-  28.57%  { transform: translateX(var(--shake-distance));             animation-timing-function: var(--shake-ease); }
-  57.14%  { transform: translateX(calc(var(--shake-distance) * -1)); animation-timing-function: var(--shake-ease); }
-  78.57%  { transform: translateX(var(--shake-overshoot));            animation-timing-function: var(--shake-ease); }
-  100%    { transform: translateX(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .t-input { animation: none !important; transform: none !important; }
-}
-.t-input.is-error .form-control { background: var(--color-danger-dark); }
-.t-input.is-error .form-control:focus {
-  background: var(--color-danger-dark);
-}
-.t-error-msg {
-  color: #ff6b70;
-  font-size: 0.7rem;
-  margin-top: 0.3rem;
-  text-align: left;
-  line-height: 1.3;
-}
-.t-input-wrap {
-  width: 100%;
-  /* Anchors the absolutely positioned goal hint inside the field. Without this
-     the hint resolves against a distant ancestor and lands off the input. */
-  position: relative;
-}
-.t-input { width: 100%; }
-/* Right-aligned hint inside a form field (e.g. the sample time on a clock
-   input). Mirrors .scored-input-goal, which is tied to the daily log's floating
-   label markup and so does not apply inside an auth-card form. */
-.t-input-hint {
-  position: absolute;
-  right: 0.9rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.32);
-  pointer-events: none;
-}
-/* Number input - remove spin buttons */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type="number"] {
-  appearance: textfield;
-  -moz-appearance: textfield;
 }
 .t-dropdown {
   transform-origin: top right;
@@ -1194,14 +450,14 @@ input[type="number"] {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
 }
 /* Legal Pages - center content on page */
 .legal-page {
-  padding: 2rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(2rem + 2.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1490,13 +746,15 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Centre the icons vertically in the full-height rail and keep the spacing
-     between them even, with a gap that breathes on taller screens. */
+  /* Centre the icons vertically in the space between the warning and the menu
+     and keep the spacing between them even, with a gap that breathes on taller
+     screens. */
   justify-content: center;
   /* Where supported, keep the first icon reachable if the list overflows a
      short window instead of centring it off the top of the rail. */
   justify-content: safe center;
   flex: 1;
+  min-height: 0;
   gap: clamp(0.25rem, 1.1vh, 0.7rem);
 }
 .sidebar-nav-link {
@@ -1533,6 +791,194 @@ input[type="number"] {
 }
 .sidebar-nav-icon {
   font-size: 1.4rem;
+}
+
+/* ---------- the rail's top and bottom zones ---------- */
+.sidebar-nav-top,
+.sidebar-nav-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+}
+.sidebar-nav-top {
+  /* A gap so the first page icon is never hard against the warning above it. */
+  padding-bottom: 0.5rem;
+}
+.sidebar-nav-bottom {
+  padding-top: 0.5rem;
+}
+
+/* ---------- the deadline warning ---------- */
+.sidebar-nav-alert {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: #ff2e4a14;
+  color: #ff6b70;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sidebar-nav-alert svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+.sidebar-nav-alert:hover,
+.sidebar-nav-alert--open {
+  background: #ff2e4a2e;
+  color: #ff8f93;
+}
+/* Only once something is inside three days does the icon fill, so a month out it
+   is present without shouting and this week it cannot be missed. */
+.sidebar-nav-alert--urgent {
+  background: #ff2e4a33;
+  color: #ff6b70;
+}
+.sidebar-nav-alert-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  display: grid;
+  place-content: center;
+  border-radius: 25px;
+  background: #ff2e4a;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Portalled to <body> like the tooltip: the rail scrolls, and an absolutely
+   positioned panel inside it would be clipped. */
+.sidebar-alert-panel {
+  position: fixed;
+  z-index: 200;
+  min-width: 15rem;
+  max-width: 22rem;
+  padding: 0.4rem;
+  border-radius: 14px;
+  background: #1a1a1ef7;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  animation: sidebar-panel-in 0.14s ease-out;
+}
+.sidebar-alert-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 9px;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+.sidebar-alert-dot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-top: 0.42rem;
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.sidebar-alert-row--urgent {
+  color: #ff8f93;
+}
+.sidebar-alert-row--urgent .sidebar-alert-dot {
+  background: #ff2e4a;
+}
+.sidebar-alert-text {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-alert-foot {
+  margin-top: 0.25rem;
+  padding: 0.3rem 0.45rem 0.15rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-light);
+  opacity: 0.4;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+/* ---------- the settings menu ----------
+   Portalled to <body>, like the tooltip and the deadline panel, and placed with
+   fixed coordinates for the reason they are: the rail is a scroll container
+   (`overflow-y: auto`), which forces `overflow-x` to `auto` too, so an absolutely
+   positioned panel opening out to the right of a 3.75rem rail is clipped by it
+   rather than drawn over the page. A `z-index` here would not have saved it
+   either -- `position: fixed` with a z-index on the rail makes it a stacking
+   context, so this number is only ever compared inside the rail's own, and the
+   sign-out confirmation it opens (an `.import-modal-overlay`, z-index 200) would
+   paint over the menu that opened it. */
+.sidebar-menu-dropdown {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.25rem;
+  border-radius: 14px;
+  background: #1a1a1ef7;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  animation: sidebar-panel-in 0.14s ease-out;
+}
+.sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sidebar-menu-item:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.sidebar-menu-item--danger:hover {
+  background: #ff6b7020;
+  color: #ff6b70;
+}
+
+.mobile-more-link--danger:hover {
+  background: #ff6b7020 !important;
+  color: #ff6b70 !important;
+}
+
+/* The mobile deadline dot, on More. */
+.mobile-navbar-link {
+  position: relative;
+}
+.mobile-navbar-dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 25px;
+  background: #ff2e4a;
+  box-shadow: 0 0 0 2px #0a0a0a;
 }
 
 /* Portalled to <body> so the rail's `overflow-y: auto` cannot clip it. */
@@ -1577,8 +1023,157 @@ input[type="number"] {
     transform: translateY(-50%) translateX(0);
   }
 }
+/* Its own keyframes rather than `sidebar-tooltip-in`.
+   That one carries `translateY(-50%)`, because `.sidebar-tooltip` centres itself
+   on its icon with exactly that transform. These two place themselves with
+   top/left and have no transform of their own, so inheriting it drew them half
+   their own height above where they belong and then -- the animation having no
+   `forwards` fill -- dropped them back down onto the real position. A panel with
+   three deadlines in it jumped about sixty pixels. X only, no Y. */
+@keyframes sidebar-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .sidebar-tooltip {
+    animation: none;
+  }
+  .sidebar-alert-panel,
+  .sidebar-menu-dropdown {
+    animation: none;
+  }
+}
+
+/* ---------- app tooltip ----------
+   The default for the whole site: a control asks for one by carrying `data-tip`,
+   and `TooltipLayer` renders all of them through a single portalled node. Replaces
+   the native `title`, which showed after a long delay, ignored keyboard focus and
+   rendered in the OS style instead of the app's.
+
+   Deliberately the same surface values as `.sidebar-tooltip` above -- same fill,
+   border, blur, radius, mono at 0.72rem -- so a tip on the rail and a tip on a
+   notes toolbar button are recognisably the same object. The one difference is
+   the arrow: that one is pinned to a rail 3.75rem wide, this one points at
+   whatever the pointer is on, so it moves between all four edges.
+
+   Its own keyframes, and its own transform, for the reason spelled out above
+   `sidebar-panel-in`: this is placed with top/left and does not centre itself, so
+   it must not inherit a `translateY(-50%)` that belongs to another rule. */
+.tooltip {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  /* Wraps, and is capped. These two have to agree, and they used not to.
+     `white-space: nowrap` under a `max-width` is a lie about the box: the box is
+     clamped to the cap while the text keeps painting past it. `offsetWidth`
+     reports the clamped box, so the placement code measured a tip it thought was
+     320px wide, put its `left` somewhere that fitted, and the label ran on past
+     the edge of the screen and was clipped by the viewport -- which is what the
+     notes rail looked like, where every tip is a page title and most are longer
+     than the cap.
+
+     Wrapping makes the measured box the painted box, so the clamp is honest. A
+     short label is one line either way; it only wraps when there is no room, and
+     then it wraps rather than disappearing off the side of the display.
+
+     `overflow-wrap: anywhere` for the case a cap cannot fix: one long unbroken
+     token -- a slug, a path -- has no break opportunity in it, and without this
+     it is the same overflow, unfixed. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.38rem 0.6rem;
+  border-radius: 10px;
+  background: #1e1e1ef7;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  /* Left-aligned against the control it describes. Centring instead pushes a tip
+     beside a left-edge control off screen, and clamping it back to the margin
+     leaves it visibly detached from the thing it is naming. */
+  text-align: left;
+  pointer-events: none;
+  animation: tooltip-in 0.14s ease-out;
+}
+.tooltip-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #1e1e1ef7;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+/* Keyed off `data-side`, which TipLayer writes when it places the tip, rather than
+   off a class that would have to come out of state. The side is a measurement
+   result -- it depends on where the control turned out to be -- so it is set where
+   the measurement happens, and the animation direction follows it for free. */
+.tooltip[data-side='bottom'] .tooltip-arrow {
+  top: -4px;
+  left: 14px;
+  transform: rotate(135deg);
+}
+.tooltip[data-side='top'] .tooltip-arrow {
+  bottom: -4px;
+  left: 14px;
+  transform: rotate(45deg);
+}
+.tooltip[data-side='right'] .tooltip-arrow {
+  top: 10px;
+  left: -4px;
+  transform: rotate(-45deg);
+}
+.tooltip[data-side='left'] .tooltip-arrow {
+  top: 10px;
+  right: -4px;
+  transform: rotate(-135deg);
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip {
+    animation: none;
+  }
+}
+
+/* ---------- popover ----------
+   A floating panel anchored to a control, portalled to <body> by `Popover.tsx`.
+
+   Deliberately byte-for-byte the surface values of `.sidebar-menu-dropdown` above.
+   There is no reason a settings menu and a colour picker should look like two
+   products, and the sidebar's own panel is the one this is imitating. Only the
+   stacking level differs, and that comes from the token so a popover can never
+   end up behind the modal it was opened from. */
+.popover {
+  position: fixed;
+  z-index: var(--z-popover);
+  border-radius: 14px;
+  background: #1a1a1ef7;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  animation: sidebar-panel-in 0.14s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .popover {
     animation: none;
   }
 }
@@ -1594,18 +1189,7 @@ input[type="number"] {
   #root {
     padding-left: 3.75rem;
   }
-  /* The rail occupies the top-left corner, so the top bar starts after it. */
-  .navbar-brand-row {
-    left: 3.75rem;
-  }
-  /* The bottom pill bar is gone at this width, so reclaim its reserved space. */
-  .page-main,
-  .page-main-with-secondary,
-  .daily-logs-page-wrapper,
-  .books-page-wrapper {
-    padding-bottom: 2rem;
-  }
-  .secondary-navbar {
+ .secondary-navbar {
     display: none;
   }
 }
@@ -1645,12 +1229,9 @@ input[type="number"] {
 .auth-card .form-select::placeholder { color: rgba(255, 255, 255, 0.4); }
 /* Modern Profile Card Styles */
 .profile-card-modern {
-  background: #ffffff08;
-  border-radius: 25px;
   width: 100%;
   max-width: 600px;
   padding: 2rem;
-  backdrop-filter: blur(10px);
 }
 .profile-header-modern {
   display: flex;
@@ -2140,9 +1721,9 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -2408,11 +1989,8 @@ input[type="number"] {
 }
 /* Books card fills all vertical space */
 .books-card {
-  background: #ffffff08;
-  border-radius: 25px;
   width: 100%;
   padding: 1rem;
-  backdrop-filter: blur(10px);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -2964,15 +2542,6 @@ input[type="number"] {
   border-radius: 25px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  /* Without this the number inputs grow a pair of native spinners wide enough
-     to unbalance a grid row, and they are the only control here the browser
-     supplies its own affordance for. */
-  -moz-appearance: textfield;
-}
-.form-control::-webkit-outer-spin-button,
-.form-control::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 .form-control::placeholder { color: rgba(255, 255, 255, 0.35); }
 .form-control:hover { border-color: rgba(255, 255, 255, 0.12); }
@@ -3391,7 +2960,6 @@ textarea.form-control {
 @media (max-width: 576px) {
   .profile-card-modern {
     padding: 1.5rem;
-    border-radius: 25px;
   }
   .profile-header-modern {
     flex-direction: column;
@@ -3423,9 +2991,9 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -3440,11 +3008,8 @@ textarea.form-control {
 }
 /* Projects card fills all vertical space */
 .projects-card {
-  background: #ffffff08;
-  border-radius: 25px;
   width: 100%;
   padding: 1rem;
-  backdrop-filter: blur(10px);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -4007,9 +3572,9 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -4024,8 +3589,6 @@ textarea.form-control {
 }
 /* Abstinence card container fills all vertical space */
 .abstinence-card-container {
-  background: #ffffff08;
-  border-radius: 20px;
   width: 100%;
   padding: 1rem;
   text-align: left;
@@ -4453,28 +4016,37 @@ textarea.form-control {
    style: the rail and the pane are laid out together against the full width. */
 
 /* ---------- the split ---------- */
-/* Capped rather than full-bleed. On a very wide monitor a truly edge-to-edge
-   document leaves the eye stranded at the far side of the line, so the workspace
-   grows to a comfortable maximum and centres. */
 .notes-workspace {
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
   gap: 0;
   width: 100%;
-  max-width: 1600px;
   height: 100%;
   min-height: 0;
-  margin: 0 auto;
-  border: 1px solid #ffffff0d;
-  border-radius: 25px;
-  /* No backdrop-filter here on purpose. The workspace spans the whole viewport
-     and the editor scrolls inside it, so the browser had to re-sample and re-blur
-     the entire backdrop on every scroll frame. Over a near-black background the
-     blur was also almost invisible, so it cost a great deal for very little. */
-  background: #ffffff06;
   overflow: hidden;
   /* Isolates the rail/pane layout from the rest of the page while scrolling. */
   contain: layout paint;
+}
+
+/* The notes page has a wrapper of its own rather than borrowing
+   .books-page-wrapper. That wrapper is height-locked and reserves 3rem at the
+   top for the navbar that no longer exists, and books/measurements/academic still
+   need both. The measure is capped by .note-pane-inner instead of the card, so
+   dropping the max-width costs nothing on a wide monitor. */
+.notes-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  padding: 1rem;
+  /* dvh, not vh: vh is the full layout viewport, URL bar included, so on a
+     phone this would be taller than the visible area and push the last line of a
+     note under the browser chrome. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* ---------- the rail ---------- */
@@ -4484,11 +4056,41 @@ textarea.form-control {
   gap: 0.6rem;
   min-height: 0;
   padding: 0.75rem 0.6rem;
-  border-right: 1px solid #ffffff0f;
+  /* The only thing separating the list from the page now that the workspace has
+     no fill and no border of its own. */
+  border-right: 1px solid #ffffff1a;
   overflow: hidden;
 }
 .notes-rail .notes-search {
   max-width: none;
+}
+
+/* Closing the rail.
+   The rail stays mounted while closed so it can animate; what actually hides it
+   is the grid track going to zero, which is the only thing here that reflows the
+   page. `visibility` is what finishes the job, and it is not decoration: a rail at
+   `opacity: 0` is still in the tab order and still read out by a screen reader, so
+   a closed rail has to be `hidden` as well as invisible. The delay is what lets
+   the fade be seen before the element stops being rendered at all.
+
+   Scoped away from the stacked layout, where the rail and the pane are separate
+   route views rather than two halves of one window. */
+.notes-workspace:not(.notes-workspace--stacked) {
+  transition: grid-template-columns 0.22s ease;
+}
+.notes-rail {
+  overflow: hidden;
+  transition: opacity 0.16s ease, visibility 0s linear 0.16s;
+}
+.notes-workspace--no-rail .notes-rail {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .notes-workspace:not(.notes-workspace--stacked),
+  .notes-rail {
+    transition: none;
+  }
 }
 .notes-new-btn {
   display: inline-flex;
@@ -4527,6 +4129,10 @@ textarea.form-control {
   margin: 0;
   /* Nudge the first item up so it sits closer to the new-note button. */
   margin-top: -0.2rem;
+  /* The anchor for a row's action menu. Inside the scroll area rather than the
+     rail, so a menu on a row near the bottom scrolls into view instead of being
+     clipped by the rail's own overflow. */
+  position: relative;
 }
 .notes-rail-list::-webkit-scrollbar { width: 4px; }
 .notes-rail-list::-webkit-scrollbar-track { background: transparent; }
@@ -4542,12 +4148,97 @@ textarea.form-control {
   flex-direction: column;
   gap: 1px;
 }
+
+/* ---------- a row: twisty, title, actions ---------- */
+/* The row owns the background and the indent; the title is only the text part of
+   it. That split is what lets the title be swapped for a rename input mid-row
+   without the highlight, the indent or the action button jumping. */
+.notes-rail-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding-right: 0.2rem;
+  border-radius: 12px;
+  /* Off until a drag starts, so a mis-drag on a text selection does not pick the
+     whole page up instead. */
+  cursor: default;
+}
+.notes-rail-row:hover {
+  background: #ffffff0a;
+}
+.notes-rail-row--active,
+.notes-rail-row--active:hover {
+  background: var(--accent-bg);
+}
+/* Held at half opacity while it is being dragged, so the row it is about to land
+   on is the one that reads as solid. */
+.notes-rail-row--dragging {
+  opacity: 0.4;
+}
+/* While a drag is in progress, every row is a drop target -- including the ones
+   that would refuse it, which still take the pointer event so the drag shows as
+   refused rather than as nothing happening. */
+.notes-rail-row[draggable='true'] {
+  cursor: grab;
+}
+.notes-rail-row[draggable='true']:active {
+  cursor: grabbing;
+}
+/* Two lines for "beside", a ring for "inside". Drawn as insets on the row itself
+   so the indicator sits flush against the row above or below rather than
+   floating a pixel off it. */
+.notes-rail-row--drop-before::before,
+.notes-rail-row--drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  right: 0.25rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  pointer-events: none;
+}
+.notes-rail-row--drop-before::before { top: -1px; }
+.notes-rail-row--drop-after::after { bottom: -1px; }
+.notes-rail-row--drop-into {
+  outline: 1px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.notes-rail-twisty {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.45;
+  cursor: pointer;
+}
+.notes-rail-twisty:hover {
+  opacity: 1;
+  background: #ffffff12;
+}
+/* The slot a leaf's twisty would occupy, drawn as nothing. It exists so every
+   title starts at the same x: without it the list shifts sideways every time a
+   branch opens or closes. */
+.notes-rail-twisty--leaf {
+  cursor: default;
+  pointer-events: none;
+}
+
 .notes-rail-item {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  width: 100%;
-  padding: 0.4rem 0.55rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.2rem;
   border: none;
   border-radius: 12px;
   background: transparent;
@@ -4557,15 +4248,13 @@ textarea.form-control {
   font-size: 0.78rem;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s ease, opacity 0.12s ease;
+  transition: opacity 0.12s ease;
 }
 .notes-rail-item:hover {
-  background: #ffffff0a;
   opacity: 1;
 }
 .notes-rail-item--active,
 .notes-rail-item--active:hover {
-  background: var(--accent-bg);
   color: var(--color-primary);
   opacity: 1;
   font-weight: 600;
@@ -4585,6 +4274,106 @@ textarea.form-control {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The rename field, drawn to be indistinguishable from the title it replaces.
+   Slightly wider than the title's own padding so the caret does not sit flush
+   against the twisty. */
+.notes-rail-edit {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0.4rem 0.2rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  outline: none;
+}
+.notes-rail-row--editing .notes-rail-edit {
+  opacity: 1;
+}
+
+.notes-rail-more {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  /* Hidden until the row is under the pointer or already open. Kept in the flow
+     rather than overlaid, so no title moves when it appears. */
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.notes-rail-row:hover .notes-rail-more,
+.notes-rail-more:focus-visible,
+.notes-rail-more--on {
+  opacity: 0.6;
+}
+.notes-rail-more:hover,
+.notes-rail-more--on {
+  background: #ffffff12;
+  opacity: 1;
+}
+
+/* ---------- a row's action menu ---------- */
+/* In the document flow of the row, absolutely placed against it. Not a popover
+   anchored to the button: the rail clips its overflow, so a menu that opened
+   upward off the last row would be cut in half. */
+.notes-rail-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0.2rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 0.25rem;
+  border: 1px solid #ffffff14;
+  border-radius: 14px;
+  background: #141418;
+  box-shadow: 0 12px 30px #00000066;
+}
+.notes-rail-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.notes-rail-menu button:hover:not(:disabled) {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.notes-rail-menu button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.notes-rail-menu-item--danger:hover:not(:disabled) {
+  background: #ff6b7020;
+  color: #ff6b70;
+}
+.notes-rail-menu-sep {
+  height: 1px;
+  margin: 0.25rem 0.3rem;
+  background: #ffffff0f;
+}
+
 .notes-rail-item-dot {
   width: 5px;
   height: 5px;
@@ -4611,6 +4400,23 @@ textarea.form-control {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+/* Carries the page's colour down as custom properties, set once by
+   NoteEditorPane. Everything below reads them and falls back to the app's accent
+   when the page has no colour, so "uncoloured" needs no rules of its own.
+
+   There is deliberately no background here any more. The page used to be washed
+   with the colour across the whole scrolling pane, and on a near-black surface a
+   tint that wide stops reading as an accent and starts reading as a different,
+   faintly-wrong theme -- and it was only ever on the notes half of the screen, so
+   the same colour looked applied in one place and absent in the one next to it.
+   Colour now says itself in three small places: the rule above the page, the bar
+   on the rail row, and the icon. */
+.note-pane-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .notes-pane-blank {
   display: flex;
@@ -4676,26 +4482,6 @@ textarea.form-control {
   background: var(--accent-bg);
   color: var(--color-primary);
 }
-.note-save-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-right: 0.35rem;
-  color: var(--color-light);
-  opacity: 0.45;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  white-space: nowrap;
-}
-.note-save-status--saved {
-  color: var(--color-primary);
-  opacity: 0.75;
-}
-.note-save-status--dirty { opacity: 0.7; }
-.note-save-status--error {
-  color: #ff6b70;
-  opacity: 0.9;
-}
 .note-spin {
   animation: note-spin 1s linear infinite;
 }
@@ -4717,11 +4503,16 @@ textarea.form-control {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 25px;
 }
+/* The colour rule above the page.
+   Always rendered, and transparent when the page has no colour, so that setting
+   and clearing a colour cannot move the page: it used to be unmounted without one,
+   which shifted everything below it six pixels every time. */
 .note-pane-accent {
-  height: 6px;
-  /* A 4px line at the very top of a dark page was easy to miss, which reads as
-     "the picker did nothing" even when the write succeeded. */
+  height: 3px;
+  flex-shrink: 0;
+  background: var(--note-solid, transparent);
   border-bottom: 1px solid #ffffff14;
+  transition: background 0.15s ease;
 }
 .note-inline-error {
   color: #ff6b70;
@@ -4735,10 +4526,31 @@ textarea.form-control {
 .note-pane-inner {
   max-width: 70%;
   margin: 0 auto;
-  padding: 1.75rem 2rem 30vh;
+  /* Symmetric on purpose. This used to carry `30vh` of bottom padding, which put
+     roughly a third of a screen of dead space under the last line of every page
+     -- the note ended long before the pane did, and on a half-written page that
+     gap was most of what was on screen. The phone rule below keeps a pad
+     instead, because down there the pane scrolls with the page behind a fixed
+     bottom nav, and the pad is the only thing that gets the last line clear of
+     it. */
+  padding: 1.75rem 2rem;
+}
+/* Icon and title on one row. `flex-start` rather than `center`: the title is two
+   lines tall at 2rem and the icon is not, so centring would leave the icon
+   floating beside the gap between the lines instead of beside the first one. */
+.note-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
 }
 .note-title-input {
-  width: 100%;
+  /* `flex: 1; min-width: 0` rather than `width: 100%`: a flex item's `100%` is
+     100% of the row, so with the icon beside it the title overflowed and pushed
+     the icon off the left edge of the pane. `min-width: 0` is what lets it shrink
+     below its content so the text scrolls inside it and wraps instead. */
+  flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   color: var(--color-light);
@@ -4748,16 +4560,31 @@ textarea.form-control {
   line-height: 1.25;
   outline: none;
   padding: 0;
-  margin-bottom: 0.4rem;
 }
 .note-title-input::placeholder {
   color: var(--color-light);
   opacity: 0.2;
 }
-.note-meta-line {
+/* Tags on the left, the document's own facts on the right. One row rather than two
+   stacked blocks, so the header is icon, title, metadata and then the body -- and
+   so a long tag list cannot push the timestamp off the bottom of the screen. */
+.note-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   margin-bottom: 1.5rem;
   padding-bottom: 0.85rem;
   border-bottom: 1px solid #ffffff0f;
+}
+.note-meta-row .note-tag-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.note-meta-line {
+  flex-shrink: 0;
   color: var(--color-light);
   opacity: 0.38;
   font-family: var(--font-mono);
@@ -4778,6 +4605,12 @@ textarea.form-control {
   cursor: pointer;
   line-height: 1;
   transition: background 0.15s ease, color 0.15s ease;
+}
+/* Opens and closes the page list. The only `auto` margin in this bar: it pushes
+   every other control to the right, so the rail toggle sits against the edge it
+   collapses towards instead of joining the group of page actions. */
+.note-rail-toggle-btn {
+  margin-right: auto;
 }
 /* The block menu's second entry point. Only drawn where the drag grip is not:
    the gutter has no room below 768px and there is no hover to reveal it. */
@@ -4801,56 +4634,339 @@ textarea.form-control {
 }
 
 /* ---------- colour picker ----------
-   A strip in normal flow inside the header bar rather than a popover. The pane
-   clips with overflow and the workspace sets backdrop-filter, which makes it a
-   containing block for fixed descendants, so an overlaid menu had no reliable
-   place to live. */
-.note-color-wrap {
-  position: relative;
+   Was an inline strip in the document flow, which is now a portalled `.popover`.
+   The strip existed because a popover "could not" be used here; the four
+   containment rules that made that true are escaped by rendering into <body>, and
+   `Popover.tsx` carries the explanation. What is left here is only the look. */
+.note-color-popover {
+  width: 244px;
+  padding: 0.6rem;
 }
-.note-color-inline {
+.note-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+.note-color-tile {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.4rem;
-  border: 1px solid #ffffff1f;
-  border-radius: 25px;
-  background: #111;
-  /* Always its own row in the pane bar. Nested inside .note-pane-actions it had
-     no room to go: that row holds ten controls and does not wrap, so the strip
-     overflowed to the right and .notes-pane (overflow: hidden) clipped it,
-     taking the outer swatches with it. Claiming the full width here means it can
-     also wrap instead of overflowing on a narrow phone. */
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.note-color-swatch {
-  width: 20px;
-  height: 20px;
-  border: 2px solid transparent;
-  border-radius: 25px;
-  background: #ffffff14;
+  gap: 0.45rem;
+  /* `text-align` rather than `align-items`: the dot and the label are different
+     widths, and centring the pair is what makes the grid read as a list of
+     swatches rather than as eleven unrelated buttons. */
+  padding: 0.4rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-light);
   cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.note-color-tile:hover {
+  background: #ffffff0f;
+}
+.note-color-tile--on {
+  /* A ring rather than a fill, so the tile still shows its own wash underneath.
+     Filling the selected tile with the accent hid the very colour being chosen. */
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #ffffff0a;
+}
+/* The dot is the only opaque part of a swatch at this size and therefore the only
+   part that identifies the colour. The wash behind it is a 10% alpha over near
+   black, which on its own is indistinguishable from an unselected tile. */
+.note-color-tile-dot {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 25px;
+  color: #0a0a0a;
+}
+.note-color-tile-label {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The free-form row. Full width and below the grid, rather than an eleventh tile
+   in it: it is not a colour you choose from a list, it is a different way of
+   choosing one, and mixing the two made the grid look like it had a missing
+   swatch at the end. */
+.note-color-custom-row {
+  margin-top: 0.3rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.note-color-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.note-color-custom:hover { background: #ffffff0f; }
+.note-color-custom--on {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #ffffff0a;
+}
+/* The swatch is the input itself, laid over its own track rather than beside it.
+   Wrapping the input in a styled box and hiding it was the first attempt, and it
+   hid it too well on browsers that paint a bare colour input as nothing at all --
+   leaving a labelled row with no control in it. `appearance: none` plus an explicit
+   size is what makes the same element both the swatch and the hit target. */
+.note-color-custom-input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   padding: 0;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  border: 1px solid #ffffff2e;
+  border-radius: 25px;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
-.note-color-swatch:hover { transform: scale(1.15); }
-.note-color-swatch--on { border-color: var(--color-light); }
-/* "No colour" reads as a struck-through swatch rather than an empty circle, so
-   it is not mistaken for a broken one. */
-.note-color-swatch--none {
-  position: relative;
-  background: #ffffff08;
-  border-color: #ffffff1f;
+.note-color-custom-input::-webkit-color-swatch-wrapper { padding: 0; }
+.note-color-custom-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 25px;
 }
-.note-color-swatch--none::after {
-  content: '';
-  position: absolute;
-  inset: 50% 3px auto 3px;
-  height: 1px;
-  background: #ff6b70;
-  transform: rotate(-45deg);
+.note-color-custom-input::-moz-color-swatch {
+  border: none;
+  border-radius: 25px;
+}
+.note-color-custom > .lucide { color: var(--color-light); opacity: 0.55; }
+.note-color-custom .note-color-tile-label { flex: 1; }
+
+/* ---------- icon picker ---------- */
+.note-icon-popover {
+  display: flex;
+  flex-direction: column;
+  width: 268px;
+  max-height: min(24rem, calc(100vh - 5rem));
+}
+.note-icon-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.note-icon-search-icon {
+  flex-shrink: 0;
+  color: var(--color-light);
+  opacity: 0.4;
+}
+.note-icon-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  outline: none;
+}
+.note-icon-search input::placeholder {
+  color: var(--color-light);
+  opacity: 0.35;
+}
+.note-icon-search-clear {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 25px;
+  background: #ffffff0f;
+  color: var(--color-light);
+  opacity: 0.6;
+  cursor: pointer;
+}
+.note-icon-search-clear:hover {
+  opacity: 1;
+  background: #ffffff1f;
+}
+.note-icon-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem;
+}
+.note-icon-scroll::-webkit-scrollbar { width: 5px; }
+.note-icon-scroll::-webkit-scrollbar-track { background: transparent; }
+.note-icon-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+}
+.note-icon-group + .note-icon-group {
+  margin-top: 0.7rem;
+}
+.note-icon-group-label {
+  margin-bottom: 0.35rem;
+  color: var(--color-light);
+  opacity: 0.38;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.note-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.15rem;
+}
+.note-icon-tile {
+  display: grid;
+  place-content: center;
+  /* Square, so a 7-across grid of these lines up with the labels above it. */
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+.note-icon-tile:hover {
+  opacity: 1;
+  background: #ffffff0f;
+}
+.note-icon-tile--on {
+  opacity: 1;
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.note-icon-empty {
+  padding: 1.2rem 0.4rem;
+  color: var(--color-light);
+  opacity: 0.45;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-align: center;
+  line-height: 1.5;
+}
+.note-icon-empty-query {
+  color: var(--color-primary);
+  /* Breaks a long query rather than letting it run past the panel edge. */
+  overflow-wrap: anywhere;
+}
+.note-icon-footer {
+  flex-shrink: 0;
+  padding: 0.5rem 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.note-icon-remove {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #ff6b70;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.note-icon-remove:hover:not(:disabled) {
+  background: var(--color-danger-dark);
+}
+.note-icon-remove:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ---------- the page icon ----------
+   One component draws this in all six places it appears, so these rules are the
+   only description of what a page icon looks like. `currentColor` throughout,
+   because the tint arrives as a custom property on the badge and nowhere else.
+
+   No background and no border, at any size. It was a 3.25rem rounded tile with a
+   hairline around it, sitting on its own line above the title, and it read as a
+   piece of page furniture rather than as part of the page's name. The colour is
+   carried by the glyph, which is the only part that ever needed to say it. */
+.note-icon-badge {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: var(--note-text, var(--color-primary));
+  transition: background 0.15s ease;
+}
+.note-icon-badge--inline {
+  width: 18px;
+  height: 18px;
+}
+.note-icon-badge--page {
+  /* Sits beside a 2rem title, so it is scaled to the title rather than to a
+     display size. Anything larger and it outweighs the name it labels. */
+  width: 1.7rem;
+  height: 1.7rem;
+  margin-top: 0.15rem;
+}
+.note-icon-badge--page .lucide {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+/* No icon. Nothing is drawn, but the box is still there.
+   Two reasons it is invisible rather than absent, and the second is the important
+   one: it reserves the slot, so the title does not jump sideways the moment an
+   icon is added or removed and the rail's rows stay aligned when only some pages
+   have one. On the page itself it is also the affordance for adding the first
+   icon, so it appears on approach rather than sitting there permanently -- a
+   faded stand-in glyph on every iconless page made all of them look like they had
+   been given one, which is the opposite of what an icon is for. */
+.note-icon-badge--empty {
+  color: var(--color-light);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.note-page-icon-btn:hover .note-icon-badge--empty {
+  opacity: 0.55;
+  color: var(--color-light);
+}
+.note-title-row:hover .note-page-icon-btn .note-icon-badge--empty {
+  opacity: 0.22;
+}
+.note-title-row:hover .note-page-icon-btn:hover .note-icon-badge--empty {
+  opacity: 0.55;
+}
+/* Clicking the icon opens the picker, so the whole glyph is the target. No padding
+   ring of its own: a box drawn around a box is two competing rectangles. */
+.note-page-icon-btn {
+  display: grid;
+  place-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.15rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.note-page-icon-btn:hover {
+  background: #ffffff0f;
+}
+.note-page-icon-btn:hover .note-icon-badge--page {
+  transform: scale(1.06);
+}
+.note-page-icon-btn .note-icon-badge--page {
+  transition: transform 0.15s ease;
 }
 
 /* ---------- editor ---------- */
@@ -4913,6 +5029,17 @@ textarea.form-control {
 .note-prose pre code {
   padding: 0;
   background: none;
+}
+/* The strike mark renders as `<s>`, and there was no rule for it anywhere: the
+   mark was being applied correctly and then drawn as ordinary text, so the
+   button looked broken rather than the feature being missing. `del` is matched
+   alongside it because pasted or hand-written HTML brings its own tag, and
+   `text-decoration-line` is used rather than the shorthand so it cannot clear
+   an underline that is also on the same run of text. */
+.note-prose s,
+.note-prose del,
+.note-prose strike {
+  text-decoration-line: line-through;
 }
 .note-prose a,
 .note-prose .note-link {
@@ -5076,6 +5203,19 @@ textarea.form-control {
   flex-shrink: 0;
   font-size: 0.85rem;
 }
+/* A coloured bar beside the title, so the rail carries the same information as
+   the open page. `.notes-rail-item-dot` is already the pin's marker, so this is
+   deliberately a different shape -- a bar rather than a dot -- to avoid two
+   identical 4px circles sitting next to each other on a pinned, coloured row.
+   The icon itself used to have a class here (`.notes-rail-item-icon`) that only
+   set a font-size; `.note-icon-badge` sizes itself now. */
+.notes-rail-item-swatch {
+  flex-shrink: 0;
+  width: 3px;
+  height: 11px;
+  border-radius: 25px;
+  background: var(--note-rail-swatch, transparent);
+}
 .notes-trash-btn {
   display: inline-flex;
   align-items: center;
@@ -5141,17 +5281,17 @@ textarea.form-control {
   border-radius: 18px;
   background: #ffffff05;
 }
-.note-trash-icon {
-  flex-shrink: 0;
-  display: grid;
-  place-content: center;
+/* The trash row keeps its muted tile, which used to be `.note-trash-icon` and is
+   now the shared badge at a larger size. Sized here rather than in the badge
+   because this is the one place a page icon is drawn inside a circular chip: a
+   trashed row reads as a list of things you cannot act on, and the mute is what
+   says so. */
+.note-trash-row .note-icon-badge {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 25px;
   background: #ffffff0a;
-  color: var(--color-light);
   opacity: 0.6;
-  font-size: 0.95rem;
 }
 .note-trash-text {
   flex: 1;
@@ -5202,12 +5342,6 @@ textarea.form-control {
   opacity: 0.6;
   transform: rotate(45deg);
 }
-.note-crumb-icon { font-size: 0.8rem; }
-.note-page-icon {
-  font-size: 2.2rem;
-  line-height: 1;
-  margin-bottom: 0.35rem;
-}
 .note-cover {
   height: 140px;
   background-size: cover;
@@ -5230,7 +5364,9 @@ textarea.form-control {
   border-radius: 25px;
   background: #ffffff08;
   color: var(--color-light);
-  opacity: 0.75;
+  /* At full strength. It was dimmed to 0.75, which put a tag below the opacity of
+     the meta line beside it and read as a disabled control rather than as a label
+     -- the removal affordance inside is what is meant to be the quiet part. */
   font-family: var(--font-mono);
   font-size: 0.66rem;
 }
@@ -5243,7 +5379,7 @@ textarea.form-control {
   border-radius: 25px;
   background: transparent;
   color: inherit;
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: pointer;
 }
 .note-tag button:hover {
@@ -5251,59 +5387,33 @@ textarea.form-control {
   background: var(--color-danger-dark);
   color: #ff6b70;
 }
+/* The "add" affordance.
+   It used to be a dashed pill drawn in the same shape as a tag, so a page with
+   four tags showed five chips -- the last one empty, with "Add tag" written in it.
+   Borderless until it is hovered or focused, and then a plain solid one rather
+   than a dashed one: nothing about adding a label should read as a tag that
+   already exists. */
 .note-tag-input {
-  min-width: 5rem;
+  min-width: 4rem;
   flex: 0 1 6rem;
   padding: 0.15rem 0.4rem;
-  border: 1px dashed #ffffff1a;
+  border: 1px solid transparent;
   border-radius: 25px;
   background: transparent;
   color: var(--color-light);
   font-family: var(--font-mono);
   font-size: 0.66rem;
   outline: none;
+  transition: border-color 0.14s ease, background 0.14s ease;
 }
-.note-tag-input::placeholder { opacity: 0.35; }
+.note-tag-input::placeholder { opacity: 0.3; }
+.note-tag-input:hover {
+  border-color: #ffffff1f;
+}
 .note-tag-input:focus {
-  border-style: solid;
   border-color: var(--accent-border);
+  background: var(--accent-bg);
 }
-.note-icon-inline {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid #ffffff1f;
-  border-radius: 25px;
-  background: #111;
-  flex-wrap: wrap;
-  max-width: 100%;
-}
-.note-icon-swatch {
-  width: 24px;
-  height: 24px;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.12s ease;
-}
-.note-icon-swatch:hover { transform: scale(1.15); }
-.note-icon-swatch--on { border-color: var(--color-primary); }
-.note-icon-clear {
-  display: grid;
-  place-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 25px;
-  background: #ffffff0f;
-  color: var(--color-light);
-  cursor: pointer;
-}
-.note-icon-clear:hover { background: var(--color-danger-dark); color: #ff6b70; }
 
 /* ---------- quick switcher ---------- */
 .note-switcher-overlay {
@@ -5440,7 +5550,7 @@ textarea.form-control {
 
 /* ---------- shortcuts sheet ---------- */
 .note-shortcuts {
-  max-width: 720px !important;
+  max-width: 1200px !important;
   width: 92vw;
   max-height: 84vh;
   overflow-y: auto;
@@ -5471,7 +5581,7 @@ textarea.form-control {
 }
 .note-shortcuts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.25rem;
   text-align: left;
 }
@@ -5525,39 +5635,12 @@ textarea.form-control {
   font-size: 0.66rem;
   white-space: nowrap;
 }
-/* A toolbar button's name rather than a keystroke. Styled like the key chip so
-   the column still reads as a grid, but without the border that would imply it
-   can be typed. */
-.note-shortcut-label {
-    min-width: 2.4rem;
-    text-align: center;
-    color: var(--color-light);
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    opacity: 0.85;
-}
-/* Sentences, not one-word labels: keep them against the chip column rather than
-   pushed out to the right edge. */
-.note-shortcut-section--wide .note-shortcut-row {
-    align-items: flex-start;
-}
-.note-shortcut-section--wide .note-shortcut-row dd {
-    text-align: left;
-    flex: 1;
-}
-
 .note-block-controls-on {
   background: var(--accent-bg) !important;
   color: var(--color-primary) !important;
 }
 
 /* ---------- per-day goals ---------- */
-.daily-log-goals-btn {
-  display: block;
-  width: 100%;
-  margin-bottom: 0.5rem;
-  height: 35px;
-}
 .day-goals-card {
   max-width: 560px !important;
   width: 92vw;
@@ -5846,27 +5929,24 @@ textarea.form-control {
   min-width: 0;
 }
 .note-prose .note-toggle summary.note-toggle-summary {
-  /* Bare text, so it has to stay an ordinary block: `display: flex` would promote
-     it to an anonymous flex item that cannot be given `flex: 1`, and it would then
-     neither fill the row nor wrap under a long heading. The marker is suppressed
-     even though this is no longer inside a `<details>`, because the element is
-     still a `<summary>` and some engines still draw one for it. */
+  /* Ordinary text. It used to carry `cursor: pointer`, `user-select: none` and a
+     hover tint, because the whole line was the control and had to look like one --
+     and the cost was that the label could not be selected or edited like any other
+     line, which read as the label being a different sort of thing from the text
+     under it. The chevron beside it is the control, so the affordance lives there.
+     Kept: an ordinary block (a flex item could not be given `flex: 1`, and would
+     neither fill the row nor wrap under a long heading), and the marker suppressed
+     because the element is still a `<summary>` and some engines draw one for it. */
   display: block;
   padding: 0.15rem 0.2rem;
   border-radius: 8px;
-  cursor: pointer;
   list-style: none;
-  user-select: none;
-  transition: background 0.12s ease;
 }
 .note-prose .note-toggle summary.note-toggle-summary::-webkit-details-marker {
   display: none;
 }
 .note-prose .note-toggle summary.note-toggle-summary::marker {
   content: '';
-}
-.note-prose .note-toggle summary.note-toggle-summary:hover {
-  background: #ffffff08;
 }
 .note-prose .note-toggle > div > div.note-toggle-content {
   padding-left: 1rem;
@@ -5900,13 +5980,144 @@ textarea.form-control {
 
 /* ---------- focus mode ----------
    The Focus extension marks the caret's block with `has-focus`; the dimming is
-   pure CSS so switching modes costs no editor transaction. */
-.note-editor-shell--focus .note-prose:not(:focus-within) {
-  opacity: 0.4;
+   pure CSS so switching modes costs no editor transaction.
+
+   One rule, matched against every descendant rather than the editor's direct
+   children, and the two exclusions in it are both load-bearing. An element is
+   dimmed only when it is not the focused block and does not contain it:
+
+   - `:not(.has-focus)` because `:has()` matches descendants only, never the element
+     itself. Written as `:has(.has-focus)` alone -- the obvious way to say "or
+     contains it" -- this rule dims the very paragraph the caret is in and brightens
+     nothing, so clicking a line moved the caret there and left the line dark.
+   - `:not(:has(.has-focus))` because Focus runs in `deepest` mode, so the class
+     lands on the innermost block: a paragraph inside a list item, a quote, a table
+     cell or a toggle's body. Everything on the path down to it is exempt, and
+     everything beside it is not.
+
+   `opacity` multiplies as it goes down the tree, so a child can never end up more
+   opaque than its parent: dimming a container and lightening one line inside it is
+   impossible. Hence the exemptions are on ancestors rather than on the container
+   holding the whole block.
+
+   That same multiplication is why this rule names the elements that hold a line of
+   text rather than matching everything. Matching every descendant -- the obvious
+   reading of "dim all but the focused line" -- dims a node at each level of its own
+   nesting, and the opacity of a line is the product of all of them. On a flat page
+   that is one factor and looks right. Inside a toggle it is four:
+
+       div.note-toggle > div > div.note-toggle-content > p
+         -> 0.2 x 0.2 x 0.2 x 0.2 = 0.0016
+
+   which is not "dimmed", it is gone: the text inside a collapsed toggle vanished
+   completely and read as an empty block. The same shape is a task list at two
+   factors (0.04, noticeably darker than its neighbours) and a quote at one. So a
+   page's focus mode got darker the more deeply its blocks were nested, which is
+   the opposite of what it is for.
+
+   So the tag list below is every block in this editor that holds a line directly,
+   and each one takes exactly one factor however deep it sits:
+
+   - `p`, the headings, `pre` and `summary`. Inline children do NOT disqualify a
+     line, which is the whole reason this is a list and not a shape test -- see
+     below.
+   - `button` and `label`, which are leaves visually but not structurally: the
+     toggle's open/close control is a button holding an `<svg>`, and a to-do's row
+     is a label holding a checkbox. Left out, focus mode left every checkbox and
+     every chevron on the page lit while the words beside them went down.
+   - `.note-callout-glyph`, the letter in a callout's chip, which is text with no
+     wrapper of its own.
+   - `img`, `hr` and `.katex-display`, the blocks that are not text at all but are
+     part of a line the reader is looking at.
+
+   `li` is deliberately absent. A to-do is `li > label` plus `li > div > p`, so
+   dimming the `li` and the `p` would be two factors again; the `p` carries it.
+   `@tiptap/extension-list`'s ListItem renders `["li", 0]` with a paragraph inside,
+   and only TaskItem has the node view that adds the `div`, so plain bullets are
+   `li > p` too and are covered by the same entry.
+
+   --- and what this replaced, which is worth recording ---
+
+   The previous version tested for a leaf with `:not(:has(> *))` -- "an element
+   with no element children". That is true of plain prose and false of prose
+   containing any inline markup, because `<strong>`, `<code>`, `<a>` and `<s>` are
+   element children. So `With **bold** in it` stopped being dimmed altogether, and
+   since almost everything written inside a toggle has some formatting in it, the
+   toggle body came out fully lit. The two failure modes are mirror images: the
+   descendant form compounded to invisibility, the leaf form skipped everything
+   formatted. Only naming the holders gets both.
+
+   The cost of naming them is that a block added later, rendering its text in a tag
+   not on this list, would silently not dim. That is accepted deliberately: a
+   precise list plus a test beats a clever shape test that is wrong in both
+   directions. `verify-focus-mode.mjs` covers every shape below, formatted lines
+   included, and counts the factors rather than the matches.
+
+   Nothing is keyed off `:focus-within` here. The point is to fade the page down
+   around the line being written, which means it has to be on while the caret is in
+   the editor -- gating it on the editor being *unfocused* switched it off exactly
+   when it was wanted. */
+.note-editor-shell--focus .note-prose :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    pre,
+    summary,
+    button,
+    label,
+    img,
+    hr,
+    .note-callout-glyph,
+    .katex-display
+  ):not(.has-focus):not(:has(.has-focus)) {
+  opacity: 0.2;
   transition: opacity 0.2s ease;
 }
-.note-editor-shell--focus .note-prose:not(:focus-within) .has-focus {
-  opacity: 1;
+/* The line the caret just left, on its way up to full opacity. A transition is only
+   taken from the after-change style, and a focused element matches neither rule
+   above, so without this the fade was one-way: away from the caret eased, back to it
+   jumped. */
+.note-editor-shell--focus .note-prose .has-focus {
+  transition: opacity 0.2s ease;
+}
+
+/* Everything that is not the line being written. Driven off the workspace rather
+   than the editor so the rail, the header bar, the title and the meta line go down
+   with the rest of the prose -- dimming the note body alone left the page looking
+   lit and the mode reading as a half-finished effect.
+
+   `.note-pane-accent` is in this list, and it is the one that mattered most. The
+   accent rule is a full-width bar in the page's own colour, so it is the brightest
+   thing anywhere on screen; left at full strength it was the single element the
+   mode could not reach, sitting directly above a page that had just been faded out
+   from under it. Fading the page and leaving its own accent at full brightness
+   reads as a bug in the mode, not as the mode.
+
+   `:has()` is what lets a state that lives deep in the tree reach the elements
+   around it without a flag on the workspace and an effect to keep in step. */
+.notes-workspace:has(.note-editor-shell--focus) :is(
+    .notes-rail,
+    .note-pane-bar,
+    .note-pane-accent,
+    .note-breadcrumbs,
+    .note-title-row,
+    .note-meta-row
+  ) {
+  opacity: 0.2;
+  transition: opacity 0.2s ease;
+}
+
+/* The site's own navigation, which is not inside the notes workspace at all -- it is
+   a sibling of the routes in App.tsx, and it is on screen on every page. Matching it
+   from `.notes-workspace` could never reach it, which is why focus mode used to dim
+   the note and leave the navigation of the whole website lit up beside it. */
+body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
+  opacity: 0.2;
+  transition: opacity 0.2s ease;
 }
 
 /* ---------- drag handles ---------- */
@@ -6069,7 +6280,11 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  min-width: 230px;
+  min-width: 320px;
+  /* 320px is more than a phone has to give, and the "/" popup is mounted by
+     TipTap, which can flip it vertically but cannot shift it sideways. The clamp
+     lets it shrink instead of running off the side of the screen. */
+  max-width: calc(100vw - 1rem);
   padding: 0.25rem;
   border: 1px solid #ffffff1f;
   border-radius: 16px;
@@ -6182,9 +6397,10 @@ textarea.form-control {
 .slash-menu--submenu {
   /* A fixed width, so the rows do not reflow as hints of different lengths come
      and go with the query -- and so the caller can reserve the same width before
-     the panel has been measured. */
-  width: 268px;
+     the panel has been measured. Matches MENU_WIDTH in NoteEditor.tsx. */
+  width: 320px;
   min-width: 0;
+  max-width: fit-content;
   max-height: calc(100dvh - 1rem);
 }
 /* Where the block types sit relative to the actions. Absolute, so opening the
@@ -6386,54 +6602,86 @@ textarea.form-control {
 }
 
 /* ---------- responsive ---------- */
+/* The rail is hidden outright below the split, and the workspace switches to one
+   column. Which of the two is on screen is the route's decision, not the
+   stylesheet's -- see NotesWorkspace -- so this only has to stop them sharing a
+   row. The rail used to become a horizontal strip of titles here instead, which
+   meant scrolling sideways through pages to find one, and left the page itself
+   with whatever height the strip left over. */
+.notes-workspace--stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* The rail's track goes to zero rather than being dropped from the grid. Both
+   tracks stay declared either way, and that is the point: collapsing from two
+   tracks to one changes the number of tracks, which is not a thing a transition
+   can interpolate, so the rail would jump instead of sliding. At zero width the
+   track still exists, so the page reflows by sliding. The stacked layout keeps
+   the single-column form, where there is nothing to slide. */
+.notes-workspace--no-rail {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.notes-workspace--no-rail.notes-workspace--stacked {
+  grid-template-columns: minmax(0, 1fr);
+}
+.notes-workspace--stacked .notes-rail {
+  border-right: none;
+}
+/* The stacked layout is a whole page of page names, not a strip, so the rows can
+   be as tall as a finger. The action button stops hiding on hover too: there is
+   no hover on a phone, so an opacity-0-until-hover control would be unreachable
+   and the menu behind it would be too. */
+.notes-workspace--stacked .notes-rail-item {
+  padding: 0.7rem 0.3rem;
+  font-size: 0.92rem;
+}
+.notes-workspace--stacked .notes-rail-more {
+  width: 34px;
+  height: 34px;
+  opacity: 0.5;
+}
+.notes-workspace--stacked .notes-rail-twisty {
+  width: 26px;
+  height: 26px;
+  opacity: 0.7;
+}
+.notes-workspace--stacked .notes-rail-menu button {
+  padding: 0.6rem 0.5rem;
+  font-size: 0.82rem;
+}
+.notes-workspace--stacked .notes-new-btn {
+  height: 42px;
+  font-size: 0.85rem;
+}
 @media (max-width: 900px) {
-  /* Below the split the rail becomes a horizontal strip of titles above the
-     page, which keeps the editor full width instead of stealing 244px from a
-     phone. */
-  .notes-workspace {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .notes-rail {
-    border-right: none;
-    border-bottom: 1px solid #ffffff0f;
-    padding: 0.6rem 0.75rem;
-  }
-  .notes-rail-list {
-    display: flex;
-    gap: 0.3rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.2rem;
-    -webkit-overflow-scrolling: touch;
-  }
-  .notes-rail-items {
-    flex-direction: row;
-  }
-  .notes-rail-item {
-    width: auto;
-    max-width: 180px;
-    white-space: nowrap;
-  }
-  .notes-rail-empty {
-    flex-direction: row;
-    padding: 0.5rem;
-  }
   .note-back-btn {
     display: inline-flex;
   }
 }
 @media (max-width: 768px) {
+  /* The one place the bottom pad survives. Below this width the pane stops being
+     its own scroll container and the page scrolls instead (see the mobile block
+     near .mobile-navbar), so the note runs down behind a fixed bottom bar. The
+     pad is what lets the last line be scrolled clear of that bar and still be
+     reachable -- it is not spare space here, it is clearance. */
   .note-pane-inner {
     padding: 1.25rem 1.1rem 40vh;
   }
   .note-title-input {
     font-size: 1.6rem;
   }
-  .note-save-status {
-    /* The status is still announced by its colour, just not spelled out on a
-       screen with no room for it. */
-    display: none;
+  /* The icon leads the title, so it has to keep leading it as the title shrinks.
+     Left at its desktop size it would be as large as the name it labels. */
+  .note-icon-badge--page {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: 0.1rem;
+  }
+  .note-icon-badge--page .lucide {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+  .note-title-row {
+    gap: 0.55rem;
   }
   .note-prose {
     font-size: 0.9rem;
@@ -6460,9 +6708,9 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(var(--navbar-height) + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 /* Daily Log section takes full width */
 .dashboard-section.daily-logs-section {
@@ -6515,7 +6763,7 @@ textarea.form-control {
 @media (min-width: 1280px) {
   .daily-log-score-col {
     position: sticky;
-    top: calc(var(--navbar-height) + 1rem);
+    top: 1rem;
   }
 }
 .daily-log-form {
@@ -6954,13 +7202,41 @@ textarea.form-control {
    without it the habit reads as "Gymdetail". The margin does that; the colour and
    the underline on hover are what make it look like a link rather than more
    label. */
+/* A flex row rather than inline text. The pill is 0.66rem next to a 0.875rem
+   label, and inline-block aligns on the baseline, which left it sitting low
+   against "Gym" -- centring the two boxes is the only thing that lines their
+   middles up. `text-sm opacity-90` spelled out, since the utility classes and the
+   layout have to agree on the font size. */
+.daily-log-habits__gym-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+/* Sits inline after "Gym" in the habit row. Shaped as a pill because it is a
+   control that goes somewhere -- it opens the workout session recorded on that
+   date -- and a bare word next to the habit name read as part of the label
+   rather than as a link. */
 .daily-log-habits__gym-link {
-  margin-left: 0.35rem;
+  display: inline-block;
+  padding: 0.08rem 0.5rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 25px;
+  background: var(--accent-bg);
   color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
   text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 .daily-log-habits__gym-link:hover {
-  text-decoration: underline;
+  background: var(--color-primary);
+  color: #000;
+  text-decoration: none;
 }
 .puzzle-card {
   display: block;
@@ -6987,9 +7263,9 @@ textarea.form-control {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.75rem;
-  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(0.75rem + 3rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem;
+  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -7859,8 +8135,132 @@ select.form-control option {
   justify-content: center;
   gap: 0.75rem;
 }
-.daily-score-main > .daily-score-info-date {
-  order: -1;
+
+/* Which day is being edited, and the controls that change it. Above the score card,
+   which is what the full date and the score belong to rather than a strip of
+   controls. Full width, so the controls inside it can span the panel instead of
+   centring in it. */
+.daily-score-daynav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+.daily-score-save-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.25rem 0.5rem;
+  border-radius: 25px;
+  background: #ff6b701a;
+  color: #ff6b70;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1.3;
+  text-align: left;
+}
+/* The day controls span the panel rather than sitting in a centred cluster the
+   width of their own contents, so the arrows anchor to the edges and the date
+   gets the room between them. `nowrap` because a row that can break is a row whose
+   buttons move; the label is what gives way instead, and it does so by ellipsis.
+
+   Six fixed controls share this row: prev, the date, pick, next, back-to-today (only
+   off today) and the goals pencil. */
+.daily-log-daynav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+  gap: 0.35rem;
+}
+/* Only in the split layout. There the score panel is the narrowest of three tracks
+   -- about 277px at the 1280px breakpoint, where 0.61fr of the free space lands --
+   and six controls at 1.9rem plus 0.35rem gaps take 216px of it, leaving the date
+   roughly 60px. That is within a pixel of what "Mon, Sep 29" needs, so the circles
+   give up a little here rather than the date losing a character every day of the
+   year: 1.7rem and a 0.25rem gap bring the controls to 187px and the date back to
+   about 90px.
+
+   Below the split the panel is the full page width, so the controls stay at the
+   larger size -- which is also where they are being touched rather than clicked. */
+@media (min-width: 1280px) {
+  .daily-log-daynav {
+    gap: 0.25rem;
+  }
+  .daily-log-daynav-btn {
+    width: 1.7rem;
+    height: 1.7rem;
+  }
+}
+.daily-log-daynav-btn {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff0a;
+  border: none;
+  color: var(--color-light);
+  width: 1.9rem;
+  height: 1.9rem;
+  /* Fixed, because they are the row's fixed points. Left to shrink, a narrow panel
+     squashed the circles into ellipses instead of giving the width to the label. */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.daily-log-daynav-btn:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+.daily-log-daynav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.daily-log-daynav-btn:disabled:hover {
+  background: #ffffff0a;
+  color: var(--color-light);
+  opacity: 0.25;
+}
+/* The calendar control is a label wrapping a real date input, so the native
+   picker opens on click while the button keeps its round styling. */
+.daily-log-daynav-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+/* The one item in that row allowed to change width. It reads "Today", then
+   "Yesterday", then a date, and the length changes by a factor of about three --
+   which used to push the calendar, the arrows and the history button sideways every
+   time the day changed. So the label takes the slack instead: a flexible middle
+   item, pinned between two fixed-width ends, centred in whatever it is given, and
+   truncated rather than allowed to push. */
+.daily-log-daynav-label {
+  color: var(--color-light);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0.9;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .score-ring {
   position: relative;
@@ -8757,11 +9157,11 @@ select.form-control option {
   .page-main,
   .page-main-with-secondary,
   .books-page-wrapper,
+  .notes-page,
   .dashboard-page-wrapper {
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+    padding-bottom: calc(1rem + 3.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
-
 @media (max-width: 767px) {
   /* Phone-only top bar tweaks. The bottom navigation itself, and the padding it
      needs, are handled by the max-width: 1023px block above, which covers this
@@ -8772,54 +9172,17 @@ select.form-control option {
     display: none;
   }
 
-  /* Primary navbar: hide the brand title on mobile (the page title shows instead),
-     keep the user name hidden too (Profile is in the mobile navbar),
-     and keep auth links so users can log in. */
-  .navbar-brand-centered {
-    display: flex;
-    max-width: calc(100% - 6rem);
-  }
-
-  .navbar-brand-centered .navbar-brand {
-    display: none;
-  }
-
-  /* Show the route's page title centered in the primary navbar on mobile only */
-  .navbar-mobile-title {
-    display: block;
-  }
-
-  /* Mobile: no hairline under the primary top bar */
-  .navbar-brand-row::after {
-    content: none;
-  }
-
-  /* Mobile: keep the top bar options button clear of the screen edges */
-  .navbar-brand-row .navbar-inner {
-    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
-    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
-  }
-
-  /* Mobile: the day nav competes with the centered page title and the fixed-width
-     warning strip, so drop the History shortcut and tighten the label. */
-  .navbar-day-nav .navbar-day-btn:last-child {
-    display: none;
-  }
-  .navbar-day-label {
-    min-width: 0;
+  /* The controls no longer wrap: the row is a fixed set of buttons with the date
+     label taking the slack between them, so a narrow screen gives the label less
+     room rather than pushing a control onto a second line. Only the type tightens. */
+  .daily-log-daynav-label {
     font-size: 0.68rem;
-  }
-  .navbar-save-status {
-    max-width: 5.5rem;
-  }
-
-  .navbar-user-wrap {
-    display: none;
   }
 
   /* Mobile: scroll the page itself instead of nested containers */
   .profile-page-wrapper, .profile-scroll-area,
   .books-page-wrapper, .books-scroll-area,
+  .notes-page,
   .projects-page-wrapper, .projects-scroll-area, .project-view-content, .project-plan-list,
   .abstinence-page-wrapper, .abstinence-scroll-area, .abstinence-view-content,
   .note-pane-scroll, .notes-pane, .notes-rail,
@@ -8836,102 +9199,6 @@ select.form-control option {
 /* ============================================
    UPCOMING DEADLINE BANNER - the navbar strip
    ============================================ */
-/*
-   A deadline worth warning about, so it is deliberately loud: neon red on a dark
-   ground. It lives in the navbar's start slot, hard against the sidebar, and the
-   text truncates rather than pushing the menu button off the end of the bar.
-
-   Deliberately static. The text is what carries the warning; a glow and a blink
-   drew attention to the strip rather than to the deadline, and on a bar that is
-   present on every page it became the most eye-catching thing on the screen.
-
-   The height is fixed rather than left to the content. The strip rotates through
-   its messages every nine seconds, and it is present on every page of the app, so
-   a strip that grew and shrank with the text would shove the rest of the bar
-   sideways every rotation. Box-sizing is border-box and there is no border, so
-   the declared height is the painted height and the text is vertically centred
-   inside it -- only the text ever changes. */
-.academic-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-  flex: 0 1 auto;
-  width: 50rem;
-  max-width: 100%;
-  height: 1.85rem;
-  padding: 0 0.6rem;
-  border: none;
-  border-radius: 25px;
-  background: linear-gradient(90deg, rgba(255, 46, 74, 0.26), rgba(255, 46, 74, 0.08));
-  color: #ff8a94;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  line-height: 1;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.academic-alert:hover { background: linear-gradient(90deg, rgba(255, 46, 74, 0.34), rgba(255, 46, 74, 0.12)); }
-.academic-alert:focus-visible {
-  outline: 2px solid #ff8a94;
-  outline-offset: 2px;
-}
-.academic-alert--urgent {
-  color: #ff5a68;
-  background: linear-gradient(90deg, rgba(255, 46, 74, 0.36), rgba(255, 46, 74, 0.14));
-}
-.academic-alert__icon {
-  flex-shrink: 0;
-  /* Sized here rather than with a `size` prop in the JSX, so the icon scales with
-     the strip at every breakpoint instead of being pinned to one pixel value. */
-  width: 0.8rem;
-  height: 0.8rem;
-}
-.academic-alert__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.academic-alert__pager {
-  margin-left: auto;
-  padding-left: 0.5rem;
-  flex-shrink: 0;
-  font-size: 0.58rem;
-  opacity: 0.6;
-}
-
-/*
-   Phone: a slimmer strip. The top bar on a narrow screen is carrying the day
-   navigation and the menu button as well, and the long sentence does not fit --
-   it was truncating to a handful of unreadable characters. This is why the banner
-   ships the short message on mobile at all; the extra height and padding here
-   were only making the truncation cost more bar than it needed to.
-
-   The pager goes entirely rather than shrinking: "2/4" on a strip this narrow
-   competes with the message for the only few characters there are. */
-@media (max-width: 768px) {
-  .academic-alert {
-    height: 1.5rem;
-    /* The same fixed width idea at a size that fits: the bar is carrying the day
-       controls and the menu button as well, so the strip keeps a predictable
-       fraction of the screen and truncates the rest. */
-    width: 8.5rem;
-    gap: 0.25rem;
-    padding: 0 0.45rem;
-    font-size: 0.62rem;
-  }
-  .academic-alert__icon {
-    width: 0.72rem;
-    height: 0.72rem;
-  }
-  .academic-alert__pager {
-    display: none;
-  }
-}
-
 /* Date and countdown beside an input's name, e.g. "21 May · in 3 days". */
 .item-row__due {
   font-family: var(--font-mono);
@@ -9090,11 +9357,8 @@ body {
   margin: 0 auto;
 }
 .measurements-card {
-  background: #ffffff08;
-  border-radius: 25px;
   width: 100%;
   padding: 1rem;
-  backdrop-filter: blur(10px);
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -9363,16 +9627,6 @@ body {
   border-color: var(--color-primary);
   background: var(--accent-bg);
 }
-/* Native spinners steal width and are never useful for typed decimals. */
-.measurement-field__input::-webkit-outer-spin-button,
-.measurement-field__input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.measurement-field__input[type='number'] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
 .measurement-field__input::placeholder {
   color: rgba(255, 255, 255, 0.28);
 }
@@ -9638,14 +9892,12 @@ body {
 .study-timer-title { font-size: 1.3rem; }
 .settings-title { font-size: 1.3rem; }
 .auth-title,
-.navbar-page-title,
 .profile-name {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.03em;
 }
 .auth-title { font-size: 1.1rem; }
-.navbar-page-title { font-size: 0.8rem; }
 .profile-name { font-size: 1rem; }
 /* ============================================
    ACADEMIC - Semester > Course > nested items
@@ -10021,7 +10273,6 @@ body {
 }
 /* The wrapper is height-locked, so this is what actually scrolls. */
 .academic-scroll {
-  border-radius: 25px;
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
@@ -10502,12 +10753,6 @@ body {
   color: var(--color-primary);
 }
 .num-input::placeholder { color: rgba(255, 255, 255, 0.28); }
-.num-input::-webkit-outer-spin-button,
-.num-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.num-input[type='number'] { -moz-appearance: textfield; }
 
 /* ---------- Weight check badge ---------- */
 .weight-badge {
@@ -11090,10 +11335,7 @@ body {
   font-size: 0.75rem;
   text-align: center;
   width: 100%;
-  -moz-appearance: textfield;
 }
-.workout-set-table__input::-webkit-outer-spin-button,
-.workout-set-table__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .workout-set-table__input:focus {
   outline: none;
   border-color: var(--accent-border);

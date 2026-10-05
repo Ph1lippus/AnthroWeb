@@ -185,7 +185,7 @@ const SessionsPanel: React.FC = () => {
                                         type="button"
                                         className="book-action-btn"
                                         onClick={() => openEdit(session)}
-                                        title="Edit session"
+                                        data-tip="Edit session"
                                     >
                                         <SquarePen />
                                     </button>
@@ -193,7 +193,7 @@ const SessionsPanel: React.FC = () => {
                                         type="button"
                                         className="book-action-btn book-action-btn--danger"
                                         onClick={() => setDeleteTarget(session)}
-                                        title="Delete session"
+                                        data-tip="Delete session"
                                     >
                                         <Trash2 />
                                     </button>

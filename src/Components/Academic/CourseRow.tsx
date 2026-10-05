@@ -129,7 +129,7 @@ const CourseRow: React.FC<CourseRowProps> = ({
                         </span>
                         <span
                             className={`score-block__value${prediction.percent === null ? ' score-block--muted' : ''}`}
-                            title={
+                            data-tip={
                                 prediction.isPartial
                                     ? `Only ${prediction.gradedWeight}% of this grade is entered${
                                           prediction.weightsClosed ? '' : `, out of ${prediction.totalWeight}% allocated so far`
@@ -156,7 +156,7 @@ const CourseRow: React.FC<CourseRowProps> = ({
                         {predictedRange !== null && (
                             <span
                                 className={`score-block__range${nearEdge ? ' score-block__range--edge' : ''}`}
-                                title={
+                                data-tip={
                                     prediction.isPartial
                                         ? `Based only on ${prediction.gradedWeight}% of the grade. On ${scale.name}, this span reports as ${predictedRange.grade}.`
                                         : `On ${scale.name}, any result in this span is reported as ${predictedRange.grade}`
@@ -205,7 +205,16 @@ const CourseRow: React.FC<CourseRowProps> = ({
             {open && (
                 <>
             {tree.length > 0 && (
-                <div className="course-bar" title={`${formatPoints(predictedPoints, scale)} predicted`}>
+                <div
+                    className="course-bar"
+                    data-tip={`${formatPoints(predictedPoints, scale)} predicted`}
+                    // A visual bar with no text in it, so its `title` was the only
+                    // thing exposing the figure to anything reading the page.
+                    // `role="img"` with a label is the honest version of that; an
+                    // `aria-label` on a bare `div` is ignored.
+                    role="img"
+                    aria-label={`${formatPoints(predictedPoints, scale)} predicted`}
+                >
                     <div
                         className={`course-bar__fill${prediction.percent === null ? ' course-bar__fill--muted' : ''}`}
                         style={{ width: `${Math.min(100, prediction.percent ?? 0)}%` }}
@@ -281,7 +290,7 @@ const CourseRow: React.FC<CourseRowProps> = ({
                         type="button"
                         className="btn-action"
                         onClick={() => onAddItem(null)}
-                        title="Add an input to this subject"
+                        data-tip="Add an input to this subject"
                     >
                         <Plus size={13} /> Add input
                     </button>
@@ -289,7 +298,7 @@ const CourseRow: React.FC<CourseRowProps> = ({
                         type="button"
                         className="book-action-btn"
                         onClick={() => onEdit(course)}
-                        title="Edit course"
+                        data-tip="Edit course"
                     >
                         <SquarePen />
                     </button>
@@ -297,7 +306,7 @@ const CourseRow: React.FC<CourseRowProps> = ({
                         type="button"
                         className="book-action-btn book-action-btn--danger"
                         onClick={() => onDelete(course)}
-                        title="Delete course"
+                        data-tip="Delete course"
                     >
                         <Trash2 />
                     </button>

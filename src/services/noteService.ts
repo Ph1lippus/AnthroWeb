@@ -9,13 +9,34 @@ export interface Note {
     title: string | null;
     content: string;
     is_pinned: boolean;
+    /**
+     * The page's accent, stored by palette id ('blue', 'red', ...) rather than by
+     * hex -- see `utils/noteColors`. Null means Default, which is also how a
+     * colour is removed. Rows written before ids were stored hold one of seven
+     * legacy hexes, which `resolveNoteColor` still resolves.
+     */
     notes_color?: string | null;
-    /** Emoji shown beside the title. */
+    /** Lucide icon name shown above the title. Rows written before the switch to
+     *  lucide hold an emoji; `resolveNoteIcon` still resolves those. */
     notes_icon?: string | null;
     /** Cover image URL drawn above the page. */
     notes_cover?: string | null;
     /** Parent page id, or null for a top-level page. Migration 0007. */
     notes_parent_id?: string | null;
+    /**
+     * Order among the pages sharing this page's parent.
+     *
+     * Read as a fraction, not an index: a page dropped between two others takes
+     * the midpoint of their positions, so a reorder writes one row instead of
+     * renumbering every sibling. Ties fall back to newest first, which is what
+     * every page written before this column existed sits at.
+     *
+     * A `numeric`, and typed `string | number` because that is what it arrives as
+     * -- Postgres has no numeric type that is reliably a JS number. Read it
+     * through `positionOf` in `utils/noteTree`, never directly: adding two of
+     * these as strings concatenates them, and the midpoint is an addition.
+     */
+    notes_position?: string | number | null;
     /** When the note was thrown away, or null while it is live. */
     notes_deleted_at?: string | null;
     /** Free-form labels. */
@@ -109,6 +130,7 @@ export const createNote = async (note: {
     notes_icon?: string | null;
     notes_cover?: string | null;
     notes_parent_id?: string | null;
+    notes_position?: number;
     notes_tags?: string[];
 }) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -125,6 +147,9 @@ export const createNote = async (note: {
             notes_icon: note.notes_icon ?? null,
             notes_cover: note.notes_cover ?? null,
             notes_parent_id: note.notes_parent_id ?? null,
+            // Past its new siblings rather than at zero, so a page created inside
+            // a folder lands under the pages already there instead of above them.
+            notes_position: note.notes_position ?? 0,
             notes_tags: note.notes_tags ?? [],
         })
         .select()
@@ -229,9 +254,20 @@ export const emptyTrash = async () => {
     }
 };
 
-/** Re-parent a page, or promote it to the top level with null. */
-export const moveNote = async (id: string, parentId: string | null) => {
-    return updateNote(id, { notes_parent_id: parentId });
+/**
+ * Re-parent a page, promote it to the top level with null, and/or place it among
+ * its new siblings.
+ *
+ * `position` is optional because the two callers are different jobs: the trash
+ * and nesting paths only change the parent, while a drag has to say where in the
+ * new order the page lands. A drag inside one group writes only the position,
+ * so the parent is passed through unchanged rather than being recomputed.
+ */
+export const moveNote = async (id: string, parentId: string | null, position?: number) => {
+    return updateNote(id, {
+        notes_parent_id: parentId,
+        ...(position === undefined ? {} : { notes_position: position }),
+    });
 };
 
 /** Copy a page, including its colour, icon and tags but never its pinned state. */

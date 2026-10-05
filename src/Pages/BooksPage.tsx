@@ -575,7 +575,7 @@ const BooksPage: React.FC = () => {
                     <button
                         onClick={() => openEditModal(book)}
                         className="book-action-btn"
-                        title="Edit book details"
+                        data-tip="Edit book details"
                         aria-label="Edit book"
                     >
                         <SquarePen />
@@ -583,7 +583,7 @@ const BooksPage: React.FC = () => {
                     <button
                         onClick={() => setDeleteTarget(book)}
                         className="book-action-btn book-action-btn--danger"
-                        title="Delete book"
+                        data-tip="Delete book"
                         aria-label="Delete book"
                     >
                         <Trash2 />
@@ -668,7 +668,7 @@ const BooksPage: React.FC = () => {
                                         <button onClick={stopChrono} className="timer-btn timer-btn--stop">
                                             <i className="i-lucide-pause mr-1"></i>Stop
                                         </button>
-                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
+                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" data-tip="Reset">
                                             <RotateCw />
                                         </button>
                                     </>
@@ -677,7 +677,7 @@ const BooksPage: React.FC = () => {
                                         <button onClick={startChrono} className="timer-btn timer-btn--start">
                                             <i className="i-lucide-play mr-1"></i>Start
                                         </button>
-                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" title="Reset">
+                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" data-tip="Reset">
                                             <RotateCw />
                                         </button>
                                     </>

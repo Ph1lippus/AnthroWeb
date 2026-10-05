@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
+import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, Pencil } from 'lucide-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings, updateUserSettings } from '../services/profileService';
@@ -12,15 +13,14 @@ import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
-import { useLatestMeasurement } from '../hooks/useMeasurements';
+import { useLatestMeasurement, useBodyMeasurementByDate, useLogBodyComposition } from '../hooks/useMeasurements';
 import { useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
 import ConfirmModal from '../Components/ConfirmModal';
-import { publishDailyLogSaveState, resetDailyLogSaveState } from '../utils/dailyLogStatus';
 import { hasJournalContent } from '../utils/journalHabit';
-import { isDateString, todayString } from '../utils/dates';
+import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 
@@ -36,7 +36,6 @@ const DailyLogPage: React.FC = () => {
     const { id } = useParams<{ id?: string }>();
     const [searchParams, setSearchParams] = useSearchParams();
     const queryClient = useQueryClient();
-    const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
 
@@ -52,7 +51,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const [loadingHabits, setLoadingHabits] = useState(true);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [isLoadingData, setIsLoadingData] = useState(true);
 
     // The day being edited lives in the URL (?date=YYYY-MM-DD) so a refresh, a
@@ -88,8 +86,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const [carbs, setCarbs] = useState('');
     const [fat, setFat] = useState('');
     const [water, setWater] = useState('');
-    const [weight, setWeight] = useState('');
-    const [bodyFat, setBodyFat] = useState('');
     const [mood, setMood] = useState('');
     const [journalEntry, setJournalEntry] = useState('');
     const [projects, setProjects] = useState<Project[]>([]);
@@ -112,6 +108,77 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     // heatmap can never report a different answer for one date.
     const setGym = useSetGymForDate();
     const [gym, setGymLocal] = useState(false);
+
+    // Weight and body fat live in body_measurements, not in the daily log -- one
+    // record per date, written from here or from the Measurements page. These two
+    // boxes are the second door onto it, not a second copy of it.
+    //
+    // Prefilled from that day's measurement and saved back to it, so they show
+    // what is already on record for the date rather than starting blank.
+    const { data: dayMeasurement } = useBodyMeasurementByDate(logDate, !!logDate);
+    const logComposition = useLogBodyComposition();
+    const [weight, setWeight] = useState('');
+    const [bodyFat, setBodyFat] = useState('');
+    const [weightTouched, setWeightTouched] = useState(false);
+    const [bodyFatTouched, setBodyFatTouched] = useState(false);
+
+    /**
+     * What the boxes show, and what the score reads.
+     *
+     * A box shows what is already on record for the date until it is touched,
+     * then it shows what was typed -- including nothing. That is the part that
+     * makes a reading removable: with the stored figure always winning, emptying
+     * the box would put the old number straight back and there would be no way
+     * to clear a mistyped weight from here.
+     *
+     * Derived rather than copied into state on load, because an effect writing
+     * state on every arrival of the day's row would overwrite a fresh keystroke.
+     */
+    const parsed = (typed: string): number | null => {
+        const value = parseFloat(typed);
+        return Number.isNaN(value) ? null : value;
+    };
+    const measuredWeight = !weightTouched && weight === ''
+        ? dayMeasurement?.weight ?? null
+        : parsed(weight);
+    const measuredBodyFat = !bodyFatTouched && bodyFat === ''
+        ? dayMeasurement?.body_fat ?? null
+        : parsed(bodyFat);
+    const weightValue = weightTouched ? weight : measuredWeight != null ? String(measuredWeight) : '';
+    const bodyFatValue = bodyFatTouched ? bodyFat : measuredBodyFat != null ? String(measuredBodyFat) : '';
+
+    /**
+     * Writes to that day's measurement.
+     *
+     * Only the field that changed is sent, as `undefined` or `null`: an untouched
+     * field is left out entirely so the circumferences recorded for the same date
+     * survive, and an emptied one is sent as null so it actually clears. These are
+     * the same rules every other optional field in this form follows.
+     */
+    const saveComposition = useCallback((fields: {
+        weight?: number | null;
+        body_fat?: number | null;
+        body_fat_method?: 'manual' | null;
+    }) => {
+        if (!logDate) return;
+        logComposition.mutate({ measure_date: logDate, ...fields });
+    }, [logDate, logComposition]);
+
+    const onWeightBlur = useCallback(() => {
+        if (!weightTouched) return;
+        saveComposition({ weight: measuredWeight });
+    }, [weightTouched, measuredWeight, saveComposition]);
+
+    const onBodyFatBlur = useCallback(() => {
+        if (!bodyFatTouched) return;
+        saveComposition({
+            body_fat: measuredBodyFat,
+            // `manual` because it was typed here; the Measurements page derives its
+            // own from the tape fields instead, and leaves the method null.
+            body_fat_method: measuredBodyFat === null ? null : 'manual',
+        });
+    }, [bodyFatTouched, measuredBodyFat, saveComposition]);
+
     const toggleGym = async () => {
         const next = !gym;
         setGymLocal(next);
@@ -146,8 +213,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         setCarbs(log.carbs?.toString() || '');
         setFat(log.fat?.toString() || '');
         setWater(log.water?.toString() || '');
-        setWeight(log.weight?.toString() || '');
-        setBodyFat(log.body_fat?.toString() || '');
         setMood(log.mood?.toString() || '');
         setJournalEntry(log.journal_entry || '');
         setProjectWorkDone(log.project_work_done || false);
@@ -182,8 +247,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         setCarbs('');
         setFat('');
         setWater('');
-        setWeight('');
-        setBodyFat('');
         setMood('');
         setJournalEntry('');
         setProjectWorkDone(false);
@@ -385,8 +448,8 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         carbs,
         fat,
         water,
-        weight,
-        bodyFat,
+        weight: measuredWeight,
+        bodyFat: measuredBodyFat,
         mood,
         habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym },
         customCompleted: completedHabits.size,
@@ -395,7 +458,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         settings: effectiveSettings,
         noSleep,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     const scoreOf = (key: string): number | null => {
@@ -480,14 +543,13 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                 morningSystolic || morningDiastolic || morningBpm ||
                 eveningSystolic || eveningDiastolic || eveningBpm ||
                 bodyTemperature || calories || protein || carbs || fat ||
-                water || weight || bodyFat || mood || journalEntry ||
+                water || mood || journalEntry ||
                 noSleep || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
         }
 
-        setSaving(true);
         setSaveError(null);
         try {
             // The day's goals, frozen onto the log itself.
@@ -547,8 +609,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                 carbs: carbs ? parseInt(carbs) : null,
                 fat: fat ? parseInt(fat) : null,
                 water: water ? parseInt(water) : null,
-                weight: weight ? parseFloat(weight) : null,
-                body_fat: bodyFat ? parseFloat(bodyFat) : null,
                 mood: mood ? Math.round(parseFloat(mood)) : null,
                 daily_score: calculatedScore,
                 journal_entry: journalEntry || null,
@@ -577,15 +637,12 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
             }
             queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
             queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
-            setLastSaved(new Date());
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save. Please try again.';
             setSaveError(message);
             console.error('Auto-save error:', err);
-        } finally {
-            setSaving(false);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -613,7 +670,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, weight, bodyFat, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, customHabitName, customHabitDesc, performSave, settings, isLoadingData, dayLogLoading, id]);
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, customHabitName, customHabitDesc, performSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -716,23 +773,6 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
         }
     };
 
-    // The primary navbar owns the save indicator, so mirror the save lifecycle
-    // into a tiny external store instead of rendering it on this page. While the
-    // save errors it auto-clears; a completed save keeps showing its timestamp.
-    // The published `date` lets the navbar ignore a stale timestamp after a day
-    // switch rather than imply the new day was saved.
-    useEffect(() => {
-        if (saveError) {
-            publishDailyLogSaveState({ status: 'error', savedAt: null, error: saveError, date: logDate || null });
-        } else if (saving) {
-            publishDailyLogSaveState({ status: 'saving', savedAt: null, error: null, date: logDate || null });
-        } else if (lastSaved) {
-            publishDailyLogSaveState({ status: 'saved', savedAt: lastSaved, error: null, date: logDate || null });
-        }
-    }, [saving, saveError, lastSaved, logDate]);
-
-    useEffect(() => resetDailyLogSaveState, []);
-
     // This is the page a signed-in user lands on, and it loads its settings,
     // habits and projects with raw awaits rather than through React Query. That
     // makes all of it invisible to the app-level boot gate, which only knows what
@@ -768,6 +808,106 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const dateLabel = logDate
         ? new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
         : '';
+
+    const today = todayString();
+    const isToday = logDate === today;
+
+    // These lived in the top navbar, then inside the score card. They are above
+    // the card and above the Goals button now, which is where a control for the day
+    // belongs: the arrows and the calendar act on every day on this page, so they
+    // come before anything that only describes the day being shown.
+    const dayNav = (
+        <div className="daily-log-daynav">
+            <button
+                type="button"
+                className="daily-log-daynav-btn"
+                onClick={() => setLogDate(addDays(logDate, -1))}
+                data-tip="Previous day"
+                aria-label="Previous day"
+            >
+                <ChevronLeft size={15} />
+            </button>
+            <span className="daily-log-daynav-label" aria-live="polite">
+                {formatDayLabel(logDate)}
+            </span>
+            <label className="daily-log-daynav-btn" data-tip="Pick a day">
+                <Calendar size={14} aria-hidden="true" />
+                <span className="sr-only">Pick a day</span>
+                <input
+                    type="date"
+                    className="daily-log-daynav-input"
+                    value={logDate}
+                    max={today}
+                    onChange={e => {
+                        if (isDateString(e.target.value)) setLogDate(e.target.value);
+                    }}
+                />
+            </label>
+            <button
+                type="button"
+                className="daily-log-daynav-btn"
+                onClick={() => setLogDate(addDays(logDate, 1))}
+                data-tip="Next day"
+                aria-label="Next day"
+                disabled={logDate >= today}
+            >
+                <ChevronRight size={15} />
+            </button>
+            <button
+                type="button"
+                className="daily-log-daynav-btn"
+                onClick={() => navigate('/Daily-Log/History')}
+                data-tip="View History"
+                aria-label="View History"
+            >
+                <History size={14} />
+            </button>
+
+            {/* The way back to today. The arrows and the calendar can take you
+                anywhere but here without paging forward one day at a time, and
+                this is nothing to press on the day you are already on -- so it is
+                drawn only once you are off it, which also keeps the row a fixed set
+                of five controls.
+
+                A round control like its neighbours rather than a labelled pill. The
+                panel is about 277px wide at the breakpoint where the score column
+                is narrowest, and five fixed-width controls already leave the date
+                label roughly 97px; a pill wide enough to spell "Today" takes that to
+                about 35px, which truncates "Mon, Sep 29" every day of the year. The
+                check in the icon is what tells it apart from the plain calendar
+                beside it, which opens the picker instead. */}
+            {!isToday && (
+                <button
+                    type="button"
+                    className="daily-log-daynav-btn"
+                    onClick={() => setLogDate(today)}
+                    data-tip="Go to today"
+                    aria-label="Go to today"
+                >
+                    <CalendarCheck2 size={14} />
+                </button>
+            )}
+
+            {/* Per-day goals, as the row's edit control. The goals shown inline in
+                the form are read-only, so without this the only way to change them
+                is the setup page, which writes a version effective today and cannot
+                express "this one day was different".
+
+                Last in the row because it is the odd one out: every control before it
+                picks a day, and this one changes the day you are on. The name stays
+                on the button for a screen reader even though the row is all icons
+                now, so the action is still announced as what it is. */}
+            <button
+                type="button"
+                className="daily-log-daynav-btn"
+                onClick={() => setShowGoalsEditor(true)}
+                data-tip="Goals for this day"
+                aria-label="Goals for this day"
+            >
+                <Pencil size={14} />
+            </button>
+        </div>
+    );
 
     const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym].filter(Boolean).length;
     const habitTotal = BUILTIN_HABIT_COUNT + habits.length;
@@ -818,15 +958,15 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                 disabled={setGym.isPending}
                 className="checkbox-input"
             />
-            <span className="text-sm opacity-90">
-                Gym
+            <span className="daily-log-habits__gym-label">
+                <span>Gym</span>
                 {gym && (
                     <Link
                         className="daily-log-habits__gym-link"
                         to={`/Workouts?day=${logDate}`}
                         onClick={event => event.stopPropagation()}
                     >
-                        detail
+                        View session
                     </Link>
                 )}
             </span>
@@ -847,17 +987,25 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                         columns; below the breakpoint the card grid collapses and it sits
                         above the form again. */}
                     <div className="daily-log-score-col">
-                        {/* Per-day goals. The goals shown inline in the form are
-                            read-only, so without this the only way to change them is
-                            the setup page, which writes a version effective today and
-                            cannot express "this one day was different". */}
-                        <button
-                            type="button"
-                            className="btn-action daily-log-goals-btn"
-                            onClick={() => setShowGoalsEditor(true)}
-                        >
-                            Goals for this day
-                        </button>
+                        {/* The controls for this day, in one row above the card: the arrows
+                            and the calendar choose which day, and the pencil edits what
+                            that day's targets are. The full date they all act on stays
+                            on the card, which is what describes the score underneath it. */}
+                        {(dayNav || saveError) && (
+                            <div className="daily-score-daynav">
+                                {saveError && (
+                                    <span
+                                        className="daily-score-save-error"
+                                        role="status"
+                                        aria-live="polite"
+                                    >
+                                        <AlertTriangle size={12} aria-hidden="true" />
+                                        {saveError}
+                                    </span>
+                                )}
+                                {dayNav}
+                            </div>
+                        )}
                         <ScoreCard
                             score={scoreResult.score}
                             dateLabel={dateLabel}
@@ -948,19 +1096,17 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                 </div>
                                 <div className="card-body">
                                     <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={weight} onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            if (!isNaN(val) && val >= 0) setWeight(e.target.value);
-                                            else if (e.target.value === '') setWeight('');
-                                        }} className={"scored-input" + (weight ? '' : ' scored-input--empty')} placeholder=" " style={weight ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
+                                        <input type="number" step="0.1" value={weightValue} onChange={(e) => {
+                                            setWeightTouched(true);
+                                            setWeight(e.target.value);
+                                        }} onBlur={onWeightBlur} className={"scored-input" + (weightValue ? '' : ' scored-input--empty')} placeholder=" " style={weightValue ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Weight (kg) <span className="scored-input-goal-inline">{settings?.target_weight || '--'}kg</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={bodyFat} onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            if (!isNaN(val) && val >= 0) setBodyFat(e.target.value);
-                                            else if (e.target.value === '') setBodyFat('');
-                                        }} className={"scored-input" + (bodyFat ? '' : ' scored-input--empty')} placeholder=" " style={bodyFat ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
+                                        <input type="number" step="0.1" value={bodyFatValue} onChange={(e) => {
+                                            setBodyFatTouched(true);
+                                            setBodyFat(e.target.value);
+                                        }} onBlur={onBodyFatBlur} className={"scored-input" + (bodyFatValue ? '' : ' scored-input--empty')} placeholder=" " style={bodyFatValue ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
                                     </div>
                                 </div>
@@ -1038,7 +1184,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                                     className={'mood-scale-btn' + (active ? ' mood-scale-btn--active' : '')}
                                                     style={active ? { background: getScoreColor(scoreOf('mood')! ?? 0), borderColor: getScoreColor(scoreOf('mood')! ?? 0) } : undefined}
                                                     onClick={() => setMood(String(step))}
-                                                    title={`${step}/10`}
+                                                    data-tip={`Step ${step} of 10`}
                                                     aria-label={`Mood ${step} out of 10`}
                                                     aria-pressed={active}
                                                 >
@@ -1217,7 +1363,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                                             type="button"
                                                             onClick={() => setDeleteTarget(habit)}
                                                             className="text-xs opacity-40 hover:opacity-100 hover:text-[var(--color-danger)] shrink-0"
-                                                            title="Remove habit"
+                                                            data-tip="Remove habit"
                                                             aria-label={`Remove ${habit.name}`}
                                                         >
                                                             ✕

@@ -10,7 +10,7 @@ import CharacterCount from '@tiptap/extension-character-count';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import Typography from '@tiptap/extension-typography';
-import Details, { DetailsContent, DetailsSummary } from '@tiptap/extension-details';
+import { DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import { Focus } from '@tiptap/extensions/focus';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
@@ -26,12 +26,18 @@ import type {
     SuggestionProps,
 } from '@tiptap/suggestion';
 import type { Editor } from '@tiptap/core';
-import type { Node as PMNode } from '@tiptap/pm/model';
 import { ReactRenderer } from '@tiptap/react';
 import BlockMenu from '../Components/Notes/BlockMenu';
 import type { BlockMenuRef } from '../Components/Notes/BlockMenu';
 import Callout from './noteCallout';
 import type { CalloutType } from './noteCallout';
+import {
+    LiftToggleOnBackspace,
+    ToggleChevronCaret,
+    ToggleDetails,
+    unwrapDetails,
+} from './noteToggle';
+import { TabIndent, TAB_SIZE } from './noteTabIndent';
 
 import { createLowlight } from 'lowlight';
 import bash from 'highlight.js/lib/languages/bash';
@@ -83,92 +89,6 @@ lowlight.register({
 // requires `contains`, so it cannot be a bare {}.
 lowlight.register('plaintext', () => ({ contains: [] }));
 lowlight.registerAlias({ html: 'xml', text: 'plaintext', txt: 'plaintext' });
-
-/* ------------------------------------------------------------------ *
- * Toggles
- * ------------------------------------------------------------------ */
-
-/**
- * Details gains one attribute: the heading level its summary should be drawn at.
- *
- * Notion has two controls here -- a toggle list and a toggle heading -- that
- * differ only in how the summary is styled. One node with a level attribute says
- * that in the schema, rather than registering three near-identical node types to
- * say it three times. A null level is a plain toggle; 1-3 renders the summary
- * like a heading of that size.
- */
-const ToggleDetails = Details.extend({
-    addAttributes() {
-        return {
-            ...this.parent?.(),
-            toggleLevel: {
-                default: null,
-                parseHTML: element => {
-                    const raw = element.getAttribute('data-toggle-level');
-                    if (!raw) return null;
-                    const level = Number(raw);
-                    return Number.isFinite(level) && level >= 1 && level <= 3 ? level : null;
-                },
-                renderHTML: attributes => {
-                    const level = attributes.toggleLevel as number | null;
-                    return level === null ? {} : { 'data-toggle-level': String(level) };
-                },
-            },
-        };
-    },
-});
-
-/* ------------------------------------------------------------------ *
- * Opening a toggle by clicking its line
- * ------------------------------------------------------------------ */
-
-/**
- * Clicking anywhere on a toggle's label opens or closes it.
- *
- * The Details extension only wires its own little chevron button, so without this
- * the label -- which is where the reader's pointer already is, and which is the
- * whole width of the line -- did nothing at all. That is not how a toggle reads
- * anywhere else: the line is the control.
- *
- * Done as a click handler rather than by making the label a button, because the
- * label is editable text inside the document and has to stay that way: putting a
- * real button there would put a focusable, non-editable element in the middle of
- * a sentence.
- *
- * The transaction is the only thing written. The node view watches the `open`
- * attribute, so folding and unfolding the body is its job -- doing it here as well
- * would toggle it twice and leave it exactly where it started.
- */
-const ToggleSummaryClick = Extension.create({
-    name: 'toggleSummaryClick',
-
-    addProseMirrorPlugins() {
-        return [
-            new Plugin({
-                props: {
-                    handleClickOn: (view, _pos, node, nodePos) => {
-                        // Only the label itself. A click inside the body must still
-                        // place the caret and do nothing else.
-                        if (node.type.name !== 'detailsSummary') return false;
-
-                        // The summary is the details node's first child, so its own
-                        // position is one before the summary's.
-                        const detailsPos = nodePos - 1;
-                        const details = view.state.doc.nodeAt(detailsPos);
-                        if (!details || details.type.name !== 'details') return false;
-
-                        view.dispatch(
-                            view.state.tr.setNodeMarkup(detailsPos, undefined, {
-                                open: !details.attrs.open,
-                            }),
-                        );
-                        return true;
-                    },
-                },
-            }),
-        ];
-    },
-});
 
 /* ------------------------------------------------------------------ *
  * Leaving an empty list item
@@ -460,36 +380,16 @@ const runToggle =
             // toggle with the summary's text *followed by everything in the body*.
             // A toggle that was never opened still has an empty paragraph in its
             // body, so every round trip through the menu left a blank line under
-            // the restored sentence.
-            editor.chain().focus().command(({ tr, state, dispatch }) => {
-                if (dispatch === undefined) return true;
-                const { $from } = state.selection;
-                let depth = -1;
-                for (let d = $from.depth; d > 0; d--) {
-                    if ($from.node(d).type.name === 'details') {
-                        depth = d;
-                        break;
-                    }
-                }
-                if (depth === -1) return false;
-
-                const details = $from.node(depth);
-                const from = $from.before(depth);
-                const summary = details.child(0);
-                const body = details.child(1);
-
-                // Body blocks worth keeping: everything except the empty
-                // paragraphs that exist only because the content is `block+`.
-                const kept: PMNode[] = [];
-                body.forEach(child => {
-                    if (!(child.isTextblock && child.content.size === 0)) kept.push(child);
-                });
-
-                const paragraph = state.schema.nodes.paragraph.create(null, summary.content);
-                tr.replaceWith(from, from + details.nodeSize, [paragraph, ...kept]);
-                tr.setSelection(TextSelection.near(tr.doc.resolve(from + 1), -1));
-                return true;
-            }).run();
+            // the restored sentence. Through the shared helper, so the menu and
+            // Backspace cannot drift apart.
+            editor
+                .chain()
+                .focus()
+                .command(({ tr, state, dispatch }) => {
+                    if (dispatch === undefined) return true;
+                    return unwrapDetails(state, tr);
+                })
+                .run();
             return;
         }
 
@@ -1046,6 +946,14 @@ export const buildNoteExtensions = ({
         lowlight,
         defaultLanguage: 'plaintext',
         HTMLAttributes: { class: 'note-code-block' },
+        // Off by default, and the extension's Tab handler opens with
+        // `if (!this.options.enableTabIndentation) return false` -- so Tab inside a
+        // code block was bound to nothing and the browser took the keystroke, which
+        // moved focus out of the editor. A code block is the one place indentation
+        // is unambiguously what a Tab means, and this is also what switches on the
+        // matching Shift-Tab outdent. See `noteTabIndent.ts` for the plain-text case.
+        enableTabIndentation: true,
+        tabSize: TAB_SIZE,
     }),
     Placeholder.configure({
         placeholder,
@@ -1092,8 +1000,9 @@ export const buildNoteExtensions = ({
     }),
     DetailsSummary.configure({ HTMLAttributes: { class: 'note-toggle-summary' } }),
     DetailsContent.configure({ HTMLAttributes: { class: 'note-toggle-content' } }),
-    // The whole label line opens and closes a toggle, not just the chevron.
-    ToggleSummaryClick,
+    // The chevron opens a toggle and puts the caret in the body. The label stays
+    // ordinary text, so it is not touched here.
+    ToggleChevronCaret,
     Image.configure({
         allowBase64: false,
         HTMLAttributes: { class: 'note-image' },
@@ -1110,9 +1019,18 @@ export const buildNoteExtensions = ({
     // Ahead of ListItem and TaskItem in the keymap, so Enter on a blank to-do
     // leaves the list. See the extension for why that is not just liftListItem.
     ExitEmptyListItem,
+    // Backspace and Delete at the edges of a toggle's label. Ahead of ListItem and
+    // TaskItem in the keymap for the same reason ExitEmptyListItem is.
+    LiftToggleOnBackspace,
     // Forwards arrow keys to the block menu while the caret stays in the
     // document, so a menu opened on a text selection is still operable.
     BlockMenuKeys,
+    // Tab indents a plain paragraph, heading or quote, and Shift-Tab takes it
+    // back. Last in the list, which is where it belongs: it is the only thing here
+    // that changes what Tab means, so everything with a claim on the key -- the
+    // list keymap, the code block, `tableEditing` -- gets asked first. It also
+    // checks that itself rather than trusting this position.
+    TabIndent,
     // Adds `has-focus` to the block the caret is in. The dimming itself is CSS
     // driven off the editor's focus-mode class, which is why there is no command.
     Focus.configure({ className: 'has-focus', mode: 'deepest' }),

@@ -3,7 +3,7 @@ import { BookOpen, GraduationCap, ShieldCheck } from 'lucide-react';
 import type { Book } from '../../services/bookService';
 import type { AcademicCourse, AcademicItem, StudySession } from '../../services/academicService';
 import type { AbstinenceGoal, AbstinenceHistory } from '../../services/abstinenceService';
-import LoadingSpinner from '../LoadingSpinner';
+import type { DashboardExtrasPending } from '../../hooks/useDashboardExtras';
 
 interface DashboardExtrasProps {
     books: Book[];
@@ -12,7 +12,7 @@ interface DashboardExtrasProps {
     studySessions: StudySession[];
     abstinenceGoals: AbstinenceGoal[];
     abstinenceHistory: AbstinenceHistory[];
-    isLoading: boolean;
+    pending: DashboardExtrasPending;
 }
 
 const daysSince = (date: string): number =>
@@ -25,7 +25,7 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
     studySessions,
     abstinenceGoals,
     abstinenceHistory,
-    isLoading,
+    pending,
 }) => {
     const stats = useMemo(() => {
         const reading = books.filter(book => book.status === 'reading');
@@ -58,63 +58,82 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
         };
     }, [books, academicItems, studySessions, abstinenceGoals, abstinenceHistory]);
 
-    if (isLoading) {
-        return <div className="dashboard-extras-loading"><LoadingSpinner /></div>;
-    }
+    /**
+     * The grid is never replaced by a placeholder block.
+     *
+     * It used to be: one bordered 10rem box with a spinner, which is two bugs at
+     * once. It is one row tall where six cards are two, so everything below it
+     * jumped down when the data arrived; and it had a border and a radius the
+     * cards do not, so it read as "these are still loading" while the rest of the
+     * page was finished.
+     *
+     * Each card now decides on its own, so a card whose query has landed is filled
+     * in while its neighbours are still waiting.
+     */
+    const card = (
+        label: string,
+        Icon: typeof BookOpen,
+        loading: boolean,
+        value: string,
+        hint: string,
+    ) => (
+        <article className="analysis-card">
+            <div className="analysis-card-head">
+                <Icon className="analysis-card-icon" size={18} />
+                <span className="analysis-card-label">{label}</span>
+            </div>
+            <strong className="analysis-card-value">{loading ? '--' : value}</strong>
+            <span className="analysis-card-hint">{loading ? ' ' : hint}</span>
+        </article>
+    );
 
     return (
         <section className="dashboard-extras" aria-label="Additional progress">
             <div className="analysis-grid dashboard-extras-grid">
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <BookOpen className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Reading</span>
-                    </div>
-                    <strong className="analysis-card-value">{stats.totalBooks}</strong>
-                    <span className="analysis-card-hint">{stats.reading.length} reading · {stats.completed.length} completed</span>
-                </article>
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <GraduationCap className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Academics</span>
-                    </div>
-                    <strong className="analysis-card-value">{stats.reading.length}</strong>
-                    <span className="analysis-card-hint">{books.reduce((sum, book) => sum + book.current_page, 0)} pages read</span>
-                </article>
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <GraduationCap className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Courses</span>
-                    </div>
-                    <strong className="analysis-card-value">{courses.length}</strong>
-                    <span className="analysis-card-hint">{stats.openItems.length} open · {stats.overdueItems.length} overdue</span>
-                </article>
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <GraduationCap className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Study time</span>
-                    </div>
-                    <strong className="analysis-card-value">{stats.studyHours}h {stats.studyMinutes}m</strong>
-                    <span className="analysis-card-hint">Recorded study sessions</span>
-                </article>
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <ShieldCheck className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Abstinence</span>
-                    </div>
-                    <strong className="analysis-card-value">{stats.activeDays === null ? '--' : `${stats.activeDays}d`}</strong>
-                    <span className="analysis-card-hint">
-                        {stats.activeGoal ? `${stats.activeGoal.name}${stats.activeGoal.target_days ? ` · ${stats.activeGoal.target_days}d target` : ''}` : `${abstinenceHistory.length} completed goals`}
-                    </span>
-                </article>
-                <article className="analysis-card">
-                    <div className="analysis-card-head">
-                        <ShieldCheck className="analysis-card-icon" size={18} />
-                        <span className="analysis-card-label">Best streak</span>
-                    </div>
-                    <strong className="analysis-card-value">{stats.bestStreak === null ? '--' : `${stats.bestStreak}d`}</strong>
-                    <span className="analysis-card-hint">{abstinenceHistory.length} completed goals</span>
-                </article>
+                {card(
+                    'Reading',
+                    BookOpen,
+                    pending.reading,
+                    String(stats.totalBooks),
+                    `${stats.reading.length} reading · ${stats.completed.length} completed`,
+                )}
+                {card(
+                    'Academics',
+                    GraduationCap,
+                    pending.academics,
+                    String(stats.reading.length),
+                    `${books.reduce((sum, book) => sum + book.current_page, 0)} pages read`,
+                )}
+                {card(
+                    'Courses',
+                    GraduationCap,
+                    pending.courses,
+                    String(courses.length),
+                    `${stats.openItems.length} open · ${stats.overdueItems.length} overdue`,
+                )}
+                {card(
+                    'Study time',
+                    GraduationCap,
+                    pending.study,
+                    `${stats.studyHours}h ${stats.studyMinutes}m`,
+                    'Recorded study sessions',
+                )}
+                {card(
+                    'Abstinence',
+                    ShieldCheck,
+                    pending.abstinence,
+                    stats.activeDays === null ? '--' : `${stats.activeDays}d`,
+                    stats.activeGoal
+                        ? `${stats.activeGoal.name}${stats.activeGoal.target_days ? ` · ${stats.activeGoal.target_days}d target` : ''}`
+                        : `${abstinenceHistory.length} completed goals`,
+                )}
+                {card(
+                    'Best streak',
+                    ShieldCheck,
+                    pending.streak,
+                    stats.bestStreak === null ? '--' : `${stats.bestStreak}d`,
+                    `${abstinenceHistory.length} completed goals`,
+                )}
             </div>
         </section>
     );

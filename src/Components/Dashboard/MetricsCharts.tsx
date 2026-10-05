@@ -21,6 +21,9 @@ import { Maximize2, X } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
+import type { BodyMeasurement } from '../../services/measurementService';
+import type { BodyReading } from '../../utils/bodySeries';
+import { buildBodySeries } from '../../utils/bodySeries';
 import type { ActiveGoals } from '../../utils/dailyScoring';
 import { BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
@@ -142,8 +145,6 @@ interface ChartPoint {
     sleepQuality: number | null;
     bedtime: number | null;
     wakeTime: number | null;
-    weight: number | null;
-    bodyFat: number | null;
     mood: number | null;
     calories: number | null;
     protein: number | null;
@@ -346,7 +347,7 @@ const clockAxisLabel = (value: number): string => (value >= 24 ? '24:00' : hours
  */
 const BLANK_POINT: ChartPoint = {
     date: '', label: '', score: null, sleepDuration: null, sleepQuality: null,
-    bedtime: null, wakeTime: null, weight: null, bodyFat: null, mood: null,
+    bedtime: null, wakeTime: null, mood: null,
     calories: null, protein: null, carbs: null, fat: null, water: null,
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
@@ -533,7 +534,7 @@ const ChartCard: React.FC<ChartCardProps> = ({
                     type="button"
                     className="metrics-chart-expand"
                     aria-label={`Enlarge ${title} chart`}
-                    title="Enlarge chart"
+                    data-tip="Enlarge chart"
                     onClick={() => onExpand({ title, chart, height: expandHeight ?? 560 })}
                 >
                     <Maximize2 size={14} />
@@ -626,7 +627,7 @@ const ChartModal = React.memo(function ChartModal({ expanded, onClose }: { expan
                         <h3>{expanded.title}</h3>
                         {expanded.subtitle && <span className="chart-modal-subtitle">{expanded.subtitle}</span>}
                     </div>
-                    <button ref={closeRef} type="button" className="chart-modal-close" aria-label="Close chart" title="Close" onClick={onClose}>
+                    <button ref={closeRef} type="button" className="chart-modal-close" aria-label="Close chart" data-tip="Close" onClick={onClose}>
                         <X size={18} />
                     </button>
                 </div>
@@ -671,9 +672,14 @@ export interface MetricsChartsProps {
     habitLogs: DailyHabitLog[] | null;
     settings: UserSettings | null;
     range: DateRange;
+    /** Body measurements, the other place weight is recorded. See `bodyData`. */
+    measurements: BodyMeasurement[] | null;
 }
 
-const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings, range }) => {
+/** One row per date for the body charts, labelled for the chart's category axis. */
+type BodyPoint = BodyReading & { label: string };
+
+const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings, range, measurements }) => {
     // Every chart on the page covers the same window, so the range is stamped on
     // here rather than threaded down through sixteen cards just for the enlarged
     // view to say what window it is showing.
@@ -694,6 +700,13 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
 
     const targetWeight = settings?.target_weight ?? null;
     const targetBodyFat = settings?.target_bodyfat ?? null;
+    // Where the user started, from the profile. Drawn as a reference line beside
+    // the target rather than as the first point of the series: it is the origin
+    // of the trend, not a measurement on a day, so it has no date. As a point it
+    // was invisible in every window shorter than the gap back to the profile --
+    // which is all of them, since the dashboard opens on seven days.
+    const startWeight = settings?.starting_weight ?? null;
+    const startBodyFat = settings?.starting_bodyfat ?? null;
 
     const completedByDate = useMemo(() => {
         const map = new Map<string, number>();
@@ -725,8 +738,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     sleepQuality: l.sleep_quality ?? null,
                     bedtime: clockToHours(l.bedtime),
                     wakeTime: clockToHours(l.wake_time),
-                    weight: l.weight ?? null,
-                    bodyFat: l.body_fat ?? null,
                     mood: l.mood ?? null,
                     calories: l.calories ?? null,
                     protein: l.protein ?? null,
@@ -756,6 +767,35 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                 };
             });
     }, [logs, range.days, habits, completedByDate, goalsOn]);
+
+    /**
+     * Weight and body fat, from `body_measurements` only. See
+     * `utils/bodySeries.ts` for why the daily log is no longer a second source.
+     */
+    const bodyData = useMemo<BodyPoint[]>(
+        () =>
+            buildBodySeries({ measurements, days: range.days, inRange }).map(row => ({
+                ...row,
+                label: fmtDate(row.date),
+            })),
+        [measurements, range.days],
+    );
+
+    const hasBodyData = (key: 'weight' | 'bodyFat'): boolean =>
+        bodyData.some(p => p[key] != null);
+
+    const bodyAverage = (key: 'weight' | 'bodyFat'): number | null => {
+        let sum = 0;
+        let n = 0;
+        for (const p of bodyData) {
+            const v = p[key];
+            if (typeof v === 'number') {
+                sum += v;
+                n++;
+            }
+        }
+        return n ? sum / n : null;
+    };
 
     const completedByHabit = useMemo(() => {
         const map = new Map<string, number>();
@@ -843,8 +883,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             carbs: avg('carbs'),
             fat: avg('fat'),
             water: avg('water'),
-            weight: avg('weight'),
-            bodyFat: avg('bodyFat'),
             mood: avg('mood'),
             habitPct: avg('habitPct'),
         };
@@ -1197,32 +1235,34 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     <div className="metrics-columns">
                         <ChartCard
                             title="Weight"
-                            empty={!hasAny('weight')}
+                            empty={!hasBodyData('weight')}
                             onExpand={openChart}
                             chart={
-                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY tickCount={5} allowDecimals tickFormatter={(v) => num(v, 1)} />
                                     <ChartTip />
+                                    {startWeight != null && <ReferenceLine y={startWeight} stroke={C.primary} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
-                                    <AvgLine y={averages.weight} />
+                                    <AvgLine y={bodyAverage('weight')} />
                                     <Line type="monotone" dataKey="weight" name="Weight" formatter={(v) => `${num(v, 2)} kg`} stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />
                         <ChartCard
                             title="Body Fat"
-                            empty={!hasAny('bodyFat')}
+                            empty={!hasBodyData('bodyFat')}
                             onExpand={openChart}
                             chart={
-                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY tickCount={5} allowDecimals tickFormatter={(v) => `${num(v, 1)}%`} />
                                     <ChartTip />
+                                    {startBodyFat != null && <ReferenceLine y={startBodyFat} stroke={C.pink} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
-                                    <AvgLine y={averages.bodyFat} stroke={C.pink} />
+                                    <AvgLine y={bodyAverage('bodyFat')} stroke={C.pink} />
                                     <Line type="monotone" dataKey="bodyFat" name="Body Fat" formatter={(v) => `${num(v)}%`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }

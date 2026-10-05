@@ -13,6 +13,10 @@ interface ScoreMetricMeta {
 
 interface ScoreCardProps {
     score: number;
+    /**
+     * The day being scored, spelled out in full. It belongs on the card rather than
+     * in the row of controls above it: those pick a day, this is the day they picked.
+     */
     dateLabel: string;
     metrics: Record<string, MetricScore>;
 }
@@ -57,6 +61,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({ score, dateLabel, metrics }) => {
     return (
         <div className="daily-score-card">
             <div className="daily-score-main">
+                {/* First in the DOM, so no `order` is needed to put it above the ring. */}
                 <span className="daily-score-info-date">{dateLabel}</span>
                 <ScoreRing score={score} />
                 <button type="button" onClick={() => setExpanded(e => !e)} className="daily-score-toggle">

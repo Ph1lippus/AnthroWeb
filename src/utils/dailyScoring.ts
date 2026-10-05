@@ -332,8 +332,15 @@ export interface DailyScoringInput {
     carbs: string;
     fat: string;
     water: string;
-    weight: string;
-    bodyFat: string;
+    /**
+     * Weight and body fat, unlike every field above them, arrive as numbers.
+     *
+     * They are not text on the daily log any more -- they come from
+     * `body_measurements`, which is a real column rather than a form input, so
+     * there is nothing to parse.
+     */
+    weight: number | string | null;
+    bodyFat: number | string | null;
     mood: string;
     habits: Record<BuiltinHabitKey, boolean>;
     customCompleted: number;

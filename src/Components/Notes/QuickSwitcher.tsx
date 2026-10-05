@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Fuse from 'fuse.js';
-import { CornerDownLeft, Search, StickyNote } from 'lucide-react';
+import { CornerDownLeft, Search } from 'lucide-react';
 import type { Note } from '../../services/noteService';
+import NoteIconBadge from './NoteIconBadge';
 import { noteAncestors } from '../../utils/noteTree';
 
 interface QuickSwitcherProps {
@@ -187,7 +188,15 @@ const QuickSwitcher: React.FC<QuickSwitcherProps> = ({ open, notes, activeId, on
                                     }}
                                     onMouseEnter={() => setSelected(index)}
                                 >
-                                    <StickyNote size={14} className="note-switcher-item-icon" />
+                                    {/* The page's own icon, not a generic one. Every row
+                                        used to carry the same StickyNote, which is
+                                        the one thing a switcher cannot do: two pages
+                                        whose icons both say "note" are the two you
+                                        are trying to tell apart. */}
+                                    <NoteIconBadge
+                                        value={entry.note.notes_icon}
+                                        color={entry.note.notes_color}
+                                    />
                                     <span className="note-switcher-item-text">
                                         <span className="note-switcher-item-title">{entry.title}</span>
                                         {entry.path && (

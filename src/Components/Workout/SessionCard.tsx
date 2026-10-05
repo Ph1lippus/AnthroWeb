@@ -122,7 +122,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
                                 type="button"
                                 className="book-action-btn book-action-btn--danger"
                                 onClick={() => setDropping(true)}
-                                title="Delete session"
+                                data-tip="Delete session"
                                 aria-label="Delete session"
                             >
                                 <Trash2 />

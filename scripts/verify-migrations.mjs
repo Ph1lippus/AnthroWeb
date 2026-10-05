@@ -13,7 +13,8 @@
  * cannot provide (RLS policies, auth.uid(), storage).
  */
 import { PGlite } from '@electric-sql/pglite';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+
 import { applyAllStatements, splitStatements } from './lib/split-sql.mjs';
 
 let pass = 0, fail = 0;
@@ -59,8 +60,17 @@ const baseError = await applyAllStatements(db, runnable);
 check('sql.sql applies as a migration baseline', baseError === null, baseError ?? '');
 
 const dir = 'supabase/migrations';
-const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort();
+// Absent in some checkouts -- the schema is then sql.sql alone, and there is
+// nothing for this script to check. Treated as "no migrations" rather than a
+// crash, so the check stays in the verify chain and starts doing its job the
+// moment the directory exists. Previously this threw ENOENT from readdirSync,
+// which failed the whole suite over a directory that may never be meant to exist.
+const files = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.sql')).sort() : [];
 console.log(`\n== migrations (${files.length}) ==`);
+if (files.length === 0) {
+    console.log('  --   no supabase/migrations directory; sql.sql is the whole schema');
+}
+
 
 for (const file of files) {
     // Each migration is applied to its own database rather than to a shared one,
@@ -177,6 +187,96 @@ const aliasHit = await applied.query(
 );
 check('the alias index answers a case-insensitive alias query',
     aliasHit.rows[0].n >= 1, `n=${aliasHit.rows[0].n}`);
+
+// 0012 adds a column, and the baseline above already has it -- sql.sql is the
+// squashed state, so the run through the main loop only ever exercises the
+// idempotent branch. What actually matters for a deploy is the other one: a
+// database that predates the column. Checked here, because a plain ADD COLUMN
+// would sail through the loop above and then fail against production.
+console.log('\n== 0012 against a database that predates the column ==');
+if (!existsSync(`${dir}/0012_notes_position.sql`)) {
+    // Guarded for the same reason the loop above is: the migrations directory is
+    // absent in some checkouts, and there is nothing here to run without the file.
+    // Reported rather than skipped silently, because a missing migration folder in a
+    // working checkout usually means the migrations went missing rather than that
+    // they were never meant to be there.
+    console.log('  --   no 0012_notes_position.sql to replay; sql.sql is the whole schema');
+} else {
+    const full = readFileSync('sql.sql', 'utf8').split(/^INDEXES\.\s*$/m)[0];
+    // The baseline with the column removed, rather than a hand-written smaller
+    // schema: the two then cannot drift apart. Matched on any type rather than
+    // `integer`, so changing the column's type does not quietly turn this check
+    // into "the baseline has no such line to find" -- which passes.
+    const stripped = full.replace(/^[ \t]*notes_position\s+[a-z ]+[^,]*,\s*$/m, '');
+    check('the column was found in the baseline to strip', stripped !== full);
+
+    const fresh = new PGlite();
+    await bootstrap(fresh);
+    const base = await applyAllStatements(fresh, stripped);
+    check('the stripped baseline applies', base === null, base ?? '');
+
+    const { rows: beforeRows } = await fresh.query(
+        `select count(*)::int as n from information_schema.columns
+          where table_schema='public' and table_name='notes'
+            and column_name='notes_position'`,
+    );
+    check('the column really is absent beforehand', beforeRows[0].n === 0, `n=${beforeRows[0].n}`);
+
+    const migration = readFileSync(`${dir}/0012_notes_position.sql`, 'utf8');
+    for (const statement of splitStatements(migration)) await fresh.exec(statement);
+
+    const { rows: afterRows } = await fresh.query(
+        `select is_nullable, column_default from information_schema.columns
+          where table_schema='public' and table_name='notes'
+            and column_name='notes_position'`,
+    );
+    check('the migration adds it', afterRows.length === 1);
+    // NOT NULL with a default: the client reads a null as 0 and sorts on it, so a
+    // nullable column would make the fallback the only path ever taken.
+    check('and it is not nullable', afterRows[0]?.is_nullable === 'NO', String(afterRows[0]?.is_nullable));
+    check('and it defaults to 0', String(afterRows[0]?.column_default ?? '').includes('0'));
+
+    await fresh.exec(`insert into auth.users (id) values ('${USER}')`);
+    await fresh.exec(`insert into public.notes (user_id, title) values ('${USER}', 'before')`);
+    const { rows: legacy } = await fresh.query(
+        `select notes_position from public.notes where title = 'before'`,
+    );
+    // No backfill is wanted: existing pages stay on 0, which is where the
+    // created_at tie-break was already putting them, so the rail keeps its order.
+    // Number(), because a numeric comes back from the driver as a string and
+    // `=== 0` would fail on '0' -- see positionOf in noteTree.ts for why the
+    // client cannot rely on the type either.
+    check('a page that predates the column reads back as 0',
+        Number(legacy[0]?.notes_position) === 0, JSON.stringify(legacy[0]?.notes_position));
+    check('and it arrives as a string, which is why the client coerces',
+        typeof legacy[0]?.notes_position === 'string', typeof legacy[0]?.notes_position);
+
+    // The reason this is a numeric and not an integer: a drag stores the midpoint
+    // of two positions, so the column has to hold a fraction.
+    await fresh.exec(`update public.notes set notes_position = 0.5 where title = 'before'`);
+    const { rows: dragged } = await fresh.query(
+        `select notes_position from public.notes where title = 'before'`,
+    );
+    check('a fractional position round-trips',
+        Number(dragged[0]?.notes_position) === 0.5, JSON.stringify(dragged[0]?.notes_position));
+
+    // And that the integer version really would not have. Cast the same value to
+    // an integer to pin down why the type is numeric: 0.5 becomes 1, which is the
+    // position of the page it was dropped between.
+    const { rows: rounded } = await fresh.query(`select (0.5::numeric)::integer as n`);
+    check('an integer column would have rounded the midpoint onto a neighbour',
+        rounded[0].n === 1, `0.5::integer = ${rounded[0].n}`);
+
+    // Applying it twice has to be a no-op, or re-running a deploy breaks.
+    let secondPass = '';
+    try {
+        for (const statement of splitStatements(migration)) await fresh.exec(statement);
+    } catch (error) {
+        secondPass = String(error.message ?? error).split('\n')[0];
+    }
+    check('running it a second time is a no-op', secondPass === '', secondPass);
+}
+
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} passed, 0 failed` : `\nFAILURES: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

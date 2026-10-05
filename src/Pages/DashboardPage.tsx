@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Title from '../Components/Title';
 import AnalysisCards from '../Components/Dashboard/AnalysisCards';
-import DashboardExtras from '../Components/Dashboard/DashboardExtras';
 import { DEFAULT_RANGE, RANGES } from '../Components/Dashboard/dateRange';
 import type { DateRange } from '../Components/Dashboard/dateRange';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { useHabitData } from '../hooks/useHabitData';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { useDashboardExtras } from '../hooks/useDashboardExtras';
+import { useBodyMeasurements } from '../hooks/useMeasurements';
 import { useBootHold } from '../services/bootScreen';
 import type { MetricsChartsProps } from '../Components/Dashboard/MetricsCharts';
 
@@ -24,7 +23,10 @@ const DashboardPage: React.FC = () => {
     const { logs, isLoading: logsLoading } = useDailyLogs();
     const { habits, habitLogs, isLoading: habitsLoading } = useHabitData();
     const { settings, isLoading: settingsLoading } = useUserSettings();
-    const extras = useDashboardExtras();
+    // Weight is recorded on the Measurements page as well as in the daily log, so
+    // the charts read both. Not part of `ready`: the weight line appearing a
+    // moment after the rest of the page is better than the page waiting on it.
+    const { data: measurements } = useBodyMeasurements();
     // Lifted so the insight cards and the charts always describe the same window.
     const [range, setRange] = useState<DateRange>(DEFAULT_RANGE);
 
@@ -102,8 +104,8 @@ const DashboardPage: React.FC = () => {
                         habitLogs={habitLogs}
                         settings={settings}
                         range={range}
+                        measurements={measurements ?? null}
                     />
-                    <DashboardExtras {...extras} />
                     {!chartsSettled && <div className="dashboard-chart-loading">Loading charts...</div>}
                     {chartsSettled && Charts && (
                         <div className={`dashboard-charts-enter ${chartsRevealed ? 'dashboard-charts-enter--ready' : 'dashboard-charts-enter--pending'}`}>
@@ -113,6 +115,7 @@ const DashboardPage: React.FC = () => {
                                 habitLogs={habitLogs}
                                 settings={settings}
                                 range={range}
+                                measurements={measurements ?? null}
                             />
                         </div>
                     )}

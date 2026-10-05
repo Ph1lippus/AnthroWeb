@@ -93,7 +93,7 @@ const RecordsPanel: React.FC = () => {
                             style={{ marginLeft: 'auto' }}
                             disabled={seedTemplate.isPending}
                             onClick={() => activeTemplate.id && seedTemplate.mutate(activeTemplate.id)}
-                            title="Add every exercise in the active template"
+                            data-tip="Add every exercise in the active template"
                         >
                             <Target size={11} className="mr-1" />
                             From template

@@ -365,7 +365,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 // Always offered. With a collapsed caret these set the mark for
                 // whatever is typed next, which is what every editor does with them;
                 // hiding them there only taught that the buttons were unreliable.
-                formats: inCodeBlock ? [] : buildFormatActions(instance),
+                formats: inCodeBlock ? [] : buildFormatActions(instance, target),
                 conversions,
                 currentType: current?.title ?? '',
                 items: [
@@ -656,7 +656,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                     type="button"
                     className="note-drag-handle-btn"
                     aria-label="Block actions"
-                    title="Drag to move, click for block actions"
+                    data-tip="Drag to move, click for block actions"
                     onClick={event =>
                         openMenu(
                             editor,

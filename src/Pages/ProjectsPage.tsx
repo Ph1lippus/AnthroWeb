@@ -421,7 +421,7 @@ const ProjectsPage: React.FC = () => {
                         <button
                             onClick={() => openEditModal(project)}
                             className="project-action-btn"
-                            title="Edit project details"
+                            data-tip="Edit project details"
                             aria-label="Edit project"
                         >
                             <SquarePen />
@@ -429,7 +429,7 @@ const ProjectsPage: React.FC = () => {
                         <button
                             onClick={() => setDeleteTarget(project)}
                             className="project-action-btn project-action-btn--danger"
-                            title="Delete project"
+                            data-tip="Delete project"
                             aria-label="Delete project"
                         >
                             <Trash2 />
@@ -445,7 +445,7 @@ const ProjectsPage: React.FC = () => {
                             <button
                                 onClick={() => handleMarkCompleted(project)}
                                 className="project-complete-btn"
-                                title="Mark as completed"
+                                data-tip="Mark as completed"
                                 aria-label="Mark as completed"
                             >
                                 <Check />
@@ -780,14 +780,14 @@ const ProjectsPage: React.FC = () => {
                                         openEditModal(p);
                                     }}
                                     className="project-action-btn"
-                                    title="Edit"
+                                    data-tip="Edit"
                                 >
                                     <SquarePen />
                                 </button>
                                 <button
                                     onClick={() => setViewProject(null)}
                                     className="project-action-btn"
-                                    title="Close"
+                                    data-tip="Close"
                                 >
                                     <X />
                                 </button>
