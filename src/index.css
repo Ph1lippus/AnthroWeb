@@ -1244,6 +1244,11 @@ input[type='number']::-webkit-inner-spin-button {
   #root {
     padding-left: 3.75rem;
   }
+  /* The guest home page has no sidebar, so its footer should use the full
+     viewport rather than reserving the authenticated rail's width. */
+  #root:has(.home-page) {
+    padding-left: 0;
+  }
  .secondary-navbar {
     display: none;
   }
