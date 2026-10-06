@@ -147,6 +147,78 @@ export const deleteHabit = async (id: string) => {
     }
 };
 
+/** What a rename can change. Either field, or both. */
+export interface HabitUpdate {
+    name?: string;
+    description?: string | null;
+}
+
+/**
+ * Rename a habit, or change what it says it is.
+ *
+ * Renaming touches no log: `daily_habit_logs` records `habit_id`, never the name, so
+ * every tick, every streak and every chart keeps working against the same row. The
+ * only thing that can refuse the write is `unique_user_habit (user_id, name)` --
+ * and that constraint counts removed habits too, because removal is a soft delete.
+ * So a name already in use, live or gone, is refused here with a sentence worth
+ * showing, rather than arriving as an unexplained 409 from PostgREST.
+ *
+ * Every write stamps `updated_at`, as the other services do. Nothing sorts habits
+ * by it -- they are ordered by `created_at` -- so renaming never moves a habit in
+ * the list.
+ */
+export const updateHabit = async (id: string, updates: HabitUpdate): Promise<Habit> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
+
+    const name = updates.name?.trim();
+
+    if (name !== undefined) {
+        // Asked of the table rather than of the loaded list, which only ever holds
+        // the habits that are still active: a removed one still holds its name, and
+        // is exactly the name someone is most likely to type again.
+        const { data: clash, error: clashError } = await supabase
+            .from('habits')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('name', name)
+            .neq('id', id)
+            .limit(1);
+
+        if (clashError) {
+            console.error('Error checking habit name:', clashError.message);
+            throw clashError;
+        }
+        if (clash && clash.length > 0) {
+            throw new Error(`There is already a habit called "${name}".`);
+        }
+    }
+
+    const { data, error } = await supabase
+        .from('habits')
+        .update({
+            ...(name !== undefined ? { name } : {}),
+            ...(updates.description !== undefined
+                ? { description: updates.description }
+                : {}),
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        // Scoped like `getUserHabits` reads. The policies would catch it too; this
+        // means a habit that somehow is not the caller's matches nothing rather
+        // than quietly reporting success.
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating habit:', error.message);
+        throw error;
+    }
+
+    return data as Habit;
+};
+
 // Fetch all habit logs for current user (used for charts)
 export const getAllHabitLogs = async (): Promise<DailyHabitLog[]> => {
     const userId = await getCurrentUserId();

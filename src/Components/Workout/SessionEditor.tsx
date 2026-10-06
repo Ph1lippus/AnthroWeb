@@ -12,6 +12,7 @@ import {
     usePlanSession,
     useTodaysPlanSessions,
 } from '../../hooks/useWorkouts';
+import type { WorkoutExerciseLog } from '../../services/workoutService';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { formatDayLabel, todayString, addDays } from '../../utils/dates';
 import { DAY_NAMES } from '../../utils/workoutStats';
@@ -25,6 +26,12 @@ import {
 } from '../../utils/workoutSets';
 
 interface DraftRow {
+    /**
+     * Identity for this row while it is being edited, before it has a database
+     * id. Without it two exercises added in one sitting share a React key and a
+     * written-back id can only be matched by name.
+     */
+    key: string;
     id?: string;
     exercise_name: string;
     /** The library row this came from, so the log joins back to `exercises`. */
@@ -36,6 +43,12 @@ interface DraftRow {
     duration_minutes?: number | null;
     distance_km?: number | null;
 }
+
+/** A row identity that does not need the network or a secure context. */
+const draftKey = (): string =>
+    typeof crypto?.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
 /**
  * What the active template offers for a day that has no session yet.
@@ -203,9 +216,37 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const addInputRef = useRef<HTMLDivElement | null>(null);
 
     // Reset when the day changes, or the next day's data would render under the
-    // previous day's heading.
+    // previous day's heading. Declared before the hydration effect on purpose: both
+    // run on every day change, and in this order the guard is cleared first, so
+    // the hydration below is allowed to fire for the day that just arrived.
     const loadedFor = useRef<string | null>(null);
-    useEffect(() => { loadedFor.current = null; }, [date]);
+
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const inFlightRef = useRef<Promise<void> | null>(null);
+    const savingRef = useRef(0);
+    /** The save a timer is holding, so leaving the day can run it rather than lose it. */
+    const flushRef = useRef<(() => void) | null>(null);
+
+    /* A pending save has to survive a day change and an unmount.
+     *
+     * Both used to `clearTimeout`, which threw the edit away: stepping to another
+     * day inside the debounce window lost it silently, and so did the browser's Back
+     * button. So the timer is cancelled and the save is run instead. `handleSave`
+     * holds the day it was scheduled for, so it lands on the day it was made for
+     * rather than the one on screen by the time it fires. */
+    const flushPendingSave = useCallback(() => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        flushRef.current?.();
+        flushRef.current = null;
+    }, []);
+
+    useEffect(() => {
+        flushPendingSave();
+        loadedFor.current = null;
+    }, [date, flushPendingSave]);
 
     // Hydrate once per session. Re-running on every server response would throw
     // away whatever the user had typed but not yet saved. The ref guard also
@@ -222,6 +263,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         setDuration(session.duration_minutes?.toString() ?? '');
         setNotes(session.notes ?? '');
         setRows((stored ?? []).map(row => ({
+            key: draftKey(),
             id: row.id,
             exercise_name: row.exercise_name,
             exercise_id: row.exercise_id,
@@ -246,45 +288,105 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const totalSets = visible.filter(row => row.completed).reduce((n, row) => n + row.sets_detail.length, 0);
     const progress = visible.length > 0 ? doneCount / visible.length * 100 : 0;
 
+    /* The ids the insert actually produced.
+     *
+     * `saveSessionExercises` numbers every kept row with `position: index`, and
+     * `getSessionExercises` reads them back in `position` order, so the nth row
+     * sent is the nth row returned. Without writing those ids back the draft
+     * keeps `id: undefined` for anything added since the day loaded, the next save
+     * reads that as "insert", and every later blur appended another copy of the
+     * same exercise.
+     *
+     * Sessions written by the earlier build already hold duplicates, which shifts
+     * that alignment, so a row whose name does not line up falls back to the first
+     * unclaimed server row of the same name. An id only ever goes to a row that has
+     * none, and a row that already has one claims its id first. */
+    const adoptServerIds = useCallback((saved: WorkoutExerciseLog[], draft: DraftRow[]) => {
+        const claimed = new Set<string>();
+        for (const row of draft) if (row.id) claimed.add(row.id);
+
+        const ids = new Map<string, string>();
+        draft.filter(row => row.exercise_name.trim()).forEach((row, index) => {
+            const name = row.exercise_name.trim();
+            const byPosition = saved[index];
+            const match = byPosition?.exercise_name.trim() === name
+                ? byPosition
+                : saved.find(candidate =>
+                    candidate.exercise_name.trim() === name && !claimed.has(candidate.id ?? ''));
+            if (!match?.id) return;
+            claimed.add(match.id);
+            ids.set(row.key, match.id);
+        });
+
+        if (ids.size === 0) return;
+        setRows(current => current.map(row => {
+            const id = ids.get(row.key);
+            return id && !row.id ? { ...row, id } : row;
+        }));
+    }, []);
+
+    /* One write at a time. Two saves in flight overlap in the one way that
+     * duplicates exercises: each asks for this date's session, each finds the same
+     * one or creates one, and each inserts every row it was handed that had no id.
+     * Chaining behind the previous write settles that -- the same callback on both
+     * sides of the `then` so a failed write does not wedge the queue. */
+    const enqueue = useCallback((write: () => Promise<void>) => {
+        const previous = inFlightRef.current ?? Promise.resolve();
+        const next = previous.then(write, write);
+        inFlightRef.current = next.then(() => undefined, () => undefined);
+        return next;
+    }, []);
+
     // Wrapped rather than a plain function so `scheduleSave` below keeps a stable
     // identity -- a new one every render would restart the debounce timer on every
     // keystroke and the save would never fire.
     const handleSave = useCallback(async (draftRows = rows) => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        flushRef.current = null;
+
+        savingRef.current += 1;
         setSaving(true);
         try {
-            await saveSession.mutateAsync({
-                date,
-                createIfMissing: true,
-                // `completed` is deliberately absent. This used to be written from a
-                // "Save progress" button that passed `false`, so saving your work
-                // silently un-completed a day the daily log had already ticked --
-                // which is what made the year chart show a trained day as empty.
-                // Completing a day is the daily log's Gym habit and nothing else;
-                // see useSaveSession's note on not defaulting it either.
-                header: {
-                    intensity,
-                    duration_minutes: duration ? parseInt(duration, 10) : undefined,
-                    notes: notes || undefined,
-                    workout_template_id: activeTemplate?.id ?? null,
-                },
-                exercises: draftRows.map(row => ({
-                    id: row.id,
-                    exercise_name: row.exercise_name,
-                    exercise_id: row.exercise_id ?? null,
-                    activity_type: row.activity_type,
-                    completed: row.completed,
-                    sets_detail: rowsToDetail(row.sets_detail),
-                    duration_minutes: row.duration_minutes ?? null,
-                    distance_km: row.distance_km ?? null,
-                })),
+            await enqueue(async () => {
+                const result = await saveSession.mutateAsync({
+                    date,
+                    createIfMissing: true,
+                    // `completed` is deliberately absent. This used to be written from a
+                    // "Save progress" button that passed `false`, so saving your work
+                    // silently un-completed a day the daily log had already ticked --
+                    // which is what made the year chart show a trained day as empty.
+                    // Completing a day is the daily log's Gym habit and nothing else;
+                    // see useSaveSession's note on not defaulting it either.
+                    header: {
+                        intensity,
+                        duration_minutes: duration ? parseInt(duration, 10) : undefined,
+                        notes: notes || undefined,
+                        workout_template_id: activeTemplate?.id ?? null,
+                    },
+                    exercises: draftRows.map(row => ({
+                        id: row.id,
+                        exercise_name: row.exercise_name,
+                        exercise_id: row.exercise_id ?? null,
+                        activity_type: row.activity_type,
+                        completed: row.completed,
+                        sets_detail: rowsToDetail(row.sets_detail),
+                        duration_minutes: row.duration_minutes ?? null,
+                        distance_km: row.distance_km ?? null,
+                    })),
+                });
+                adoptServerIds(result.saved, draftRows);
+                setSaved(true);
             });
-            setSaved(true);
         } catch (error) {
             console.error('Could not save the session:', error);
         } finally {
-            setSaving(false);
+            savingRef.current -= 1;
+            setSaving(savingRef.current > 0);
         }
-    }, [saveSession, date, intensity, duration, notes, activeTemplate, rows]);
+    }, [enqueue, adoptServerIds, saveSession, date, intensity, duration, notes, activeTemplate, rows]);
 
     /* Autosave on leaving a field, the way the daily log autosaves.
      *
@@ -298,28 +400,27 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
      * On blur rather than on every keystroke, because rows here change
      * structurally -- adding, removing or ticking a row is not a keystroke, and
      * those changes need saving just as much. A short debounce still applies so
-     * tabbing through four fields in a row is one write rather than four.
-     *
-     * Nothing is saved for a day with no rows and no header content, so merely
-     * opening a future day does not create an empty session for it. */
-    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+     * tabbing through four fields in a row is one write rather than four. */
     const scheduleSaveRows = useCallback((draftRows: DraftRow[]) => {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        flushRef.current = () => { void handleSave(draftRows); };
         saveTimerRef.current = setTimeout(() => {
+            saveTimerRef.current = null;
+            flushRef.current = null;
             void handleSave(draftRows);
         }, 600);
     }, [handleSave]);
     const scheduleSave = useCallback(() => {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        flushRef.current = () => { void handleSave(); };
         saveTimerRef.current = setTimeout(() => {
+            saveTimerRef.current = null;
+            flushRef.current = null;
             void handleSave();
         }, 600);
     }, [handleSave]);
 
-    // A pending save must not be lost to a day change or an unmount.
-    useEffect(() => () => {
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    }, []);
+    useEffect(() => () => { flushPendingSave(); }, [flushPendingSave]);
 
     const step = (delta: number) => {
         const next = addDays(date, delta);
@@ -490,7 +591,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 {visible.map(row => (
                                     <SessionRow
-                                        key={row.id ?? `new-${row.exercise_name}`}
+                                        key={row.key}
                                         row={row}
                                         weightUnit={weightUnit}
                                         onChange={next => {
@@ -517,6 +618,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 const nextRows = [
                                     ...rows,
                                     {
+                                        key: draftKey(),
                                         exercise_name: trimmed,
                                         exercise_id: newExerciseId,
                                         activity_type: newType,
@@ -530,7 +632,9 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 setNewExerciseId(null);
                                 // Focus goes back to the input so several exercises can
                                 // be typed in a row, and adding a row is a structural
-                                // change rather than a blur, so it saves here.
+                                // change rather than a blur, so it saves here. It goes
+                                // through the same queue as everything else, which is
+                                // what stops this write overlapping a pending one.
                                 addInputRef.current?.querySelector('input')?.focus();
                                 void handleSave(nextRows);
                             }}
@@ -658,11 +762,11 @@ const SessionRow: React.FC<{
                     ) : (
                         <div className="workout-ex__grid">
                             <div className="workout-ex__field">
-                                <label className="form-label" htmlFor={`sd-${row.id ?? row.exercise_name}`}>
+                                <label className="form-label" htmlFor={`sd-${row.key}`}>
                                     Duration (min)
                                 </label>
                                 <input
-                                    id={`sd-${row.id ?? row.exercise_name}`}
+                                    id={`sd-${row.key}`}
                                     type="number"
                                     min={0}
                                     className="form-control"
@@ -676,11 +780,11 @@ const SessionRow: React.FC<{
                             </div>
                             {row.activity_type === 'cardio' && (
                                 <div className="workout-ex__field">
-                                    <label className="form-label" htmlFor={`sk-${row.id ?? row.exercise_name}`}>
+                                    <label className="form-label" htmlFor={`sk-${row.key}`}>
                                         Distance (km)
                                     </label>
                                     <input
-                                        id={`sk-${row.id ?? row.exercise_name}`}
+                                        id={`sk-${row.key}`}
                                         type="number"
                                         min={0}
                                         step={0.1}

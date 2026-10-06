@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import ScoreRing from './ScoreRing';
 import { getScoreColor } from '../../utils/dailyScoring';
 import type { MetricScore } from '../../utils/dailyScoring';
@@ -19,6 +19,11 @@ interface ScoreCardProps {
      */
     dateLabel: string;
     metrics: Record<string, MetricScore>;
+    /**
+     * Whether the breakdown is drawn. Owned by the page rather than by this card,
+     * because the control for it lives in the row of controls above the card.
+     */
+    expanded: boolean;
 }
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -55,22 +60,32 @@ const METRIC_META: ScoreMetricMeta[] = [
     { key: 'habits', label: 'Habits', cat: 'habits' },
 ];
 
-const ScoreCard: React.FC<ScoreCardProps> = ({ score, dateLabel, metrics }) => {
-    const [expanded, setExpanded] = useState(true);
-
+const ScoreCard: React.FC<ScoreCardProps> = ({
+    score,
+    dateLabel,
+    metrics,
+    expanded,
+}) => {
     return (
         <div className="daily-score-card">
             <div className="daily-score-main">
                 {/* First in the DOM, so no `order` is needed to put it above the ring. */}
                 <span className="daily-score-info-date">{dateLabel}</span>
                 <ScoreRing score={score} />
-                <button type="button" onClick={() => setExpanded(e => !e)} className="daily-score-toggle">
-                    {expanded ? 'Hide breakdown' : 'Show breakdown'}
-                </button>
             </div>
 
-            {expanded && (
-                <div className="daily-score-breakdown">
+            {/*
+                Kept mounted and collapsed to nothing rather than unmounted, because
+                a panel that vanishes has nothing to animate. `grid-template-rows`
+                from `0fr` to `1fr` is the one height transition that works without
+                measuring, and the inner wrapper carries `overflow: hidden` so the
+                chips do not spill out while the rows are still collapsing.
+            */}
+            <div
+                className={`daily-score-breakdown ${expanded ? 'daily-score-breakdown--open' : ''}`}
+                aria-hidden={!expanded}
+            >
+                <div className="daily-score-breakdown__inner">
                     {CATEGORY_ORDER.map(cat => {
                         const catMetrics = METRIC_META.filter(m => m.cat === cat);
                         const logged = catMetrics.filter(m => metrics[m.key]?.logged).length;
@@ -107,7 +122,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({ score, dateLabel, metrics }) => {
                         );
                     })}
                 </div>
-            )}
+            </div>
         </div>
     );
 };

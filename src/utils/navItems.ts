@@ -54,9 +54,6 @@ export const isNavItemActive = (pathname: string, to: string): boolean => {
 // visible heading. Exact paths are matched first, then a parent segment
 // (dynamic routes such as /Daily-Log/Edit/:id fall back to /Daily-Log).
 const PAGE_TITLES: Record<string, string> = {
-    '/login': 'Login',
-    '/register': 'Register',
-    '/forgot-password': 'Reset Password',
     '/credits': 'Credits',
     '/privacy-policy': 'Privacy Policy',
     '/terms-of-service': 'Terms of Service',

@@ -5,6 +5,7 @@
 const workoutSessionsRoot = ['workout-sessions'] as const;
 const workoutPlanRoot = ['workout-plan'] as const;
 const templateExercisesRoot = ['workout-template-exercises'] as const;
+const workoutExercisesRoot = ['workout-exercises'] as const;
 
 export const queryKeys = {
     dailyLogs: ['daily-logs'] as const,
@@ -26,7 +27,8 @@ export const queryKeys = {
     workoutSessions: (from: string, to: string) => [...workoutSessionsRoot, from, to] as const,
     workoutLogs: ['workout-logs'] as const,
     workoutLogByDate: (date: string) => ['workout-log', date] as const,
-    workoutExercises: (completionId: string) => ['workout-exercises', completionId] as const,
+    workoutExercisesRoot,
+    workoutExercises: (completionId: string) => [...workoutExercisesRoot, completionId] as const,
     workoutPRs: ['workout-prs'] as const,
     workoutPREntries: ['workout-pr-entries'] as const,
     exerciseLibrary: ['exercise-library'] as const,

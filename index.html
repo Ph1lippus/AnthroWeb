@@ -71,17 +71,38 @@
       .boot__rule {
         display: block;
         width: 180px;
-        height: 1px;
+        height: 2px;
         margin: 10px auto 0;
         padding: 0;
         border: 0;
+        border-radius: 2px;
+        background: rgba(0, 255, 166, 0.15);
+        overflow: hidden;
+        position: relative;
+      }
+      .boot__rule::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
         background: linear-gradient(
           to right,
           rgba(0, 255, 166, 0) 0%,
-          rgba(0, 255, 166, 0.55) 20%,
-          rgba(0, 255, 166, 0.55) 80%,
+          rgba(0, 255, 166, 0.9) 50%,
           rgba(0, 255, 166, 0) 100%
         );
+        transform-origin: left center;
+        /* A fill that eases across and holds at full: reaching the right edge
+           is the moment the handoff reveals the page, so the bar parks at 100%
+           instead of looping. Slow enough to be seen on a fast load, quick
+           enough never to be the thing holding the reveal. */
+        animation: boot-fill 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      @keyframes boot-fill {
+        0% { transform: scaleX(0); opacity: 0; }
+        15% { opacity: 1; }
+        70% { transform: scaleX(0.85); opacity: 1; }
+        100% { transform: scaleX(1); opacity: 1; }
       }
       .boot__status {
         display: block;
@@ -133,6 +154,32 @@
       })();
     </script>
     <div id="root"></div>
+    <script>
+      /* Guests skip the splash entirely: without a stored Supabase session there
+         is nothing to wait for, so the static boot markup goes before React
+         mounts and the app root is revealed immediately. Signed-in users keep
+         the splash; the React handoff takes it down once the app is ready.
+         Storage access can throw (blocked cookies) -- then the splash stays
+         for the React backup in BootHandoff to handle. */
+      (function () {
+        try {
+          var hasSession = false;
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.lastIndexOf('sb-', 0) === 0 && k.indexOf('-auth-token') !== -1) {
+              var v = localStorage.getItem(k);
+              if (v && v !== 'null' && v !== '[]' && v !== '{}') { hasSession = true; break; }
+            }
+          }
+          if (!hasSession) {
+            var boot = document.getElementById('boot');
+            var root = document.getElementById('root');
+            if (root) root.classList.add('boot-ready');
+            if (boot) boot.remove();
+          }
+        } catch (e) { /* leave the splash for React to handle */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
 
     <script>

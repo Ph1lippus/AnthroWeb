@@ -3,6 +3,7 @@ import {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -39,7 +40,8 @@ import { handleMarkdownPaste } from '../../utils/notePaste';
 import BlockMenu from './BlockMenu';
 import type { BlockMenuRef } from './BlockMenu';
 
-interface NoteEditorProps {
+/** Exported so `useNoteEditorChunk` can name the component it resolves. */
+export interface NoteEditorProps {
     /** Stored HTML. Only used to seed the editor on first mount. */
     initialHtml: string;
     onChange: (html: string) => void;
@@ -78,8 +80,6 @@ interface MenuState {
      * than one that briefly covers a paragraph.
      */
     submenuSide: 'right' | 'left';
-    /** Whether "Turn into" is open, and so drawn beside the main menu. */
-    submenuOpen: boolean;
     /** Where the popup is pinned, in viewport coordinates. */
     left: number;
     top: number;
@@ -93,8 +93,15 @@ interface MenuState {
     source: 'handle' | 'selection';
 }
 
-/** Panel width, and so the space a placement has to find. Mirrors the CSS. */
-const MENU_WIDTH = 268;
+/**
+ * Panel width, and so the space a placement has to find. Mirrors the CSS.
+ *
+ * 320px rather than the 268 this used to claim: the stylesheet sets
+ * `.slash-menu--block { width: 320px }`, so the first placement was assuming a
+ * narrower panel than the one it was placing, and correcting it a frame later
+ * moved the menu sideways after it had already been painted.
+ */
+const MENU_WIDTH = 320;
 /** Gap between the anchor and the menu, and between the two menu panels. */
 const MENU_GAP = 8;
 /** Distance kept from the edge of the window. */
@@ -115,8 +122,15 @@ const MENU_MARGIN = 8;
  * the anchor's own rect and the window -- not from the rendered popup -- so the
  * menu cannot be seen jumping from one side of the text to the other.
  *
- * `height` is the taller of the two panels when the submenu is open, because the
- * two share a top edge and the taller one is what decides whether they fit.
+ * `height` is the tallest the popup will get, not the height it happens to have
+ * right now. The two panels share a top edge and the taller one decides whether
+ * they clear the bottom of the window, so it is measured with the block-type
+ * panel closed and the space for it reserved up front. Placement is therefore
+ * computed exactly once per opening: hovering "Turn into" adds a panel beside the
+ * menu without moving the menu. Placing on the current height instead meant the
+ * popup slid 50-230px upward the instant the flyout appeared -- out from under a
+ * stationary pointer on a 23px row, which set off the open/close hover handshake
+ * again and left the menu bouncing.
  */
 const placeMenu = (
     anchor: DOMRect,
@@ -357,7 +371,6 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 id: nextMenuIdRef.current,
                 anchor,
                 submenuSide: submenuSideFor(assumed.left, MENU_WIDTH),
-                submenuOpen: false,
                 left: assumed.left,
                 top: assumed.top,
                 source,
@@ -383,30 +396,33 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
     );
 
     /**
-     * Re-settles the placement after the panels have been measured.
+     * Settles the placement once the panels have been measured for real.
      *
-     * Called once per opening and again whenever "Turn into" opens or closes,
-     * because that changes how tall the taller panel is. Writing `left`/`top` back
-     * is safe here even though the effect reads the object it writes into: the
-     * measurement is idempotent, so a second pass computes the same numbers and
-     * React bails out of the re-render.
+     * Once per opening, and never again. The block-type panel is drawn the whole
+     * time the menu is open -- hidden and inert while it is closed, so its real
+     * height can be read here -- which is what lets the space for it be reserved
+     * before anyone hovers "Turn into". Nothing about hovering can change the
+     * answer, so nothing re-runs and the popup cannot move.
+     *
+     * Writing `left`/`top` back is safe even though the effect reads the object it
+     * writes into: the measurement is idempotent, so a second pass computes the
+     * same numbers and React bails out of the re-render.
      */
-    const remeasure = useCallback((which: 'open' | 'submenu', id: number) => {
+    const place = useCallback((id: number) => {
         setMenu(current => {
             if (!current || current.id !== id) return current;
-            if (which === 'open' && placedMenuIdRef.current === current.id) return current;
-            if (which === 'open') placedMenuIdRef.current = current.id;
+            if (placedMenuIdRef.current === current.id) return current;
+            placedMenuIdRef.current = current.id;
 
             const width = menuRef.current?.offsetWidth || MENU_WIDTH;
             const mainHeight = menuRef.current?.offsetHeight || 380;
-            // Only counted when the panel is actually drawn beside the menu. Below
-            // the split width it stands in for the menu instead, and there is only
-            // one panel on screen.
-            const beside = current.submenuOpen && canSplitSubmenu();
-            const subHeight = beside ? submenuRef.current?.offsetHeight || 0 : 0;
+            // Counted whether or not it is open, and whether or not it will be
+            // drawn beside the menu: below the split width it stands in for the
+            // menu instead, so it is still the tallest thing the popup can become.
+            const subHeight = submenuRef.current?.offsetHeight || 0;
             // The two panels share a top edge, so it is the taller one that decides
             // whether they clear the bottom of the window.
-            const height = beside ? Math.max(mainHeight, subHeight) : mainHeight;
+            const height = Math.max(mainHeight, subHeight);
             const { left, top } = placeMenu(current.anchor, width, height);
             const submenuSide = submenuSideFor(left, width);
             if (
@@ -420,29 +436,17 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
         });
     }, []);
 
-    const setSubmenuOpen = useCallback((open: boolean) => {
-        setMenu(current =>
-            !current || current.submenuOpen === open ? current : { ...current, submenuOpen: open },
-        );
-    }, []);
-
-    // Read out as primitives rather than off the object, so the effects below key
-    // on what they actually care about and do not re-run on every state write.
+    // Read out as primitives rather than off the object, so the effect below keys
+    // on what it actually cares about and does not re-run on every state write.
     const menuId = menu?.id ?? null;
-    const submenuOpen = menu?.submenuOpen ?? false;
 
-    // Measured after the menu renders, so its real size is known.
-    useEffect(() => {
-        if (menuId !== null) remeasure('open', menuId);
-    }, [menuId, remeasure]);
-
-    // Opening or closing "Turn into" changes how tall the taller panel is, and the
-    // two panels share a top edge, so the top has to be re-clamped against the
-    // window. Also runs on a fresh opening, which is free: `remeasure` is
-    // idempotent.
-    useEffect(() => {
-        if (menuId !== null) remeasure('submenu', menuId);
-    }, [menuId, submenuOpen, remeasure]);
+    // Measured after the menu renders, so its real size is known, and as a layout
+    // effect so the correction lands in the same frame as the first paint. An
+    // ordinary effect was a frame late, which is exactly long enough to be seen as
+    // the menu jumping after it had already appeared in the right place.
+    useLayoutEffect(() => {
+        if (menuId !== null) place(menuId);
+    }, [menuId, place]);
 
     // Opening the menu on a text selection.
     //
@@ -512,6 +516,15 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
 
         const onDown = () => {
             pointerDownRef.current = true;
+            // A new gesture. The "was empty" flag is otherwise only cleared by a
+            // transaction that collapsed the selection, which is what a plain click
+            // makes -- but a selection can also be dismissed by the menu closing on
+            // its own (a scroll, a click elsewhere, Escape), leaving the selection
+            // intact and the flag saying the next selection is an adjustment of the
+            // last one. That is how "select, click away, select something else"
+            // stopped being recognised as a new selection. A pointer going down is
+            // always the start of one, whatever came before it.
+            selectionWasEmptyRef.current = true;
         };
         const onUp = () => {
             pointerDownRef.current = false;
@@ -526,6 +539,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
         const onCancel = () => {
             pointerDownRef.current = false;
             pendingSelectionRef.current = false;
+            // Same reasoning as `onDown`: a gesture that ended without selecting
+            // anything has to leave the flag saying so, or the selection that ends
+            // it is treated as a continuation of the one before it.
+            selectionWasEmptyRef.current = true;
         };
 
         instance.on('transaction', onTransaction);
@@ -687,7 +704,6 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                             formats={menu.formats}
                             submenuSide={menu.submenuSide}
                             split={canSplitSubmenu()}
-                            onSubmenuOpenChange={setSubmenuOpen}
                             submenuRef={submenuRef}
                             codeLanguage={
                                 menu.language === null

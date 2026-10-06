@@ -79,6 +79,7 @@ const {
     deleteBlocks,
     duplicateBlocks,
     moveBlocks,
+    overTarget,
     resolveBlockTarget,
 } = await import('../src/utils/noteBlockActions.ts');
 
@@ -384,6 +385,65 @@ console.log('\n== a list inside a body ==');
     });
     check('Move up on a list in a body is left to the list, not lifted out',
         item.html === untouched, `${item.html}\n      was: ${untouched}`);
+}
+
+console.log('\n== a mark command hands the selection back as it was ==');
+{
+    // The reported bug: select, deselect, select something else, and the new
+    // selection grows out of the old one. `overTarget` is the only code in the app
+    // that reads a selection, puts a different one in place for the length of a
+    // command, and puts one back -- so it is where a selection can be restored
+    // wrongly. `from`/`to` cannot express which end the pointer went down on, and a
+    // selection rebuilt from them is always forwards.
+    const instance = await make('<p>First</p><p>Second</p><p>Third</p>');
+    let first = -1;
+    let second = -1;
+    instance.state.doc.descendants((node, pos) => {
+        if (node.textContent === 'First') first = pos;
+        if (node.textContent === 'Second') second = pos;
+    });
+    // Backwards: dragged right to left across "First" and "Second", so $anchor is
+    // the *later* of the two ends.
+    instance.view.dispatch(
+        instance.state.tr.setSelection(TextSelection.create(instance.state.doc, second + 1, first + 1)),
+    );
+    const backwards = instance.state.selection;
+    check('the selection starts out backwards',
+        backwards.$anchor.pos > backwards.$head.pos,
+        `anchor ${backwards.$anchor.pos}, head ${backwards.$head.pos}`);
+
+    const target = resolveBlockTarget(instance, -1);
+    overTarget(instance, target, () => {});
+    const after = instance.state.selection;
+    check('and is still backwards afterwards',
+        after.$anchor.pos > after.$head.pos,
+        `anchor ${after.$anchor.pos}, head ${after.$head.pos}`);
+    check('over the same two ends',
+        after.from === backwards.from && after.to === backwards.to,
+        `${after.from}-${after.to}, was ${backwards.from}-${backwards.to}`);
+
+    // The same command on a forwards selection must not tip it the other way.
+    instance.view.dispatch(
+        instance.state.tr.setSelection(TextSelection.create(instance.state.doc, first + 1, second + 1)),
+    );
+    const forwards = instance.state.selection;
+    overTarget(instance, resolveBlockTarget(instance, -1), () => {});
+    const stillForwards = instance.state.selection;
+    check('a forwards selection stays forwards',
+        stillForwards.$anchor.pos < stillForwards.$head.pos,
+        `anchor ${stillForwards.$anchor.pos}, head ${stillForwards.$head.pos}`);
+    check('over the same two ends',
+        stillForwards.from === forwards.from && stillForwards.to === forwards.to,
+        `${stillForwards.from}-${stillForwards.to}, was ${forwards.from}-${forwards.to}`);
+
+    // A collapsed caret has no direction to lose, and the mark strip is offered on a
+    // bare caret too -- so a caret has to come back as a caret.
+    instance.commands.setTextSelection(first + 1);
+    overTarget(instance, resolveBlockTarget(instance, -1), () => {});
+    check('a caret comes back as a caret',
+        instance.state.selection.empty && instance.state.selection.from === first + 1,
+        `${instance.state.selection.from}, was ${first + 1}`);
+    instance.destroy();
 }
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} checks` : `\n${fail} FAILED of ${pass + fail}`);

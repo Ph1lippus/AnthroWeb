@@ -1,10 +1,9 @@
+import { useEffect } from 'react';
 import SidebarNav from './Components/SidebarNav'
 import TipLayer from './Components/TooltipLayer'
 import MobileNavbar from './Components/MobileNavbar'
 import UpdateModal from './Components/UpdateModal'
 import HomePage from './Pages/HomePage'
-import LoginPage from './Pages/LoginPage'
-import RegisterPage from './Pages/RegisterPage'
 import DashboardPage from './Pages/DashboardPage'
 import DailyLogPage from './Pages/DailyLogPage'
 import DailyLogHistoryPage from './Pages/DailyLogHistoryPage'
@@ -27,11 +26,10 @@ import EditProfilePage from './Pages/EditProfilePage'
 import CreditsPage from './Pages/CreditsPage'
 import PrivacyPolicyPage from './Pages/PrivacyPolicyPage'
 import TermsOfServicePage from './Pages/TermsOfServicePage'
-import ForgotPasswordPage from './Pages/ForgotPasswordPage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom'
-import { useBootFetchHandoff, useBootHold } from './services/bootScreen'
+import { useBootFetchHandoff, useBootHold, dismissBootScreenImmediate } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
 
 /**
@@ -123,13 +121,24 @@ const DefaultRoute: React.FC = () => {
 const BootHandoff: React.FC = () => {
     const location = useLocation();
     const { resolved, user } = useAuthSession();
+    const isGuest = resolved && !user;
+    // Re-run the whole gate when the user changes: after login the splash is
+    // back up (see showBootTransition) but this effect's fetch loop finished
+    // long ago, so without a re-run nothing would take it back down.
+
+    // Guests never see the splash: without a session there is nothing to wait
+    // for, so take down whatever the inline script in index.html left behind.
+
+    useEffect(() => {
+        if (isGuest) dismissBootScreenImmediate();
+    }, [isGuest]);
 
     // An authenticated visit to `/` is only an intermediate route: React
     // renders <Navigate> first and mounts the Daily Log on the next commit.
     // Keep the splash locked across that redirect so the handoff can never
     // complete during the quiet frame between the two route renders.
     useBootHold(resolved && !!user && location.pathname === '/');
-    useBootFetchHandoff();
+    useBootFetchHandoff(user?.id);
     return null;
 };
 
@@ -164,9 +173,12 @@ const AuthenticatedApp: React.FC = () => {
             <UpdateModal />
             <Routes>
                 <Route path="/" element={<DefaultRoute />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                {/* Auth lives in the home card now: login and reset swap inside
+                    one container, so these retired pages redirect home instead
+                    of 404ing old bookmarks. */}
+                <Route path="/login" element={<Navigate to="/" replace />} />
+                <Route path="/register" element={<Navigate to="/" replace />} />
+                <Route path="/forgot-password" element={<Navigate to="/" replace />} />
                 <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/terms-of-service" element={<TermsOfServicePage />} />

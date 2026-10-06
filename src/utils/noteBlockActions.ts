@@ -201,14 +201,28 @@ const commit = (editor: Editor, tr: Transaction): void => {
  * The selection is restored afterwards because leaving a whole block selected is
  * not what the reader asked for; they pointed at one line. Toggling a mark does not
  * change the document's length, so the remembered positions are still valid.
+ *
+ * Restored with its direction, which is the part `from`/`to` cannot express.
+ * `from` and `to` are always in document order, so a selection made by dragging
+ * right-to-left was handed back left-to-right, and everything that *extends* a
+ * selection -- Shift+click, Shift+arrow -- grows from the anchor. The reader who
+ * had dragged backwards then found their next selection starting at the far end of
+ * the previous one.
  */
 export const overTarget = (editor: Editor, target: BlockTarget, run: () => void): void => {
-    const previous = { from: editor.state.selection.from, to: editor.state.selection.to };
+    const { selection } = editor.state;
+    const { from, to } = selection;
+    // Which end the pointer went down on, as opposed to which end is earlier in the
+    // document. Equal for a caret and for a block selection, which are both fine
+    // restored as they are.
+    const backwards = selection.$anchor.pos > selection.$head.pos;
     editor.chain().focus().setTextSelection({ from: target.from, to: target.to }).run();
     try {
         run();
     } finally {
-        editor.chain().setTextSelection(previous).run();
+        editor.chain()
+            .setTextSelection(backwards ? { from: to, to: from } : { from, to })
+            .run();
     }
 };
 

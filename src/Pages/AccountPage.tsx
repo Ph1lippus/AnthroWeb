@@ -44,7 +44,7 @@ const AccountPage: React.FC = () => {
         setError(null);
         try {
             await signOutUser();
-            navigate('/login');
+            navigate('/');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Sign out failed. Please try again.');
             setSigningOut(false);

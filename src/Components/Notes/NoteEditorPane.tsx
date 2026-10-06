@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ChevronLeft,
     Copy,
@@ -23,6 +23,7 @@ import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
 import type { NoteEditorHandle } from './NoteEditor';
+import { useNoteEditorChunk } from './useNoteEditorChunk';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
 import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
@@ -37,10 +38,10 @@ import {
 } from '../../utils/noteContent';
 
 // TipTap and ProseMirror are by far the heaviest thing the notes page loads, and
-// nothing outside these two routes needs them. Splitting the import keeps them
-// out of the main bundle -- the same approach DashboardPage takes for recharts.
-const NoteEditor = lazy(() => import('./NoteEditor'));
-
+// nothing outside this route needs them, so the editor is fetched through
+// `useNoteEditorChunk` rather than `lazy()`. That buys one commit instead of two:
+// the title, the icon and the body all land together, rather than the page
+// appearing and then filling in under it.
 const AUTOSAVE_DELAY = 1500;
 
 interface Pending {
@@ -97,6 +98,11 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     const trashNoteMutation = useTrashNote();
     const duplicateNoteMutation = useDuplicateNote();
     const togglePin = useToggleNotePin();
+
+    // The body is the last thing to arrive and the first thing to matter, so
+    // nothing below this line is drawn until it is here. `Editor` is null only
+    // while the chunk is in flight, or if it failed outright.
+    const { Editor } = useNoteEditorChunk();
 
     const [title, setTitle] = useState(note.title ?? '');
     const [content, setContent] = useState(note.content ?? '');
@@ -699,10 +705,12 @@ return (
 
                     {showToc && <NoteToc items={tocItems} onClose={() => setShowToc(false)} />}
 
-                    {/* The title and meta line render immediately; only the
-                        document body waits on the editor chunk. */}
-                    <Suspense fallback={<div className="note-prose-loading" />}>
-                        <NoteEditor
+                    {/* The editor, or the space it will take. Not a Suspense boundary:
+                        a boundary here would paint the title row above it on its own and
+                        fill the body in a frame later, which is the half-drawn page this
+                        component no longer has a reason to produce. */}
+                    {Editor ? (
+                        <Editor
                             ref={editorRef}
                             initialHtml={note.content ?? ''}
                             onChange={handleContent}
@@ -710,7 +718,9 @@ return (
                             focusMode={focusMode}
                             onTocChange={handleTocChange}
                         />
-                    </Suspense>
+                    ) : (
+                        <div className="note-prose-loading" />
+                    )}
                 </div>
             </div>
             </div>

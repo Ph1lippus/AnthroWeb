@@ -38,17 +38,17 @@ const GROUP_LABELS: Record<ActivityType, string> = {
     mobility: 'Mobility',
 };
 
-const MAX = 12;
+const MAX = 20;
 
 /* Placement. The gap is what the absolutely positioned list used to have, and the
    two caps are the old `max-height` and the point below which opening upward stops
    being better than opening downward. */
 const GAP = 4;
-const MAX_LIST_PX = 240;
+const MAX_LIST_PX = 320;
 /** One option's height. Below this the list cannot show anything clickable. */
 const MIN_LIST_PX = 34;
 /** The point below which opening upward stops being better than opening downward. */
-const MIN_USABLE_PX = 128;
+const MIN_USABLE_PX = 200;
 const EDGE_PX = 8;
 /** Below this, a list matching a narrow field would sprawl across the page. */
 const MIN_LIST_WIDTH = 220;
@@ -325,8 +325,28 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
         } else if (event.key === 'ArrowUp') {
             event.preventDefault();
             setHighlighted(Math.max(0, highlighted - 1));
+        } else if (event.key === 'Home') {
+            event.preventDefault();
+            setHighlighted(0);
+        } else if (event.key === 'End') {
+            event.preventDefault();
+            setHighlighted(matches.length - 1);
         }
     };
+
+    /* Keep the highlighted row on screen. Moving the highlight is not enough: the
+       list is capped at `MAX_LIST_PX` and holds more rows than that, so arrowing
+       down used to walk off the bottom of the visible area and stop responding --
+       the arrow key was doing something, just not something you could see.
+       `nearest` rather than `center` so a single step does not jolt the list. */
+    useEffect(() => {
+        if (!showList || highlighted >= matches.length) return;
+        // `getElementById`, not a `#id` selector: `useId` produces ids containing
+        // characters that are not valid in a CSS selector.
+        document
+            .getElementById(`${listId}-option-${highlighted}`)
+            ?.scrollIntoView({ block: 'nearest' });
+    }, [showList, highlighted, matches.length, listId]);
 
     return (
         <>

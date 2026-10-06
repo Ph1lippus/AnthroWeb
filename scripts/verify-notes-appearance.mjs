@@ -459,5 +459,47 @@ console.log('\n== one picker at a time ==');
         /current === which \? null : which/.test(pane));
 }
 
+console.log('\n== a note arrives in one piece ==');
+{
+    // The title, the icon and the body used to paint in two commits: the `<Suspense>`
+    // boundary sat *below* the title row, so the page appeared first and the text
+    // filled in underneath it a frame later. That is the one thing about this page
+    // that is visible without being wrong, so it is asserted rather than trusted.
+    // Comments are stripped first: this file's own explanation of the old
+    // arrangement names both `lazy()` and `Suspense`, and a check that read them
+    // would fail forever against the note describing what was fixed.
+    const paneCode = pane.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    check('the pane no longer wraps the editor in a Suspense boundary',
+        !/<Suspense/.test(paneCode) && !/\blazy\(/.test(paneCode),
+        'a boundary below the title row paints the header on its own again');
+    check('the editor arrives through the shared chunk hook',
+        /useNoteEditorChunk/.test(pane));
+    check('and nothing is drawn until it is here',
+        /\{Editor \? \(/.test(pane) && /note-prose-loading/.test(pane));
+
+    const chunk = read('src/Components/Notes/useNoteEditorChunk.ts');
+    check('the chunk is fetched once and shared', /pending \?\?=/.test(chunk));
+    // `lazy` attaches `.then`, which settles on a microtask -- so even an
+    // already-loaded chunk reads as pending on the first render and paints its
+    // fallback. The module cache is what makes a second visit synchronous.
+    check('the resolved module is cached, so a later visit renders on the first commit',
+        /resolved/.test(chunk) && /useState<NoteEditorChunkState>\(\(\) =>/.test(chunk));
+    check('a rejected chunk still settles, rather than holding the splash for ever',
+        /useNoteEditorChunk/.test(chunk) && /\(\) => \{\s*\n?\s*\/\/ Settled/.test(chunk)
+        || /settled: true/.test(chunk));
+
+    const workspace = read('src/Components/Notes/NotesWorkspace.tsx');
+    check('the splash is held until the editor can be drawn',
+        /useBootHold\(!editorSettled\)/.test(workspace));
+    // The splash only covers a cold load. Reaching /Notes inside a running session
+    // is the other half, where a title-first pane would still be visible.
+    check('and the pane itself draws nothing until it is settled',
+        /!editorSettled \? null : activeNote \?/.test(workspace));
+    // The download is started by hand rather than from the top of the chunk module,
+    // which `App.tsx` reaches: a module-scope import() there would pull TipTap down
+    // on every app load for the routes that never open a note.
+    check('and the fetch is not started by the module itself', !/^import\('\.\/NoteEditor'\)/m.test(chunk));
+}
+
 console.log(fail === 0 ? `\nALL PASS: ${pass} checks` : `\n${fail} FAILED of ${pass + fail}`);
 process.exit(fail === 0 ? 0 : 1);

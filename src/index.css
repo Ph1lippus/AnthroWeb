@@ -735,9 +735,15 @@ input[type='number']::-webkit-inner-spin-button {
   width: 3.75rem;
   z-index: 110;
   display: none;
-  background: #161616f2;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 255, 166, 0.08),
+      rgba(0, 255, 166, 0.02) 35%,
+      rgba(0, 255, 166, 0.06)
+    ),
+    #0d1411f2;
   backdrop-filter: blur(14px);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -770,7 +776,9 @@ input[type='number']::-webkit-inner-spin-button {
   transition: background 0.15s ease, color 0.15s ease;
 }
 .sidebar-nav-link:hover {
-  background: #ffffff0f;
+  /* Tinted with the accent rather than plain white, so hover and the active
+     state read as the same family of colour. */
+  background: rgba(0, 255, 166, 0.08);
   color: var(--color-light);
 }
 .sidebar-nav-link.active {
@@ -959,6 +967,48 @@ input[type='number']::-webkit-inner-spin-button {
 .sidebar-menu-item--danger:hover {
   background: #ff6b7020;
   color: #ff6b70;
+}
+
+/* The right-click menu. Surface and rows are the ones above, deliberately: a
+   context menu that looks like a different product from the settings menu beside
+   it reads as a second app, and there is nothing here that needs a look of its
+   own. Only the stacking of the rows, the hairline between groups, and the
+   keyboard highlight are new. */
+.context-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.25rem;
+  outline: none;
+}
+.context-menu-item {
+  width: 100%;
+}
+.context-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+/* The arrow keys highlight a row that is not hovered, so it needs the hover look
+   spelled out. Same values, and after the `:hover` rules above, so the two agree
+   and the last word belongs to whichever is more specific. */
+.context-menu-item.is-active,
+.context-menu-item:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+}
+.context-menu-item--danger.is-active,
+.context-menu-item--danger:hover {
+  background: #ff6b7020;
+  color: #ff6b70;
+}
+.context-menu-sep {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .mobile-more-link--danger:hover {
@@ -1192,6 +1242,627 @@ input[type='number']::-webkit-inner-spin-button {
  .secondary-navbar {
     display: none;
   }
+}
+/* ============================================================================
+   RESTORED FROM a285576^ -- landing, footer, auth and field styles
+
+   The "overhaul navigation, notes architecture, and data modeling" commit
+   (a285576) deleted these blocks from the stylesheet, but not the components
+   that use them: HomePage, LoginPage, RegisterPage, ForgotPasswordPage,
+   EditProfilePage, DailyLogGoalSetupPage and Footer.tsx still emit every class
+   below, so the auth screens, the landing sections and the footer were all
+   rendering as bare HTML.
+
+   Recovered from a285576^:src/index.css in the order they used to appear,
+   ahead of the "Edit Profile Form Styles" block (which extends .auth-card and
+   so always belonged after it). Two deliberate departures from the original:
+     - .navbar-hr and .navbar-auth-link are NOT restored: no component emits
+       either class any more, and the navbar they belonged to was replaced by
+       that same commit.
+     - .t-error-msg is no longer hidden by default; see its rule below.
+   ========================================================================= */
+.home-wrapper { width: 100%; }
+.home-page {
+  text-align: center;
+  padding: 4rem 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.showcase-section {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+}
+.showcase-content {
+  max-width: 700px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.showcase-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: 1.5rem;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+.showcase-text {
+  color: var(--color-light);
+  font-size: 1.05rem;
+  opacity: 0.8;
+  margin-top: 1rem;
+  max-width: 600px;
+  line-height: 1.6;
+}
+.showcase-cta { gap: 0; }
+.showcase-btn {
+  margin-top: 2rem;
+  font-size: 0.95rem;
+  padding: 0.75rem 2rem;
+  text-decoration: none;
+  display: inline-block;
+}
+.home-hero-copy .slogan {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: -2px;
+  font-size: clamp(2.5rem, 5.2vw + 1rem, 4.25rem);
+  line-height: 0.98;
+  color: var(--color-light);
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(0, 255, 166, 0.18);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+/* One word per line, on purpose: the old single-line slogan wrapped 2+1 at
+   hero widths and read as a mistake. `nowrap` per line makes the lockup
+   immune to container width instead of hoping it fits. */
+.slogan-line {
+  display: block;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: sloganRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.slogan-line:nth-child(2) { animation-delay: 0.1s; }
+.slogan-line:nth-child(3) { animation-delay: 0.2s; }
+.slogan-line--accent {
+  color: var(--color-primary);
+  text-shadow: 0 0 28px rgba(0, 255, 166, 0.4);
+}
+@keyframes sloganRise {
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Small caps kicker above the slogan: gives the eye an entry point and fills
+   the space the old centered layout left empty on wide screens. */
+.home-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin: 0 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.home-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 1.75rem;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+.animated-hr {
+  width: 100%;
+  max-width: 600px;
+  height: 3px;
+  background: linear-gradient(to right, transparent, var(--color-primary), transparent);
+  margin: 1.5rem auto;
+  border: none;
+  border-radius: 25px;
+  position: relative;
+  overflow: hidden;
+  transform-origin: center;
+  animation: growLine 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: 0.3s;
+  opacity: 0;
+  box-shadow: 0 0 0 rgba(0, 255, 166, 0);
+}
+/* A bright segment sweeps the line once it has grown, leaving a soft glow so
+   the divider keeps a little of the boot splash's light. */
+.animated-hr::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.85), transparent);
+  transform: translateX(-101%);
+  animation: hrShine 1s ease-out forwards;
+  animation-delay: 1.15s;
+}
+@keyframes growLine {
+  0%   { transform: scaleX(0); opacity: 0; box-shadow: 0 0 0 rgba(0, 255, 166, 0); }
+  60%  { opacity: 0.9; }
+  100% { transform: scaleX(1); opacity: 1; box-shadow: 0 0 14px rgba(0, 255, 166, 0.45); }
+}
+@keyframes hrShine {
+  to { transform: translateX(101%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animated-hr, .animated-hr::after { animation: none; opacity: 1; transform: none; box-shadow: none; }
+  .animated-hr::after { display: none; }
+  .slogan-line { animation: none; opacity: 1; transform: none; }
+}
+.home-description {
+  color: var(--color-light);
+  font-size: 1.125rem;
+  opacity: 0.8;
+  margin-top: 1rem;
+  max-width: 600px;
+}
+/* ---------- home hero: one section, copy beside the sign-in form ---------- */
+.home-hero {
+  padding: 3rem 1.5rem 4rem;
+}
+.home-hero-inner {
+  width: 100%;
+  max-width: 1020px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+}
+.home-hero-copy {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+.home-hero-copy .animated-hr {
+  margin: 1.5rem 0;
+  max-width: 420px;
+}
+.home-hero-copy .home-description {
+  margin-top: 0;
+  text-align: left;
+}
+/* Link-styled buttons inside auth cards: same mint treatment as .auth-link. */
+.auth-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+/* Success notice: same shape as .auth-error, mint instead of red. */
+.auth-error.auth-success {
+  background: rgba(0, 255, 166, 0.12);
+  border-color: rgba(0, 255, 166, 0.4);
+  color: var(--color-primary);
+}
+.home-login-card {
+  flex: 0 1 420px;
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .home-hero-inner {
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+  .home-hero-copy {
+    align-items: center;
+    text-align: center;
+    max-width: 600px;
+  }
+  .home-hero-copy .slogan {
+    align-items: center;
+  }
+  .home-eyebrow {
+    justify-content: center;
+  }
+  .home-hero-copy .animated-hr {
+    margin: 1.5rem auto;
+  }
+  .home-hero-copy .home-description {
+    text-align: center;
+  }
+  .home-login-card {
+    flex-basis: auto;
+    max-width: 420px;
+  }
+}
+/* ---------- footer (the mint band) ---------- */
+.footer {
+  background-color: var(--color-primary);
+  padding: 2rem 0 0;
+  padding-bottom: 0;
+  margin-top: auto;
+}
+.footer--logged-in {
+  padding-bottom: 3rem;
+}
+.footer-inner { display: flex; flex-direction: column; }
+.footer__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-dark);
+}
+.footer__brand {
+  font-family: var(--font-logo);
+  font-size: 1.5rem!important;
+  color: var(--color-dark);
+  letter-spacing: 2px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.footer__brand:hover { color: #000000; }
+.footer__back-btn {
+  background: #00000014;
+  color: var(--color-dark);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  border: none;
+}
+.footer__back-btn:hover {
+  background: var(--color-dark);
+  color: var(--color-primary);
+  transform: translateY(-3px);
+}
+.footer__links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 2rem;
+  padding: 1rem 0 1rem 0;
+}
+.footer__links-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.footer__links-title {
+  font-weight: 800;
+  color: var(--color-dark);
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  margin-bottom: 0.2rem;
+}
+.footer a {
+  color: var(--color-dark);
+  opacity: 0.85;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.footer a:hover { opacity: 1; color: #000000; }
+.footer__bottom {
+  padding: 1rem 0;
+  border-top: 1px solid var(--color-dark);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.footer__copyright {
+  font-size: 0.95rem;
+  color: var(--color-dark);
+  opacity: 0.7;
+  margin: 0;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+.footer__copyright a {
+  color: var(--color-dark);
+  opacity: 0.8;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.footer__copyright a:hover { opacity: 1; text-decoration: underline; }
+.footer__social {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  justify-content: flex-start;
+}
+.footer__social a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #00000014;
+  color: var(--color-dark);
+  font-size: 1.2rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.footer__social a:hover {
+  background: var(--color-dark);
+  color: var(--color-primary);
+  transform: translateY(-3px);
+  text-decoration: none;
+}
+/* ---------- auth pages: the panel, the fields, the buttons ---------- */
+.auth-page {
+  min-height: 100vh;
+  /* See the note on `body`: keeps every page wrapper on the same viewport box as
+     `#root`, so the document is not silently taller than the visible area. */
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+}
+/* Forms sit on their own panel. This used to be `background: transparent`, so a
+   long form had no surface of its own and read as loose text floating on the
+   starfield. */
+.auth-card {
+  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border-radius: 25px;
+  width: 100%;
+  max-width: 640px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: none;
+}
+/* The goals form is a 2-up grid of seven short numeric fields. The previous 960px
+   stretched each input so wide that the label stopped looking attached to it. */
+.auth-card-wide {
+  max-width: 720px;
+}
+/* Login and register hold two short fields each. At the 640px default a single
+   row of inputs stretched across half a monitor, so they get their own
+   narrower measure. */
+.auth-card-narrow {
+  max-width: 420px;
+}
+.auth-title {
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+.auth-card .form-label {
+  color: var(--color-light);
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.3px;
+}
+/* Matches the daily log's .scored-input: same fill, same 1.5px hairline and the
+   same 20px radius, so a form field looks identical wherever it appears. */
+.auth-card .form-control {
+  background: #ffffff0a;
+  color: var(--color-light);
+  border-radius: 20px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+}
+.auth-card .form-control:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.auth-card .form-control:focus {
+  background: #ffffff12;
+  border-color: var(--color-primary);
+  color: var(--color-light);
+}
+.auth-card .form-select {
+  background: #ffffff0a;
+  color: var(--color-light);
+  border-radius: 20px;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+}
+.auth-card .form-select:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.auth-card .form-select:focus {
+  background: #ffffff12;
+  border-color: var(--color-primary);
+}
+/* The "Registration Closed" notice. */
+.auth-closed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1.25rem;
+  border-radius: 50%;
+  background: #ffffff0a;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+}
+.auth-text-muted {
+  opacity: 0.55;
+  font-size: 0.72rem;
+}
+.auth-card .form-control::placeholder { color: rgba(255, 255, 255, 0.4); }
+.password-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.password-input-wrap .form-control {
+  padding-right: 2.75rem;
+  width: 100%;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.6rem;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.password-toggle:hover { color: var(--color-primary); }
+/* Form submit buttons. Solid primary fill so the action reads as the clear
+   next step, darkening on hover rather than inverting to a text-only state. */
+.auth-card .btn-primary,
+.auth-card-btn {
+  background: var(--color-primary);
+  color: #000000;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.65rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.auth-card .btn-primary:hover,
+.auth-card .btn-primary:focus-visible,
+.auth-card-btn:hover,
+.auth-card-btn:focus-visible {
+  background: var(--color-primary-dark);
+  color: #000000;
+}
+.auth-card .btn-primary:active,
+.auth-card-btn:active {
+  background: var(--color-primary-dark);
+  color: #000000;
+}
+/* While a submit is in flight the label says "Saving...", so the button should
+   stop inviting a second click. */
+.auth-card .btn-primary:disabled,
+.auth-card-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  background: var(--color-primary);
+}
+.auth-card .btn-primary:disabled:hover,
+.auth-card-btn:disabled:hover {
+  background: var(--color-primary);
+}
+.auth-extra-links { margin-top: 0.85rem; }
+.auth-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.auth-link:hover { opacity: 0.8; text-decoration: underline; }
+.auth-text {
+  color: var(--color-light);
+  opacity: 0.8;
+  font-size: 0.78rem;
+}
+.auth-error {
+  background: rgba(219, 34, 42, 0.12);
+  color: #ff6b70;
+  border-radius: 25px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.85rem;
+  text-align: left;
+}
+/* Spacing / width helpers the auth forms reach for. Unlayered, so they beat the
+   Tailwind utilities of the same name -- notably `.w-100`, which Tailwind would
+   otherwise resolve to 25rem and push the submit button past a 420px card. */
+.mb-3 { margin-bottom: 0.7rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-5 { margin-top: 1.5rem; }
+.w-100 { width: 100%; }
+.text-start { text-align: left; }
+/* ---------- field wrapper: error state and the invalid-field shake ----------
+   The original pair for `.t-error-msg` (`opacity: 0; visibility: hidden`, only
+   undone by `.t-input-wrap.is-error`) is deliberately NOT restored: every render
+   site already conditionally renders the element (`{err && <p .../>}`), and
+   LoginPage is the only page that puts `is-error` on the wrap -- on
+   RegisterPage and ForgotPasswordPage the rule hid a real validation error. */
+.t-input.is-shaking {
+  animation: t-input-shake calc(
+      var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2
+    ) linear;
+}
+@keyframes t-input-shake {
+  0%      { transform: translateX(0);                                 animation-timing-function: var(--shake-ease); }
+  28.57%  { transform: translateX(var(--shake-distance));             animation-timing-function: var(--shake-ease); }
+  57.14%  { transform: translateX(calc(var(--shake-distance) * -1));  animation-timing-function: var(--shake-ease); }
+  78.57%  { transform: translateX(var(--shake-overshoot));            animation-timing-function: var(--shake-ease); }
+  100%    { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-input { animation: none !important; transform: none !important; }
+}
+.t-input.is-error .form-control { background: var(--color-danger-dark); }
+.t-input.is-error .form-control:focus {
+  background: var(--color-danger-dark);
+}
+.t-error-msg {
+  color: #ff6b70;
+  font-size: 0.7rem;
+  margin-top: 0.3rem;
+  text-align: left;
+  line-height: 1.3;
+}
+.t-input-wrap {
+  width: 100%;
+  /* Anchors the absolutely positioned goal hint inside the field. Without this
+     the hint resolves against a distant ancestor and lands off the input. */
+  position: relative;
+}
+.t-input { width: 100%; }
+/* Right-aligned hint inside a form field (e.g. the sample time on a clock
+   input). Mirrors .scored-input-goal, which is tied to the daily log's floating
+   label markup and so does not apply inside an auth-card form. */
+.t-input-hint {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.32);
+  pointer-events: none;
 }
 /* Edit Profile Form Styles - extends auth-card. Nine short fields in a 2-up grid
    read fine at 720px; the previous 960px stretched each input so far apart that
@@ -6410,6 +7081,17 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   top: 0;
   z-index: 1;
 }
+/* Drawn closed as well as open, so the caller can measure it and place the popup
+   against the taller of the two panels before anyone hovers "Turn into". Hidden
+   with `visibility` rather than unmounted, because `visibility: hidden` keeps the
+   layout box -- an unmounted panel has nothing to measure. It also takes no
+   pointer and no hover, which is the whole of what "closed" has to mean here.
+   The open animation is dropped for the same reason: it must not play for a panel
+   nobody can see, or it replays under the pointer when the panel does open. */
+.slash-menu--submenu:not([data-open]) {
+  visibility: hidden;
+  animation: none;
+}
 .slash-menu--submenu-right {
   left: 100%;
   margin-left: 8px;
@@ -7553,6 +8235,61 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 .checkbox-label:hover {
   opacity: 0.85;
 }
+
+/* A custom habit, and what can be done to it.
+   The row is the target of a right click and of a double click, so it has to look
+   like a row and behave like one: no border, no background, nothing that changes
+   while the pointer is over it. */
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+/* Shown only where there is no right click. Hidden rather than removed on a
+   pointer that can hover, because a habit with two visible ways to do the same
+   thing is worse than one with the right way -- and `opacity: 0` keeps the
+   button out of the tab order's way while leaving it reachable by keyboard. */
+.habit-row-more {
+  display: none;
+  flex-shrink: 0;
+  padding: 0.2rem 0.3rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.4;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.habit-row-more:hover {
+  opacity: 1;
+  background: var(--accent-bg);
+}
+@media (hover: none) {
+  .habit-row-more {
+    display: inline-flex;
+  }
+}
+/* The rename field, drawn to be indistinguishable from the name it replaces.
+   Same treatment as the notes rail's own rename field, at this row's type size --
+   a field that looks like a field would make the row look broken for the second
+   it takes to rename a habit. */
+.habit-row-edit {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+}
+.habit-row-edit:focus {
+  border-color: var(--color-primary);
+}
 .checkbox-input {
   appearance: none;
   -webkit-appearance: none;
@@ -8168,7 +8905,8 @@ select.form-control option {
    buttons move; the label is what gives way instead, and it does so by ellipsis.
 
    Six fixed controls share this row: prev, the date, pick, next, back-to-today (only
-   off today) and the goals pencil. */
+   off today) and the goals pencil -- plus the breakdown toggle, which is fixed too
+   but is not a day control, so it sits first and outside the sequence. */
 .daily-log-daynav {
   display: flex;
   align-items: center;
@@ -8182,18 +8920,20 @@ select.form-control option {
    and six controls at 1.9rem plus 0.35rem gaps take 216px of it, leaving the date
    roughly 60px. That is within a pixel of what "Mon, Sep 29" needs, so the circles
    give up a little here rather than the date losing a character every day of the
-   year: 1.7rem and a 0.25rem gap bring the controls to 187px and the date back to
-   about 90px.
+   year. The breakdown toggle was the seventh, and at those sizes it took the date
+   back down to 59px -- one pixel under the mark, which truncates "Mon, Sep 29" to
+   "Mon, Sep 2…". So the circles give up a little more: 1.6rem and a 0.2rem gap bring
+   seven of them to 202px and the date back to about 75px.
 
    Below the split the panel is the full page width, so the controls stay at the
    larger size -- which is also where they are being touched rather than clicked. */
 @media (min-width: 1280px) {
   .daily-log-daynav {
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
   .daily-log-daynav-btn {
-    width: 1.7rem;
-    height: 1.7rem;
+    width: 1.6rem;
+    height: 1.6rem;
   }
 }
 .daily-log-daynav-btn {
@@ -8216,6 +8956,17 @@ select.form-control option {
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 .daily-log-daynav-btn:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+/* A toggle that is on. Every other control in this row acts when it is pressed and
+   goes back to looking idle afterwards, so without this there would be nothing on
+   screen to say whether the breakdown is showing -- it is the only control for it.
+   Same values as the note toolbar's pinned state, so "on" looks the same wherever
+   it is drawn. */
+.daily-log-daynav-btn--on,
+.daily-log-daynav-btn--on:hover {
   background: var(--accent-bg);
   color: var(--color-primary);
   opacity: 1;
@@ -8295,29 +9046,50 @@ select.form-control option {
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
-.daily-score-toggle {
-  align-self: center;
-  margin-top: 0.15rem;
-  background: #ffffff0a;
-  border: none;
-  cursor: pointer;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  padding: 0.35rem 0.8rem;
-  border-radius: 25px;
-  transition: background 0.15s ease;
-}
-.daily-score-toggle:hover {
-  background: var(--accent-bg);
-}
+/* Collapsed rather than unmounted, so the panel has something to animate.
+   `0fr` to `1fr` is the only height transition that needs no measurement, and the
+   inner wrapper's `overflow: hidden` is what stops the chips spilling out through
+   the collapsing rows. The margins and padding ride the same transition, so the
+   ring above does not jump as the panel arrives. */
 .daily-score-breakdown {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 1px solid #ffffff12;
+  border-top-width: 0;
+  transition:
+    grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.22s ease,
+    margin-top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-top-width 0.3s ease;
+}
+.daily-score-breakdown--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
   margin-top: 1.1rem;
+  padding-top: 1rem;
+  border-top-width: 1px;
+}
+.daily-score-breakdown__inner {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.75rem;
-  border-top: 1px solid #ffffff12;
-  padding-top: 1rem;
+  min-height: 0;
+  overflow: hidden;
+}
+/* The chips themselves fade in slightly behind the height, which reads as the
+   panel settling rather than as a second animation competing with the first. */
+.daily-score-breakdown__inner > * {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease 0.06s, transform 0.24s cubic-bezier(0.4, 0, 0.2, 1) 0.06s;
+}
+.daily-score-breakdown--open .daily-score-breakdown__inner > * {
+  opacity: 1;
+  transform: none;
 }
 .daily-score-category-head {
   display: flex;
@@ -8389,10 +9161,6 @@ select.form-control option {
   .daily-score-heading,
   .daily-score-based {
     display: none;
-  }
-  .daily-score-toggle {
-    align-self: center;
-    margin-top: 0.2rem;
   }
 }
 /* ============================================
@@ -9855,34 +10623,13 @@ body {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
-@media (max-width: 600px) {
-}
 
-/* ============================================
-   DISPLAY TYPE (CRT face)
-   ============================================
-   VT323 is a VT320 terminal face: thin, angular, unmistakably a CRT. It has a
-   small x-height relative to its em, so at the sizes these headings already
-   use it would balloon - every font-size below is dialled back to compensate.
-
-   This block lives at the END of the stylesheet on purpose. The individual
-   heading rules (.slogan, .auth-title, .profile-name ...) also declare
-   font-size and font-weight, and at equal specificity the later declaration
-   wins, so placing this earlier would have had its sizes silently overridden.
-
-   Applied to display-scale text ONLY. Dense numeric readouts - stat tiles,
-   chart axis labels, table cells - deliberately stay on JetBrains Mono: VT323
-   ships no bold weight, and rendering figures like "128.4" or "6/10" in a thin
-   CRT face would work against the one thing the dashboard exists to do.
-
-   To use a different display face, edit --font-display in :root.
-   To go all-JetBrains-Mono, set --font-display to 'JetBrains Mono'. */
 .slogan,
 .showcase-title,
 .study-timer-title,
 .settings-title {
-  font-family: var(--font-display);
-  font-weight: 400;
+  font-family: var(--font-logo);
+  font-weight: 200;
   letter-spacing: 0.02em;
   /* Faint phosphor bloom, the way a terminal's glow bleeds on a CRT. */
   text-shadow: 0 0 12px rgba(0, 255, 166, 0.18);
@@ -9893,8 +10640,8 @@ body {
 .settings-title { font-size: 1.3rem; }
 .auth-title,
 .profile-name {
-  font-family: var(--font-display);
-  font-weight: 400;
+  font-family: var(--font-logo);
+  font-weight: 200;
   letter-spacing: 0.03em;
 }
 .auth-title { font-size: 1.1rem; }
@@ -11053,7 +11800,17 @@ body {
   gap: 0.5rem;
 }
 
-@media (max-width: 1023px) {
+/* ============================================
+   WORKOUTS — GOING VERTICAL
+   The rails (tab panels + stats) sit side by side only while both fit: the
+   stats column may claim 40rem, and below this line it was taking that much
+   out of a panels column that needed the rest of the width. So the page
+   stacks to one column and scrolls with the document instead of nesting
+   scroll areas inside a viewport-locked wrapper. 1280 is the same boundary
+   the session editor's three-column mosaic uses, so the page changes shape
+   once on the way down rather than at three different widths.
+   ============================================ */
+@media (max-width: 1279px) {
   .workout-rails {
     grid-template-columns: minmax(0, 1fr) !important;
     grid-auto-rows: auto !important;
@@ -11085,6 +11842,19 @@ body {
     width: 100%;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  /* Stacked content is taller than the viewport, so the height-locked wrapper
+     has to let go for the page to scroll. Scoped with :has so only the
+     workouts pages move up to this boundary -- Books, Measurements and
+     Academic keep the 1023px line below. */
+  .books-page-wrapper:has(.workout-section) {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* The other pages on this wrapper release at the navigation switchover;
+   Books has no block of its own, so the shared rule stays on that line. */
+@media (max-width: 1023px) {
   .books-page-wrapper {
     height: auto !important;
     overflow: visible !important;
@@ -11158,7 +11928,10 @@ body {
 .workout-row__value { opacity: 0.6; white-space: nowrap; font-size: 0.68rem; }
 
 .workout-heat {
-  --heat-gap: clamp(1px, 0.32vw, 3px);
+  /* One gap for the whole grid. It was `clamp(1px, 0.32vw, 3px)`, and at 53
+     columns the gaps alone were 156px of the row -- a sixth of the width spent on
+     nothing, which is the sixth of the year that went missing. */
+  --heat-gap: 2px;
   width: 100%;
   min-width: 0;
 }
@@ -11167,6 +11940,26 @@ body {
   min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+}
+/* Month labels, on the same pitch as the squares so each sits over the week it
+   names. `space-between` for the same reason the grid uses it -- the columns
+   spread to fill the card, so the labels spread with them and stay aligned. */
+.workout-heat__months {
+  display: grid;
+  grid-template-columns: repeat(var(--heat-week-count, 53), var(--heat-cell, 10px));
+  justify-content: space-between;
+  gap: var(--heat-gap);
+  margin-left: calc(1.75rem + 0.4rem);
+  margin-bottom: 0.3rem;
+  width: auto;
+}
+.workout-heat__month {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: visible;
+  opacity: 0.45;
 }
 .workout-heat__body {
   display: grid;
@@ -11178,7 +11971,7 @@ body {
 }
 .workout-heat__days {
   display: grid;
-  grid-template-rows: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(7, var(--heat-cell, 10px));
   gap: var(--heat-gap);
   width: 1.75rem;
   flex-shrink: 0;
@@ -11193,27 +11986,40 @@ body {
   opacity: 0.45;
   text-align: right;
 }
+/* Fixed column widths and `space-between`, so the row spans the card.
+   `1fr` with `aspect-ratio: 1` was the other option and it is the one that caused
+   both complaints: the squares were sized by the track and then stretched by the
+   row, so at a wide card's width they came out at 23px and read as a bar chart of
+   the card, while below 1024px the row dropped half its weeks and the squares got
+   bigger still to fill what was left.
+
+   Spreading fixed-width columns with `space-between` gives the opposite trade at
+   every width: the squares stay at `--heat-cell` and the leftover becomes air
+   between them, so a wide card is a wider year rather than fatter days. Every
+   column gets an identical share, and a card too narrow for the year still
+   overflows into the scroll container above rather than shrinking below the
+   floor the JS solver sets. */
 .workout-heat__weeks {
   display: grid;
-  grid-auto-flow: column;
+  grid-template-columns: repeat(var(--heat-week-count, 53), var(--heat-cell, 10px));
+  justify-content: space-between;
   gap: var(--heat-gap);
   min-width: 0;
-  width: 100%;
 }
 .workout-heat__week {
   display: grid;
-  grid-template-rows: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(7, var(--heat-cell, 10px));
   gap: var(--heat-gap);
   min-width: 0;
 }
 
 .workout-heat__cell {
   display: block;
-  width: 100%;
+  width: var(--heat-cell, 10px);
+  height: var(--heat-cell, 10px);
   min-width: 0;
-  aspect-ratio: 1;
   border: 1px solid transparent;
-  border-radius: clamp(1px, 0.25vw, 3px);
+  border-radius: clamp(1px, 0.2vw, 2px);
   background: #ffffff0f;
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
@@ -11244,9 +12050,9 @@ body {
   opacity: 0.5;
 }
 .workout-heat__legend-cell {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  width: var(--heat-cell, 10px);
+  height: var(--heat-cell, 10px);
+  border-radius: clamp(1px, 0.2vw, 2px);
   background: #ffffff0f;
 }
 
@@ -11498,6 +12304,10 @@ button.workout-ex__empty:hover {
 .workout-picker__option:hover { background: #ffffff14; }
 .workout-picker__option--active { background: var(--accent-bg); }
 .workout-picker__option--create { color: var(--color-primary); }
+/* The group headings are sticky, so a row scrolled to the top edge of the list
+   would sit underneath one. `scroll-margin` is what keeps `scrollIntoView` from
+   parking it there when the arrow keys move the highlight. */
+.workout-picker__option { scroll-margin-block: 1.4rem; }
 
 .workout-picker__group {
   position: sticky;
@@ -11576,6 +12386,209 @@ button.workout-ex__empty:hover {
   gap: 0.5rem;
   justify-content: center;
   margin-top: 0.9rem;
+}
+
+/* ---------- The logged list ----------
+   A week navigator shaped like the daily log's day arrows, so it is the same
+   control twice over, and a row per session built from its own parts rather than
+   the shared `.collapse-head`. The shared one is a two-slot flex row: a stacked
+   text block on the left and a chevron on the right, which forced four facts and
+   four icons into one 0.6rem line and left them sitting on the text baseline.
+
+   The whole of the header is one row: title, arrows, range, count. Nothing wraps
+   to a second line, so the nav takes the slack and the title and count keep
+   theirs. */
+.workout-card .card-header:has(> .workout-weeknav) { flex-wrap: nowrap; }
+.workout-weeknav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+.workout-weeknav-btn {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff0a;
+  color: var(--color-light);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.workout-weeknav-btn:hover {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  opacity: 1;
+}
+.workout-weeknav-btn:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+.workout-weeknav-btn:disabled:hover {
+  background: #ffffff0a;
+  color: var(--color-light);
+  opacity: 0.22;
+}
+/* The range, and the way out of the week view. A button rather than a plain
+   label so the whole thing reads as clickable and can carry a tooltip, but
+   styled as text so it does not shout louder than the title. */
+.workout-weeknav-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 25px;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  opacity: 0.9;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.workout-weeknav-label:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--color-primary);
+}
+.workout-logged__count {
+  flex-shrink: 0;
+  margin-left: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.45;
+}
+
+.workout-logged {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.workout-logged__row {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  background: #ffffff05;
+  overflow: hidden;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.workout-logged__row:hover { border-color: rgba(255, 255, 255, 0.14); }
+.workout-logged__row--open {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.workout-logged__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+.workout-logged__date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  flex: 0 0 auto;
+}
+.workout-logged__day {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.workout-logged__stamp {
+  font-size: 0.55rem;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  opacity: 0.4;
+}
+/* The facts sit on their own row when the panel is too narrow for the date and
+   the pills side by side, so they wrap rather than crushing the date. */
+.workout-logged__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.workout-logged__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid #ffffff12;
+  border-radius: 25px;
+  background: #ffffff08;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+.workout-logged__chip svg { flex-shrink: 0; opacity: 0.65; }
+.workout-logged__chip--done,
+.workout-logged__chip--today {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--color-primary);
+  font-weight: 700;
+  opacity: 1;
+}
+.workout-logged__chip--today { text-transform: uppercase; letter-spacing: 0.3px; }
+.workout-logged__chevron { opacity: 0.45; }
+.workout-logged__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border-top: 1px solid #ffffff0f;
+}
+.workout-logged__notes {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-left: 2px solid var(--accent-border);
+  border-radius: 0 12px 12px 0;
+  background: #ffffff05;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-style: italic;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+.workout-row__kind {
+  display: inline-flex;
+  margin-right: 0.3rem;
+  vertical-align: -1px;
+  opacity: 0.45;
 }
 
 /* A transient banner. */
@@ -11862,14 +12875,12 @@ button.workout-ex__empty:hover {
 @media (max-width: 767px) {
   .workout-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .workout-heat__body {
-    grid-template-columns: minmax(0, 1fr);
-    min-width: 0;
-    width: 100%;
-  }
-  .workout-heat__weeks {
-    width: 100%;
-  }
+  /* The heatmap keeps its weekday column at every width, phone included. This
+     block used to collapse it to one column, which put the Sun-Sat labels in a
+     block above the squares ("the squares ended up below the text") and left
+     the 36px the JS solver reserves for that column unused, narrowing the year
+     for nothing. The solver already shrinks the week count to fit beside the
+     labels, so there is nothing to reclaim by stacking. */
   .workout-set-table__head,
   .workout-set-table__row { grid-template-columns: 1.2rem minmax(0, 1fr) minmax(0, 1fr) 1.4rem; }
   .workout-card input,
@@ -11877,19 +12888,11 @@ button.workout-ex__empty:hover {
   .workout-card textarea { font-size: 16px; }
 }
 
-@media (min-width: 768px) and (max-width: 1023px) {
-  .workout-heat__body {
-    grid-template-columns: 1.75rem minmax(0, 1fr);
-    min-width: 0;
-    width: 100%;
-  }
-  .workout-heat__weeks {
-    width: 100%;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .workout-heat__cell,
   .collapse-chevron { transition: none; }
   .workout-heat__cell:hover { transform: none; }
+  /* The breakdown still opens and closes, it just arrives rather than animates. */
+  .daily-score-breakdown,
+  .daily-score-breakdown__inner > * { transition: none; }
 }

@@ -74,6 +74,66 @@ const fontsSettled = (): Promise<void> => {
  * if the bundle never runs at all: it sets the same `data-dismissing` flag this
  * checks, so the two paths cannot both animate the same element.
  */
+export const dismissBootScreenImmediate = (): void => {
+    const boot = document.getElementById(BOOT_ID);
+    const root = document.getElementById('root');
+    if (!boot && !root) return;
+    boot?.remove();
+    root?.classList.add('boot-ready');
+};
+
+/**
+ * Bring the boot splash back for the login -> first-page handoff.
+ *
+ * After sign-in the route changes to /Daily-Log while its queries are still in
+ * flight, so the footer and an empty page flash for a beat before the data
+ * lands. Re-creating the same static markup the cold boot uses covers that gap
+ * with the splash instead: `BootHandoff` re-runs behind it (see `bootKey`) and
+ * takes it down once the landing page's own fetches settle.
+ *
+ * `reason` replaces the "Starting up" caption so the splash can say what it is
+ * waiting on ("Signing you in", ...). The font-ready class is applied up front
+ * because the faces are already loaded by this point -- gating the text on
+ * `document.fonts` again would leave the splash blank.
+ */
+export const showBootTransition = (reason = 'Loading'): void => {
+    if (document.getElementById(BOOT_ID)) return;
+    const root = document.getElementById('root');
+    const boot = document.createElement('div');
+    boot.id = BOOT_ID;
+    boot.className = 'boot boot-font-ready';
+    boot.setAttribute('role', 'status');
+    boot.setAttribute('aria-live', 'polite');
+    const inner = document.createElement('div');
+    inner.className = 'boot__inner';
+    const word = document.createElement('h1');
+    word.className = 'boot__word';
+    word.textContent = 'ANTHROWEB';
+    const rule = document.createElement('hr');
+    rule.className = 'boot__rule';
+    const status = document.createElement('p');
+    status.className = 'boot__status';
+    status.textContent = reason;
+    inner.append(word, rule, status);
+    boot.append(inner);
+    document.body.prepend(boot);
+    root?.classList.remove('boot-ready');
+};
+
+/**
+ * Take down the boot screen painted by index.html.
+ *
+ * The splash is static markup in the document rather than a React component, and
+ * that is the whole point of it: it is on screen from the first byte of HTML, long
+ * before the JS bundle has parsed. React never renders it, it only removes it, so
+ * there is no moment where a half-hydrated app is visible behind a spinner.
+ *
+ * Not exported. `useBootFetchHandoff` is the only thing that should decide when
+ * the splash goes, and making that unmissable is worth more than the ability to
+ * call it from somewhere else. The watchdog in index.html can still tear it down
+ * if the bundle never runs at all: it sets the same `data-dismissing` flag this
+ * checks, so the two paths cannot both animate the same element.
+ */
 const dismissBootScreen = (): void => {
     const boot = document.getElementById(BOOT_ID);
     const root = document.getElementById('root');
@@ -156,8 +216,12 @@ export const useBootHold = (holding: boolean): void => {
  * matters -- what is the cache doing *now* -- rather than acting on a value
  * captured during the render that scheduled the check, which is exactly the stale
  * read this whole module exists to avoid.
+ *
+ * `epoch` re-runs the gate (defaults to mount-only): after login the splash is
+ * shown again via `showBootTransition`, and `BootHandoff` passes the signed-in
+ * user id so a fresh loop waits on the landing page's own fetches.
  */
-export const useBootFetchHandoff = (): void => {
+export const useBootFetchHandoff = (epoch?: string): void => {
     const client = useQueryClient();
 
     useEffect(() => {
@@ -192,5 +256,5 @@ export const useBootFetchHandoff = (): void => {
             window.cancelAnimationFrame(frame);
             requestBootRecheck = null;
         };
-    }, [client]);
+    }, [client, epoch]);
 };

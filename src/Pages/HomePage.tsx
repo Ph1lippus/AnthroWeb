@@ -1,55 +1,45 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
 import Title from '../Components/Title';
+import LoginForm from '../Components/LoginForm';
+import ForgotPasswordForm from '../Components/ForgotPasswordForm';
 
 const HomePage: React.FC = () => {
+    const [mode, setMode] = useState<'login' | 'forgot'>('login');
+
     return (
         <>
             <Title title="Home" />
             <div className="home-wrapper">
-                <section className="screen-height home-page">
-                    <h1 className="slogan">Track. Improve. Succeed.</h1>
-                    <hr className="animated-hr" />
-                    <p className="home-description">
-                        Your personal companion for building better habits and achieving your goals.
-                    </p>
-                </section>
-
-                <section className="screen-height showcase-section">
-                    <div className="showcase-content">
-                        <h2 className="showcase-title">Daily Tracking, Simplified</h2>
-                        <hr className="animated-hr" />
-                        <p className="showcase-text">
-                            Log sleep, vitals, nutrition, workouts and habits in seconds. AnthroWeb
-                            computes a weighted daily score from every metric so you always know
-                            exactly how your day measures up.
-                        </p>
-                    </div>
-                </section>
-
-                <section className="screen-height showcase-section">
-                    <div className="showcase-content">
-                        <h2 className="showcase-title">Insights & Gamification</h2>
-                        <hr className="animated-hr" />
-                        <p className="showcase-text">
-                            Set per-metric goals, earn badges for streaks, and explore correlation
-                            charts that reveal how your sleep shapes tomorrow's performance. Your
-                            progress, visualized.
-                        </p>
-                    </div>
-                </section>
-
-                <section className="screen-height showcase-section showcase-cta">
-                    <div className="showcase-content">
-                        <h2 className="showcase-title">Ready to Begin?</h2>
-                        <hr className="animated-hr" />
-                        <p className="showcase-text">
-                            AnthroWeb is a private deployment, so sign in with your existing
-                            account to pick up where you left off.
-                        </p>
-                        <Link to="/login" className="btn btn-primary showcase-btn auth-card-btn">
-                            Go to Login
-                        </Link>
+                <section className="screen-height home-page home-hero">
+                    <div className="home-hero-inner">
+                        <div className="home-hero-copy">
+                            <p className="home-eyebrow">AnthroWeb</p>
+                            <h1 className="slogan" aria-label="Track. Improve. Succeed.">
+                                <span className="slogan-line" aria-hidden="true">Track.</span>
+                                <span className="slogan-line" aria-hidden="true">Improve.</span>
+                                <span className="slogan-line slogan-line--accent" aria-hidden="true">Succeed.</span>
+                            </h1>
+                            <hr className="animated-hr" />
+                        </div>
+                        <div className="auth-card auth-card-narrow home-login-card">
+                            {mode === 'login' ? (
+                                <>
+                                    <h2 className="auth-title">Welcome Back</h2>
+                                    <LoginForm idPrefix="home" onForgotPassword={() => setMode('forgot')} />
+                                </>
+                            ) : (
+                                <>
+                                    <h2 className="auth-title">Reset Password</h2>
+                                    <ForgotPasswordForm idPrefix="home" />
+                                    <p className="auth-text mt-3">
+                                        Remember your password?{' '}
+                                        <button type="button" className="auth-link auth-link-btn" onClick={() => setMode('login')}>
+                                            Back to login
+                                        </button>
+                                    </p>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </section>
             </div>

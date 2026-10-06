@@ -40,7 +40,7 @@ const MobileNavbar: React.FC = () => {
     const doSignOut = async () => {
         setSigningOut(true);
         await supabase.auth.signOut();
-        navigate('/login');
+        navigate('/');
     };
 
     useEffect(() => {

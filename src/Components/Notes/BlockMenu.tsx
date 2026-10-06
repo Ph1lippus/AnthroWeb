@@ -182,13 +182,11 @@ interface BlockMenuProps {
      */
     split?: boolean;
     /**
-     * Told whenever the block-type panel opens or closes.
+     * Ref for the block-type panel, so the caller can measure it.
      *
-     * It changes how tall the taller panel is, and the caller pins the popup by its
-     * height, so it has to be told rather than left to guess.
+     * Handed a panel that is drawn whether or not it is open, because the caller
+     * reserves the room for it when it places the popup -- see `submenuDrawn`.
      */
-    onSubmenuOpenChange?: (open: boolean) => void;
-    /** Ref for the block-type panel, so the caller can measure it. */
     submenuRef?: React.Ref<HTMLDivElement>;
     onRequestClose?: () => void;
 }
@@ -249,7 +247,6 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
             codeLanguage,
             submenuSide = 'right',
             split = true,
-            onSubmenuOpenChange,
             submenuRef,
             onRequestClose,
         },
@@ -294,6 +291,14 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
         // in place of it when there is not.
         const submenuVisible = showTurnIntoRow && turnIntoOpen;
         const inSubmenu = submenuVisible && focus === 'sub';
+        /**
+         * Whether this panel is the one on screen.
+         *
+         * False when there is no room beside the menu, because then the block types
+         * are drawn *inside* the main panel instead and this element is only ever a
+         * ruler to measure them with.
+         */
+        const submenuDrawn = beside && submenuVisible;
 
         /**
          * Flattens one panel's list into the order it is drawn in: favourites
@@ -387,12 +392,6 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
             setFocus('main');
             setSelectedSub(0);
         }, []);
-
-        // The caller pins the popup by its height, and the block-type panel changes
-        // that height, so it is reported rather than left to be inferred.
-        useEffect(() => {
-            onSubmenuOpenChange?.(submenuVisible);
-        }, [submenuVisible, onSubmenuOpenChange]);
 
         // Hovering "Turn into" opens the panel beside the menu, the way a menu bar
         // works. Leaving closes it again -- but only after a moment, so the pointer
@@ -509,8 +508,12 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
             activeRef.current?.scrollIntoView({ block: 'nearest' });
         }, [selectedMain]);
         useEffect(() => {
+            // Skipped while the panel is only being measured. A hidden panel still
+            // has layout, so scrolling into it would scroll the nearest ancestor it
+            // can -- and for a portalled popup that is the page behind it.
+            if (!submenuDrawn) return;
             activeSubRef.current?.scrollIntoView({ block: 'nearest' });
-        }, [selectedSub]);
+        }, [selectedSub, submenuDrawn]);
 
         // The block menu is opened by a button, which takes focus with it. Take
         // it back explicitly so typing filters the menu rather than landing in the
@@ -803,11 +806,33 @@ const BlockMenu = forwardRef<BlockMenuRef, BlockMenuProps>(
                     </div>
                 )}
 
-                {submenuVisible && (
+                {/*
+                    Drawn whenever there is anything to draw, open or not, and
+                    merely hidden while closed.
+
+                    The caller places the popup against the taller of the two panels,
+                    and the block types are the taller one by a long way -- so their
+                    height has to be known before anyone hovers "Turn into". Mounting
+                    on hover meant the height only arrived with the panel, and the
+                    popup was then re-clamped against the bottom of the window: it
+                    slid up and out from under the pointer, which read as leaving the
+                    row, which closed the panel, which put the popup back where it
+                    started. Drawing sixteen rows nobody can see, for the length of
+                    one menu, is what it costs; a popup that moves under the pointer
+                    is what it saves.
+
+                    `inert` rather than a conditional: a hidden panel still has
+                    layout (that is the point), so it must be kept out of the tab
+                    order and the accessibility tree explicitly.
+                */}
+                {showTurnIntoRow && (
                     <div
                         ref={submenuRef}
                         className={`slash-menu slash-menu--submenu slash-menu--submenu-${submenuSide}`}
                         data-panel="submenu"
+                        data-open={submenuDrawn ? '' : undefined}
+                        inert={!submenuDrawn}
+                        aria-hidden={!submenuDrawn}
                         role="listbox"
                         aria-label="Block types"
                         // Its own pair, not the shell's. Both panels are children of

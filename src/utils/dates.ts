@@ -49,3 +49,25 @@ export const formatDayLabel = (dateStr: string): string => {
         ? { weekday: 'short', month: 'short', day: 'numeric' }
         : { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 };
+
+/**
+ * The Sunday that starts the week holding `dateStr`.
+ *
+ * Sunday, because `Date.getDay()` counts from it and the year grid's columns are
+ * cut on it -- so a week here is the same seven days a week column is there.
+ */
+export const startOfWeek = (dateStr: string): string =>
+    addDays(dateStr, -new Date(`${dateStr}T00:00:00`).getDay());
+
+/** `Oct 4 – Oct 10`. The end drops its month while both ends are in the same one. */
+export const weekRangeLabel = (start: string): string => {
+    if (!isDateString(start)) return '';
+    const end = addDays(start, 6);
+    const [fy, fm, fd] = start.split('-').map(Number);
+    const [ty, tm, td] = end.split('-').map(Number);
+    const from = new Date(fy, fm - 1, fd);
+    const to = new Date(ty, tm - 1, td);
+    const sameMonth = from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear();
+    return `${from.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${to.toLocaleDateString('en-US',
+        sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
+};

@@ -8,8 +8,10 @@ import NotesSidebar from './NotesSidebar';
 import NoteEditorPane from './NoteEditorPane';
 import NoteIconBadge from './NoteIconBadge';
 import QuickSwitcher from './QuickSwitcher';
+import { useNoteEditorChunk } from './useNoteEditorChunk';
 import type { Note } from '../../services/noteService';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useBootHold } from '../../services/bootScreen';
 import {
     useCreateNote,
     useDeleteNoteForever,
@@ -89,6 +91,14 @@ const NotesWorkspace: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const narrow = useMediaQuery(NARROW_QUERY);
+
+    // Starts the editor download on mount, and keeps the splash up until it has
+    // landed. Both halves are the same promise: without them the page paints its
+    // title and icon first and the body arrives a moment later, which is the one
+    // way a note can still look half-loaded. Warm after the first visit, so this
+    // costs nothing once the chunk is cached.
+    const { settled: editorSettled } = useNoteEditorChunk();
+    useBootHold(!editorSettled);
 
     const notesQuery = useNotes();
     const trashedQuery = useTrashedNotes();
@@ -581,7 +591,18 @@ const NotesWorkspace: React.FC = () => {
 
                 {showPane && (
                     <section className="notes-pane">
-                        {activeNote ? (
+                        {/* Nothing at all until the editor can be drawn. The splash
+                            covers this on a cold load; it is also true when /Notes is
+                            reached inside a session that is already running, where the
+                            chunk has not been asked for yet. A pane that showed its
+                            title first and filled the body in underneath is the thing
+                            this is here to prevent, so it shows nothing rather than
+                            half a page.
+
+                            A chunk that *fails* settles too, so this does not become a
+                            permanently empty pane: the page opens with its title and an
+                            empty body. */}
+                        {!editorSettled ? null : activeNote ? (
                             // Keyed by id so opening a different page remounts the
                             // editor with a fresh document instead of reconciling one
                             // note's content into another's.

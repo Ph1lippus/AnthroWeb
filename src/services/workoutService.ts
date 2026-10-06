@@ -1090,6 +1090,7 @@ export const saveSessionExercises = async (
     rows: Array<{
         id?: string;
         exercise_name: string;
+        exercise_id?: string | null;
         activity_type: ActivityType;
         completed: boolean;
         sets_detail?: WorkoutSet[];
@@ -1126,6 +1127,7 @@ export const saveSessionExercises = async (
             user_id: userId,
             workout_completion_id: sessionId,
             exercise_name: row.exercise_name.trim(),
+            exercise_id: row.exercise_id ?? null,
             activity_type: row.activity_type,
             position: index,
             completed: row.completed,

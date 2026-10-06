@@ -19,6 +19,18 @@ interface WorkoutYearHeatmapProps {
  */
 const DAY_ROWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/* Cell sizing. The square is a fixed size and the row spreads its columns with
+   `space-between`, which is what makes the grid use the whole card without the
+   squares growing: leftover width becomes air between the columns rather than
+   fatter days. The cap is what stops that from turning into a sparse dot grid on
+   a very wide card, and the floor is what stops a square becoming a dot. */
+const CELL_MIN = 5;
+const CELL_MAX = 12;
+/** The weekday column plus the gap after it, matching `.workout-heat__body`. */
+const DAY_COL_PX = 36;
+/** `--heat-gap`. The tightest the row can be; `space-between` only widens it. */
+const GAP_PX = 2;
+
 /**
  * A year of training as a git-contribution grid.
  *
@@ -96,28 +108,45 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
 
     const [tip, setTip] = useState<TipState | null>(null);
     const scrollRef = useRef<HTMLDivElement | null>(null);
-    const [visibleWeekCount, setVisibleWeekCount] = useState(weeks.length);
+    /* How many weeks to draw and how big each square is. Solved together, because
+       whether the full year fits is a question about the cell size: a 53-column
+       row can be drawn at any size, so "does it fit" only has an answer once a
+       size is chosen. All 53 whenever they fit at the minimum; on a phone that is
+       not possible, so the most recent weeks win and the row scrolls sideways. */
+    const [layout, setLayout] = useState(() => ({ weeks: weeks.length, cell: CELL_MIN }));
 
     useEffect(() => {
         const element = scrollRef.current;
-        if (!element) return;
+        if (!element || weeks.length === 0) return;
 
-        const updateCount = () => {
+        const solve = () => {
             const width = element.clientWidth;
-            if (width >= 1024) {
-                setVisibleWeekCount(weeks.length);
+            const usable = Math.max(0, width - DAY_COL_PX);
+            const count = weeks.length;
+
+            /* Whether the year fits is a question about the square, not a count to
+               be picked first: 53 columns can be drawn at any size. So the smallest
+               square is fixed, the tightest gap is charged against the width, and
+               whatever is left after that is air the grid spreads on its own. */
+            const fitAll = Math.floor((usable - GAP_PX * (count - 1)) / count);
+            if (fitAll >= CELL_MIN) {
+                setLayout({ weeks: count, cell: Math.min(CELL_MAX, fitAll) });
                 return;
             }
-            const cellAndGap = 14;
-            const availableWeeks = Math.max(5, Math.floor((width - 2.15 * 16) / cellAndGap));
-            setVisibleWeekCount(width < 768 ? availableWeeks : Math.min(26, availableWeeks));
+
+            // Not enough room for the year at a legible size. Keep the newest weeks
+            // -- the ones being asked about -- at the floor.
+            const shownWeeks = Math.max(1, Math.min(count, Math.floor((usable + GAP_PX) / (CELL_MIN + GAP_PX))));
+            setLayout({ weeks: shownWeeks, cell: CELL_MIN });
         };
 
-        updateCount();
-        const observer = new ResizeObserver(updateCount);
+        solve();
+        const observer = new ResizeObserver(solve);
         observer.observe(element);
         return () => observer.disconnect();
     }, [weeks.length]);
+
+    const shown = useMemo(() => weeks.slice(-layout.weeks), [weeks, layout.weeks]);
 
     /* One shared tooltip and memoized cells keep hovering local: changing the
        tooltip must not rerender the entire grid. */
@@ -135,8 +164,26 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
     const hideTip = useCallback(() => setTip(null), []);
 
     return (
-        <div className="workout-heat">
+        <div
+            className="workout-heat"
+            style={{
+                '--heat-cell': `${layout.cell}px`,
+                '--heat-week-count': layout.weeks,
+            } as CSSProperties}
+        >
             <div className="workout-heat__scroll" ref={scrollRef}>
+                {/* `buildHeatGrid` marks the week a month begins on and nothing ever
+                    drew it, so there was no way to tell where the year starts from
+                    where it ends. Pinned to the same column pitch as the squares
+                    below, so a label sits over the column it belongs to. */}
+                <div className="workout-heat__months" aria-hidden="true">
+                    {shown.map((week, index) => (
+                        <span className="workout-heat__month" key={week.cells[0]?.date ?? index}>
+                            {week.label ?? ''}
+                        </span>
+                    ))}
+                </div>
+
                 <div className="workout-heat__body">
                     <div className="workout-heat__days" aria-hidden="true">
                         {DAY_ROWS.map((label, index) => (
@@ -147,16 +194,14 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                     <div
                         className="workout-heat__weeks"
                         style={{
-                            '--heat-week-count': visibleWeekCount,
-                            gridTemplateColumns: `repeat(${visibleWeekCount}, minmax(0, 1fr))`,
                             opacity: isLoading ? 0.4 : 1,
                             transition: 'opacity .2s ease',
-                        } as CSSProperties}
+                        }}
                         role="grid"
                         aria-label="Training activity by day"
                         onMouseLeave={hideTip}
                     >
-                        {weeks.slice(-visibleWeekCount).map((week, weekIndex) => (
+                        {shown.map((week, weekIndex) => (
                             <div className="workout-heat__week" role="row" key={weekIndex}>
                                 {week.cells.map(cell => (
                                     <HeatCellView

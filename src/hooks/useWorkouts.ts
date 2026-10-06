@@ -437,6 +437,7 @@ const useInvalidateWorkouts = () => {
         qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateExercisesRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutPlanRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutLogs });
+        qc.invalidateQueries({ queryKey: queryKeys.workoutExercisesRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutPRs });
         qc.invalidateQueries({ queryKey: queryKeys.workoutPREntries });
         // The Gym checkbox on the daily log and its habit charts read this.
@@ -633,6 +634,12 @@ export const useClearGymForDate = () => {
 };
 
 /** Save a whole session: header, exercise rows, and any records they earned. */
+export interface SaveSessionResult {
+    prs: NewPR[];
+    /** The session's rows as the database now holds them, ordered by `position`. */
+    saved: WorkoutExerciseLog[];
+}
+
 export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
     const invalidate = useInvalidateWorkouts();
     const qc = useQueryClient();
@@ -644,6 +651,7 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
             exercises: Array<{
                 id?: string;
                 exercise_name: string;
+                exercise_id?: string | null;
                 activity_type: ActivityType;
                 completed: boolean;
                 sets_detail?: WorkoutSet[];
@@ -653,11 +661,11 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
             }>;
             /** Insert any session that does not exist yet. */
             createIfMissing?: boolean;
-        }): Promise<NewPR[]> => {
+        }): Promise<SaveSessionResult> => {
             let sessionId = (await getSessionByDate(input.date))?.id;
 
             if (!sessionId) {
-                if (!input.createIfMissing) return [];
+                if (!input.createIfMissing) return { prs: [], saved: [] };
                 // `completed` is not defaulted here. A brand-new session is
                 // incomplete until the daily log's Gym habit says otherwise, which
                 // is the column's default -- so an edit that creates the row cannot
@@ -672,13 +680,16 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
             }
 
             await saveSessionExercises(sessionId!, input.exercises);
+            // Read back rather than trusting the payload: rows sent without an id
+            // were inserted, and the database is the only thing that knows what id
+            // they got. Callers reconcile against this to stop re-inserting them.
             const saved = await getSessionExercises(sessionId!);
-            return recordNewPRs(input.date, sessionId!, saved);
+            return { prs: await recordNewPRs(input.date, sessionId!, saved), saved };
         },
-        onSuccess: (prs, input) => {
+        onSuccess: (result, input) => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
-            if (prs.length) onNewPRs?.(prs);
+            if (result.prs.length) onNewPRs?.(result.prs);
         },
     });
 };

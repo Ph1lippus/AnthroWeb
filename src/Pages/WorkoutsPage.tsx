@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Dumbbell, Layers, Plus, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Dumbbell, Layers, Plus, Trophy } from 'lucide-react';
 import Title from '../Components/Title';
 import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
@@ -27,7 +27,7 @@ import {
     useUpdatePlanSession,
 } from '../hooks/useWorkouts';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { isDateString, todayString } from '../utils/dates';
+import { isDateString, startOfWeek, todayString, weekRangeLabel, addDays } from '../utils/dates';
 import { describeTargets } from '../utils/workoutSets';
 
 /**
@@ -154,6 +154,24 @@ const WorkoutsPage: React.FC = () => {
 
     const loading = overview.isLoading && overview.sessions.length === 0;
     const completedSessions = overview.sessions.filter(s => s.completed);
+
+    /* ---- The logged list's own two controls ----
+     *
+     * `weekOffset` counts back from this week, so it grows as you go into the past.
+     * It is subtracted rather than added: added, the left arrow -- the one labelled
+     * "Previous week" -- stepped the week *forward* in time, which is exactly the
+     * opposite of what the label says and the exact opposite of the year grid below,
+     * where the oldest week is on the left.
+     *
+     * `loggedScope` is the way out. Without it a week view is a filter with no
+     * exit, and anyone looking for a session from six weeks ago has to click the
+     * arrow five times to find it. */
+    const [loggedOffset, setLoggedOffset] = useState(0);
+    const [loggedScope, setLoggedScope] = useState<'week' | 'all'>('week');
+    const loggedWeekStart = addDays(startOfWeek(today), -loggedOffset * 7);
+    const loggedCount = completedSessions.filter(session =>
+        session.workout_date >= loggedWeekStart && session.workout_date <= addDays(loggedWeekStart, 6)
+    ).length;
 
     // There is deliberately no "no templates, so show one big empty card" branch
     // here. That was the page's shape when the only thing it had to say was "make
@@ -324,17 +342,59 @@ const WorkoutsPage: React.FC = () => {
 
                                             {/* What you have actually done sits here rather than behind a tab
                                                 of its own: "what did I do, and what am I about to do" is one
-                                                question, and this is where you ask it. */}
+                                                question, and this is where you ask it.
+
+                                                One header row holds all three things about the list -- what it
+                                                is, which week it is showing, and how much is in it. The
+                                                arrows walk backwards through weeks, matching the year grid
+                                                below where the oldest week is on the left, so the left arrow
+                                                always goes into the past. The label itself flips the whole
+                                                list to every session in the window, because a week view with
+                                                no way out is a filter rather than a control. */}
                                             <div className="card">
                                                 <div className="card-header">
                                                     <h3 className="card-title">Logged</h3>
-                                                    <span className="semester-meta" style={{ marginLeft: 'auto' }}>
-                                                        last year
+                                                    <div className="workout-weeknav">
+                                                        <button
+                                                            type="button"
+                                                            className="workout-weeknav-btn"
+                                                            onClick={() => setLoggedOffset(offset => offset + 1)}
+                                                            disabled={loggedScope === 'all'}
+                                                            aria-label="Previous week"
+                                                            data-tip="Previous week"
+                                                        >
+                                                            <ChevronLeft size={14} aria-hidden="true" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="workout-weeknav-label"
+                                                            onClick={() => setLoggedScope(scope => scope === 'all' ? 'week' : 'all')}
+                                                            data-tip={loggedScope === 'all' ? 'Show one week' : 'Show every session'}
+                                                            aria-label={loggedScope === 'all' ? 'Show one week at a time' : 'Show every session'}
+                                                        >
+                                                            {loggedScope === 'all' ? 'All sessions' : weekRangeLabel(loggedWeekStart)}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="workout-weeknav-btn"
+                                                            onClick={() => setLoggedOffset(offset => Math.max(0, offset - 1))}
+                                                            disabled={loggedScope === 'all' || loggedOffset === 0}
+                                                            aria-label="Next week"
+                                                            data-tip="Next week"
+                                                        >
+                                                            <ChevronRight size={14} aria-hidden="true" />
+                                                        </button>
+                                                    </div>
+                                                    <span className="workout-logged__count">
+                                                        {loggedScope === 'all'
+                                                            ? `${completedSessions.length} in the last year`
+                                                            : `${loggedCount} session${loggedCount === 1 ? '' : 's'}`}
                                                     </span>
                                                 </div>
                                                 <div className="card-body">
                                                     <SessionList
                                                         sessions={completedSessions}
+                                                        weekStart={loggedScope === 'all' ? null : loggedWeekStart}
                                                         weightUnit={weightUnit}
                                                         onOpen={date => go({ day: date })}
                                                     />

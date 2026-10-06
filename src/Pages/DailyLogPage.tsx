@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
-import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, Pencil } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Rows3, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import { getUserSettings, updateUserSettings } from '../services/profileService';
 import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
+import { useUpdateHabit } from '../hooks/useHabitData';
 import { getUserProjects } from '../services/projectService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
@@ -18,7 +19,11 @@ import { useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
+import HabitEditorModal from '../Components/DailyLog/HabitEditorModal';
 import ConfirmModal from '../Components/ConfirmModal';
+import ContextMenu from '../Components/ContextMenu';
+import type { ContextMenuItem } from '../Components/ContextMenu';
+import { useContextMenu } from '../Components/useContextMenu';
 import { hasJournalContent } from '../utils/journalHabit';
 import { addDays, formatDayLabel, isDateString, todayString } from '../utils/dates';
 import LoadingSpinner from '../Components/LoadingSpinner';
@@ -44,6 +49,21 @@ const DailyLogPage: React.FC = () => {
 // and an accidental one never happens.
 const [goalsExplicitlyEdited, setGoalsExplicitlyEdited] = useState(false);
 const [showGoalsEditor, setShowGoalsEditor] = useState(false);
+    /* Open by default on a screen with room for it: the breakdown is what says *why* a
+ * day scored what it did, and a card that opens to nothing but a ring is a number
+ * with nothing to say.
+ *
+ * Closed on a phone, where it is six categories of chips pushed the daily log's
+ * actual form -- sleep, food, weight, mood -- off the first screen. The reading
+ * happens on the ring there and the breakdown is one tap away, which is the right
+ * way round when the tap is a thumb and the screen is short.
+ *
+ * A lazy initialiser rather than an effect, so there is no first paint with the
+ * wrong one. Lifted out of ScoreCard because the row of controls above the card
+ * toggles it too, and two controls over one thing have to be looking at one value. */
+const [breakdownOpen, setBreakdownOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches
+);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [habits, setHabits] = useState<Habit[]>([]);
@@ -196,6 +216,94 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     const [addingHabit, setAddingHabit] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<Habit | null>(null);
     const [deletingHabit, setDeletingHabit] = useState(false);
+    const updateHabit = useUpdateHabit();
+
+    /**
+     * Renaming a custom habit, two ways.
+     *
+     * A double click on the name is the quick one: the name becomes a field in
+     * place and Enter keeps it. It cannot be the only way, because it is not
+     * reachable on a touch screen and it has nowhere to put a description --
+     * which is what the right click's "Rename" opens for.
+     *
+     * `renameId` rather than the habit itself, because the row is drawn from the
+     * list and the list changes under an open edit. The id is the thing both the
+     * field and the modal need, and looking it up each render means an edit left
+     * open while the list refreshes keeps working.
+     */
+    const [renameId, setRenameId] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState('');
+    const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+    const [habitEditError, setHabitEditError] = useState<string | null>(null);
+    // One rename per habit, so a blur cannot save twice: the first call clears the
+    // id and the second finds nothing to do.
+    const renameCommittedRef = useRef(false);
+    const habitMenu = useContextMenu();
+
+    const beginRename = (habit: Habit) => {
+        renameCommittedRef.current = false;
+        setRenameValue(habit.name ?? '');
+        setRenameId(habit.id ?? null);
+    };
+
+    const saveHabitName = async (id: string, name: string) => {
+        try {
+            const updated = await updateHabit.mutateAsync({ id, updates: { name } });
+            // Patched in place as well as invalidated, so the row takes the new name
+            // on this commit rather than a round trip later.
+            setHabits(prev => prev.map(habit => (habit.id === id ? { ...habit, ...updated } : habit)));
+            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
+        } catch (err) {
+            console.error('Error renaming habit:', err);
+        }
+    };
+
+    /** Saves whatever the quick field is holding. The name only -- there is nowhere in one line to put more. */
+    const commitRename = async () => {
+        if (!renameId || renameCommittedRef.current) return;
+        renameCommittedRef.current = true;
+        const id = renameId;
+        const name = renameValue.trim();
+        setRenameId(null);
+        // An empty name is the placeholder, not a value: renaming to nothing would
+        // take the habit's only label away, and the row would read "Untitled".
+        if (!name) return;
+        await saveHabitName(id, name);
+    };
+
+    const cancelRename = () => {
+        renameCommittedRef.current = true;
+        setRenameId(null);
+    };
+
+    /**
+     * What the right click offers on a habit.
+     *
+     * Rename first and remove after a hairline, in the order things are done to a
+     * list. Remove is the one that cannot be taken back, so it is drawn in the
+     * destructive colour and it still asks -- the menu only chooses what is on
+     * offer, and the confirmation is what stands between a misclick and a habit
+     * that is suddenly gone from every day it was ticked.
+     */
+    const habitMenuItems = (habit: Habit): ContextMenuItem[] => [
+        {
+            id: 'rename',
+            label: 'Rename…',
+            icon: PenLine,
+            onSelect: () => {
+                setHabitEditError(null);
+                setEditingHabit(habit);
+            },
+        },
+        {
+            id: 'remove',
+            label: 'Remove habit',
+            icon: Trash2,
+            danger: true,
+            separatorBefore: true,
+            onSelect: () => setDeleteTarget(habit),
+        },
+    ];
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
@@ -818,6 +926,18 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
     // come before anything that only describes the day being shown.
     const dayNav = (
         <div className="daily-log-daynav">
+            {/* The breakdown toggle, first because it is the one control here that
+                does not act on the day: everything after it picks a day or edits it. */}
+            <button
+                type="button"
+                className={`daily-log-daynav-btn${breakdownOpen ? ' daily-log-daynav-btn--on' : ''}`}
+                onClick={() => setBreakdownOpen(open => !open)}
+                data-tip={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                aria-label={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                aria-pressed={breakdownOpen}
+            >
+                <Rows3 size={14} aria-hidden="true" />
+            </button>
             <button
                 type="button"
                 className="daily-log-daynav-btn"
@@ -1010,6 +1130,7 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                             score={scoreResult.score}
                             dateLabel={dateLabel}
                             metrics={scoreResult.metrics}
+                            expanded={breakdownOpen}
                         />
                     </div>
 
@@ -1327,7 +1448,18 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                             <p className="Custom-habit-text text-xs opacity-50 mb-1">Custom Habits:</p>
                                             <div className="grid gap-1">
                                                 {habits.map((habit) => (
-                                                    <div key={habit.id} className="flex items-center gap-1">
+                                                    <div
+                                                        key={habit.id}
+                                                        className="habit-row"
+                                                        onContextMenu={event =>
+                                                            habitMenu.openFromEvent(
+                                                                event,
+                                                                `${habit.name} actions`,
+                                                                habitMenuItems(habit),
+                                                            )
+                                                        }
+                                                        onDoubleClick={() => beginRename(habit)}
+                                                    >
                                                         <label className="checkbox-label flex-1 min-w-0">
                                                             <input
                                                                 type="checkbox"
@@ -1357,16 +1489,55 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                                                                 }}
                                                                 className="checkbox-input"
                                                             />
-                                                            <span className="text-sm opacity-90 truncate">{habit.name}</span>
+                                                            {/* The name is a field while it is being renamed and a
+                                                                label the rest of the time -- swapped, not nested,
+                                                                because a text field inside this <label> would tick
+                                                                the checkbox as well as take the click. */}
+                                                            {renameId === habit.id ? (
+                                                                <input
+                                                                    type="text"
+                                                                    className="habit-row-edit"
+                                                                    value={renameValue}
+                                                                    autoFocus
+                                                                    maxLength={50}
+                                                                    aria-label={`Rename ${habit.name}`}
+                                                                    onChange={event => setRenameValue(event.target.value)}
+                                                                    onBlur={commitRename}
+                                                                    onKeyDown={event => {
+                                                                        if (event.key === 'Enter') {
+                                                                            event.preventDefault();
+                                                                            commitRename();
+                                                                        } else if (event.key === 'Escape') {
+                                                                            event.preventDefault();
+                                                                            cancelRename();
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <span className="text-sm opacity-90 truncate">{habit.name}</span>
+                                                            )}
                                                         </label>
+                                                        {/* The way in where there is no right click. Hidden
+                                                            wherever hovering works, because a menu you can only
+                                                            reach one way should not sit on the row as a
+                                                            permanent third option. */}
                                                         <button
                                                             type="button"
-                                                            onClick={() => setDeleteTarget(habit)}
-                                                            className="text-xs opacity-40 hover:opacity-100 hover:text-[var(--color-danger)] shrink-0"
-                                                            data-tip="Remove habit"
-                                                            aria-label={`Remove ${habit.name}`}
+                                                            className="habit-row-more"
+                                                            data-tip={`${habit.name}: rename or remove`}
+                                                            aria-label={`More actions for ${habit.name}`}
+                                                            aria-haspopup="menu"
+                                                            onClick={event => {
+                                                                const rect = event.currentTarget.getBoundingClientRect();
+                                                                habitMenu.openAt(
+                                                                    rect.left,
+                                                                    rect.bottom + 4,
+                                                                    `${habit.name} actions`,
+                                                                    habitMenuItems(habit),
+                                                                );
+                                                            }}
                                                         >
-                                                            ✕
+                                                            <MoreVertical size={14} />
                                                         </button>
                                                     </div>
                                                 ))}
@@ -1406,6 +1577,46 @@ const [showGoalsEditor, setShowGoalsEditor] = useState(false);
                 onClose={() => setShowGoalsEditor(false)}
                 onSave={handleSaveDayGoals}
             />
+
+            {/* One menu for every row on the page, opened by whichever row was
+                right clicked. Held here rather than per row so a second right click
+                replaces the first instead of stacking two of them. */}
+            {habitMenu.state && (
+                <ContextMenu {...habitMenu.state} onClose={habitMenu.close} />
+            )}
+
+            {/* Unmounted on close, so a cancelled edit leaves nothing behind for the
+                next one to open into. */}
+            {editingHabit && (
+                <HabitEditorModal
+                    key={editingHabit.id}
+                    habit={editingHabit}
+                    busy={updateHabit.isPending}
+                    error={habitEditError}
+                    onClose={() => { if (!updateHabit.isPending) setEditingHabit(null); }}
+                    onSave={async updates => {
+                        const target = editingHabit;
+                        if (!target?.id) return;
+                        setHabitEditError(null);
+                        try {
+                            const updated = await updateHabit.mutateAsync({ id: target.id, updates });
+                            setHabits(prev =>
+                                prev.map(habit => (habit.id === target.id ? { ...habit, ...updated } : habit)),
+                            );
+                            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
+                            setEditingHabit(null);
+                        } catch (err) {
+                            // The only refusal a rename can get is a name already taken,
+                            // and it is worth saying which one -- so the dialog stays open
+                            // with the typed text still in it.
+                            console.error('Error editing habit:', err);
+                            setHabitEditError(
+                                err instanceof Error ? err.message : 'Could not save the habit.',
+                            );
+                        }
+                    }}
+                />
+            )}
 
             <ConfirmModal
                 open={!!deleteTarget}
