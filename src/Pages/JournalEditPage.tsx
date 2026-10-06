@@ -9,6 +9,9 @@ import { PenTool } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { journalHabitFor } from '../utils/journalHabit';
+import JournalEditor from '../Components/Journal/JournalEditor';
+import { journalDocumentText, journalWordCount, parseJournalDocument, serializeJournalDocument } from '../utils/journalContent';
+import type { JournalDocument } from '../utils/journalContent';
 
 const JournalEditPage: React.FC = () => {
     const navigate = useNavigate();
@@ -16,7 +19,7 @@ const JournalEditPage: React.FC = () => {
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
     const [dataLoaded, setDataLoaded] = useState(false);
-    const [journalEntry, setJournalEntry] = useState('');
+    const [journalDocument, setJournalDocument] = useState<JournalDocument>(parseJournalDocument());
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -32,7 +35,12 @@ const JournalEditPage: React.FC = () => {
                 ]);
                 if (log) {
                     setExistingLog(log);
-                    setJournalEntry(log.journal_entry || '');
+                    setJournalDocument(parseJournalDocument(log.journal_entry, {
+                        morning: log.journal_morning ?? '',
+                        evening: log.journal_evening ?? '',
+                        sentiment: log.journal_sentiment ?? 'mixed',
+                        links: log.journal_links ?? [],
+                    }));
                 }
                 setSettings(userSettings);
             } finally {
@@ -54,10 +62,14 @@ const JournalEditPage: React.FC = () => {
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
-                journal_entry: journalEntry || null,
+                journal_entry: serializeJournalDocument(journalDocument),
+                journal_morning: journalDocument.morning || null,
+                journal_evening: journalDocument.evening || null,
+                journal_sentiment: journalDocument.sentiment,
+                journal_links: journalDocument.links,
                 // See journalHabitFor: content ticks the habit, absence leaves
                 // the stored tick alone.
-                journal: journalHabitFor(journalEntry, existingLog?.journal),
+                journal: journalHabitFor(journalDocumentText(journalDocument), existingLog?.journal),
                 daily_score: existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 
@@ -70,7 +82,7 @@ const JournalEditPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [id, settings, journalEntry, existingLog]);
+    }, [id, settings, journalDocument, existingLog]);
 
     useEffect(() => {
         if (saveError) {
@@ -95,7 +107,7 @@ const JournalEditPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [journalEntry, performSave, settings]);
+    }, [journalDocument, performSave, settings]);
 
     // Both the log and the settings come from a raw `Promise.all`, invisible to the
     // app-level boot gate, so the splash would otherwise lift over the spinner
@@ -118,9 +130,9 @@ const JournalEditPage: React.FC = () => {
         );
     }
 
-    const wordCount = journalEntry.trim() ? journalEntry.trim().split(/\s+/).length : 0;
-    const charCount = journalEntry.length;
-    const journalScore = journalEntry.trim().length > 0 ? 100 : 0;
+    const journalText = journalDocumentText(journalDocument);
+    const wordCount = journalWordCount(journalDocument);
+    const charCount = journalText.length;
     const dateFormatted = new Date(existingLog.log_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
     return (
@@ -129,23 +141,6 @@ const JournalEditPage: React.FC = () => {
             <div className="journal-page-wrapper">
                 <div className="dashboard-section journal-section">
                     <div className="journal-card">
-                        <div className="journal-stats">
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Journal Score</span>
-                                <span className="journal-stat-value" style={{ color: journalScore >= 80 ? 'var(--color-primary)' : journalScore > 0 ? '#ffa500' : 'var(--color-danger)' }}>
-                                    {journalScore}/100
-                                </span>
-                            </div>
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Words</span>
-                                <span className="journal-stat-value">{wordCount}</span>
-                            </div>
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Characters</span>
-                                <span className="journal-stat-value">{charCount}</span>
-                            </div>
-                        </div>
-
                         <div className="journal-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => navigate('/Journal')} className="btn-action">
@@ -177,12 +172,7 @@ const JournalEditPage: React.FC = () => {
                                 <PenTool />
                                 Journal Entry
                             </div>
-                            <textarea
-                                value={journalEntry}
-                                onChange={(e) => setJournalEntry(e.target.value)}
-                                className="journal-editor"
-                                placeholder="Write your thoughts, reflections, or anything notable about this day..."
-                            />
+                            <JournalEditor value={journalDocument} onChange={setJournalDocument} />
                             <div className="journal-editor-footer">
                                 <div className="journal-editor-count">
                                     {wordCount} words · {charCount} characters

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { journalDocumentText, parseJournalDocument } from '../utils/journalContent';
 import { useQueryClient } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import { deleteDailyLog } from '../services/dailyLogService';
@@ -100,11 +101,11 @@ const DailyLogHistoryPage: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {log.journal_entry && (
+                                        {log.journal_entry && journalDocumentText(parseJournalDocument(log.journal_entry)) && (
                                             <p className="log-history-journal-preview">
-                                                {log.journal_entry.length > 160
-                                                    ? log.journal_entry.substring(0, 160) + '...'
-                                                    : log.journal_entry}
+                                                {journalDocumentText(parseJournalDocument(log.journal_entry)).length > 160
+                                                    ? journalDocumentText(parseJournalDocument(log.journal_entry)).substring(0, 160) + '...'
+                                                    : journalDocumentText(parseJournalDocument(log.journal_entry))}
                                             </p>
                                         )}
 

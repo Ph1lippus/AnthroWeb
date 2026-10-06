@@ -441,7 +441,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         if (completedHabitsPlaceholder || completedHabitSet === undefined) return;
         if (lastHabitDateRef.current === logDate) return;
         lastHabitDateRef.current = logDate;
-        setCompletedHabits(completedHabitSet);
+        setCompletedHabits(
+            new Set(Array.isArray(completedHabitSet) ? completedHabitSet : []),
+        );
     }, [completedHabitSet, completedHabitsPlaceholder, logDate]);
 
     // Load projects

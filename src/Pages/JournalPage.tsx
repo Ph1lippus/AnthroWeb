@@ -10,6 +10,9 @@ import { todayString } from '../utils/dates';
 import { journalHabitFor } from '../utils/journalHabit';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import JournalEditor from '../Components/Journal/JournalEditor';
+import { journalDocumentText, journalWordCount, parseJournalDocument, serializeJournalDocument } from '../utils/journalContent';
+import type { JournalDocument } from '../utils/journalContent';
 
 const JournalPage: React.FC = () => {
     const navigate = useNavigate();
@@ -23,7 +26,7 @@ const JournalPage: React.FC = () => {
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
     const [logDate, setLogDate] = useState(() => todayString());
-    const [journalEntry, setJournalEntry] = useState('');
+    const [journalDocument, setJournalDocument] = useState<JournalDocument>(parseJournalDocument());
     const [showTips, setShowTips] = useState(true);
 
     const journalTips = [
@@ -42,6 +45,20 @@ const JournalPage: React.FC = () => {
         "Did you have any interesting dreams?",
         "How did you manage stress today?",
         "What's on your mind right now?",
+        "What would make today feel meaningful, even if it is small?",
+        "Which upcoming event deserves your best energy?",
+        "What is one habit you want to protect today?",
+        "What did your dreams seem to be telling you?",
+        "Where did your energy rise, and what caused it?",
+        "What boundary would make the rest of the day easier?",
+        "Which task are you avoiding, and what is the smallest first step?",
+        "Who helped you today, and how could you acknowledge it?",
+        "What friction kept repeating today?",
+        "What did you handle better than you would have last month?",
+        "What quote, idea, or conversation stayed with you?",
+        "What can you release before going to sleep?",
+        "What deserves gratitude even though it was difficult?",
+        "What should your future self remember about today?",
     ];
 
     const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
@@ -72,11 +89,16 @@ const JournalPage: React.FC = () => {
             if (log) {
                 setExistingLog(log);
                 setIsEditing(true);
-                setJournalEntry(log.journal_entry || '');
+                setJournalDocument(parseJournalDocument(log.journal_entry, {
+                    morning: log.journal_morning ?? '',
+                    evening: log.journal_evening ?? '',
+                    sentiment: log.journal_sentiment ?? 'mixed',
+                    links: log.journal_links ?? [],
+                }));
             } else {
                 setExistingLog(null);
                 setIsEditing(false);
-                setJournalEntry('');
+                setJournalDocument(parseJournalDocument());
             }
         };
         checkExisting();
@@ -112,7 +134,9 @@ const JournalPage: React.FC = () => {
     const performSave = useCallback(async () => {
         if (!settings) return;
 
-        if (!isEditing && !journalEntry) return;
+        const journalEntry = serializeJournalDocument(journalDocument);
+        const journalText = journalDocumentText(journalDocument);
+        if (!isEditing && !journalDocumentText(journalDocument)) return;
 
         setSaving(true);
         setSaveError(null);
@@ -120,11 +144,15 @@ const JournalPage: React.FC = () => {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
                 log_date: logDate,
                 journal_entry: journalEntry || null,
+                journal_morning: journalDocument.morning || null,
+                journal_evening: journalDocument.evening || null,
+                journal_sentiment: journalDocument.sentiment,
+                journal_links: journalDocument.links,
                 // Writing an entry ticks the "Journaled" habit for this day, so
                 // the habit charts and the daily score agree with the fact that
                 // something was written. An empty entry carries the stored tick
                 // forward rather than clearing it -- see journalHabitFor.
-                journal: journalHabitFor(journalEntry, existingLog?.journal),
+                journal: journalHabitFor(journalText, existingLog?.journal),
                 daily_score: isEditing && existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 
@@ -145,7 +173,7 @@ const JournalPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, journalEntry, isEditing, existingLog]);
+    }, [settings, logDate, journalDocument, isEditing, existingLog]);
 
     useEffect(() => {
         if (saveError) {
@@ -171,7 +199,7 @@ const JournalPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [journalEntry, performSave, settings]);
+    }, [journalDocument, performSave, settings]);
 
     // Settings come from a raw await, invisible to the app-level boot gate, so
     // without this the splash lifts over the spinner below. `settingsLoaded`
@@ -195,8 +223,8 @@ const JournalPage: React.FC = () => {
         );
     }
 
-    const journalScore = journalEntry && journalEntry.trim().length > 0 ? 100 : 0;
-    const wordCount = journalEntry.trim() ? journalEntry.trim().split(/\s+/).length : 0;
+    const journalEntry = journalDocumentText(journalDocument);
+    const wordCount = journalWordCount(journalDocument);
     const charCount = journalEntry.length;
     const todayFormatted = new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -207,23 +235,6 @@ const JournalPage: React.FC = () => {
                 <div className="dashboard-section journal-section">
                     <div className="journal-card">
                         {/* Stats Bar */}
-                        <div className="journal-stats">
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Journal Score</span>
-                                <span className="journal-stat-value" style={{ color: journalScore >= 80 ? 'var(--color-primary)' : journalScore > 0 ? '#ffa500' : 'var(--color-danger)' }}>
-                                    {journalScore}/100
-                                </span>
-                            </div>
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Words</span>
-                                <span className="journal-stat-value">{wordCount}</span>
-                            </div>
-                            <div className="journal-stat-item">
-                                <span className="journal-stat-label">Characters</span>
-                                <span className="journal-stat-value">{charCount}</span>
-                            </div>
-                        </div>
-
                         {/* Top Bar */}
                         <div className="journal-top-bar">
                             <div className="flex gap-2 flex-wrap">
@@ -259,11 +270,15 @@ const JournalPage: React.FC = () => {
                                     <div className="flex items-start gap-2 flex-1">
                                         <Lightbulb className="journal-tip-icon" />
                                         <div>
-                                            <div className="journal-tip-title">Writing Tip</div>
+                                            <div className="journal-tip-title">A prompt for your journal graph</div>
                                             <div className="journal-tip-text">{randomTip}</div>
+                                            <div className="journal-tip-hint">
+                                                Follow the thought, then add a topic anchor below the two nodes.
+                                            </div>
                                         </div>
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={() => setShowTips(false)}
                                         className="journal-tip-close"
                                         aria-label="Dismiss tip"
@@ -271,7 +286,7 @@ const JournalPage: React.FC = () => {
                                         <X />
                                     </button>
                                 </div>
-                                <button onClick={refreshTip} className="journal-tip-refresh">
+                                <button type="button" onClick={refreshTip} className="journal-tip-refresh">
                                     <RotateCw className="mr-1" />Another tip
                                 </button>
                             </div>
@@ -283,18 +298,14 @@ const JournalPage: React.FC = () => {
                                 <PenTool />
                                 Journal Entry
                             </div>
-                            <textarea
-                                value={journalEntry}
-                                onChange={(e) => setJournalEntry(e.target.value)}
-                                className="journal-editor"
-                                placeholder="Write your thoughts, reflections, or anything notable about today..."
-                            />
+                            <JournalEditor value={journalDocument} onChange={setJournalDocument} />
                             <div className="journal-editor-footer">
                                 <div className="journal-editor-count">
                                     {wordCount} words · {charCount} characters
                                 </div>
                                 {!showTips && (
                                     <button
+                                        type="button"
                                         onClick={() => { setShowTips(true); refreshTip(); }}
                                         className="journal-show-tips"
                                     >

@@ -24,6 +24,7 @@ export const calculateSleepDuration = (wakeTime: string, bedtime: string): numbe
 
     const [wakeH, wakeM] = wakeTime.split(':').map(Number);
     const [bedH, bedM] = bedtime.split(':').map(Number);
+    if (![wakeH, wakeM, bedH, bedM].every(Number.isFinite)) return null;
 
     let wakeMinutes = wakeH * 60 + wakeM;
     const bedMinutes = bedH * 60 + bedM;

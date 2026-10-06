@@ -1,3 +1,5 @@
+import { journalDocumentText, parseJournalDocument } from './journalContent';
+
 /**
  * The one rule connecting a journal entry to the "Journaled" habit tick.
  *
@@ -19,7 +21,7 @@
  * costs.
  */
 export const hasJournalContent = (entry?: string | null): boolean =>
-    !!entry && entry.trim().length > 0;
+    !!entry && journalDocumentText(parseJournalDocument(entry)).length > 0;
 
 /**
  * The tick to persist for a journal entry being saved.

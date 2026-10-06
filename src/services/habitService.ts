@@ -238,9 +238,9 @@ export const getAllHabitLogs = async (): Promise<DailyHabitLog[]> => {
 };
 
 // Get completed habits for a date
-export const getCompletedHabitsForDate = async (logDate: string): Promise<Set<string>> => {
+export const getCompletedHabitsForDate = async (logDate: string): Promise<string[]> => {
     const userId = await getCurrentUserId();
-    if (!userId) return new Set();
+    if (!userId) return [];
 
     const { data, error } = await supabase
         .from('daily_habit_logs')
@@ -251,8 +251,10 @@ export const getCompletedHabitsForDate = async (logDate: string): Promise<Set<st
 
     if (error) {
         console.error('Error fetching completed habits:', error.message);
-        return new Set();
+        return [];
     }
 
-    return new Set(data.map(item => item.habit_id));
+    // Keep query data JSON-serializable. React Query persistence turns a Set
+    // into a plain object on restore, which makes `.has()` crash in the page.
+    return data.map(item => item.habit_id);
 };

@@ -23,6 +23,10 @@ export interface DailyLog {
     daily_score?: number | null;
     mood?: number | null;
     journal_entry?: string | null;
+    journal_morning?: string | null;
+    journal_evening?: string | null;
+    journal_sentiment?: 'good' | 'bad' | 'mixed' | null;
+    journal_links?: string[] | null;
     created_at?: string;
     updated_at?: string;
     goal_snapshot?: Record<string, unknown> | null;
@@ -126,6 +130,10 @@ export const createDailyLog = async (log: DailyLog) => {
             daily_score: log.daily_score,
             mood: log.mood,
             journal_entry: log.journal_entry,
+            journal_morning: log.journal_morning,
+            journal_evening: log.journal_evening,
+            journal_sentiment: log.journal_sentiment,
+            journal_links: log.journal_links,
             goal_snapshot: log.goal_snapshot,
             sleep_quality: log.sleep_quality,
             // Built-in habits
