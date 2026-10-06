@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 // Book types
 export interface Book {
@@ -23,6 +23,44 @@ export interface PaginatedResult<T> {
 }
 
 const PAGE_SIZE = 100;
+
+/** Lightweight dashboard data; the full Books page still loads all records for
+ * search, export, duplicate detection, and progress management. */
+export const getReadingBooks = async (): Promise<Pick<Book, 'id' | 'title' | 'current_page' | 'status'>[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('books')
+        .select('id,title,current_page,status')
+        .eq('user_id', user.id)
+        .eq('status', 'reading')
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching reading books:', error.message);
+        return [];
+    }
+    return data ?? [];
+};
+
+export const getReadingBooksFull = async (): Promise<Book[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+        .from('books')
+        .select('id,user_id,title,total_pages,current_page,progress,status,notes,started_at,completed_at,created_at,updated_at')
+        .eq('user_id', user.id)
+        .eq('status', 'reading')
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching reading books:', error.message);
+        return [];
+    }
+    return (data ?? []) as Book[];
+};
 
 // Fetch books with pagination
 export const getUserBooksPaginated = async (page: number = 0, pageSize: number = PAGE_SIZE): Promise<PaginatedResult<Book>> => {
@@ -62,52 +100,41 @@ export const getUserBooksPaginated = async (page: number = 0, pageSize: number =
 
 // Fetch all books for current user (handles > 1000 books by pagination)
 export const getUserBooks = async (): Promise<Book[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     // First, get the total count to verify against
     const { count } = await supabase
         .from('books')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
     
     const totalInDb = count || 0;
     console.log(`📚 Total books in database for user: ${totalInDb}`);
     console.log('🔍 getUserBooks() called from:', new Error().stack?.split('\n')[2]?.trim() || 'unknown');
 
-    const allBooks: Book[] = [];
-    const pageSize = 500; // Use 500 to stay well under PostgREST's 1000 row limit per request
-    let page = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-
-        const { data, error } = await supabase
-            .from('books')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .order('id', { ascending: true })
-            .range(from, to);
-
-        if (error) {
-            console.error('Error fetching books:', error.message);
-            break;
-        }
-
-        if (data && data.length > 0) {
-            console.log(`Page ${page}: fetched ${data.length} books (range ${from}-${to})`);
-            allBooks.push(...(data as Book[]));
-            // If we got less than pageSize, we've reached the end
-            hasMore = data.length === pageSize;
-            page++;
-        } else {
-            console.log(`Page ${page}: no data returned, stopping`);
-            hasMore = false;
-        }
-    }
+    const pageSize = 500; // Stay below PostgREST's 1000-row limit.
+    const pageCount = Math.ceil(totalInDb / pageSize);
+    const bookFields = 'id,user_id,title,total_pages,current_page,progress,status,notes,started_at,completed_at,created_at,updated_at';
+    const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, page) =>
+            supabase
+                .from('books')
+                .select(bookFields)
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: true })
+                .range(page * pageSize, page * pageSize + pageSize - 1)
+                .then(({ data, error }) => {
+                    if (error) {
+                        console.error(`Error fetching books page ${page}:`, error.message);
+                        return [] as Book[];
+                    }
+                    return (data ?? []) as Book[];
+                }),
+        ),
+    );
+    const allBooks = pages.flat();
 
     console.log(`Total books fetched: ${allBooks.length}`);
     console.log(`✅ Returning all ${allBooks.length} books (no deduplication)`);

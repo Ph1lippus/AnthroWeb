@@ -1354,4 +1354,4 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     );
 };
 
-export default MetricsCharts;
+export default React.memo(MetricsCharts);

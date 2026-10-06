@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { startAuthSession } from './services/authSession'
+import { initializeQueryPersistence } from './services/queryPersistence'
 
 if (Capacitor.isNativePlatform()) {
     StatusBar.setOverlaysWebView({ overlay: true });
@@ -26,17 +27,32 @@ startAuthSession();
 const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
-            staleTime: 30_000,
+            staleTime: 120_000,
+            gcTime: 10 * 60_000,
             refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
             retry: 1,
         },
     },
 });
 
-createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-        <QueryClientProvider client={queryClient}>
-            <App />
-        </QueryClientProvider>
-    </StrictMode>,
-)
+const bootstrap = async (): Promise<void> => {
+    // Wait for the current auth session before hydrating so a previous user's
+    // persisted cache can never be rendered under a different account.
+    try {
+        await initializeQueryPersistence(queryClient)
+    } catch (error) {
+        // A storage failure must not prevent the app from loading with a fresh cache.
+        console.warn('Query cache persistence is unavailable', error)
+    }
+
+    createRoot(document.getElementById('root')!).render(
+        <StrictMode>
+            <QueryClientProvider client={queryClient}>
+                <App />
+            </QueryClientProvider>
+        </StrictMode>,
+    )
+}
+
+void bootstrap()

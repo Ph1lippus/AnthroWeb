@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import {
     getUserAbstinenceGoals,
@@ -15,11 +16,22 @@ import type { AbstinenceGoal, AbstinenceHistory } from '../services/abstinenceSe
 import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flame, Check } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import { queryKeys } from '../utils/queryKeys';
 
 const AbstinencePage: React.FC = () => {
-    const [goals, setGoals] = useState<AbstinenceGoal[]>([]);
-    const [history, setHistory] = useState<AbstinenceHistory[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [localGoals, setLocalGoals] = useState<AbstinenceGoal[]>();
+    const [localHistory, setLocalHistory] = useState<AbstinenceHistory[]>();
+    const goalsQuery = useQuery({
+        queryKey: queryKeys.abstinenceGoals,
+        queryFn: getUserAbstinenceGoals,
+    });
+    const historyQuery = useQuery({
+        queryKey: queryKeys.abstinenceHistory,
+        queryFn: getUserAbstinenceHistory,
+    });
+    const loading = goalsQuery.isLoading || historyQuery.isLoading;
+    const goals = localGoals ?? goalsQuery.data ?? [];
+    const history = localHistory ?? historyQuery.data ?? [];
     const [showAddForm, setShowAddForm] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [submittedSearch, setSubmittedSearch] = useState('');
@@ -67,29 +79,7 @@ const AbstinencePage: React.FC = () => {
         toastTimerRef.current = setTimeout(() => setToast(null), 2500);
     };
 
-    // Fetch all data
-    useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                const [allGoals, allHistory] = await Promise.all([
-                    getUserAbstinenceGoals(),
-                    getUserAbstinenceHistory(),
-                ]);
-                setGoals(allGoals);
-                setHistory(allHistory);
-            } finally {
-                // In a `finally` because this flag is the page's spinner and the
-                // boot splash's hold. Either half of the `Promise.all`
-                // rejecting must still release it.
-                setLoading(false);
-            }
-        };
-        loadData();
-    }, []);
 
-    // Goals and history load with a raw `Promise.all` the app-level boot gate
-    // cannot see, so without this the splash lifts on top of the spinner below.
     useBootHold(loading);
 
     const resetForm = () => {
@@ -118,8 +108,8 @@ const AbstinencePage: React.FC = () => {
                 getUserAbstinenceGoals(),
                 getUserAbstinenceHistory(),
             ]);
-            setGoals(refreshedGoals);
-            setHistory(refreshedHistory);
+            setLocalGoals(refreshedGoals);
+            setLocalHistory(refreshedHistory);
             resetForm();
         } catch {
             showToast('error', 'Failed to save abstinence goal');
@@ -157,8 +147,8 @@ const AbstinencePage: React.FC = () => {
                 getUserAbstinenceGoals(),
                 getUserAbstinenceHistory(),
             ]);
-            setGoals(refreshedGoals);
-            setHistory(refreshedHistory);
+            setLocalGoals(refreshedGoals);
+            setLocalHistory(refreshedHistory);
             closeEditModal();
             showToast('success', 'Abstinence goal updated successfully');
         } catch {
@@ -182,8 +172,8 @@ const AbstinencePage: React.FC = () => {
                 getUserAbstinenceGoals(),
                 getUserAbstinenceHistory(),
             ]);
-            setGoals(refreshedGoals);
-            setHistory(refreshedHistory);
+            setLocalGoals(refreshedGoals);
+            setLocalHistory(refreshedHistory);
             setDeleteTarget(null);
             showToast('error', `Deleted "${deletedName}"`);
         } catch {
@@ -201,8 +191,8 @@ const AbstinencePage: React.FC = () => {
                 getUserAbstinenceGoals(),
                 getUserAbstinenceHistory(),
             ]);
-            setGoals(refreshedGoals);
-            setHistory(refreshedHistory);
+            setLocalGoals(refreshedGoals);
+            setLocalHistory(refreshedHistory);
             setEndTarget(null);
             showToast('success', `Ended "${endedName}" — moved to history`);
         } catch {
@@ -236,8 +226,8 @@ const AbstinencePage: React.FC = () => {
                     getUserAbstinenceGoals(),
                     getUserAbstinenceHistory(),
                 ]);
-                setGoals(refreshedGoals);
-                setHistory(refreshedHistory);
+                setLocalGoals(refreshedGoals);
+                setLocalHistory(refreshedHistory);
                 showToast('success', 'Abstinence goals imported successfully');
             } catch {
                 setImportError('Failed to import abstinence goals. Please check your CSV format.');
@@ -290,7 +280,7 @@ const AbstinencePage: React.FC = () => {
         try {
             await updateAbstinenceGoal(viewGoal.id!, { notes: viewNotes });
             setViewGoal(prev => prev ? { ...prev, notes: viewNotes } : prev);
-            setGoals(prev => prev.map(g => g.id === viewGoal.id ? { ...g, notes: viewNotes } : g));
+            setLocalGoals(prev => (prev ?? goals).map(g => g.id === viewGoal.id ? { ...g, notes: viewNotes } : g));
             setNotesSaved(true);
             setTimeout(() => setNotesSaved(false), 3000);
         } catch (err) {

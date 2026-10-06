@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
 import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import { queryKeys } from '../utils/queryKeys';
 
 interface DuplicateGroup {
     title: string;
@@ -52,8 +54,13 @@ const groupBooksByPrefix = (books: Book[]): { grouped: GroupedBooks[]; ungrouped
 };
 
 const BooksPage: React.FC = () => {
-    const [books, setBooks] = useState<Book[]>([]);
-    const [loading, setLoading] = useState(true);
+    const booksQuery = useQuery({
+        queryKey: queryKeys.books,
+        queryFn: getUserBooks,
+    });
+    const [localBooks, setLocalBooks] = useState<Book[]>();
+    const books = useMemo(() => localBooks ?? booksQuery.data ?? [], [localBooks, booksQuery.data]);
+    const loading = booksQuery.isLoading;
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -109,40 +116,12 @@ const BooksPage: React.FC = () => {
         toastTimerRef.current = setTimeout(() => setToast(null), 2500);
     };
 
-    // Ref to prevent double-fetching in React 18 StrictMode
-    const booksLoadedRef = useRef(false);
-
     const handlePickRandom = () => {
         if (notStartedBooks.length === 0) return;
         const randomIndex = Math.floor(Math.random() * notStartedBooks.length);
         setRandomBook(notStartedBooks[randomIndex]);
         setShowRandomModal(true);
     };
-    // Fetch all books at once
-    useEffect(() => {
-        const loadBooks = async () => {
-            // Prevent double-fetching in React 18 StrictMode
-            if (booksLoadedRef.current) {
-                console.log('⚠️  Books already loaded, skipping duplicate fetch');
-                return;
-            }
-            booksLoadedRef.current = true;
-            
-            setLoading(true);
-            try {
-                const allBooks = await getUserBooks();
-                console.log(`✅ Initial load: Setting ${allBooks.length} books in state`);
-                setBooks(allBooks);
-            } finally {
-                // Cleared here rather than after the fetch so a rejected load
-                // still releases it: this flag is the page's spinner and the
-                // boot splash's hold, and a stuck one freezes the splash.
-                setLoading(false);
-            }
-        };
-        loadBooks();
-    }, []);
-
     // Cleanup timers on unmount
     useEffect(() => {
         return () => {
@@ -192,7 +171,7 @@ const BooksPage: React.FC = () => {
 
             const refreshedBooks = await getUserBooks();
             console.log(`✅ After submit: Setting ${refreshedBooks.length} books in state`);
-            setBooks(refreshedBooks);
+            setLocalBooks(refreshedBooks);
             resetForm();
         } catch {
             showToast('error', 'Failed to save book');
@@ -228,7 +207,7 @@ const BooksPage: React.FC = () => {
 
             const refreshedBooks = await getUserBooks();
             console.log(`✅ After edit: Setting ${refreshedBooks.length} books in state`);
-            setBooks(refreshedBooks);
+            setLocalBooks(refreshedBooks);
             closeEditModal();
             showToast('success', 'Book updated successfully');
         } catch {
@@ -244,7 +223,7 @@ const BooksPage: React.FC = () => {
         await deleteBook(deleteTarget.id!);
         const refreshedBooks = await getUserBooks();
         console.log(`✅ After delete: Setting ${refreshedBooks.length} books in state`);
-        setBooks(refreshedBooks);
+        setLocalBooks(refreshedBooks);
         setDeleteTarget(null);
         showToast('error', `Deleted "${deletedTitle}"`);
     };
@@ -253,7 +232,7 @@ const BooksPage: React.FC = () => {
         await updateBookProgress(book.id!, newPage, book.total_pages);
         const refreshedBooks = await getUserBooks();
         console.log(`✅ After page update: Setting ${refreshedBooks.length} books in state`);
-        setBooks(refreshedBooks);
+        setLocalBooks(refreshedBooks);
     };
 
     const handleExport = async () => {
@@ -281,7 +260,7 @@ const BooksPage: React.FC = () => {
                 setShowImportModal(false);
                 const refreshedBooks = await getUserBooks();
                 console.log(`✅ After import: Setting ${refreshedBooks.length} books in state`);
-                setBooks(refreshedBooks);
+                setLocalBooks(refreshedBooks);
             } catch {
                 setImportError('Failed to import books. Please check your CSV format.');
             }
@@ -413,7 +392,7 @@ const BooksPage: React.FC = () => {
             setSelectedDeleteIds(new Set());
             const refreshedBooks = await getUserBooks();
             console.log(`✅ After delete duplicates: Setting ${refreshedBooks.length} books in state`);
-            setBooks(refreshedBooks);
+            setLocalBooks(refreshedBooks);
         } catch (err) {
             console.error('Failed to delete duplicates:', err);
         } finally {

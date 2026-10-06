@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { LogOut, Menu, Settings } from 'lucide-react';
 import { navItems, isNavItemActive } from '../utils/navItems';
@@ -7,6 +8,7 @@ import { useAuthSession } from '../hooks/useAuthSession';
 import { supabase } from '../services/supabaseClient';
 import AcademicAlertBanner from './AcademicAlertBanner';
 import ConfirmModal from './ConfirmModal';
+import { preloadRoute } from '../utils/routePreloaders';
 
 interface TooltipState {
     label: string;
@@ -87,6 +89,7 @@ const SidebarNav: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user } = useAuthSession();
+    const queryClient = useQueryClient();
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const showTimer = useRef<number | null>(null);
 
@@ -184,9 +187,15 @@ const SidebarNav: React.FC = () => {
                     {navItems.map(item => {
                         const Icon = item.icon;
                         const handlers = {
-                            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => open(item.label, e.currentTarget),
+                            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+                                preloadRoute(item.to, queryClient);
+                                open(item.label, e.currentTarget);
+                            },
                             onMouseLeave: close,
-                            onFocus: (e: React.FocusEvent<HTMLElement>) => open(item.label, e.currentTarget),
+                            onFocus: (e: React.FocusEvent<HTMLElement>) => {
+                                preloadRoute(item.to, queryClient);
+                                open(item.label, e.currentTarget);
+                            },
                             onBlur: close,
                         };
 

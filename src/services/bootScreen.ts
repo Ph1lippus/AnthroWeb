@@ -2,8 +2,10 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 const BOOT_ID = 'boot';
-const MIN_BOOT_MS = 900;
-const FONT_WAIT_MAX_MS = 5000;
+// The boot screen must cover a blank app, not enforce a minimum display time.
+// Waiting here made cached pages feel slow even after their data was available.
+const MIN_BOOT_MS = 0;
+const FONT_WAIT_MAX_MS = 500;
 
 /**
  * How many consecutive frames with nothing in flight are required before the

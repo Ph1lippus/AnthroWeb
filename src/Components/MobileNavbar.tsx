@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LogOut, Menu, Settings } from 'lucide-react';
 import { navItems, isNavItemActive } from '../utils/navItems';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { useAcademicAlerts } from '../hooks/useAcademicAlerts';
 import { supabase } from '../services/supabaseClient';
 import ConfirmModal from './ConfirmModal';
+import { preloadRoute } from '../utils/routePreloaders';
 
 // The five most-used sections get a dedicated icon; everything else lives in
 // the "More" sheet so no page becomes unreachable on a phone.
@@ -15,6 +17,7 @@ const MobileNavbar: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user } = useAuthSession();
+    const queryClient = useQueryClient();
     // The sheet records which route it was opened on and is only rendered while
     // that is still the current route, so a back/forward navigation closes it
     // without an effect.
@@ -69,7 +72,7 @@ const MobileNavbar: React.FC = () => {
         <>
             <nav className="mobile-navbar" aria-label="Mobile navigation">
                 {primaryItems.map(({ to, label, icon: Icon }) => (
-                    <NavLink key={to} to={to} className={`mobile-navbar-link${isNavItemActive(location.pathname, to) ? ' active' : ''}`} aria-label={label}>
+                    <NavLink key={to} to={to} onMouseEnter={() => preloadRoute(to, queryClient)} onFocus={() => preloadRoute(to, queryClient)} className={`mobile-navbar-link${isNavItemActive(location.pathname, to) ? ' active' : ''}`} aria-label={label}>
                         <Icon className="mobile-navbar-icon" size={26} strokeWidth={2} />
                     </NavLink>
                 ))}
@@ -112,6 +115,8 @@ const MobileNavbar: React.FC = () => {
                                         key={to}
                                         className="mobile-more-link"
                                         type="button"
+                                        onMouseEnter={() => preloadRoute(to, queryClient)}
+                                        onFocus={() => preloadRoute(to, queryClient)}
                                         onClick={() => goTo(to)}
                                     >
                                         <Icon className="mobile-more-icon" aria-hidden="true" />

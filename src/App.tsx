@@ -1,36 +1,46 @@
-import { useEffect } from 'react';
+import React, { lazy, Suspense, useDeferredValue, useEffect } from 'react';
 import SidebarNav from './Components/SidebarNav'
 import TipLayer from './Components/TooltipLayer'
 import MobileNavbar from './Components/MobileNavbar'
 import UpdateModal from './Components/UpdateModal'
 import HomePage from './Pages/HomePage'
-import DashboardPage from './Pages/DashboardPage'
-import DailyLogPage from './Pages/DailyLogPage'
-import DailyLogHistoryPage from './Pages/DailyLogHistoryPage'
-import JournalPage from './Pages/JournalPage'
-import JournalEditPage from './Pages/JournalEditPage'
-import DailyLogGoalSetupPage from './Pages/DailyLogGoalSetupPage'
-import MeasurementsPage from './Pages/MeasurementsPage'
-import BooksPage from './Pages/BooksPage'
-import WorkoutsPage from './Pages/WorkoutsPage'
-import ProjectsPage from './Pages/ProjectsPage'
-import AbstinencePage from './Pages/AbstinencePage'
-import AcademicPage from './Pages/AcademicPage'
-import StudyTimerPage from './Pages/StudyTimerPage'
-import NotesPage from './Pages/NotesPage'
-import SettingsPage from './Pages/SettingsPage'
-import AppPage from './Pages/AppPage'
-import AccountPage from './Pages/AccountPage'
-import ProfilePage from './Pages/ProfilePage'
-import EditProfilePage from './Pages/EditProfilePage'
-import CreditsPage from './Pages/CreditsPage'
-import PrivacyPolicyPage from './Pages/PrivacyPolicyPage'
-import TermsOfServicePage from './Pages/TermsOfServicePage'
 import Footer from './Components/Footer'
 import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom'
+import { LoadingBarProvider } from './hooks/useLoadingBar'
+import { ConfirmModalProvider } from './hooks/useConfirmModal'
 import { useBootFetchHandoff, useBootHold, dismissBootScreenImmediate } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
+import { useQueryClient } from '@tanstack/react-query'
+import { pageLoaders, preloadRoute } from './utils/routePreloaders'
+import LoadingBar from './Components/LoadingBar'
+
+const DashboardPage = lazy(pageLoaders['/Dashboard']);
+const DailyLogPage = lazy(pageLoaders['/Daily-Log']);
+const DailyLogHistoryPage = lazy(pageLoaders['/Daily-Log/History']);
+const JournalPage = lazy(pageLoaders['/Journal']);
+const JournalEditPage = lazy(pageLoaders['/Journal/Edit']);
+const DailyLogGoalSetupPage = lazy(pageLoaders['/Daily-Log/Setup']);
+const MeasurementsPage = lazy(pageLoaders['/Measurements']);
+const BooksPage = lazy(pageLoaders['/Books']);
+const WorkoutsPage = lazy(pageLoaders['/Workouts']);
+const ProjectsPage = lazy(pageLoaders['/Projects']);
+const AbstinencePage = lazy(pageLoaders['/Abstinence']);
+const AcademicPage = lazy(pageLoaders['/Academic']);
+const StudyTimerPage = lazy(pageLoaders['/Study-Timer']);
+const NotesPage = lazy(pageLoaders['/Notes']);
+const SettingsPage = lazy(pageLoaders['/Settings']);
+const AppPage = lazy(pageLoaders['/Settings/App']);
+const AccountPage = lazy(pageLoaders['/Settings/Account']);
+const ProfilePage = lazy(pageLoaders['/Profile']);
+const EditProfilePage = lazy(pageLoaders['/Profile/Edit']);
+const CreditsPage = lazy(pageLoaders['/credits']);
+const PrivacyPolicyPage = lazy(pageLoaders['/privacy-policy']);
+const TermsOfServicePage = lazy(pageLoaders['/terms-of-service']);
+
+const RouteLoadingFallback: React.FC = () => (
+    <LoadingBar show blocking label="Loading page" />
+);
 
 /**
  * Sends a retired workout sub-page to the panel on /Workouts that replaced it.
@@ -157,6 +167,34 @@ const BootHandoff: React.FC = () => {
  */
 const AuthenticatedApp: React.FC = () => {
     const { resolved } = useAuthSession();
+    const queryClient = useQueryClient();
+    const location = useLocation();
+    // Keep the currently rendered route visible while a newly selected lazy
+    // route is being fetched. Rendering the new location immediately makes the
+    // Suspense fallback replace a perfectly usable page with a blank loader.
+    const deferredLocation = useDeferredValue(location);
+
+    useEffect(() => {
+        if (!resolved) return;
+        const likelyNextRoutes: Record<string, string[]> = {
+            '/Daily-Log': ['/Dashboard', '/Measurements', '/Workouts'],
+            '/Dashboard': ['/Daily-Log', '/Measurements', '/Notes'],
+            '/Measurements': ['/Dashboard', '/Daily-Log', '/Workouts'],
+            '/Workouts': ['/Daily-Log', '/Dashboard', '/Measurements'],
+            '/Notes': ['/Daily-Log', '/Dashboard', '/Profile'],
+        };
+        const routes = likelyNextRoutes[location.pathname] ?? ['/Daily-Log', '/Dashboard'];
+        const requestIdle = window.requestIdleCallback;
+        if (typeof requestIdle === 'function') {
+            const idle = requestIdle(
+                () => routes.forEach(path => preloadRoute(path, queryClient)),
+                { timeout: 1500 },
+            );
+            return () => window.cancelIdleCallback(idle);
+        }
+        const timer = window.setTimeout(() => routes.forEach(path => preloadRoute(path, queryClient)), 250);
+        return () => window.clearTimeout(timer);
+    }, [location.pathname, queryClient, resolved]);
 
     if (!resolved) return null;
 
@@ -171,7 +209,8 @@ const AuthenticatedApp: React.FC = () => {
                 up as the page changes underneath it. */}
             <TipLayer />
             <UpdateModal />
-            <Routes>
+            <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes location={deferredLocation}>
                 <Route path="/" element={<DefaultRoute />} />
                 {/* Auth lives in the home card now: login and reset swap inside
                     one container, so these retired pages redirect home instead
@@ -238,6 +277,7 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Profile/Edit" element={<EditProfilePage />} />
                 <Route path="*" element={<DefaultRoute />} />
             </Routes>
+            </Suspense>
             <AuthenticatedFooter />
             <BootHandoff />
         </>
@@ -248,7 +288,11 @@ function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
-      <AuthenticatedApp />
+      <LoadingBarProvider>
+        <ConfirmModalProvider>
+          <AuthenticatedApp />
+        </ConfirmModalProvider>
+      </LoadingBarProvider>
     </BrowserRouter>
   )
 }

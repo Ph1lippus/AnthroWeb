@@ -47,7 +47,7 @@ export const getUserDailyLogs = async (): Promise<DailyLog[]> => {
 
     const { data, error } = await supabase
         .from('daily_logs')
-        .select('*')
+        .select('log_date,wake_time,bedtime,sleep_duration,morning_systolic,morning_diastolic,morning_bpm,evening_systolic,evening_diastolic,evening_bpm,body_temperature,calories,protein,carbs,fat,water,daily_score,mood,sleep_quality,morning_routine,evening_routine,fruit_serving,studied,journal,stretching,reading,project_work_done,no_sleep,gym,goal_snapshot')
         .eq('user_id', userId)
         .order('log_date', { ascending: false });
 

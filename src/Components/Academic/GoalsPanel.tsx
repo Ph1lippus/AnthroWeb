@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, SquarePen, Trash2, Target } from 'lucide-react';
-import ConfirmModal from '../ConfirmModal';
 import LoadingSpinner from '../LoadingSpinner';
+import { useConfirmModal } from '../../hooks/useConfirmModal';
 import { useAcademicGoals, useSaveGoal, useDeleteGoal } from '../../hooks/useAcademic';
 import type { AcademicCourse, CoursePrediction, GpaScale } from '../../utils/academicGpa';
 import { formatPoints, percentToScalePoints, pointsToPercent } from '../../utils/academicGpa';
@@ -31,7 +31,8 @@ const GoalsPanel: React.FC<GoalsPanelProps> = ({ courses, semesters, predictions
 
     const [editing, setEditing] = useState<AcademicGoal | null>(null);
     const [showForm, setShowForm] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<AcademicGoal | null>(null);
+
+    const { showConfirm, closeConfirm } = useConfirmModal();
 
     const [courseName, setCourseName] = useState('');
     const [semesterId, setSemesterId] = useState('');
@@ -267,7 +268,17 @@ const GoalsPanel: React.FC<GoalsPanelProps> = ({ courses, semesters, predictions
                                             <button
                                                 type="button"
                                                 className="book-action-btn book-action-btn--danger"
-                                                onClick={() => setDeleteTarget(goal)}
+                                                onClick={() => {
+    showConfirm({
+        title: `Delete goal for ${goal.course_name ?? ''}?`,
+        confirmLabel: 'Delete',
+        danger: true,
+        onConfirm: () => {
+            if (goal.id) deleteGoal.mutate(goal.id);
+        },
+        onCancel: closeConfirm,
+    });
+}}
                                                 data-tip="Delete goal"
                                             >
                                                 <Trash2 />
@@ -296,18 +307,6 @@ const GoalsPanel: React.FC<GoalsPanelProps> = ({ courses, semesters, predictions
 
             {showForm && renderForm()}
 
-            <ConfirmModal
-                open={!!deleteTarget}
-                title={`Delete goal for ${deleteTarget?.course_name ?? ''}?`}
-                confirmLabel="Delete"
-                danger
-                busy={deleteGoal.isPending}
-                onConfirm={() => {
-                    if (deleteTarget?.id) deleteGoal.mutate(deleteTarget.id);
-                    setDeleteTarget(null);
-                }}
-                onCancel={() => setDeleteTarget(null)}
-            />
         </>
     );
 };

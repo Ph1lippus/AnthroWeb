@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, getCurrentUserId } from './supabaseClient';
 
 // Abstinence Goal types
 export interface AbstinenceGoal {
@@ -27,8 +27,8 @@ export interface AbstinenceHistory {
 
 // Fetch all abstinence goals for current user
 export const getUserAbstinenceGoals = async (): Promise<AbstinenceGoal[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const allGoals: AbstinenceGoal[] = [];
     const pageSize = 1000;
@@ -42,7 +42,7 @@ export const getUserAbstinenceGoals = async (): Promise<AbstinenceGoal[]> => {
         const { data, error } = await supabase
             .from('abstinence_goals')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .range(from, to);
 
@@ -65,8 +65,8 @@ export const getUserAbstinenceGoals = async (): Promise<AbstinenceGoal[]> => {
 
 // Fetch all abstinence history for current user
 export const getUserAbstinenceHistory = async (): Promise<AbstinenceHistory[]> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const allHistory: AbstinenceHistory[] = [];
     const pageSize = 1000;
@@ -80,7 +80,7 @@ export const getUserAbstinenceHistory = async (): Promise<AbstinenceHistory[]> =
         const { data, error } = await supabase
             .from('abstinence_history')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .range(from, to);
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import LoadingBar from './LoadingBar';
 
 interface LoadingSpinnerProps {
     /** Accessible label, e.g. "Loading workouts". Defaults to a generic one. */
@@ -12,24 +13,12 @@ interface LoadingSpinnerProps {
 }
 
 /**
- * The app's single loading state.
- *
- * Deliberately just a spinner: the previous markup paired every spinner with a
- * "Loading profile..." / "Loading charts..." paragraph, which meant the same
- * message was duplicated across ~20 files and flashed text that nobody reads
- * for the fraction of a second it was on screen. The label is now only exposed
- * to screen readers through `role="status"`, so it is announced without being
- * painted.
+ * Kept as a compatibility component for pages that still have a local loading
+ * branch. Route loading is owned by LoadingBarProvider, so no page renders a
+ * second spinner or reserves a competing loading layout.
  */
-const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ label = 'Loading', inline = false }) => (
-    <div
-        className={inline ? 'loading-spinner-inline' : 'profile-loading'}
-        role="status"
-        aria-live="polite"
-        aria-label={label}
-    >
-        <div className="profile-loading-spinner" aria-hidden="true"></div>
-    </div>
+const LoadingSpinner: React.FC<LoadingSpinnerProps> = () => (
+    <LoadingBar show blocking label="Loading page" />
 );
 
 export default LoadingSpinner;

@@ -748,6 +748,11 @@ input[type='number']::-webkit-inner-spin-button {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+
+/* The rail itself is the navigation progress indicator. It remains visible
+   without covering the page, while the blocking loader is reserved for routes
+   that have not produced a complete view yet. */
 .sidebar-nav-list {
   display: flex;
   flex-direction: column;
@@ -7786,24 +7791,25 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 }
 
 .dashboard-charts-enter--ready {
-  animation: dashboard-content-in 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 1;
+  transform: none;
+  filter: none;
 }
 
-.dashboard-charts-enter--ready .dashboard-daily-card,
-.dashboard-charts-enter--ready .metrics-chart-card {
-  animation: dashboard-chart-card-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+.dashboard-page-enter {
+  /* Route changes should reveal cached content on the first paint. */
+  animation: none;
 }
 
-.dashboard-charts-enter--ready .metrics-chart-card:nth-child(2) {
-  animation-delay: 70ms;
-}
-
-.dashboard-charts-enter--ready .metrics-chart-card:nth-child(3) {
-  animation-delay: 140ms;
-}
-
-.dashboard-charts-enter--ready .metrics-chart-card:nth-child(4) {
-  animation-delay: 210ms;
+@keyframes dashboard-page-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes dashboard-content-in {
@@ -7852,6 +7858,9 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
     opacity: 1;
     transform: none;
     filter: none;
+  }
+  .dashboard-page-enter {
+    animation: none;
   }
 }
 .daily-log-puzzle {
@@ -9304,6 +9313,8 @@ select.form-control option {
   }
 }
 .metrics-chart-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
   background: #ffffff08;
   border-radius: 20px;
   padding: 1rem 1rem 0.75rem;
@@ -12895,4 +12906,46 @@ button.workout-ex__empty:hover {
   /* The breakdown still opens and closes, it just arrives rather than animates. */
   .daily-score-breakdown,
   .daily-score-breakdown__inner > * { transition: none; }
+}
+/* ===========================================================================
+   APP-WIDE LOADING BAR
+
+   One shared, centered loading bar replaces every per-page spinner. It is
+   rendered once at the app shell level (see `LoadingBarProvider`) and shows
+   whenever any query is fetching, any mutation is pending, or a manual load is
+   in flight. It sits just below the boot splash's `z-index` so it is covered
+   during startup, then floats above page content while pages load.
+
+   The track is 2px rounded with a `linear-gradient` + `scaleX` fill that eases
+   over a short window and holds at 100%, so slow loads stay legible without
+   looping. The bar fades away the moment the last load finishes.
+   ========================================================================== */
+
+.loader-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9998;
+    padding: 0.35rem 1rem 0;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+.loader-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background-color: #050706;
+    background-image: url('/background.svg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+    .loader-screen {
+        left: 3.75rem;
+    }
 }
