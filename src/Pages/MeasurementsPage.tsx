@@ -1,17 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import MeasurementEditor from '../Components/Measurement/MeasurementEditor';
 import MeasurementStatsCards from '../Components/Measurement/MeasurementStatsCards';
+import DerivedMetrics from '../Components/Measurement/DerivedMetrics';
 import { useBodyMeasurements, useLatestMeasurement } from '../hooks/useMeasurements';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { usePREntries, usePRHistory } from '../hooks/useWorkouts';
-import { ageFromDob, measureDateToInput } from '../utils/measurementCalculations';
+import { usePRHistory } from '../hooks/useWorkouts';
+import { ageFromDob, measureDateToInput, computeBodyCalculations } from '../utils/measurementCalculations';
 import { addDays } from '../utils/dates';
 import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock, LineChart, ArrowRight } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { useBootHold } from '../services/bootScreen';
 
 const toDateString = measureDateToInput;
+
+/** The twenty-three fields, as the string-keyed form the inputs hold. */
+type MeasurementValues = Record<string, string>;
 
 const MeasurementsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -20,9 +25,25 @@ const MeasurementsPage: React.FC = () => {
 
     const { data: records = [], isLoading } = useBodyMeasurements();
     const { data: lastMeasurementDate } = useLatestMeasurement();
-    const { settings } = useUserSettings();
-    const { data: prEntries = [] } = usePREntries();
-    const { data: prHistory = [] } = usePRHistory();
+    const { settings, isLoading: settingsLoading } = useUserSettings();
+    const { data: prHistory = [], isLoading: prLoading } = usePRHistory();
+
+    /**
+     * The editor's field values, held here rather than inside it.
+     *
+     * The calculated-metrics block used to live at the bottom of the editor and
+     * recompute as you typed, which meant the only way to watch a number respond
+     * to an input was to scroll past twenty-three fields. Moving that block into
+     * the left rail means it has to see the values as they are being typed, and
+     * a child component cannot hand that back up -- so the state moves to the page
+     * and the editor becomes controlled.
+     *
+     * Remounting on day change is what resets it: the editor is keyed on `date`,
+     * so a new day starts from the stored record without an effect that would
+     * overwrite a keystroke.
+     */
+    const [values, setValues] = useState<MeasurementValues>({});
+    const onValuesChange = useCallback((next: MeasurementValues) => setValues(next), []);
 
     // The strongest lift on record is the reference the derived body ratios use.
     // Read from pr_entries + pr_history rather than the old flat list, so a
@@ -48,8 +69,6 @@ const MeasurementsPage: React.FC = () => {
         relativeBestLift: maxPRWeight > 0 ? maxPRWeight : null,
     }), [settings, maxPRWeight]);
 
-    void prEntries;
-
     const recency = useMemo(() => {
         if (!lastMeasurementDate) return { kind: 'none' as const, days: null };
         const last = new Date(lastMeasurementDate + 'T00:00:00').getTime();
@@ -57,6 +76,36 @@ const MeasurementsPage: React.FC = () => {
         const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         return { kind: 'known' as const, days: Math.floor((todayTs - last) / 86400000) };
     }, [lastMeasurementDate]);
+
+    /**
+     * The rail's numbers come from the live form, not from what is stored.
+     *
+     * `computeBodyCalculations` is a pure function of the typed values, so the rail
+     * can call it on every keystroke without a request and without touching the
+     * database. This is the whole reason the metrics moved out of the editor: a
+     * read-only preview cannot show what the box is about to save, and a save
+     * takes a button press.
+     */
+    const derived = useMemo(() => {
+        const raw: Record<string, number | null> = {};
+        for (const [key, text] of Object.entries(values)) {
+            const trimmed = text?.trim();
+            raw[key] = trimmed ? parseFloat(trimmed) : null;
+        }
+        return computeBodyCalculations(raw, {
+            gender: (context.gender || '') as 'male' | 'female' | 'other' | 'prefer_not_to_say' | '',
+            height_cm: context.height_cm ?? null,
+            age: context.age ?? null,
+            relativeBestLift: context.relativeBestLift ?? null,
+        });
+    }, [values, context]);
+
+    // Every query this page renders from, since all three gate what is on screen.
+    // Without the hold the splash lifts over the spinner below and the handover
+    // plays out as two loading states in a row. `settings` rather than
+    // `settingsLoading`: a user with no settings row legitimately has none, and
+    // waiting on the row rather than the request is what lets that be an answer.
+    useBootHold(isLoading || settingsLoading || prLoading);
 
     return (
         <>
@@ -106,6 +155,12 @@ const MeasurementsPage: React.FC = () => {
                                         </div>
                                     </div>
                                 )}
+
+                                {/* What the twenty-three boxes currently add up to,
+                                    above the stored figures below. Live first, then
+                                    history: a number you can watch move is more use
+                                    than one you have to look up. */}
+                                <DerivedMetrics values={derived} />
 
                                 <MeasurementStatsCards
                                     records={records}
@@ -168,6 +223,8 @@ const MeasurementsPage: React.FC = () => {
                                             initial={initial}
                                             context={context}
                                             fallbackWeight={null}
+                                            values={values}
+                                            onValuesChange={onValuesChange}
                                         />
                                     )}
                                 </div>

@@ -35,6 +35,7 @@ const read = rel => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const code = rel => read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const service = code('src/services/habitService.ts');
+const logService = code('src/services/dailyLogService.ts');
 const hooks = code('src/hooks/useHabitData.ts');
 const page = code('src/Pages/DailyLogPage.tsx');
 const modal = code('src/Components/DailyLog/HabitEditorModal.tsx');
@@ -156,13 +157,59 @@ console.log('\n== the full edit ==');
     // The page autosaves the day's log on a timer keyed on this list; a rename
     // field in it would write the whole log every two seconds while typing. Read
     // the effect's own dependency array rather than the file, or any later mention
-    // of a rename would look like one.
-    const autosaveDeps = /\}, \[([^\]]*customHabitName[^\]]*)\]\)/.exec(page)?.[1] ?? '';
+    // of a rename would look like one. Anchored on the debounce itself, because the
+    // "add a custom habit" fields that used to sit in this list are gone too -- they
+    // were never part of the day's log, and they wrote a column each on every
+    // keystroke of a habit name.
+    const autosaveDeps = /scheduleSave\(600\);[\s\S]*?\n    \}, \[([^\]]*)\]\);/.exec(page)?.[1] ?? '';
     check('the autosave dependency list was found', autosaveDeps.length > 0);
     check('the rename fields are not in it',
         !/\brenameValue\b/.test(autosaveDeps) && !/\brenameId\b/.test(autosaveDeps)
         && !/\beditingHabit\b/.test(autosaveDeps) && !/\bhabitEditError\b/.test(autosaveDeps),
         autosaveDeps.trim());
+    check('nor is the form that creates a custom habit',
+        !/\bcustomHabitName\b/.test(autosaveDeps) && !/\bcustomHabitDesc\b/.test(autosaveDeps),
+        autosaveDeps.trim());
+}
+
+console.log('\n== a habit tick is written where it is ticked ==');
+{
+    // The tick used to reach the database only through an effect that flushed the
+    // whole row. Two things went wrong: it waited out the debounce (so a refresh
+    // inside that window lost it), and the effect could not tell a tick from the
+    // form being filled in from the server -- so it wrote the server's own snapshot
+    // straight back over the tick whenever the restored cache was out of date.
+    check('there is a service call that writes one habit column',
+        /export const setDailyLogHabit/.test(logService));
+    check('it upserts on the (user_id, log_date) unique index, so the day is created if needed',
+        /setDailyLogHabit[\s\S]*?onConflict: 'user_id,log_date'/.test(logService));
+    check('and it sends only the habit, not the whole row',
+        /\{ user_id: userId, log_date: logDate, \[habit\]: completed \}/.test(logService));
+    check('the checkbox calls it directly',
+        /habitCheckbox\(morningRoutine, 'morning_routine', setMorningRoutine,/.test(page)
+        && /habitCheckbox\(projectWorkDone, 'project_work_done', setProjectWorkDone,/.test(page)
+        && /saveBuiltinHabit\(column, e\.target\.checked, setValue\)/.test(page));
+    check('and the whole-row flush on any habit change is gone',
+        !/\}, \[morningRoutine[^\]]*flushSave/.test(page));
+    check('no habit state changes reaches the database only through a debounce',
+        /void setDailyLogHabit\(logDate, column, value\)/.test(page));
+    // Nothing distinguishes "the user ticked this" from "the server told us this",
+    // so a flush cannot be a reliable trigger. The tick has to be the trigger.
+    check('a failed write puts the checkbox back',
+        /setValue\(!value\)/.test(page));
+    check('and the page says whether the write has landed',
+        /habitSaveState === 'saving'/.test(page) && /habitSaveState === 'saved'/.test(page));
+    // A restored query cache is only safe to render if fresh data can still replace
+    // it. With the default staleTime a refresh inside it never asked the server, and
+    // the snapshot it did render became the thing the autosave wrote back.
+    check('the day\'s log refuses to trust a restored snapshot',
+        /queryKeys\.dailyLogByDate[\s\S]{0,220}?staleTime: 0/.test(page));
+    check('and the form waits for the server before it is filled from that snapshot',
+        /if \(dayLogFetching\) return;/.test(page));
+    // Two whole-row writes carrying snapshots taken at different times could reach
+    // Postgres out of order, so the older one won and the newer edit was lost.
+    check('whole-row writes are queued rather than fired together',
+        /saveChainRef\.current\.then\(run, run\)/.test(page));
 }
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} checks` : `\n${fail} FAILED of ${pass + fail}`);

@@ -27,6 +27,7 @@ import { buildBodySeries } from '../../utils/bodySeries';
 import type { ActiveGoals } from '../../utils/dailyScoring';
 import { BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
+import { moodFor } from '../../utils/moodSeries';
 import { addDays } from '../../utils/dates';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
@@ -128,7 +129,7 @@ const intTicks = (from: number, to: number, step = 1): number[] => {
 };
 
 const TICKS = {
-    /** 0-10 rating scales: mood, sleep quality. Every step is shown. */
+    /** 0-10 rating scales: morning/evening mood, sleep quality. Every step shown. */
     rating0to10: intTicks(0, 10),
     percent: [0, 20, 40, 60, 80, 100],
     hours: intTicks(0, 14, 2),
@@ -145,7 +146,18 @@ interface ChartPoint {
     sleepQuality: number | null;
     bedtime: number | null;
     wakeTime: number | null;
-    mood: number | null;
+    /**
+     * The day's two ratings, kept apart on purpose.
+     *
+     * These are separate series rather than one averaged line because the
+     * disagreement between them is the whole reason the column was split in two
+     * (migration 0014). A single mean line would draw a month where most mornings
+     * were good and most evenings were bad as flat and calm, which is the one
+     * reading the data does not support. Two lines, both nullable, `connectNulls`
+     * so a gap in one half of a day does not break the other's trace.
+     */
+    morningMood: number | null;
+    eveningMood: number | null;
     calories: number | null;
     protein: number | null;
     carbs: number | null;
@@ -347,7 +359,7 @@ const clockAxisLabel = (value: number): string => (value >= 24 ? '24:00' : hours
  */
 const BLANK_POINT: ChartPoint = {
     date: '', label: '', score: null, sleepDuration: null, sleepQuality: null,
-    bedtime: null, wakeTime: null, mood: null,
+    bedtime: null, wakeTime: null, morningMood: null, eveningMood: null,
     calories: null, protein: null, carbs: null, fat: null, water: null,
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
@@ -738,7 +750,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     sleepQuality: l.sleep_quality ?? null,
                     bedtime: clockToHours(l.bedtime),
                     wakeTime: clockToHours(l.wake_time),
-                    mood: l.mood ?? null,
+                    morningMood: moodFor(l, 'morning'),
+                    eveningMood: moodFor(l, 'evening'),
                     calories: l.calories ?? null,
                     protein: l.protein ?? null,
                     carbs: l.carbs ?? null,
@@ -883,7 +896,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             carbs: avg('carbs'),
             fat: avg('fat'),
             water: avg('water'),
-            mood: avg('mood'),
+            morningMood: avg('morningMood'),
+            eveningMood: avg('eveningMood'),
             habitPct: avg('habitPct'),
         };
     }, [chartData]);
@@ -1269,7 +1283,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         />
                         <ChartCard
                             title="Mood"
-                            empty={!hasAny('mood')}
+                            empty={!hasAny('morningMood') && !hasAny('eveningMood')}
                             onExpand={openChart}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -1277,8 +1291,15 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY domain={[0, 10]} ticks={TICKS.rating0to10} />
                                     <ChartTip />
-                                    <AvgLine y={averages.mood} stroke={C.purple} />
-                                    <Line type="monotone" dataKey="mood" name="Mood" formatter={(v) => `${num(v)}/10`} stroke={C.purple} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
+                                    {/* No average line here, unlike every other chart on this
+                                        page. An average across both series is a third thing
+                                        that is neither the morning nor the evening, and the
+                                        gap between the two lines is the reading this chart
+                                        exists to make legible -- a mean drawn across it
+                                        would cover up exactly that. */}
+                                    <Line type="monotone" dataKey="morningMood" name="AM Mood" formatter={(v) => `${num(v)}/10`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="eveningMood" name="PM Mood" formatter={(v) => `${num(v)}/10`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />

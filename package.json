@@ -25,7 +25,10 @@
     "verify:popover-dismissal": "node scripts/verify-popover-dismissal.mjs",
     "verify:habit-rename": "node scripts/verify-habit-rename.mjs",
     "verify:daily-log-daynav": "node scripts/verify-daily-log-daynav.mjs",
-    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav",
+    "verify:mood-split": "node scripts/verify-mood-split.mjs",
+    "verify:mood-math": "node scripts/verify-mood-math.mjs",
+    "verify:topic-graph": "node scripts/verify-topic-graph.mjs",
+    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav && npm run verify:mood-split && npm run verify:mood-math && npm run verify:topic-graph",
     "preview": "vite preview"
   },
   "dependencies": {

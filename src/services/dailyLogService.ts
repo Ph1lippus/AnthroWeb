@@ -21,11 +21,20 @@ export interface DailyLog {
     water?: number | null;
     project_work_done?: boolean;
     daily_score?: number | null;
-    mood?: number | null;
+    /**
+     * Subjective 1-10 mood, once per end of the day. Set from the journal page,
+     * which is where the writing for each half of the day already lives.
+     *
+     * Replaced the single `mood` column in 0014. Both are nullable and always
+     * were meant to be: a day with only an evening rating is a real day, and
+     * coercing a missing reading to a midpoint would drag every average toward
+     * calm. Read them through `utils/moodSeries` rather than averaging by hand.
+     */
+    morning_mood?: number | null;
+    evening_mood?: number | null;
     journal_entry?: string | null;
     journal_morning?: string | null;
     journal_evening?: string | null;
-    journal_sentiment?: 'good' | 'bad' | 'mixed' | null;
     journal_links?: string[] | null;
     created_at?: string;
     updated_at?: string;
@@ -45,13 +54,20 @@ export interface DailyLog {
 }
 
 // Fetch all daily logs for current user
+//
+// The journal columns and both mood ratings are on this select list because the
+// mind-charts page builds its graph out of them -- topic frequency comes from
+// `journal_links`, and node colour from the day's average mood -- and the
+// dashboard's charts need the ratings too. They cost two text columns and two
+// small ints per row, and the alternative is a second full-table query that
+// returns the same rows, which is the more expensive way to get them.
 export const getUserDailyLogs = async (): Promise<DailyLog[]> => {
     const userId = await getCurrentUserId();
     if (!userId) return [];
 
     const { data, error } = await supabase
         .from('daily_logs')
-        .select('log_date,wake_time,bedtime,sleep_duration,morning_systolic,morning_diastolic,morning_bpm,evening_systolic,evening_diastolic,evening_bpm,body_temperature,calories,protein,carbs,fat,water,daily_score,mood,sleep_quality,morning_routine,evening_routine,fruit_serving,studied,journal,stretching,reading,project_work_done,no_sleep,gym,goal_snapshot')
+        .select('log_date,wake_time,bedtime,sleep_duration,morning_systolic,morning_diastolic,morning_bpm,evening_systolic,evening_diastolic,evening_bpm,body_temperature,calories,protein,carbs,fat,water,daily_score,morning_mood,evening_mood,sleep_quality,morning_routine,evening_routine,fruit_serving,studied,journal,stretching,reading,project_work_done,no_sleep,gym,goal_snapshot,journal_morning,journal_evening,journal_links')
         .eq('user_id', userId)
         .order('log_date', { ascending: false });
 
@@ -128,11 +144,11 @@ export const createDailyLog = async (log: DailyLog) => {
             water: log.water,
             project_work_done: log.project_work_done,
             daily_score: log.daily_score,
-            mood: log.mood,
+            morning_mood: log.morning_mood,
+            evening_mood: log.evening_mood,
             journal_entry: log.journal_entry,
             journal_morning: log.journal_morning,
             journal_evening: log.journal_evening,
-            journal_sentiment: log.journal_sentiment,
             journal_links: log.journal_links,
             goal_snapshot: log.goal_snapshot,
             sleep_quality: log.sleep_quality,
@@ -181,6 +197,59 @@ export const updateDailyLog = async (id: string, updates: Partial<DailyLog>) => 
         throw error;
     }
     return data;
+};
+
+// The built-in habits, named as the columns they are stored in. `gym` is absent on
+// purpose: it is written by the workout pages (setGymForDate), never from here.
+export type DailyLogHabitColumn =
+    | 'morning_routine'
+    | 'evening_routine'
+    | 'fruit_serving'
+    | 'studied'
+    | 'journal'
+    | 'stretching'
+    | 'reading'
+    | 'project_work_done'
+    | 'no_sleep';
+
+/**
+ * Writes one built-in habit for one day, on its own.
+ *
+ * The habit checkboxes used to reach the database only through the page's
+ * debounced whole-row autosave, which meant three things went wrong at once: a
+ * tick sat in a timer instead of being saved, a refresh inside the debounce window
+ * lost it outright, and every tick put the whole ~35 column row on the wire. Two
+ * ticks in quick succession were two competing whole-row writes, so whichever
+ * response landed last won -- which could be the older one, silently undoing a
+ * habit the user had already ticked.
+ *
+ * A habit is a single boolean column, so it is written as a single boolean
+ * column. The upsert against (user_id, log_date) creates the day's row when this
+ * is the first thing entered on it, and PostgREST only sets the columns in the
+ * payload, so nothing else on the row moves. Two different habits can therefore
+ * be written at the same moment without either clobbering the other, and the
+ * page's own autosave still rewrites the whole row a moment later to bring
+ * `daily_score` and the day's project links back in step with the tick.
+ */
+export const setDailyLogHabit = async (
+    logDate: string,
+    habit: DailyLogHabitColumn,
+    completed: boolean
+): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('No user found');
+
+    const { error } = await supabase
+        .from('daily_logs')
+        .upsert(
+            { user_id: userId, log_date: logDate, [habit]: completed },
+            { onConflict: 'user_id,log_date' },
+        );
+
+    if (error) {
+        console.error(`Error saving the ${habit} habit:`, error.message);
+        throw error;
+    }
 };
 
 // Delete a daily log

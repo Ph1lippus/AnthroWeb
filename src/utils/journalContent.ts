@@ -4,7 +4,6 @@ export interface JournalDocument {
     version: 1;
     morning: string;
     evening: string;
-    sentiment: 'good' | 'bad' | 'mixed';
     links: string[];
 }
 
@@ -12,26 +11,23 @@ const emptyDocument = (): JournalDocument => ({
     version: 1,
     morning: '',
     evening: '',
-    sentiment: 'mixed',
     links: [],
 });
 
 /** Read the structured journal format while keeping old plain-text entries valid. */
 export const parseJournalDocument = (
     value?: string | null,
-    fields?: Pick<JournalDocument, 'morning' | 'evening' | 'sentiment' | 'links'>,
+    fields?: Pick<JournalDocument, 'morning' | 'evening' | 'links'>,
 ): JournalDocument => {
     if (
         fields &&
         (fields.morning ||
             fields.evening ||
-            fields.links.length > 0 ||
-            fields.sentiment !== 'mixed')
+            fields.links.length > 0)
     ) {
         return {
             ...emptyDocument(),
             ...fields,
-            sentiment: fields.sentiment ?? 'mixed',
             links: fields.links ?? [],
         };
     }
@@ -70,4 +66,13 @@ export const journalDocumentText = (document: JournalDocument): string =>
 export const journalWordCount = (document: JournalDocument): number => {
     const text = journalDocumentText(document);
     return text ? text.split(/\s+/).length : 0;
+};
+
+/** Hashtags are explicit, low-friction topic anchors written in the entry itself. */
+export const journalTopicSuggestions = (document: JournalDocument): string[] => {
+    const topics = new Set<string>();
+    for (const match of journalDocumentText(document).matchAll(/(?:^|\s)#([A-Za-z0-9][\w-]{1,29})/g)) {
+        topics.add(match[1].toLowerCase());
+    }
+    return [...topics];
 };

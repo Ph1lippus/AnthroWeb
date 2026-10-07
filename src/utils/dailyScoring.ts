@@ -212,8 +212,13 @@ export const calculateMetricScore = (
     }
 };
 
-// Score for time-based (wake/bedtime) and mood inputs.
-// With no goal set, logging the value is neutral (50) rather than penalised.
+// Score for the time-based inputs (wake/bedtime).
+//
+// Mood used to be scored here too, as a case on 'mood'. It is not any more:
+// splitting the rating into two made a single-string score wrong, so it moved to
+// `moodMetricScore` below, which takes both readings. The switch is left as a
+// lookup rather than a chain of `if`s only because the time analysis below is
+// worth reusing on its own.
 export const getInputScore = (
     type: string,
     value: string | number | null | undefined,
@@ -240,18 +245,35 @@ export const getInputScore = (
             if (analysis.status === 'Close') return { score: 70, logged: true };
             return { score: 20, logged: true };
         }
-        case 'mood': {
-            const m = parseInt(value as string);
-            if (isNaN(m)) return { score: 0, logged: false };
-            // Linear 1-10 scale: every step is worth 10 points (1 -> 10,
-            // 10 -> 100), so a rating of 8 scores 80 instead of the old 100.
-            const clamped = Math.min(10, Math.max(1, m));
-            return { score: clamped * 10, logged: true };
-        }
         default: {
             return calculateMetricScore(type, value, null);
         }
     }
+};
+
+/**
+ * One `mood` metric from both of a day's ratings.
+ *
+ * Averaged over the readings that exist rather than over the full ten-wide
+ * scale, so a day rated only in the evening is not scored as half a day. Same
+ * reasoning as `meanMood` in utils/moodSeries, which this mirrors deliberately
+ * -- if the score and the graph disagreed about what a half-rated day is worth,
+ * the ring and the mind charts would describe different weeks.
+ *
+ * Unrated on both sides is `logged: false`, which is what keeps mood out of the
+ * ring's denominator entirely instead of scoring it a zero.
+ */
+export const moodMetricScore = (morning: string, evening: string): MetricScore => {
+    const rated: number[] = [];
+    for (const raw of [morning, evening]) {
+        if (raw === null || raw === undefined || raw === '') continue;
+        const m = parseInt(raw as string);
+        if (isNaN(m)) continue;
+        rated.push(Math.min(10, Math.max(1, m)));
+    }
+    if (rated.length === 0) return { score: 0, logged: false };
+    const mean = rated.reduce((sum, v) => sum + v, 0) / rated.length;
+    return { score: Math.round(mean * 10), logged: true };
 };
 
 // Group all habits (built-in booleans + customs) into one completion metric.
@@ -342,7 +364,14 @@ export interface DailyScoringInput {
      */
     weight: number | string | null;
     bodyFat: number | string | null;
-    mood: string;
+    /**
+     * The day's two mood ratings, as typed into the form. Both are optional in
+     * practice -- a day rated only in the evening is a complete day -- so both
+     * accept an empty string and score the same single `mood` metric between
+     * them. See the note on `mood` below.
+     */
+    morningMood: string;
+    eveningMood: string;
     habits: Record<BuiltinHabitKey, boolean>;
     customCompleted: number;
     customTotal: number;
@@ -379,7 +408,20 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         weight: calculateMetricScore('weight', input.weight, settings),
         bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings),
         measurementRecency: calculateMeasurementRecency(input.lastMeasurementDate),
-        mood: getInputScore('mood', input.mood, activeGoals),
+        // One metric, not two, and this is the one judgement call in the split
+        // of `mood` into morning and evening. The ring's denominator is
+        // `totalMetrics`, and every logged metric is weighted equally in the
+        // average, so scoring AM and PM as two chips would make mood the only
+        // thing on the page that could fill two slots -- a user who rated both
+        // would see their score ring's percentage move because of one day's
+        // bookkeeping. Averaging whichever readings exist into a single chip
+        // keeps the denominator at 19 for everybody and keeps yesterday's
+        // score comparable with today's.
+        //
+        // Where the split itself is the information -- the journal sliders, the
+        // mind graph, the dashboard's two series -- it is read directly from
+        // `utils/moodSeries`, not through here.
+        mood: moodMetricScore(input.morningMood, input.eveningMood),
         habits: habitGroupScore(input.habits, input.customCompleted, input.customTotal),
     };
 

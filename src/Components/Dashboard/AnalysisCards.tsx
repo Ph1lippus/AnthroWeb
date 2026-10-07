@@ -8,6 +8,7 @@ import type { BodyMeasurement } from '../../services/measurementService';
 import type { ActiveGoals } from '../../utils/dailyScoring';
 import { BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
+import { meanMoodAcross } from '../../utils/moodSeries';
 import type { DateRange } from './dateRange';
 
 const inRange = (date: string, days: number | null): boolean => {
@@ -200,7 +201,11 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         });
 
         // 6. Mood and habit adherence travel together as a consistency signal.
-        const mood = mean(sorted.map(l => l.mood));
+        // Mean of per-day means across both ratings, so a day rated twice is not
+        // double-weighted against one rated once. This card is the only place on
+        // the dashboard that collapses the pair into one number -- the charts
+        // below it plot the two separately, which is where the split is legible.
+        const mood = meanMoodAcross(sorted);
         const completedByDate = new Map<string, number>();
         if (habitLogs) {
             for (const h of habitLogs) {
@@ -221,7 +226,10 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             )
             : null;
         out.push({
-            key: 'mood',
+            // Named for what the tile shows rather than for the column behind it,
+            // so this id can never be mistaken for a daily_logs field. This tile
+            // combines mood with habit adherence and has done so for some time.
+            key: 'moodAndHabits',
             label: 'Mood & Habits',
             value: fmt(mood, '/10'),
             hint: habitPct === null ? 'No data' : `${habitPct}% habit completion`,

@@ -7625,6 +7625,14 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 /* ============================================
    MOOD SCALE - 1-10 segmented rating
    ============================================ */
+/* Wrapper. Its only job is to own the vertical rhythm so the scale and its
+   caption stay together when they are dropped into a card that also has other
+   controls below them -- the journal's two editor cards each hold a scale above
+   a TipTap surface, and without this the caption drifts away from the buttons. */
+.mood-scale-wrap {
+  display: flex;
+  flex-direction: column;
+}
 .mood-scale {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
@@ -7645,10 +7653,25 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 .mood-scale-btn:hover {
   opacity: 1;
 }
+/* The filled run, tinted by the rating's own tone.
+   `--mood-color` is set on `.mood-scale` by the component from the shared
+   palette in utils/moodSeries, so this rule is the only place that colour is
+   consumed and retuning the ramp is a single-variable change. The fallback is
+   the primary green: it applies only when no rating is set yet, which is also
+   the case where every button sits unlit and the colour is not visible. */
 .mood-scale-btn--active {
   color: #000;
   font-weight: 700;
   opacity: 1;
+  background: var(--mood-color, var(--color-primary));
+  border-color: var(--mood-color, var(--color-primary));
+}
+/* The chosen step, distinguished from the run filled in front of it by a
+   ring rather than by a colour -- so "where am I" survives for someone who
+   cannot tell the three tones apart, and so the filled bar still reads as one
+   continuous scale. */
+.mood-scale-btn--current {
+  box-shadow: 0 0 0 2px var(--color-light);
 }
 .mood-scale-caption {
   display: flex;
@@ -7658,6 +7681,73 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   color: var(--color-light);
   font-size: 0.58rem;
   opacity: 0.45;
+}
+/* ============================================
+   MOOD READOUT - read-only AM/PM badges
+   ------------------------------------------------------------
+   The daily log's counterpart to the scale above. Two badges rather than one
+   averaged figure, because a day that opened at 9 and closed at 3 should be
+   legible without opening it, and a mean would report that day as ordinary.
+   ============================================ */
+.mood-readout {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mood-readout--link {
+  text-decoration: none;
+  border-radius: 20px;
+  transition: opacity 0.15s ease;
+}
+.mood-readout--link:hover {
+  opacity: 0.85;
+}
+.mood-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 20px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  background: #ffffff0a;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+/* Tinted on the border and the icon only. A filled badge would put two large
+   blocks of colour into a card that is otherwise a field list, and the number
+   is the part that has to be readable. */
+.mood-badge--low {
+  border-color: color-mix(in srgb, var(--chart-red) 55%, transparent);
+}
+.mood-badge--mid {
+  border-color: color-mix(in srgb, var(--chart-amber) 55%, transparent);
+}
+.mood-badge--high {
+  border-color: color-mix(in srgb, var(--chart-primary) 55%, transparent);
+}
+.mood-badge--low .mood-badge__icon { color: var(--chart-red); }
+.mood-badge--mid .mood-badge__icon { color: var(--chart-amber); }
+.mood-badge--high .mood-badge__icon { color: var(--color-primary); }
+/* An unrated half keeps the neutral border and a dimmed value, so a gap in the
+   record reads as "nothing here" rather than as a bad day. */
+.mood-badge:not([class*='mood-badge--']) .mood-badge__icon,
+.mood-badge:not([class*='mood-badge--']) .mood-badge__value {
+  opacity: 0.4;
+}
+.mood-badge__label {
+  font-size: 0.6rem;
+  letter-spacing: 0.4px;
+  opacity: 0.55;
+  text-transform: uppercase;
+}
+.mood-badge__value {
+  margin-left: auto;
+  font-weight: 700;
+  white-space: nowrap;
 }
 /* History card */
 .log-history-card {
@@ -7951,8 +8041,264 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   }
 }
 /* ============================================
+   MEASUREMENTS - input grid
+   ------------------------------------------------------------
+   The twenty-three fields, in the daily log's two-column card grid and using
+   its `.scored-input` fields. This page used to lay them out with its own small
+   labelled boxes, which matched nothing else in the app and put the calculated
+   metrics twenty-three fields away from the fields that produce them.
+   ============================================ */
+.measurements-puzzle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .measurements-puzzle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Core & Torso is the widest group and reads as the day's headline, so it takes
+     the left column and the two smaller limb groups share the right. */
+  .measurement-group-card:first-child {
+    grid-row: span 2;
+  }
+}
+/* The calculated block as a rail card. It was the bottom section of the editor
+   until it moved here, so it keeps its own card treatment rather than being
+   folded into the stat tiles below it -- these numbers describe what you are
+   typing, the tiles describe what is stored. */
+.measurement-derived--rail {
+  background: #ffffff08;
+  border-radius: 16px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.measurement-derived__empty {
+  color: var(--color-light);
+  opacity: 0.45;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  margin: 0 0 0.5rem;
+}
+
+/* ============================================
+   MIND CHARTS / NEURAL NETWORK
+   ------------------------------------------------------------
+   The topic network, the mood band and the tiles that summarise them. Sits
+   after the dashboard chart styles because it reads the same palette and the
+   same `.chart-plot` / `.analysis-card` objects as that page does.
+   ============================================ */
+.mind-charts-wrapper {
+  max-width: 100%;
+  width: 100%;
+}
+.mind-charts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+/* The note beside each card's title. States what the chart is asserting rather
+   than naming it again -- both cards here need one sentence of explanation or
+   they read as decoration. */
+.mind-charts-subtitle {
+  color: var(--color-light);
+  opacity: 0.45;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  text-align: right;
+  flex: 1;
+  min-width: 12rem;
+}
+/* The graph needs the full card width with no padding: the SVG is sized to the
+   card and a gutter here would put the legend out of line with the canvas. */
+.mind-charts-network-card .card-body {
+  padding: 0;
+}
+.mind-network {
+  position: relative;
+}
+.mind-network__svg {
+  display: block;
+  width: 100%;
+  height: clamp(360px, 60vh, 680px);
+  /* Stops the browser scrolling the page when a drag crosses the canvas, which
+     without this makes panning the graph a fight with the scroll. */
+  touch-action: none;
+  cursor: grab;
+}
+.mind-network__svg:active {
+  cursor: grabbing;
+}
+.mind-network__topic {
+  transition: opacity 0.18s ease;
+}
+.mind-network__label {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  fill: var(--color-light);
+  /* The label never intercepts a pointer: it sits on top of its own bubble, and
+     a label that swallowed the click would make half the bubble unselectable. */
+  pointer-events: none;
+  user-select: none;
+}
+.mind-network__legend {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid #ffffff14;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--color-light);
+  opacity: 0.65;
+}
+.mind-network__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.mind-network__swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+.mind-network__legend-note {
+  margin-left: auto;
+  opacity: 0.7;
+}
+.mind-network-empty {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--color-light);
+  opacity: 0.55;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  max-width: 32rem;
+  margin: 0 auto;
+}
+@media (max-width: 640px) {
+  .mind-charts-subtitle {
+    text-align: left;
+  }
+  .mind-network__legend-note {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ============================================
    JOURNAL PAGE - Dedicated Styles
    ============================================ */
+/* The journal took the daily log's shape rather than inventing its own.
+   `.journal-logs-card` is deliberately the same three-track grid, the same
+   0.61fr/1fr/1fr proportions and the same 1280px breakpoint as `.daily-logs-card`
+   above, so the two pages are recognisably one instrument and a change to either
+   one's proportions is visibly a change to both.
+
+   The rail holds what the day *is* -- the date, the stats, the prompt -- and the
+   form holds what goes *into* the day. That split is the same one the daily log
+   makes between its score card and its fields. */
+.journal-logs-card {
+  width: 100%;
+  padding: 1rem;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (min-width: 1280px) {
+  .journal-logs-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The controls and stats are a full-width header above the writing surfaces.
+   Keeping them in normal flow makes the journal scan like Notes and Daily Log
+   on wide screens, instead of hiding the primary actions in a side rail. */
+.journal-score-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.journal-log-form {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The two writing surfaces, two-up, over the daily log's card grid. Below the
+   puzzle breakpoint they stack, because two 300px-wide TipTap surfaces side by
+   side is below the width at which either can be written in. */
+.journal-nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.journal-log-puzzle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: stretch;
+}
+@media (min-width: 900px) {
+  .journal-log-puzzle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.journal-log-puzzle .journal-node {
+  min-height: min(62vh, 42rem);
+}
+.journal-node .card-body {
+  display: flex;
+  flex-direction: column;
+}
+.journal-node-icon {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+/* One tint per half of the day, on the border only. It was the whole way the two
+   surfaces were told apart when the page had no cards; now the titles and the
+   icons carry that, and the border keeps it -- sunrise green against evening
+   amber is a distinction you feel before you read either label. */
+.journal-node--morning {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+.journal-node--evening {
+  border-color: color-mix(in srgb, var(--chart-amber) 35%, transparent);
+}
+.journal-node--morning .journal-node-icon { color: var(--color-primary); }
+.journal-node--evening .journal-node-icon { color: var(--chart-amber); }
+/* A minimum writing height. The TipTap surface sizes to its content, so a fresh
+   card would otherwise be a few lines tall and the pair would look like a form
+   rather than a page to write on. */
+.journal-node .note-prose {
+  min-height: 12rem;
+}
+/* The sub-label under the rating. Sits between the slider and the prose so the
+   card reads "rate it, then say why" rather than "rate it, then write", which is
+   the order the prompts below ask for anyway. */
+.journal-node-hint {
+  color: var(--color-light);
+  opacity: 0.45;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  margin: 0.5rem 0 0.35rem;
+}
+/* A compact cross-page action, matching the pill controls used elsewhere. */
+.journal-charts-link {
+  width: fit-content;
+  justify-content: center;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  color: var(--color-primary);
+}
 /* Journal page wrapper - same as other pages */
 .journal-page-wrapper {
   width: 100%;
@@ -7986,40 +8332,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-/* Stats summary row */
-.journal-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-.journal-stat-item {
-  background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.6rem 0.5rem;
-  text-align: center;
-}
-.journal-stat-item:hover {
-  background: var(--accent-bg);
-}
-.journal-stat-label {
-  display: block;
-  color: var(--color-light);
-  opacity: 0.5;
-  font-size: 0.6rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.2rem;
-}
-.journal-stat-value {
-  display: block;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
 }
 /* Top action bar */
 .journal-top-bar {
@@ -8063,8 +8375,8 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   background: linear-gradient(135deg, rgba(0, 255, 166, 0.1), rgba(0, 255, 166, 0.025));
   border: 1px solid rgba(0, 255, 166, 0.18);
   border-radius: 16px;
-  padding: 1rem;
-  margin-bottom: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.35rem;
   flex-shrink: 0;
 }
 .journal-tip-content {
@@ -8084,13 +8396,12 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.1rem;
 }
 .journal-tip-text {
   color: var(--color-light);
   opacity: 0.8;
   font-size: 0.75rem;
-  font-size: 0.85rem;
   line-height: 1.55;
 }
 .journal-tip-hint {
@@ -8115,78 +8426,28 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   color: var(--color-primary);
 }
 .journal-tip-refresh {
+  width: 1.8rem;
+  height: 1.8rem;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
+  border-radius: 999px;
   color: var(--color-primary);
   font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 500;
   cursor: pointer;
-  padding: 0.25rem 0;
-  margin-top: 0.5rem;
+  padding: 0;
+  margin-top: 0.25rem;
   opacity: 0.7;
 }
 .journal-tip-refresh:hover {
   opacity: 1;
 }
 /* Journal editor section */
-.journal-editor-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.journal-rich-editor {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  flex: 1;
-  min-height: 0;
-}
-.journal-node {
-  min-width: 0;
-  padding: 1rem;
-  border: 1px solid #ffffff14;
-  border-radius: 1rem;
-  background: #ffffff05;
-}
-.journal-node--morning { border-color: color-mix(in srgb, var(--color-primary) 35%, transparent); }
-.journal-node--evening { border-color: color-mix(in srgb, #ffa500 35%, transparent); }
-.journal-node-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: .75rem;
-  color: var(--color-primary);
-  font-weight: 600;
-}
-.journal-node-heading small { color: var(--color-light); opacity: .55; font-weight: 400; }
-.journal-rich-editor .note-prose { min-height: 9rem; }
 .journal-rich-editor-loading { padding: 2rem; opacity: .6; }
-.journal-node-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  grid-column: 1 / -1;
-}
-.journal-node-links label { display: grid; gap: .35rem; color: var(--color-light); font-size: .75rem; }
-.journal-node-links input,
-.journal-node-links select {
-  width: 100%;
-  border: 1px solid #ffffff1c;
-  border-radius: .5rem;
-  background: #ffffff08;
-  color: inherit;
-  padding: .55rem .65rem;
-}
-@media (max-width: 640px) {
-  .journal-rich-editor { grid-template-columns: 1fr; }
-  .journal-node-links { grid-column: auto; }
-  .journal-node-heading { display: grid; gap: .25rem; }
-  .journal-node-links { grid-template-columns: 1fr; }
-}
 .journal-editor-header {
   display: flex;
   align-items: center;
@@ -8204,27 +8465,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 }
 .journal-editor-header i {
   font-size: 0.75rem;
-}
-/* Journal textarea */
-.journal-editor {
-  flex: 1;
-  width: 100%;
-  background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.75rem;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  line-height: 1.7;
-  resize: none;
-  outline: none;
-  min-height: 200px;
-}
-.journal-editor:focus {
-  background: #ffffff0a;
-}
-.journal-editor::placeholder {
-  color: rgba(255, 255, 255, 0.3);
 }
 /* Journal editor footer */
 .journal-editor-footer {
@@ -8256,10 +8496,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 }
 /* Responsive adjustments for journal page */
 @media (max-width: 768px) {
-  .journal-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
-  }
   .journal-stat-value {
     font-size: 1rem;
   }

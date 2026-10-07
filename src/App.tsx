@@ -20,6 +20,7 @@ const DailyLogPage = lazy(pageLoaders['/Daily-Log']);
 const DailyLogHistoryPage = lazy(pageLoaders['/Daily-Log/History']);
 const JournalPage = lazy(pageLoaders['/Journal']);
 const JournalEditPage = lazy(pageLoaders['/Journal/Edit']);
+const MindChartsPage = lazy(pageLoaders['/Mind-Charts']);
 const DailyLogGoalSetupPage = lazy(pageLoaders['/Daily-Log/Setup']);
 const MeasurementsPage = lazy(pageLoaders['/Measurements']);
 const BooksPage = lazy(pageLoaders['/Books']);
@@ -228,6 +229,7 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Daily-Log/History" element={<DailyLogHistoryPage />} />
                 <Route path="/Journal" element={<JournalPage />} />
                 <Route path="/Journal/Edit/:id" element={<JournalEditPage />} />
+                <Route path="/Mind-Charts" element={<MindChartsPage />} />
                 <Route path="/Measurements" element={<MeasurementsPage />} />
                 <Route path="/Books" element={<BooksPage />} />
                 <Route path="/Workouts" element={<WorkoutsPage />} />

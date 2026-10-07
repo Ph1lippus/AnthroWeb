@@ -2,16 +2,18 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Rows3, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { createDailyLog, updateDailyLog, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
+import { createDailyLog, updateDailyLog, setDailyLogHabit, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
+import type { DailyLog, DailyLogHabitColumn } from '../services/dailyLogService';
 import { getUserSettings, updateUserSettings } from '../services/profileService';
 import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { useUpdateHabit } from '../hooks/useHabitData';
 import { getUserProjects } from '../services/projectService';
-import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
 import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
+import { moodFor, meanMood } from '../utils/moodSeries';
+import { MoodReadout } from '../Components/Journal/Mood';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement, useBodyMeasurementByDate, useLogBodyComposition } from '../hooks/useMeasurements';
@@ -71,6 +73,27 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [loadingHabits, setLoadingHabits] = useState(true);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /**
+     * The save callbacks are invoked from a timer and from the unmount cleanup,
+     * neither of which has a render to close over. Holding the latest one in a ref
+     * is what makes a flush write what the form holds *now*: the alternative was a
+     * closure stashed when the timer was set, which wrote yesterday's values.
+     */
+    const saveNowRef = useRef<(() => Promise<unknown>) | null>(null);
+    /**
+     * Whole-row writes, one at a time.
+     *
+     * Two of them can otherwise be in flight together -- a habit tick's follow-up
+     * autosave and a field edit landing in the same moment -- and they carry
+     * snapshots of the form taken at different times. If the older request reached
+     * Postgres second it won, and the newer edit was silently gone. Chaining them
+     * makes "the last edit wins" true rather than "the last response wins".
+     */
+    const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
+    /** Habit writes still open, so the "Saved" flash waits for the last of a burst. */
+    const habitWritesRef = useRef(0);
+    const habitSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [habitSaveState, setHabitSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
     const [isLoadingData, setIsLoadingData] = useState(true);
 
     // The day being edited lives in the URL (?date=YYYY-MM-DD) so a refresh, a
@@ -106,7 +129,11 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [carbs, setCarbs] = useState('');
     const [fat, setFat] = useState('');
     const [water, setWater] = useState('');
-    const [mood, setMood] = useState('');
+    // Mood has no state here. It is rated on the journal page -- one slider above
+    // each half of the day's writing -- and this page only reads it back, so
+    // there is nothing to hold. Keeping a local copy would be a second source of
+    // truth for a number this page cannot change, and the daily autosave below
+    // would write it back out on every edit to every other field.
     const [journalEntry, setJournalEntry] = useState('');
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
@@ -321,7 +348,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setCarbs(log.carbs?.toString() || '');
         setFat(log.fat?.toString() || '');
         setWater(log.water?.toString() || '');
-        setMood(log.mood?.toString() || '');
+        // Mood is not copied into form state -- see the note on where it moved to.
         setJournalEntry(log.journal_entry || '');
         setProjectWorkDone(log.project_work_done || false);
         setMorningRoutine(log.morning_routine || false);
@@ -355,7 +382,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setCarbs('');
         setFat('');
         setWater('');
-        setMood('');
         setJournalEntry('');
         setProjectWorkDone(false);
         setMorningRoutine(false);
@@ -560,7 +586,11 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         water,
         weight: measuredWeight,
         bodyFat: measuredBodyFat,
-        mood,
+        // Read straight off the stored log rather than through form state, so the
+        // score ring picks up a rating made on the journal page the next time this
+        // day is opened -- even though this page cannot itself change it.
+        morningMood: moodFor(existingLog, 'morning')?.toString() ?? '',
+        eveningMood: moodFor(existingLog, 'evening')?.toString() ?? '',
         habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym },
         customCompleted: completedHabits.size,
         customTotal: habits.length,
@@ -568,9 +598,12 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         settings: effectiveSettings,
         noSleep,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, mood, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
+    // The day's average rating, for the mood card's header. Null rather than zero
+    // when nothing was rated, so an empty card does not advertise a flat mood.
+    const dayMeanMood = meanMood(existingLog);
     const scoreOf = (key: string): number | null => {
         const m = scoreResult.metrics[key];
         return m && m.logged ? m.score : null;
@@ -579,16 +612,31 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // Check for existing log by date (non-edit mode). Cached per date via React
     // Query so navigating between previously-viewed days is instant; each date
     // refreshes in the background while the previous data is shown.
-    const { data: dayLog, isPlaceholderData: dayLogPlaceholder } = useQuery({
+    //
+    // `staleTime: 0` is load-bearing, not a performance choice. The whole query
+    // cache is persisted to IndexedDB and restored before the first render, so with
+    // the default two minute staleTime a refresh inside that window mounted with
+    // yesterday's snapshot still considered fresh: the server was never asked, and
+    // the form was filled from a snapshot taken before the last edit. Refusing to
+    // trust a restored snapshot means the answer that fills the form is the one the
+    // server actually gives.
+    const { data: dayLog, isPlaceholderData: dayLogPlaceholder, isFetching: dayLogFetching } = useQuery({
         queryKey: queryKeys.dailyLogByDate(logDate || 'no-date'),
         queryFn: () => getDailyLogByDate(logDate),
         enabled: !!logDate && !id,
         placeholderData: keepPreviousData,
+        staleTime: 0,
     });
     const lastAppliedLogDateRef = useRef<string | null>(null);
     useEffect(() => {
         if (id) return;
         if (dayLogPlaceholder || dayLog === undefined) return;
+        // Waiting out the refetch is the other half of `staleTime: 0`. Without it
+        // this effect applies whatever the cache held the moment it mounted and the
+        // guard below then refuses to let the real answer replace it, so the page
+        // showed the snapshot for as long as the tab stayed open -- and the autosave
+        // below, keyed on the same state, wrote that snapshot back over the server.
+        if (dayLogFetching) return;
         if (lastAppliedLogDateRef.current === logDate) return;
         lastAppliedLogDateRef.current = logDate;
         if (dayLog) {
@@ -606,7 +654,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setIsEditing(false);
             resetForm();
         }
-    }, [dayLog, dayLogPlaceholder, logDate, id]);
+    }, [dayLog, dayLogPlaceholder, dayLogFetching, logDate, id]);
 
     // True while the current day's log is still being fetched (non-edit mode).
     // Uses query flags instead of a state toggle so the auto-save guard below
@@ -653,7 +701,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 morningSystolic || morningDiastolic || morningBpm ||
                 eveningSystolic || eveningDiastolic || eveningBpm ||
                 bodyTemperature || calories || protein || carbs || fat ||
-                water || mood || journalEntry ||
+                water || journalEntry ||
                 noSleep || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
                 selectedProjectIds.size > 0;
@@ -719,7 +767,14 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 carbs: carbs ? parseInt(carbs) : null,
                 fat: fat ? parseInt(fat) : null,
                 water: water ? parseInt(water) : null,
-                mood: mood ? Math.round(parseFloat(mood)) : null,
+                // morning_mood / evening_mood are absent on purpose, not null.
+                //
+                // They are written by the journal page, and this page's save is a
+                // whole-row upsert. PostgREST only sets the columns a payload
+                // actually carries, so leaving these out preserves whatever the
+                // journal wrote -- whereas `null` here would silently wipe a day's
+                // mood on the next edit to any unrelated field, which is the sort
+                // of bug that only shows up a week later.
                 daily_score: calculatedScore,
                 journal_entry: journalEntry || null,
                 project_work_done: projectWorkDone,
@@ -752,7 +807,104 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setSaveError(message);
             console.error('Auto-save error:', err);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, mood, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+
+    /**
+     * Queues a whole-row write behind any that are already open.
+     *
+     * `performSave` reads the form at the moment it runs, so chaining it rather
+     * than firing it is what makes the outcome "the last edit wins" instead of
+     * "whichever response arrives last wins".
+     */
+    const enqueueSave = useCallback(() => {
+        const run = () => performSave();
+        const next = saveChainRef.current.then(run, run);
+        saveChainRef.current = next.catch(() => {});
+        return next;
+    }, [performSave]);
+
+    // Published for the timer and the unmount cleanup, which cannot see a render.
+    useEffect(() => {
+        saveNowRef.current = enqueueSave;
+    }, [enqueueSave]);
+
+    const scheduleSave = useCallback((delay = 600) => {
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+        autoSaveTimerRef.current = setTimeout(() => {
+            autoSaveTimerRef.current = null;
+            void saveNowRef.current?.();
+        }, delay);
+    }, []);
+
+    const flushSave = useCallback(() => {
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+        }
+        void saveNowRef.current?.();
+    }, []);
+
+    /**
+     * Ticking a built-in habit.
+     *
+     * The checkbox moves first and the write follows immediately, because a habit
+     * is one column and there is nothing to gain from waiting for a debounce that
+     * exists to coalesce typing. Waiting was the bug: the tick sat in a timer, so a
+     * refresh inside that window lost it, and nothing on screen said whether the
+     * write had landed or not.
+     *
+     * The checkbox is rolled back if the write fails, and the day's queries are
+     * invalidated so the dashboard and the history read the same fact. The debounced
+     * autosave still runs a moment later on the strength of the state change, which
+     * is what brings `daily_score` and the day's project links back in step.
+     */
+    const saveBuiltinHabit = useCallback((
+        column: DailyLogHabitColumn,
+        value: boolean,
+        setValue: (next: boolean) => void,
+    ) => {
+        setValue(value);
+        if (!logDate) return;
+        setSaveError(null);
+        habitWritesRef.current += 1;
+        setHabitSaveState('saving');
+        if (habitSavedTimerRef.current) {
+            clearTimeout(habitSavedTimerRef.current);
+            habitSavedTimerRef.current = null;
+        }
+        let written = false;
+        void setDailyLogHabit(logDate, column, value)
+            .then(() => {
+                written = true;
+                queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
+                queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+            })
+            .catch(error => {
+                setValue(!value);
+                // Supabase rejects with a plain error object rather than an Error,
+                // so the message is read off it rather than through instanceof.
+                const detail = (error as { message?: string } | null)?.message;
+                setSaveError(detail || 'Could not save that habit. Please try again.');
+                console.error('Could not save the habit:', error);
+            })
+            .finally(() => {
+                habitWritesRef.current -= 1;
+                if (habitWritesRef.current > 0) return;
+                // Not on the failure path: the checkbox has been put back and there
+                // is nothing on the server to report as saved.
+                if (!written) {
+                    setHabitSaveState('idle');
+                    return;
+                }
+                setHabitSaveState('saved');
+                habitSavedTimerRef.current = setTimeout(() => {
+                    habitSavedTimerRef.current = null;
+                    setHabitSaveState('idle');
+                }, 2000);
+            });
+    }, [logDate, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -761,26 +913,35 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         }
     }, [saveError]);
 
-    // Debounced auto-save on any state change
+    // Flush any pending save when the component unmounts (SPA navigation).
+    // Leaving the page inside the debounce window used to throw the edit away
+    // silently; now it lands on the day it was made for.
     useEffect(() => {
-        // Block auto-saving until the current log has finished loading
-        // (edit mode uses isLoadingData, non-edit mode derives from the query).
-        if (!settings || (id ? isLoadingData : dayLogLoading)) return;
-
-        if (autoSaveTimerRef.current) {
-            clearTimeout(autoSaveTimerRef.current);
-        }
-
-        autoSaveTimerRef.current = setTimeout(() => {
-            performSave();
-        }, 2000);
-
         return () => {
-            if (autoSaveTimerRef.current) {
-                clearTimeout(autoSaveTimerRef.current);
-            }
+            flushSave();
+            if (habitSavedTimerRef.current) clearTimeout(habitSavedTimerRef.current);
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, mood, journalEntry, selectedProjectIds, projectWorkDone, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, customHabitName, customHabitDesc, performSave, settings, isLoadingData, dayLogLoading, id]);
+    }, [flushSave]);
+
+    // Debounced auto-save on any state change.
+    //
+    // The built-in habit booleans are in this list on purpose: a tick is written on
+    // the click, and this is the write that follows it to put the day's score and
+    // its project links back in step. `noSleep` belongs here too -- it is a habit
+    // column, and it is also what nulls out the sleep fields, which only this
+    // whole-row write can do.
+    //
+    // What is deliberately absent is the "add a custom habit" form. Those two
+    // fields are not part of the day's log at all, and having them here wrote every
+    // column of the log to the database on each keystroke of a habit name.
+    useEffect(() => {
+        if (!settings || (id ? isLoadingData : dayLogLoading)) return;
+        scheduleSave(600);
+        return () => {
+            // Timer cleanup is handled by flushSave on unmount; this cleanup
+            // only cancels the timer if the effect re-runs for another reason.
+        };
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -1056,13 +1217,22 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         },
     });
 
+    // Takes the column and the setter rather than a finished handler, so the write
+    // is wired up where the checkbox is drawn and every call site names the habit it
+    // writes.
     const habitCheckbox = (
         checked: boolean,
-        onChange: (checked: boolean) => void,
+        column: DailyLogHabitColumn,
+        setValue: (next: boolean) => void,
         label: string
     ) => (
         <label className="checkbox-label">
-            <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="checkbox-input" />
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => saveBuiltinHabit(column, e.target.checked, setValue)}
+                className="checkbox-input"
+            />
             <span className="text-sm opacity-90">{label}</span>
         </label>
     );
@@ -1158,7 +1328,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <input
                                             type="checkbox"
                                             checked={noSleep}
-                                            onChange={(e) => setNoSleep(e.target.checked)}
+                                            onChange={(e) => saveBuiltinHabit('no_sleep', e.target.checked, setNoSleep)}
                                             className="checkbox-input"
                                         />
                                         <span className="text-sm opacity-90">Didn't Sleep</span>
@@ -1287,40 +1457,24 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                             </div>
 
 
-                                {/* Mood - a subjective daily rating, so it gets its own card
-                                    and a 1-10 scale instead of a text box. */}
+                                {/* Mood is rated on the journal page -- one slider above each half of
+                                    the day's writing -- because that is where the morning and the
+                                    evening actually happen. This card only reads them back.
+
+                                    Two badges rather than one averaged number: the gap between a day
+                                    that opened well and closed badly is the reading worth having,
+                                    and a mean would flatten exactly that. Not an interactive
+                                    control, because a control here that silently loses its value to
+                                    the journal page's autosave is worse than no control at all. */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Mood</h3>
-                                    {mood && (
-                                        <span className="text-sm opacity-70 ml-2">{mood}/10</span>
+                                    {dayMeanMood !== null && (
+                                        <span className="text-sm opacity-70 ml-2">avg {Math.round(dayMeanMood * 10) / 10}/10</span>
                                     )}
                                 </div>
                                 <div className="card-body">
-                                    <div className="mood-scale" role="group" aria-label="Mood from 1 to 10">
-                                        {Array.from({ length: 10 }, (_, i) => i + 1).map(step => {
-                                            const active = Boolean(mood) && Number(mood) >= step;
-                                            return (
-                                                <button
-                                                    key={step}
-                                                    type="button"
-                                                    className={'mood-scale-btn' + (active ? ' mood-scale-btn--active' : '')}
-                                                    style={active ? { background: getScoreColor(scoreOf('mood')! ?? 0), borderColor: getScoreColor(scoreOf('mood')! ?? 0) } : undefined}
-                                                    onClick={() => setMood(String(step))}
-                                                    data-tip={`Step ${step} of 10`}
-                                                    aria-label={`Mood ${step} out of 10`}
-                                                    aria-pressed={active}
-                                                >
-                                                    {step}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <span className="mood-scale-caption">
-                                        <span>1 - rough</span>
-                                        <span>goal 8+</span>
-                                        <span>10 - great</span>
-                                    </span>
+                                    <MoodReadout log={existingLog} linkTo={`/Journal?date=${logDate}`} />
                                 </div>
                             </div>
 
@@ -1391,23 +1545,31 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                             <div className="card puzzle-card">
                                 <div className="card-header">
                                     <h3 className="card-title">Habits</h3>
-                                    <span className="text-xs opacity-60 ml-auto">{builtinHabitDone + completedHabits.size}/{habitTotal}</span>
+                                    <span className="text-xs opacity-60 ml-auto flex items-center gap-2" aria-live="polite">
+                                        {/* Says out loud whether the last habit write
+                                        has landed. A tick that is still in flight
+                                        looks identical to one that is safe, and a
+                                        refresh in between used to throw it away. */}
+                                        {habitSaveState === 'saving' && <span>Saving…</span>}
+                                        {habitSaveState === 'saved' && <span>Saved</span>}
+                                        <span>{builtinHabitDone + completedHabits.size}/{habitTotal}</span>
+                                    </span>
                                 </div>
                                 <div className="card-body">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(morningRoutine, setMorningRoutine, 'Morning Routine')}
-                                            {habitCheckbox(eveningRoutine, setEveningRoutine, 'Evening Routine')}
-                                            {habitCheckbox(fruitServing, setFruitServing, 'Fruit Serving')}
-                                            {habitCheckbox(studied, setStudied, 'Studied')}
-                                            {habitCheckbox(journal, setJournal, 'Journaled')}
-                                            {habitCheckbox(stretching, setStretching, 'Stretching')}
-                                            {habitCheckbox(reading, setReading, 'Reading')}
+                                            {habitCheckbox(morningRoutine, 'morning_routine', setMorningRoutine, 'Morning Routine')}
+                                            {habitCheckbox(eveningRoutine, 'evening_routine', setEveningRoutine, 'Evening Routine')}
+                                            {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'Fruit Serving')}
+                                            {habitCheckbox(studied, 'studied', setStudied, 'Studied')}
+                                            {habitCheckbox(journal, 'journal', setJournal, 'Journaled')}
+                                            {habitCheckbox(stretching, 'stretching', setStretching, 'Stretching')}
+                                            {habitCheckbox(reading, 'reading', setReading, 'Reading')}
                                             {gymCheckbox}
                                         </div>
 
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(projectWorkDone, setProjectWorkDone, 'Projects')}
+                                            {habitCheckbox(projectWorkDone, 'project_work_done', setProjectWorkDone, 'Projects')}
 
                                             {projectWorkDone && (
                                                 <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">

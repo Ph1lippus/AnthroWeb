@@ -1,0 +1,21 @@
+-- Drop `journal_sentiment`.
+--
+-- It was a hand-picked "good / mixed / bad" classification of the whole day,
+-- stored beside the writing that would have told you the same thing. Nothing ever
+-- read it: the score ring scores the mood ratings, the dashboard charts plot
+-- morning against evening, and the mind-charts graph colours its nodes by those
+-- ratings. The only code path that touched this column was the journal page's own
+-- dropdown writing it and reading it back.
+--
+-- Migration 0014 made the column redundant rather than merely unused. Before it
+-- there was one `mood` number for a whole day, so a coarse good/bad label was at
+-- least a second opinion on something the data did not say precisely. Now a day
+-- carries a morning and an evening rating, and a hand-set "Bad Day Hub" label on a
+-- day that opened at 9 and closed at 3 is worse than nothing -- it contradicts the
+-- readings it sits next to.
+--
+-- Safe to drop last, and safe to drop at all: no row has to be rewritten first,
+-- because no other column depends on it and no query filters by it. Rows keep
+-- their text, their topics and both of their ratings.
+
+ALTER TABLE public.daily_logs DROP COLUMN IF EXISTS journal_sentiment;

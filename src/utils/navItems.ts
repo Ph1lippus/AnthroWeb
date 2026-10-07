@@ -11,6 +11,7 @@ import {
     StickyNote,
     Hourglass,
     CircleUserRound,
+    Network,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -30,6 +31,10 @@ export const navItems: NavItem[] = [
     { to: '/Dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/Daily-Log', label: 'Daily Log', icon: ClipboardList },
     { to: '/Journal', label: 'Journal', icon: NotebookPen },
+    // Sits directly under Journal because it is where the journal's ratings and
+    // topic anchors are read back. Grouping them in the rail makes the
+    // relationship obvious without needing a label to explain it.
+    { to: '/Mind-Charts', label: 'Mind Charts', icon: Network },
     { to: '/Measurements', label: 'Measurements', icon: Ruler },
     { to: '/Books', label: 'Books', icon: BookOpen },
     { to: '/Workouts', label: 'Workouts', icon: Dumbbell },
@@ -63,6 +68,7 @@ const PAGE_TITLES: Record<string, string> = {
     '/Daily-Log/History': 'Daily Log History',
     '/Journal': 'Journal',
     '/Journal/Edit': 'Edit Entry',
+    '/Mind-Charts': 'Mind Charts',
     '/Measurements': 'Measurements',
     '/Books': 'Books',
     '/Workouts': 'Workouts',

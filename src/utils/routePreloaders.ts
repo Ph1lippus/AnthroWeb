@@ -12,6 +12,7 @@ export const pageLoaders: Record<string, PageLoader> = {
     '/Daily-Log/History': () => import('../Pages/DailyLogHistoryPage'),
     '/Journal': () => import('../Pages/JournalPage'),
     '/Journal/Edit': () => import('../Pages/JournalEditPage'),
+    '/Mind-Charts': () => import('../Pages/MindChartsPage'),
     '/Measurements': () => import('../Pages/MeasurementsPage'),
     '/Books': () => import('../Pages/BooksPage'),
     '/Workouts': () => import('../Pages/WorkoutsPage'),
@@ -59,6 +60,12 @@ const dataLoaders: Record<string, DataLoader[]> = {
     ],
     '/Notes': [
         { key: queryKeys.notes, load: () => import('../services/noteService').then(module => module.getUserNotes()) },
+    ],
+    // The mind charts are drawn entirely from the daily-log list, which the
+    // dashboard has already asked for. Prefetching it here is what makes opening
+    // the page instant rather than a spinner over an empty graph.
+    '/Mind-Charts': [
+        { key: queryKeys.dailyLogs, load: () => import('../services/dailyLogService').then(module => module.getUserDailyLogs()) },
     ],
     '/Academic': [
         { key: queryKeys.academicSemesters, load: () => import('../services/academicService').then(module => module.getUserAcademicSemesters()) },

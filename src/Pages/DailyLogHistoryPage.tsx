@@ -8,6 +8,7 @@ import type { DailyLog } from '../services/dailyLogService';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { queryKeys } from '../utils/queryKeys';
 import { getScoreColor, BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
+import { moodFor } from '../utils/moodSeries';
 import LoadingSpinner from '../Components/LoadingSpinner';
 
 const DailyLogHistoryPage: React.FC = () => {
@@ -48,7 +49,15 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.carbs) chips.push({ label: 'Carbs', value: `${log.carbs}g` });
         if (log.fat) chips.push({ label: 'Fat', value: `${log.fat}g` });
         if (log.water) chips.push({ label: 'Water', value: `${log.water}ml` });
-        if (log.mood) chips.push({ label: 'Mood', value: `${log.mood}/10` });
+        // Two chips, because the split between a day's two ratings is the
+        // interesting part of the row -- a day that opened at 9 and closed at 3
+        // should be scannable here without opening it. Only the halves that were
+        // actually rated get a chip, so a missing reading shows as absent rather
+        // than as a zero pulling the pair down.
+        const am = moodFor(log, 'morning');
+        if (am !== null) chips.push({ label: 'AM Mood', value: `${am}/10` });
+        const pm = moodFor(log, 'evening');
+        if (pm !== null) chips.push({ label: 'PM Mood', value: `${pm}/10` });
         const habits = BUILTIN_HABITS.filter(h => (log as unknown as Record<string, unknown>)[h.column]).length;
         if (habits > 0) chips.push({ label: 'Habits', value: `${habits}/${BUILTIN_HABIT_COUNT}` });
         return chips;
