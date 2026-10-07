@@ -7,7 +7,6 @@ import { useDailyLogs } from '../hooks/useDailyLogs';
 import { useBootHold } from '../services/bootScreen';
 import LoadingBar from '../Components/LoadingBar';
 import TopicNetwork from '../Components/MindCharts/TopicNetwork';
-import MoodBandChart from '../Components/MindCharts/MoodBandChart';
 import MoodStatCards from '../Components/MindCharts/MoodStatCards';
 import { Network, ChevronLeft } from 'lucide-react';
 
@@ -75,6 +74,8 @@ const MindChartsPage: React.FC = () => {
             <Title title="Mind Charts" />
             <div className="page-main-with-secondary mind-charts-wrapper">
                 <div className="dashboard-section">
+                    <MoodStatCards logs={rows} maxDays={range.days} />
+
                     <div className="mind-charts-head">
                         <div className="flex gap-2 flex-wrap">
                             <button onClick={() => navigate('/Journal')} className="btn-action">
@@ -94,8 +95,6 @@ const MindChartsPage: React.FC = () => {
                             ))}
                         </div>
                     </div>
-
-                    <MoodStatCards logs={rows} maxDays={range.days} />
 
                     <div className="card puzzle-card mind-charts-network-card">
                         <div className="card-header">
@@ -119,17 +118,6 @@ const MindChartsPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="card puzzle-card">
-                        <div className="card-header">
-                            <h3 className="card-title">Morning and evening mood</h3>
-                            <span className="mind-charts-subtitle">
-                                The shaded band is how far apart the two halves of each day were
-                            </span>
-                        </div>
-                        <div className="card-body">
-                            <MoodBandChart logs={rows} range={range} />
-                        </div>
-                    </div>
                 </div>
             </div>
         </>

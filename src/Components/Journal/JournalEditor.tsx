@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sunrise, Moon } from 'lucide-react';
 import { useNoteEditorChunk } from '../Notes/useNoteEditorChunk';
 import { MoodScale } from './Mood';
 import type { JournalDocument } from '../../utils/journalContent';
@@ -12,6 +11,7 @@ interface JournalEditorProps {
     eveningMood: number | null;
     onMorningMood: (value: number | null) => void;
     onEveningMood: (value: number | null) => void;
+    focusMode: boolean;
 }
 
 /**
@@ -37,19 +37,15 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
     eveningMood,
     onMorningMood,
     onEveningMood,
+    focusMode,
 }) => {
     const { Editor } = useNoteEditorChunk();
     if (!Editor) return <div className="journal-rich-editor-loading">Loading editor...</div>;
 
     return (
-        <div className="journal-nodes">
+        <div className={`journal-nodes${focusMode ? ' journal-nodes--focus' : ''}`}>
             <div className="journal-log-puzzle">
                 <section className="card puzzle-card journal-node journal-node--morning">
-                    <div className="card-header">
-                        <h3 className="card-title">
-                            <Sunrise className="journal-node-icon" />Morning
-                        </h3>
-                    </div>
                     <div className="card-body">
                         <MoodScale
                             slot="morning"
@@ -61,16 +57,12 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                         <Editor
                             initialHtml={value.morning}
                             onChange={morning => onChange({ ...value, morning })}
+                            focusMode={focusMode}
                         />
                     </div>
                 </section>
 
                 <section className="card puzzle-card journal-node journal-node--evening">
-                    <div className="card-header">
-                        <h3 className="card-title">
-                            <Moon className="journal-node-icon" />Evening
-                        </h3>
-                    </div>
                     <div className="card-body">
                         <MoodScale
                             slot="evening"
@@ -82,6 +74,7 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                         <Editor
                             initialHtml={value.evening}
                             onChange={evening => onChange({ ...value, evening })}
+                            focusMode={focusMode}
                         />
                     </div>
                 </section>

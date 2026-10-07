@@ -5,7 +5,7 @@ import { getDailyLogById, updateDailyLog } from '../services/dailyLogService';
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
-import { PenTool, Sparkles } from 'lucide-react';
+import { Sparkles, Eye } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { journalHabitFor } from '../utils/journalHabit';
@@ -32,6 +32,7 @@ const JournalEditPage: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [focusMode, setFocusMode] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -158,13 +159,20 @@ const JournalEditPage: React.FC = () => {
                 <div className="dashboard-section journal-section">
                     <div className="journal-logs-card">
                         <div className="journal-score-col">
-                            <div className="journal-top-bar">
+                            <div className={`journal-top-bar${focusMode ? ' journal-top-bar--focus' : ''}`}>
                                 <div className="flex gap-2 flex-wrap">
                                     <button onClick={() => navigate('/Journal')} className="btn-action">
                                         Journal
                                     </button>
-                                    <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
-                                        History
+                                    <button
+                                        type="button"
+                                        className={`btn-action journal-focus-btn${focusMode ? ' journal-focus-btn--active' : ''}`}
+                                        onClick={() => setFocusMode(value => !value)}
+                                        aria-label="Focus mode"
+                                        aria-pressed={focusMode}
+                                        data-tip="Focus mode"
+                                    >
+                                        <Eye size={14} />
                                     </button>
                                     <button type="button" className="btn-action journal-charts-link" onClick={() => navigate('/Mind-Charts')}>
                                         <Sparkles size={14} /> Neural network
@@ -190,10 +198,6 @@ const JournalEditPage: React.FC = () => {
                         </div>
 
                         <div className="journal-log-form">
-                            <div className="journal-editor-header">
-                                <PenTool />
-                                Journal Entry
-                            </div>
                             <JournalEditor
                                 value={journalDocument}
                                 onChange={setJournalDocument}
@@ -201,6 +205,7 @@ const JournalEditPage: React.FC = () => {
                                 eveningMood={eveningMood}
                                 onMorningMood={setMorningMood}
                                 onEveningMood={setEveningMood}
+                                focusMode={focusMode}
                             />
                         </div>
                     </div>

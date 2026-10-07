@@ -25,9 +25,15 @@ export const parseJournalDocument = (
             fields.evening ||
             fields.links.length > 0)
     ) {
+        const legacyEvening = fields.evening || (
+            value && !value.trim().startsWith('{')
+                ? value
+                : fields.morning
+        );
         return {
             ...emptyDocument(),
             ...fields,
+            evening: fields.evening || legacyEvening,
             links: fields.links ?? [],
         };
     }

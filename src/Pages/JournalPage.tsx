@@ -6,7 +6,7 @@ import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/d
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
-import { Lightbulb, X, RotateCw, PenTool, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2 } from 'lucide-react';
+import { Lightbulb, X, RotateCw, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye } from 'lucide-react';
 import { todayString, addDays, isDateString, formatDayLabel } from '../utils/dates';
 import { journalHabitFor } from '../utils/journalHabit';
 import LoadingSpinner from '../Components/LoadingSpinner';
@@ -59,6 +59,7 @@ const JournalPage: React.FC = () => {
     const [morningMood, setMorningMood] = useState<number | null>(null);
     const [eveningMood, setEveningMood] = useState<number | null>(null);
     const [showTips, setShowTips] = useState(true);
+    const [focusMode, setFocusMode] = useState(false);
 
     const dateParam = searchParams.get('date');
     const logDate = isDateString(dateParam) ? dateParam : todayString();
@@ -299,16 +300,6 @@ const JournalPage: React.FC = () => {
         };
     }, [journalDocument, morningMood, eveningMood, performSave, settings]);
 
-    // Anything still pending when the page is left would otherwise be dropped.
-    useEffect(() => {
-        return () => {
-            if (!autoSaveTimerRef.current) return;
-            clearTimeout(autoSaveTimerRef.current);
-            autoSaveTimerRef.current = null;
-            void performSave();
-        };
-    }, [performSave]);
-
     // Settings come from a raw await, invisible to the app-level boot gate, so
     // without this the splash lifts over the spinner below. `settingsLoaded`
     // rather than `settings`: the gate reads `!settings`, and a user with no
@@ -332,10 +323,6 @@ const JournalPage: React.FC = () => {
         );
     }
 
-    const dateLabel = logDate
-        ? new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-        : '';
-
     return (
         <>
             <Title title="Journal" />
@@ -347,13 +334,8 @@ const JournalPage: React.FC = () => {
                         two pages read as one app. */}
                     <div className="journal-logs-card">
                         <div className="journal-score-col">
-                            {(saveError || !isToday) && (
-                                <div className="daily-score-daynav">
-                                    {saveError && (
-                                        <span className="daily-score-save-error" role="status" aria-live="polite">
-                                            {saveError}
-                                        </span>
-                                    )}
+                            <div className={`journal-top-bar${focusMode ? ' journal-top-bar--focus' : ''}`}>
+                                <div className="journal-top-bar__controls">
                                     <div className="daily-log-daynav">
                                         <button
                                             type="button"
@@ -402,95 +384,63 @@ const JournalPage: React.FC = () => {
                                             </button>
                                         )}
                                     </div>
+                                    {showTips && (
+                                        <div className="journal-tip-card">
+                                            <Lightbulb className="journal-tip-icon" aria-hidden="true" />
+                                            <span className="journal-tip-text">{randomTip}</span>
+                                            <button type="button" onClick={refreshTip} className="journal-tip-refresh" aria-label="Another journal prompt" data-tip="Another prompt">
+                                                <RotateCw />
+                                            </button>
+                                            <button type="button" onClick={() => setShowTips(false)} className="journal-tip-close" aria-label="Dismiss tip">
+                                                <X />
+                                            </button>
+                                        </div>
+                                    )}
+                                    {!showTips && (
+                                        <button type="button" onClick={() => { setShowTips(true); refreshTip(); }} className="journal-show-tips">
+                                            <Lightbulb className="mr-1" />Show tip
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-
-                            <div className="journal-top-bar">
-                                <div className="flex gap-2 flex-wrap">
-                                    <button onClick={() => navigate('/Daily-Log')} className="btn-action">
-                                        Daily Log
-                                    </button>
-                                    <button onClick={() => navigate('/Daily-Log/History')} className="btn-action">
-                                        History
+                                <div className="journal-top-bar__status">
+                                    <button
+                                        type="button"
+                                        className={`btn-action journal-focus-btn${focusMode ? ' journal-focus-btn--active' : ''}`}
+                                        onClick={() => setFocusMode(value => !value)}
+                                        aria-label="Focus mode"
+                                        aria-pressed={focusMode}
+                                        data-tip="Focus mode"
+                                    >
+                                        <Eye size={14} />
                                     </button>
                                     <button type="button" className="btn-action journal-charts-link" onClick={() => navigate('/Mind-Charts')}>
                                         <Sparkles size={14} /> Neural network
                                     </button>
-                                </div>
-                                <div className="journal-autosave">
-                                    {saving ? (
-                                        <span>Saving...</span>
-                                    ) : lastSaved ? (
-                                        <span>Saved {lastSaved.toLocaleTimeString()}</span>
-                                    ) : (
-                                        <span>Auto-saves as you type</span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* The date, as the rail's headline. It states which day
-                                every control beside and below it applies to. */}
-                            <div className="journal-date-header">
-                                {dateLabel}
-                            </div>
-
-                            {/* Writing tip. In the rail rather than above the
-                                editors: it is inspiration, not an input, and the
-                                field grid should be the only thing in the columns
-                                you write in. */}
-                            {showTips && (
-                                <div className="journal-tip-card">
-                                    <div className="journal-tip-content">
-                                        <div className="flex items-start gap-2 flex-1">
-                                            <Lightbulb className="journal-tip-icon" />
-                                            <div>
-                                                <div className="journal-tip-title">Journal prompt</div>
-                                                <div className="journal-tip-text">{randomTip}</div>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowTips(false)}
-                                            className="journal-tip-close"
-                                            aria-label="Dismiss tip"
-                                        >
-                                            <X />
-                                        </button>
+                                    <div className="journal-autosave">
+                                        {saveError && <span className="journal-save-error" role="status">{saveError}</span>}
+                                        {saving ? (
+                                            <span>Saving...</span>
+                                        ) : lastSaved ? (
+                                            <span>Saved {lastSaved.toLocaleTimeString()}</span>
+                                        ) : (
+                                            <span>Auto-saves as you type</span>
+                                        )}
                                     </div>
-                                    <button type="button" onClick={refreshTip} className="journal-tip-refresh" aria-label="Another journal prompt" data-tip="Another prompt">
-                                        <RotateCw />
-                                    </button>
                                 </div>
-                            )}
+                            </div>
 
-                            {/* The route to the graphs these entries feed. Named in
-                                full rather than "Mind Charts" because this is the
-                                only place in the app that explains where the
-                                ratings and the topics end up. */}
                         </div>
 
                         <div className="journal-log-form">
-                            <div className="journal-editor-header">
-                                <PenTool />
-                                Journal Entry
-                                {!showTips && (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setShowTips(true); refreshTip(); }}
-                                        className="journal-show-tips"
-                                    >
-                                        <Lightbulb className="mr-1" />Show tips
-                                    </button>
-                                )}
-                            </div>
-
                             <JournalEditor
+                                key={logDate}
                                 value={journalDocument}
                                 onChange={setJournalDocument}
                                 morningMood={morningMood}
                                 eveningMood={eveningMood}
                                 onMorningMood={setMorningMood}
                                 onEveningMood={setEveningMood}
+                                focusMode={focusMode}
                             />
 
                         </div>
