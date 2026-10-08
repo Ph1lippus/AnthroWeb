@@ -107,14 +107,7 @@ const ProjectsPage: React.FC = () => {
         loadProjects();
     }, []);
 
-    const handleMarkCompleted = async (project: Project) => {
-        await updateProject(project.id!, {
-            status: 'completed',
-            completed_at: new Date().toISOString().split('T')[0],
-        });
-        const refreshedProjects = await getUserProjects();
-        setProjects(refreshedProjects);
-    };
+    
 
     const resetForm = () => {
         setTitle('');
