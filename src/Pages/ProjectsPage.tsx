@@ -325,12 +325,6 @@ const ProjectsPage: React.FC = () => {
     };
 
     const totalProjectsCount = projects.length;
-    const activeCount = activeProjects.length;
-    // "Completed" means completed, not "no longer upcoming" -- maintenance work is
-    // past the start line but it is not done, and folding it in here would have
-    // quietly inflated the one number on the page that means something.
-    const completedCount = completedProjects.length;
-    const maintenanceCount = maintenanceProjects.length;
 
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return null;
@@ -469,31 +463,7 @@ const ProjectsPage: React.FC = () => {
             <div className="projects-page-wrapper">
                 <div className="dashboard-section projects-section">
                     <div className="projects-card">
-                        {/* Stats + Top Bar */}
-                        <div className="projects-stats">
-                            <div className="projects-stat-item">
-                                <span className="projects-stat-label">Total Projects</span>
-                                <span className="projects-stat-value">{totalProjectsCount}</span>
-                            </div>
-                            <div className="projects-stat-item">
-                                <span className="projects-stat-label">Active</span>
-                                <span className="projects-stat-value">{activeCount}</span>
-                            </div>
-                            <div className="projects-stat-item">
-                                <span className="projects-stat-label">Completed</span>
-                                <span className="projects-stat-value">{completedCount}</span>
-                            </div>
-                            {/* Shown only when it is non-zero: a fourth tile that
-                                always reads 0 is noise, and the Maintenance
-                                section below already says the same thing. */}
-                            {maintenanceCount > 0 && (
-                                <div className="projects-stat-item">
-                                    <span className="projects-stat-label">In Maintenance</span>
-                                    <span className="projects-stat-value">{maintenanceCount}</span>
-                                </div>
-                            )}
-                        </div>
-
+                        {/* Top Bar */}
                         <div className="projects-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => setShowAddForm(true)} className="btn-action">

@@ -788,6 +788,9 @@ export const createAcademicItem = async (item: AcademicItem): Promise<AcademicIt
                     ? clampGradePercent(item.minimum_grade)
                     : null,
             due_date: item.due_date || null,
+            due_time: item.due_time || null,
+            // New work starts unfinished, whatever its type says.
+            completed: item.completed ?? false,
         })
         .select()
         .single();
@@ -815,6 +818,8 @@ export const updateAcademicItem = async (
             updates.minimum_grade === null ? null : clampGradePercent(updates.minimum_grade);
     }
     if (updates.due_date !== undefined) payload.due_date = updates.due_date || null;
+    if (updates.due_time !== undefined) payload.due_time = updates.due_time || null;
+    if (updates.completed !== undefined) payload.completed = updates.completed;
     if (updates.parent_id !== undefined) payload.parent_id = updates.parent_id;
 
     const { data, error } = await supabase

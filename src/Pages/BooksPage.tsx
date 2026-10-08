@@ -542,9 +542,7 @@ const BooksPage: React.FC = () => {
         return `${label}Results (${count})`;
     };
 
-    const totalPagesRead = books.reduce((sum, b) => sum + b.current_page, 0);
     const totalBooksCount = books.length;
-    const completedCount = completedBooks.length;
 
     const renderBookCard = (book: Book) => (
         <div key={book.id} className="book-card">
@@ -604,22 +602,7 @@ const BooksPage: React.FC = () => {
             <div className="books-page-wrapper">
                 <div className="dashboard-section books-section">
                     <div className="books-card">
-                        {/* Stats + Top Bar */}
-                        <div className="books-stats">
-                            <div className="books-stat-item">
-                                <span className="books-stat-label">Total Books</span>
-                                <span className="books-stat-value">{totalBooksCount}</span>
-                            </div>
-                            <div className="books-stat-item">
-                                <span className="books-stat-label">Pages Read</span>
-                                <span className="books-stat-value">{totalPagesRead}</span>
-                            </div>
-                            <div className="books-stat-item">
-                                <span className="books-stat-label">Completed</span>
-                                <span className="books-stat-value">{completedCount}</span>
-                            </div>
-                        </div>
-
+                        {/* Top Bar */}
                         <div className="books-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => setShowAddForm(true)} className="btn-action">

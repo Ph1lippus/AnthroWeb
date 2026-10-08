@@ -148,6 +148,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [stretching, setStretching] = useState(false);
     const [reading, setReading] = useState(false);
     const [noSleep, setNoSleep] = useState(false);
+    // A cheat day leaves every food value stored exactly as typed and only stops
+    // them counting in the score -- see the note on `cheatDay` in dailyScoring.
+    const [cheatDay, setCheatDay] = useState(false);
 
     // Gym is a built-in habit, but it is written by the workout pages rather
     // than by this form: ticking it here and marking the same day on /Workouts
@@ -363,6 +366,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setStretching(log.stretching || false);
         setReading(log.reading || false);
         setNoSleep(log.no_sleep || false);
+        setCheatDay(log.cheat_day || false);
         setGymLocal(log.gym || false);
     };
 
@@ -392,6 +396,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setStretching(false);
         setReading(false);
         setNoSleep(false);
+        setCheatDay(false);
         setGymLocal(false);
         setSelectedProjectIds(new Set());
     };
@@ -597,8 +602,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         activeGoals,
         settings: effectiveSettings,
         noSleep,
+        cheatDay,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     // The day's average rating, for the mood card's header. Null rather than zero
@@ -702,7 +708,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 eveningSystolic || eveningDiastolic || eveningBpm ||
                 bodyTemperature || calories || protein || carbs || fat ||
                 water || journalEntry ||
-                noSleep || projectWorkDone || morningRoutine || eveningRoutine ||
+                noSleep || cheatDay || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
@@ -787,6 +793,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 stretching: stretching,
                 reading: reading,
                 no_sleep: noSleep,
+                cheat_day: cheatDay,
             };
 
             if (isEditing && existingLog?.id) {
@@ -807,7 +814,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setSaveError(message);
             console.error('Auto-save error:', err);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
 
     /**
      * Queues a whole-row write behind any that are already open.
@@ -929,7 +936,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // the click, and this is the write that follows it to put the day's score and
     // its project links back in step. `noSleep` belongs here too -- it is a habit
     // column, and it is also what nulls out the sleep fields, which only this
-    // whole-row write can do.
+    // whole-row write can do. `cheatDay` is here for the same first reason: one
+    // column, written on the click, and the score it changes only this write
+    // stores.
     //
     // What is deliberately absent is the "add a custom habit" form. Those two
     // fields are not part of the day's log at all, and having them here wrote every
@@ -941,7 +950,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             // Timer cleanup is handled by flushSave on unmount; this cleanup
             // only cancels the timer if the effect re-runs for another reason.
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
+    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -1413,12 +1422,27 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                     <h3 className="card-title">Nutrition</h3>
                                 </div>
                                 <div className="card-body">
+                                    <label className="checkbox-label mb-3">
+                                        <input
+                                            type="checkbox"
+                                            checked={cheatDay}
+                                            onChange={(e) => saveBuiltinHabit('cheat_day', e.target.checked, setCheatDay)}
+                                            className="checkbox-input"
+                                        />
+                                        <span className="text-sm opacity-90">Cheat Day</span>
+                                        <span
+                                            className="text-sm opacity-60"
+                                            data-tip="Food macros are recorded but don't count in today's score. Water still counts."
+                                        >
+                                            (macros off)
+                                        </span>
+                                    </label>
                                     <div className="scored-input-wrap">
                                         <input type="number" value={calories} onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCalories(e.target.value);
                                             else if (e.target.value === '') setCalories('');
-                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories && !cheatDay ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Calories <span className="scored-input-goal-inline">{nutritionGoals?.calories || 2000}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1426,7 +1450,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setProtein(e.target.value);
                                             else if (e.target.value === '') setProtein('');
-                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein && !cheatDay ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Protein <span className="scored-input-goal-inline">{nutritionGoals?.protein || 150}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1434,7 +1458,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
                                             else if (e.target.value === '') setCarbs('');
-                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs && !cheatDay ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Carbs <span className="scored-input-goal-inline">{nutritionGoals?.carbs || 200}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1442,7 +1466,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setFat(e.target.value);
                                             else if (e.target.value === '') setFat('');
-                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat && !cheatDay ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Fat <span className="scored-input-goal-inline">{nutritionGoals?.fat || 65}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">

@@ -336,15 +336,7 @@ const AbstinencePage: React.FC = () => {
         return `${label}Results (${count})`;
     };
 
-    // Stats
     const totalGoalsCount = goals.length;
-    const activeCount = goals.length;
-    const bestStreak = history.length > 0
-        ? Math.max(...history.map(h => h.duration_days))
-        : 0;
-    const longestActiveStreak = goals.length > 0
-        ? Math.max(...goals.map(g => getDaysSince(g.start_date)))
-        : 0;
 
     const renderGoalCard = (goal: AbstinenceGoal) => {
         const days = getDaysSince(goal.start_date);
@@ -488,22 +480,7 @@ const AbstinencePage: React.FC = () => {
             <div className="abstinence-page-wrapper">
                 <div className="dashboard-section abstinence-section">
                     <div className="abstinence-card-container">
-                        {/* Stats + Top Bar */}
-                        <div className="abstinence-stats">
-                            <div className="abstinence-stat-item">
-                                <span className="abstinence-stat-label">Active Streaks</span>
-                                <span className="abstinence-stat-value">{activeCount}</span>
-                            </div>
-                            <div className="abstinence-stat-item">
-                                <span className="abstinence-stat-label">Longest Active</span>
-                                <span className="abstinence-stat-value">{longestActiveStreak}d</span>
-                            </div>
-                            <div className="abstinence-stat-item">
-                                <span className="abstinence-stat-label">Best Streak</span>
-                                <span className="abstinence-stat-value">{bestStreak}d</span>
-                            </div>
-                        </div>
-
+                        {/* Top Bar */}
                         <div className="abstinence-top-bar">
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => setShowAddForm(true)} className="btn-action">

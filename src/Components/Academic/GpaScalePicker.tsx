@@ -1,7 +1,5 @@
 import React from 'react';
 import {
-    percentToPoints,
-    percentToScalePoints,
     ROUNDING_LABELS,
     ROUNDING_MODES,
 } from '../../utils/academicGpa';
@@ -17,8 +15,7 @@ interface GpaScalePickerProps {
 }
 
 /**
- * Picks which scale the whole page reads in, and shows the same grade on every
- * other scale so switching back and forth never loses the thread.
+ * Picks which scale the whole page reads in.
  *
  * The scales themselves are fixed presets now: there is deliberately no add,
  * edit or delete here, because letting one account redefine "20/20" made every
@@ -34,15 +31,6 @@ const GpaScalePicker: React.FC<GpaScalePickerProps> = ({
     if (scales.length === 0) return null;
 
     const active = scales.find(scale => scale.id === activeId) ?? scales[0];
-    const others = scales.filter(scale => scale.id !== active.id);
-
-    // A reference grade, so the picker's value is legible before any course exists.
-    const sample = 85;
-
-    // Banded scales (4.0, 5.0) read through their bands; bandless ones keep the
-    // full decimal, so "85% is a 17.00" survives instead of collapsing to 17.
-    const readout = (percent: number, scale: GpaScale): string =>
-        (scale.bands.length > 0 ? percentToPoints(percent, scale) : percentToScalePoints(percent, scale)).toFixed(2);
 
     // Rounding only changes a bandless result. A banded scale already says
     // exactly which grade a percentage earns.
@@ -82,15 +70,6 @@ const GpaScalePicker: React.FC<GpaScalePickerProps> = ({
                         ))}
                     </select>
                 </label>
-            )}
-
-            {others.length > 0 && (
-                <span
-                    className="weight-badge weight-badge--empty"
-                    data-tip={`${sample}% reads as...`}
-                >
-                    {others.map(scale => `${readout(sample, scale)} ${scale.name}`).join('  ·  ')}
-                </span>
             )}
         </div>
     );

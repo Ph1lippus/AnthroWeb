@@ -76,6 +76,7 @@ const UpcomingPanel: React.FC<UpcomingPanelProps> = ({ courses, items, now, onSe
                             </span>
 
                             <span className={`upcoming-row__when${urgent ? ' upcoming-row__when--urgent' : ''}`}>
+                                {entry.item.due_time ? `${entry.item.due_time.slice(0, 5)} · ` : ''}
                                 {countdown(entry.days)}
                             </span>
                         </button>

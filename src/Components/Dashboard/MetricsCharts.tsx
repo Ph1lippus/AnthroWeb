@@ -58,10 +58,8 @@ const inRange = (date: string, days: number | null): boolean => {
 };
 
 // "23:30" / "23:30:00" -> 23.5 so a clock time can share a numeric axis with the
-// rest of the metrics. The value is left on a plain 0-24 clock: shifting the
-// small hours into the 24-36 range (the old behaviour) pushed every morning
-// wake-up off the top of the chart and produced duplicate axis labels, and it
-// made the "straight line" between two unrelated nights meaningless.
+// rest of the metrics. Parsing stays on a plain 0-24 clock; the chart that draws
+// these readings is the one that moves them (see `lateNight`).
 const clockToHours = (value: string | null | undefined): number | null => {
     if (!value) return null;
     const match = /^(\d{1,2}):(\d{2})/.exec(value);
@@ -71,6 +69,24 @@ const clockToHours = (value: string | null | undefined): number | null => {
     if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
     return ((hours + minutes / 60) % 24 + 24) % 24;
 };
+
+/**
+ * The bedtime/wake-up axis runs 04:00 to 04:00 rather than 00:00 to 24:00.
+ *
+ * Sleep crosses midnight, so a 0-24 axis splits the night in half: a 23:00
+ * bedtime sits at the top and a 06:00 wake-up near the bottom, with the stretch
+ * between them -- the sleep itself -- run off the end of the chart and back in
+ * at the other side. Reading the trend meant jumping between the two edges.
+ *
+ * Starting at 4am puts the whole night, and the early hours after it, in one
+ * unbroken band: 23:00 is near the top, 06:00 below it, and 01:00 falls between
+ * the two instead of wrapping. Readings before 4am are the *late* part of the
+ * previous evening, so they are drawn in the 24-28 stretch at the top - the
+ * axis labels wrap back to 01:00-04:00 there, which is what they read on a clock.
+ */
+const lateNight = (hours: number | null): number | null =>
+    hours === null ? null : (hours < 4 ? hours + 24 : hours);
+
 
 const hoursToClock = (hours: number | null): string => {
     if (hours === null) return '--';
@@ -133,9 +149,6 @@ const TICKS = {
     rating0to10: intTicks(0, 10),
     percent: [0, 20, 40, 60, 80, 100],
     hours: intTicks(0, 14, 2),
-    /** Night is shaded from 18:00 to 08:00, so bedtime/wake-up sit in context. */
-    night: [18, 24],
-    morning: [0, 8],
 };
 
 interface ChartPoint {
@@ -169,7 +182,6 @@ interface ChartPoint {
     eveningSystolic: number | null;
     eveningDiastolic: number | null;
     eveningBpm: number | null;
-    bodyTemperature: number | null;
     habitPct: number | null;
     /**
      * The goal in force on that day's date, carried per point rather than as one
@@ -268,7 +280,7 @@ interface ChartYProps {
     /** Axis width; widen for clock labels such as "23:00". */
     width?: number;
     tickFormatter?: (value: number) => string;
-    /** Allow fractional tick labels (weight, temperature). */
+    /** Allow fractional tick labels (weight, body fat). */
     allowDecimals?: boolean;
 }
 
@@ -310,10 +322,9 @@ interface DotRenderProps {
  * Dot renderer for clock readings.
  *
  * Marks the individual nights behind the bedtime / wake-up trend line. The
- * line itself is the trend; the dot is the actual reading, which matters here
- * because a clock series wraps: two adjacent nights at 23:50 and 00:10 are ten
- * minutes apart in real life but a near-vertical jump on a 0-24 axis. The dot
- * is what tells you where the real value sits.
+ * line itself is the trend; the dot is the actual reading, which still matters
+ * on a clock axis: the trend between two nights says nothing about how far apart
+ * those two readings were, and the dot does.
  *
  * `strokeOpacity={0}` is used on the line's *stroke* so the legend swatch and
  * the tooltip dot keep the series' real colour - Recharts reads the legend
@@ -345,11 +356,14 @@ const clockDot = (color: string) => {
     return render;
 };
 
-/** Shared axis config for every clock chart: a 24-hour face, labelled every 3h. */
-const CLOCK_AXIS_TICKS = intTicks(0, 24, 3);
-// The domain top and bottom are the same instant, so label it 24:00 rather than
-// printing "00:00" twice on the same axis.
-const clockAxisLabel = (value: number): string => (value >= 24 ? '24:00' : hoursToClock(value));
+/**
+ * Shared axis config for the bedtime/wake-up chart: 04:00 through the next
+ * 04:00, labelled every 3h. `hoursToClock` wraps past 24, so the top tick reads
+ * 04:00 like the bottom one - the axis shows where the day turns over instead of
+ * hiding it, and the small hours keep the clock labels a viewer expects.
+ */
+const CLOCK_AXIS_TICKS = intTicks(4, 28, 3);
+const clockAxisLabel = (value: number): string => hoursToClock(value);
 
 /**
  * An all-null row standing in for a day that is missing from the log.
@@ -363,7 +377,7 @@ const BLANK_POINT: ChartPoint = {
     calories: null, protein: null, carbs: null, fat: null, water: null,
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
-    bodyTemperature: null, habitPct: null,
+    habitPct: null,
     goalCalories: null, goalWater: null, goalProtein: null, goalCarbs: null,
     goalFat: null, goalSleepHours: null, goalBedtime: null, goalWakeTime: null,
 };
@@ -710,13 +724,15 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     const goalsOn = useCallback((date: string): ActiveGoals | null =>
         goalsForDate(goalHistory, date, currentGoals), [goalHistory, currentGoals]);
 
+    // Target and starting values, from the profile - the one row that saves
+    // both ends of the journey. Each chart draws the target as a line and the
+    // start as its opening point *and* a line, so a seven-day window still says
+    // where the trend began and where it is heading. See `startPoint` below.
     const targetWeight = settings?.target_weight ?? null;
     const targetBodyFat = settings?.target_bodyfat ?? null;
-    // Where the user started, from the profile. Drawn as a reference line beside
-    // the target rather than as the first point of the series: it is the origin
-    // of the trend, not a measurement on a day, so it has no date. As a point it
-    // was invisible in every window shorter than the gap back to the profile --
-    // which is all of them, since the dashboard opens on seven days.
+    // Where the user started. Undated by nature - it is the origin of the trend,
+    // not a measurement on a day - which is exactly why it has to be carried
+    // here rather than looked up in the window.
     const startWeight = settings?.starting_weight ?? null;
     const startBodyFat = settings?.starting_bodyfat ?? null;
 
@@ -748,8 +764,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     score: l.daily_score ?? null,
                     sleepDuration: l.sleep_duration ?? null,
                     sleepQuality: l.sleep_quality ?? null,
-                    bedtime: clockToHours(l.bedtime),
-                    wakeTime: clockToHours(l.wake_time),
+                    bedtime: lateNight(clockToHours(l.bedtime)),
+                    wakeTime: lateNight(clockToHours(l.wake_time)),
                     morningMood: moodFor(l, 'morning'),
                     eveningMood: moodFor(l, 'evening'),
                     calories: l.calories ?? null,
@@ -763,7 +779,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     eveningSystolic: l.evening_systolic ?? null,
                     eveningDiastolic: l.evening_diastolic ?? null,
                     eveningBpm: l.evening_bpm ?? null,
-                    bodyTemperature: l.body_temperature ?? null,
                     habitPct: habitTotal > 0 ? Math.round(((builtinDone + customDone) / habitTotal) * 100) : null,
                     goalCalories: goalsOn(l.log_date)?.nutrition?.calories ?? null,
                     goalWater: goalsOn(l.log_date)?.nutrition?.water ?? null,
@@ -775,8 +790,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     // the same decimal hours as the readings, so the goal lines
                     // land where they belong. A blank or malformed goal yields
                     // null, which simply hides the line for that day.
-                    goalBedtime: clockToHours(goalsOn(l.log_date)?.sleep?.bedtime),
-                    goalWakeTime: clockToHours(goalsOn(l.log_date)?.sleep?.wake_time),
+                    goalBedtime: lateNight(clockToHours(goalsOn(l.log_date)?.sleep?.bedtime)),
+                    goalWakeTime: lateNight(clockToHours(goalsOn(l.log_date)?.sleep?.wake_time)),
                 };
             });
     }, [logs, range.days, habits, completedByDate, goalsOn]);
@@ -785,7 +800,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
      * Weight and body fat, from `body_measurements` only. See
      * `utils/bodySeries.ts` for why the daily log is no longer a second source.
      */
-    const bodyData = useMemo<BodyPoint[]>(
+    const bodySeries = useMemo<BodyPoint[]>(
         () =>
             buildBodySeries({ measurements, days: range.days, inRange }).map(row => ({
                 ...row,
@@ -794,13 +809,40 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
         [measurements, range.days],
     );
 
+    /**
+     * The opening point: where the user started, read from `user_settings`.
+     *
+     * That row saves both ends of the journey - `starting_*` and `target_*` -
+     * and neither is a measurement on a day, which is why the raw series
+     * refuses to date them (see `bodySeries.ts`). As the chart's *first point*
+     * they have a place after all: every window, seven days included, begins
+     * where the trend began rather than wherever the first in-range weigh-in
+     * happens to fall, and a window with no weigh-in at all still has something
+     * to draw. Both remain undated, so the point is labelled for what it is.
+     */
+    const startPoint = useMemo<BodyPoint | null>(
+        () =>
+            startWeight == null && startBodyFat == null
+                ? null
+                : { date: '', label: 'Start', weight: startWeight, bodyFat: startBodyFat, bodyFatMethod: null },
+        [startWeight, startBodyFat],
+    );
+
+    const bodyData = useMemo<BodyPoint[]>(
+        () => (startPoint ? [startPoint, ...bodySeries] : bodySeries),
+        [startPoint, bodySeries],
+    );
+
     const hasBodyData = (key: 'weight' | 'bodyFat'): boolean =>
         bodyData.some(p => p[key] != null);
 
+    // Averages run over the measurements only. The start point is the origin of
+    // the trend rather than a reading inside the window, so folding it in would
+    // drag the average towards a number that may be years old.
     const bodyAverage = (key: 'weight' | 'bodyFat'): number | null => {
         let sum = 0;
         let n = 0;
-        for (const p of bodyData) {
+        for (const p of bodySeries) {
             const v = p[key];
             if (typeof v === 'number') {
                 sum += v;
@@ -808,6 +850,30 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             }
         }
         return n ? sum / n : null;
+    };
+
+    /**
+     * A y-domain that always contains the series *and* the target and start
+     * lines.
+     *
+     * Recharts drops a ReferenceLine that lands outside the axis, so a
+     * seven-day window whose weigh-ins sat above the target used to draw
+     * neither the target line nor the start line - the two lines that say what
+     * the chart is for. The half-unit floor keeps a flat series from
+     * collapsing onto a single line of its own.
+     */
+    const bodyDomain = (key: 'weight' | 'bodyFat', lines: (number | null)[]): [number, number] => {
+        const values: number[] = [];
+        for (const p of bodyData) {
+            const v = p[key];
+            if (typeof v === 'number') values.push(v);
+        }
+        for (const v of lines) if (typeof v === 'number') values.push(v);
+        if (values.length === 0) return [0, 1];
+        const lo = Math.min(...values);
+        const hi = Math.max(...values);
+        const pad = Math.max(0.5, (hi - lo) * 0.1);
+        return [Math.round((lo - pad) * 100) / 100, Math.round((hi + pad) * 100) / 100];
     };
 
     const completedByHabit = useMemo(() => {
@@ -881,16 +947,17 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             sleepDuration: avg('sleepDuration'),
             sleepQuality: avg('sleepQuality'),
             // Clock averages are circular; a plain mean would place 23:30 and
-            // 00:30 at midnight instead of just after it.
-            bedtime: averageClock(chartData.map(p => p.bedtime)),
-            wakeTime: averageClock(chartData.map(p => p.wakeTime)),
+            // 00:30 at midnight instead of just after it. The mean comes back on
+            // a 0-24 face, so it is shifted onto the chart's 04:00-04:00 axis
+            // afterwards, exactly like the readings it averages.
+            bedtime: lateNight(averageClock(chartData.map(p => p.bedtime))),
+            wakeTime: lateNight(averageClock(chartData.map(p => p.wakeTime))),
             morningSystolic: avg('morningSystolic'),
             eveningSystolic: avg('eveningSystolic'),
             morningDiastolic: avg('morningDiastolic'),
             eveningDiastolic: avg('eveningDiastolic'),
             morningBpm: avg('morningBpm'),
             eveningBpm: avg('eveningBpm'),
-            bodyTemperature: avg('bodyTemperature'),
             calories: avg('calories'),
             protein: avg('protein'),
             carbs: avg('carbs'),
@@ -1033,15 +1100,14 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         />
                     </div>
 
-                    {/* Bedtime and wake-up time share one 24-hour clock axis.
+                    {/* Bedtime and wake-up time share one axis that runs 04:00
+                        to the following 04:00, so the night is one unbroken band
+                        instead of being split across both edges of a 0-24 face.
                         They carry a trend line, but only between nights that
                         are actually adjacent: clockData inserts an empty row
                         for every day missing from the log, so the line breaks
                         at real gaps instead of drawing one straight line across
-                        weeks of nothing. Dots mark the individual readings. The
-                        axis is a plain 0-24 clock, so a 23:30 bedtime and a
-                        06:30 wake-up both sit where they belong and the labels
-                        are unambiguous. */}
+                        weeks of nothing. Dots mark the individual readings. */}
                     <div className="metrics-columns metrics-columns--single">
                         <ChartCard
                             title="Bedtime & Wake Time"
@@ -1053,7 +1119,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY
-                                        domain={[0, 24]}
+                                        domain={[4, 28]}
                                         ticks={CLOCK_AXIS_TICKS}
                                         width={46}
                                         tickFormatter={clockAxisLabel}
@@ -1066,10 +1132,10 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         iconSize={9}
                                         wrapperStyle={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--chart-axis)' }}
                                     />
-                                    {/* Night window, so both series are read in
+                                    {/* Night window: 18:00 through the end of the
+                                        axis at 04:00, so both series are read in
                                         the context of when people actually sleep. */}
-                                    <ReferenceArea y1={TICKS.night[0]} y2={24} fill="rgba(179, 141, 255, 0.07)" strokeOpacity={0} />
-                                    <ReferenceArea y1={0} y2={TICKS.morning[1]} fill="rgba(179, 141, 255, 0.07)" strokeOpacity={0} />
+                                    <ReferenceArea y1={18} y2={28} fill="rgba(179, 141, 255, 0.07)" strokeOpacity={0} />
                                     <GoalSegments
                                         points={chartData}
                                         dataKey="goalBedtime"
@@ -1173,25 +1239,10 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 </LineChart>
                             }
                         />
-                        <ChartCard
-                            title="Body Temperature"
-                            empty={!hasAny('bodyTemperature')}
-                            onExpand={openChart}
-                            chart={
-                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                    <ChartGrid />
-                                    <ChartX />
-                                    <ChartY tickCount={5} allowDecimals tickFormatter={(v) => num(v, 1)} />
-                                    <ChartTip />
-                                    <ReferenceLine y={37} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
-                                    <AvgLine y={averages.bodyTemperature} stroke={C.amber} />
-                                    <Line type="monotone" dataKey="bodyTemperature" name="Temperature" formatter={(v) => `${num(v, 2)} °C`} stroke={C.amber} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-                                </LineChart>
-                            }
-                        />
                     </div>
 
-                    {/* Nutrition */}
+                    {/* Nutrition: intake and hydration together; the macros sit
+                        on the row below. */}
                     <div className="metrics-columns">
                         <ChartCard
                             title="Calories"
@@ -1208,24 +1259,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <Bar dataKey="calories" name="Calories" formatter={(v) => `${num(v)} kcal`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </ComposedChart>
                             }
-                        />
-                        <ChartCard
-                            title="Protein"
-                            empty={!hasAny('protein')}
-                            onExpand={openChart}
-                            chart={macroChart('protein', 'goalProtein', 'Protein', C.blue)}
-                        />
-                        <ChartCard
-                            title="Carbs"
-                            empty={!hasAny('carbs')}
-                            onExpand={openChart}
-                            chart={macroChart('carbs', 'goalCarbs', 'Carbs', C.purple)}
-                        />
-                        <ChartCard
-                            title="Fat"
-                            empty={!hasAny('fat')}
-                            onExpand={openChart}
-                            chart={macroChart('fat', 'goalFat', 'Fat', C.amber)}
                         />
                         <ChartCard
                             title="Water"
@@ -1245,7 +1278,31 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         />
                     </div>
 
-                    {/* Body & Mood */}
+                    {/* Macros get their own row: three charts with their own
+                        axes, goals and averages, below the intake they belong to. */}
+                    <div className="metrics-columns">
+                        <ChartCard
+                            title="Protein"
+                            empty={!hasAny('protein')}
+                            onExpand={openChart}
+                            chart={macroChart('protein', 'goalProtein', 'Protein', C.blue)}
+                        />
+                        <ChartCard
+                            title="Carbs"
+                            empty={!hasAny('carbs')}
+                            onExpand={openChart}
+                            chart={macroChart('carbs', 'goalCarbs', 'Carbs', C.purple)}
+                        />
+                        <ChartCard
+                            title="Fat"
+                            empty={!hasAny('fat')}
+                            onExpand={openChart}
+                            chart={macroChart('fat', 'goalFat', 'Fat', C.amber)}
+                        />
+                    </div>
+
+                    {/* Body: weight and body fat alone in their row, so the two
+                        readings that describe the same thing sit side by side. */}
                     <div className="metrics-columns">
                         <ChartCard
                             title="Weight"
@@ -1255,7 +1312,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
-                                    <ChartY tickCount={5} allowDecimals tickFormatter={(v) => num(v, 1)} />
+                                    <ChartY domain={bodyDomain('weight', [targetWeight, startWeight])} tickCount={5} allowDecimals tickFormatter={(v) => num(v, 1)} />
                                     <ChartTip />
                                     {startWeight != null && <ReferenceLine y={startWeight} stroke={C.primary} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
@@ -1272,7 +1329,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
-                                    <ChartY tickCount={5} allowDecimals tickFormatter={(v) => `${num(v, 1)}%`} />
+                                    <ChartY domain={bodyDomain('bodyFat', [targetBodyFat, startBodyFat])} tickCount={5} allowDecimals tickFormatter={(v) => `${num(v, 1)}%`} />
                                     <ChartTip />
                                     {startBodyFat != null && <ReferenceLine y={startBodyFat} stroke={C.pink} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
@@ -1281,6 +1338,12 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 </LineChart>
                             }
                         />
+                    </div>
+
+                    {/* Mood and habit adherence together: they are the two
+                        readings of how the days themselves went, and the share
+                        one row for that reason. */}
+                    <div className="metrics-columns">
                         <ChartCard
                             title="Mood"
                             empty={!hasAny('morningMood') && !hasAny('eveningMood')}
@@ -1303,10 +1366,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 </LineChart>
                             }
                         />
-                    </div>
-
-                    {/* Habits */}
-                    <div className="metrics-columns">
                         <ChartCard
                             title="Habit Completion"
                             empty={!hasAny('habitPct')}
@@ -1329,6 +1388,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             }
                         />
                     </div>
+
                     {/* Full width: habit names are long, and a 2-up column forced
                         them onto two lines. */}
                     <div className="metrics-columns metrics-columns--single">

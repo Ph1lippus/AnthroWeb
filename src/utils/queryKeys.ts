@@ -54,6 +54,7 @@ export const queryKeys = {
     // Derived from courses + items, so it is invalidated whenever either is.
     academicAlerts: ['academic-alerts'] as const,
     books: ['books'] as const,
+    projects: ['projects'] as const,
     abstinenceGoals: ['abstinence-goals'] as const,
     abstinenceHistory: ['abstinence-history'] as const,
 } as const;

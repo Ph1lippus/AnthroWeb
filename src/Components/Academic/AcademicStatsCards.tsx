@@ -150,7 +150,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: formatGpa(overall.gpa, scale),
             hint:
                 overall.gpa === null
-                    ? 'No final grades yet'
+                    ? 'No finals yet'
                     : `${overall.coursesCounted} graded · ${overall.credits} ECTS`,
             icon: <GraduationCap size={14} className="analysis-card-icon" />,
             tone: overall.gpa === null ? 'flat' : 'good',
@@ -162,10 +162,10 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: formatGpa(projected.points, scale),
             hint:
                 projected.points === null
-                    ? 'Nothing measurable yet'
+                    ? 'No data yet'
                     : projected.predictedCount === 0
-                      ? `${projected.finalCount} final grade${projected.finalCount === 1 ? '' : 's'} · confidence 100%`
-                      : `${projected.finalCount} final + ${projected.predictedCount} in progress · confidence ${projectedConfidence ?? 0}%`,
+                      ? 'Finals only'
+                      : `Confidence ${projectedConfidence ?? 0}%`,
             icon: <Target size={14} className="analysis-card-icon" />,
             tone: projected.points === null ? 'flat' : 'good',
         },
@@ -175,7 +175,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: formatGpa(semesterGpa.gpa, scale),
             hint: latestSemester
                 ? resolveSemesterName(latestSemester.name, latestSemester.year, latestSemester.semester)
-                : 'No semester yet',
+                : 'No semester',
             icon: <CalendarDays size={14} className="analysis-card-icon" />,
             tone: semesterGpa.gpa === null ? 'flat' : 'good',
         },
@@ -186,11 +186,11 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             hint:
                 nextGrade === null
                     ? overall.percent === null
-                        ? 'Needs a final grade to compare'
-                        : 'Already at the top of the scale'
+                        ? 'No final grade'
+                        : 'At the top'
                     : neededPercent !== null && neededPercent <= 0
                       ? 'Reached'
-                      : `${neededPercent?.toFixed(1)}% short of ${nextGrade.minPercent}%`,
+                      : `${neededPercent?.toFixed(1)}% short`,
             icon: <ChevronUp size={14} className="analysis-card-icon" />,
             tone: nextGrade === null ? 'flat' : 'warn',
         },
@@ -198,7 +198,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             key: 'weakest',
             label: 'Weakest Subject',
             value: weakest ? formatPoints(weakest.points, scale) : '—',
-            hint: weakest ? weakest.course.name : 'Needs a prediction',
+            hint: weakest ? weakest.course.name : 'Needs prediction',
             icon: <TrendingDown size={14} className="analysis-card-icon" />,
             tone: weakest === null ? 'flat' : weakest.percent < 50 ? 'warn' : 'flat',
         },
@@ -206,7 +206,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             key: 'strongest',
             label: 'Strongest Subject',
             value: strongest ? formatPoints(strongest.points, scale) : '—',
-            hint: strongest ? strongest.course.name : 'Needs a prediction',
+            hint: strongest ? strongest.course.name : 'Needs prediction',
             icon: <TrendingUp size={14} className="analysis-card-icon" />,
             tone: strongest === null ? 'flat' : 'good',
         },
@@ -216,8 +216,8 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: `${overall.credits}`,
             hint:
                 overall.uncountedCourses > 0
-                    ? `${overall.uncountedCourses} course(s) missing credits`
-                    : 'ECTS counted toward the GPA',
+                    ? `${overall.uncountedCourses} missing credits`
+                    : 'Counted in GPA',
             icon: <Award size={14} className="analysis-card-icon" />,
             tone: overall.uncountedCourses > 0 ? 'warn' : 'flat',
         },
@@ -225,7 +225,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             key: 'courses',
             label: 'Courses Graded',
             value: `${overall.coursesCounted}`,
-            hint: `${courses.length} in total`,
+            hint: `${courses.length} total`,
             icon: <BookCheck size={14} className="analysis-card-icon" />,
             tone: 'flat',
         },
@@ -235,8 +235,8 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: accuracy.meanAbsError === null ? '—' : `±${accuracy.meanAbsError.toFixed(1)}%`,
             hint:
                 accuracy.count === 0
-                    ? 'Needs a prediction and a final grade'
-                    : `Average miss over ${accuracy.count} course(s)`,
+                    ? 'Needs finals'
+                    : `over ${accuracy.count} course${accuracy.count === 1 ? '' : 's'}`,
             icon: <Target size={14} className="analysis-card-icon" />,
             tone:
                 accuracy.meanAbsError === null
@@ -255,7 +255,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
                       bestSemester.semester.year,
                       bestSemester.semester.semester,
                   )
-                : 'Needs a graded semester',
+                : 'No grades yet',
             icon: <TrendingUp size={14} className="analysis-card-icon" />,
             tone: bestSemester === null ? 'flat' : 'good',
         },
@@ -269,7 +269,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
                       worstSemester.semester.year,
                       worstSemester.semester.semester,
                   )
-                : 'Needs two graded semesters',
+                : 'Needs 2 semesters',
             icon: <TrendingDown size={14} className="analysis-card-icon" />,
             tone: worstSemester === null ? 'flat' : 'warn',
         },
@@ -279,8 +279,8 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: spread.stdDev === null ? '—' : `±${spread.stdDev.toFixed(2)}`,
             hint:
                 spread.stdDev === null
-                    ? 'Needs two graded courses'
-                    : `out of ${scale.max_value} · ${spread.spread?.toFixed(2)} best to worst`,
+                    ? 'Needs 2 grades'
+                    : `of ${scale.max_value} · ${spread.spread?.toFixed(2)} range`,
             icon: <BarChart3 size={14} className="analysis-card-icon" />,
             tone: 'flat',
         },
@@ -290,8 +290,8 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             value: `${inProgress}`,
             hint:
                 inProgress === 0
-                    ? 'Every course has a final grade'
-                    : `${courses.length - inProgress} of ${courses.length} finished`,
+                    ? 'All finals entered'
+                    : `${courses.length - inProgress} of ${courses.length} done`,
             icon: <Hourglass size={14} className="analysis-card-icon" />,
             tone: inProgress === 0 ? 'good' : 'warn',
         },
@@ -302,7 +302,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             hint:
                 inputProgress.percent === null
                     ? 'No inputs yet'
-                    : `${inputProgress.percent}% of all tests entered`,
+                    : `${inputProgress.percent}% scored`,
             icon: <ListChecks size={14} className="analysis-card-icon" />,
             tone: inputProgress.percent === null ? 'flat' : inputProgress.percent >= 80 ? 'good' : 'warn',
         },
@@ -316,11 +316,11 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
         },
         {
             key: 'on-the-edge',
-            label: 'Just Below A Grade',
+            label: 'On The Edge',
             value: `${onTheEdge.length}`,
             hint:
                 onTheEdge.length === 0
-                    ? 'Nothing sitting on a rounding boundary'
+                    ? 'None right now'
                     : onTheEdge[0].course.name,
             icon: <ChevronUp size={14} className="analysis-card-icon" />,
             tone: onTheEdge.length === 0 ? 'flat' : 'warn',

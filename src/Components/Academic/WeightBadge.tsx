@@ -33,7 +33,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
         onAssign(items.map((item, index) => ({ id: item.id as string, weight: scaled[index] })));
     };
 
-    if (check.balanced) {
+    if (check.balanced && check.zeroCount === 0) {
         return (
             <span className="weight-badge weight-badge--ok" data-tip="Weights add up to 100%">
                 100%
@@ -58,6 +58,34 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
         );
     }
 
+    // Sums to 100 but something in the group is worth 0: a new input that
+    // joined a full group, counting for nothing. The total alone says "fine",
+    // which is how such an input hides -- so this case gets the fix button
+    // even though the arithmetic balances. Normalise is deliberately absent:
+    // rescaling leaves 0 at 0, so Distribute is the only fix on offer.
+    if (check.balanced) {
+        return (
+            <span
+                className="weight-badge weight-badge--off"
+                data-tip="The total is 100%, but some inputs are worth 0% and count for nothing"
+            >
+                {check.total}%
+                <span style={{ opacity: 0.8 }}>
+                    {check.zeroCount} at 0%
+                </span>
+                <button
+                    type="button"
+                    className="weight-fix"
+                    onClick={distribute}
+                    disabled={busy || !canAssign}
+                    data-tip="Split 100% equally between these inputs"
+                >
+                    Distribute
+                </button>
+            </span>
+        );
+    }
+
     const overshoot = check.missing < 0;
     const shortfall = Math.abs(check.missing);
 
@@ -66,6 +94,7 @@ const WeightBadge: React.FC<WeightBadgeProps> = ({ items, onAssign, busy = false
             {check.total}%
             <span style={{ opacity: 0.8 }}>
                 {overshoot ? `+${shortfall} over` : `${shortfall} left`}
+                {check.zeroCount > 0 ? ` · ${check.zeroCount} at 0%` : ''}
             </span>
             <button
                 type="button"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Title from '../Components/Title';
 import AnalysisCards from '../Components/Dashboard/AnalysisCards';
+import DomainStats from '../Components/Dashboard/DomainStats';
 import { DEFAULT_RANGE, RANGES } from '../Components/Dashboard/dateRange';
 import type { DateRange } from '../Components/Dashboard/dateRange';
 import { useDailyLogs } from '../hooks/useDailyLogs';
@@ -63,6 +64,11 @@ const DashboardPage: React.FC = () => {
                         range={range}
                         measurements={measurements ?? null}
                     />
+                    {/* Lifetime totals moved off the Projects, Books and Abstinence
+                        pages. Deliberately outside `ready`: each card fills itself
+                        in when its own query lands, so a slow library query cannot
+                        hold the dashboard on the splash. */}
+                    <DomainStats />
                     <div className="dashboard-charts-enter dashboard-charts-enter--ready">
                         <MetricsCharts
                             logs={logs}

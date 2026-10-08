@@ -1,12 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
   <defs>
-    <!-- 41deg gradient (bottom-left -> top-right), darkened & recoloured to the
-         app's green instead of the old purple. Fills the whole viewport at any
-         aspect ratio via the covering rect below. -->
+    <!-- Same 41deg axis as before (bottom-left -> top-right), but the palette
+         is now black corner -> primary: pure black only kisses the bottom-left
+         corner, and the top-right rises into a deepened primary that white text
+         can still sit over in a bright room. The mid stop is the darkest
+         readable green, so the ramp never washes out between the two. -->
     <linearGradient id="bg" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#040504"/>
-      <stop offset="0.55" stop-color="#08130e"/>
-      <stop offset="1" stop-color="#0f241b"/>
+      <stop offset="0" stop-color="#000000"/>
+      <stop offset="0.18" stop-color="#03100c"/>
+      <stop offset="0.55" stop-color="#054831"/>
+      <stop offset="1" stop-color="#076042"/>
     </linearGradient>
     <radialGradient id="glow1" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#00ffa6" stop-opacity="0.05"/>

@@ -15,10 +15,11 @@
  *    divided back out of `fat_mass`, which meant a Navy circumference estimate
  *    was indistinguishable from a reading off a scale.
  *
- *  - There is no starting-value point. `user_settings.starting_weight` is drawn
- *    as a reference line by the chart, because the value someone began at is the
- *    origin of a trend rather than a measurement on a day -- as a point it was
- *    dated to the profile and so invisible in every window the dashboard opens on.
+ *  - There is no starting-value point. `user_settings.starting_weight` has no
+ *    date, so the series cannot carry it without inventing one; the chart
+ *    attaches it as its opening point and draws it, and the target, as
+ *    reference lines. What must not happen is a dated baseline creeping into
+ *    this series and going invisible in short windows.
  */
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';

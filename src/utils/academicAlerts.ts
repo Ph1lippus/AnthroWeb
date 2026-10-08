@@ -88,16 +88,59 @@ export const startOfToday = (now: Date = new Date()): number => {
 };
 
 /**
- * A due_date is a plain calendar date, so it is anchored to local midnight.
- * Comparing against "now" in UTC would put every item a day out near midnight.
+ * The instant something is due.
+ *
+ * A due_date is a plain calendar date, so on its own it is anchored to local
+ * midnight. Comparing against "now" in UTC would put every item a day out near
+ * midnight. When the item carries a clock time, that hour replaces the
+ * midnight anchor, which turns "due on the 21st" into "due at 09:00 on the
+ * 21st" -- the difference between a deadline that lapses at midnight and one
+ * that lapses the moment the exam finishes.
  */
-export const parseDueDate = (value: string | null | undefined): number | null => {
+export const parseDueDate = (
+    value: string | null | undefined,
+    time?: string | null,
+): number | null => {
     if (!value) return null;
-    const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+    // Sliced to HH:MM: a value straight from `<input type="time">` is "HH:MM",
+    // a value straight from Postgres is "HH:MM:SS", and "HH:MM:SS" is what the
+    // date parser wants anyway while "HH:MM" is all it needs.
+    const clock = time ? `T${time.slice(0, 5)}` : 'T00:00:00';
+    const parsed = new Date(`${value.slice(0, 10)}${clock}`);
     return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
 };
 
 export const daysBetween = (from: number, to: number): number => Math.round((to - from) / MS_PER_DAY);
+
+/**
+ * The moment a deadline passes: its hour when it has one, the end of its day
+ * when it does not -- a plain due_date means "by the end of that day". Null for
+ * undated work, which has no moment to pass.
+ */
+export const deadlineLapse = (
+    item: Pick<AcademicItem, 'due_date' | 'due_time'>,
+): number | null => {
+    const due = parseDueDate(item.due_date, item.due_time);
+    if (due === null) return null;
+    return item.due_time ? due : due + MS_PER_DAY;
+};
+
+/**
+ * Whether that moment has gone.
+ *
+ * The clock is read here rather than by the caller: a component that calls
+ * `Date.now()` in its own render fails the purity check, and one deadline rule
+ * shared by the academic rows and the dashboard's overdue card is worth more
+ * than two slightly different readings of "past". Pass `now` to ask about a
+ * fixed instant instead of this one.
+ */
+export const isPastDeadline = (
+    item: Pick<AcademicItem, 'due_date' | 'due_time'>,
+    now: number = Date.now(),
+): boolean => {
+    const lapse = deadlineLapse(item);
+    return lapse !== null && lapse <= now;
+};
 
 const pluralDays = (days: number): string => `${days} day${days === 1 ? '' : 's'}`;
 
@@ -115,10 +158,15 @@ export const formatDayFull = (timestamp: number): string =>
     });
 
 /**
- * Everything dated, still ungraded and not yet past its date.
+ * Everything dated, still ungraded and not yet past its deadline.
  *
  * "Ungraded" is the filter that keeps this useful: a test already marked is
  * history, and a nagging reminder about work that is done is just noise.
+ *
+ * "Past" is measured differently depending on the deadline: an item with a
+ * clock time lapses at that hour, so an exam that sat at 09:00 stops being
+ * upcoming in the afternoon rather than lingering until midnight; an item
+ * without one owns its whole day, as it always has.
  */
 export const collectUpcoming = (
     courses: AcademicCourse[],
@@ -126,12 +174,14 @@ export const collectUpcoming = (
     now: Date = new Date(),
 ): UpcomingEntry[] => {
     const today = startOfToday(now);
+    const nowMs = now.getTime();
     const courseById = new Map(courses.map(course => [course.id ?? '', course]));
 
     return items
         .flatMap(item => {
-            const due = parseDueDate(item.due_date);
-            if (due === null || due < today) return [];
+            const due = parseDueDate(item.due_date, item.due_time);
+            if (due === null) return [];
+            if (due < (item.due_time ? nowMs : today)) return [];
             if (item.score !== null && item.score !== undefined) return [];
 
             const course = courseById.get(item.course_id);

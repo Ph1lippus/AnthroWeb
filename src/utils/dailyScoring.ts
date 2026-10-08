@@ -378,16 +378,30 @@ export interface DailyScoringInput {
     activeGoals: ActiveGoals | null | undefined;
     settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
     noSleep: boolean;
+    /**
+     * A day the food plan was deliberately broken. The four food macros are
+     * then left out of the day entirely rather than scored as zero: a cheat day
+     * is a choice, not a failure, and penalising it in the ring only makes the
+     * next honest day harder to read. Hydration is NOT wrapped -- water is the
+     * one nutrition habit a day off the plan does not excuse, so it keeps
+     * scoring against its goal.
+     */
+    cheatDay: boolean;
     lastMeasurementDate?: string | null;
 }
 
 export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult => {
-    const { activeGoals, settings, noSleep } = input;
+    const { activeGoals, settings, noSleep, cheatDay } = input;
 
     // "No sleep" nights: mark the tracked night as score 0 (penalised). The three
     // sleep metrics count as logged so a bad night drags the daily average down.
     const noSleepMetric: MetricScore = { score: 0, logged: true };
     const sleep = (metric: MetricScore): MetricScore => (noSleep ? noSleepMetric : metric);
+
+    // Cheat day: the food macros do not count at all. `logged: false` drops a
+    // metric from the average without scoring it, so the ring moves neither for
+    // nor against what was eaten -- while water, unwrapped, still counts.
+    const macro = (metric: MetricScore): MetricScore => (cheatDay ? { score: 0, logged: false } : metric);
 
     const metrics: Record<string, MetricScore> = {
         wakeTime: sleep(getInputScore('wakeTime', input.wakeTime, activeGoals)),
@@ -400,10 +414,10 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         eveningDiastolic: calculateMetricScore('eveningDiastolic', input.eveningDiastolic, settings),
         eveningBpm: calculateMetricScore('eveningBpm', input.eveningBpm, settings),
         bodyTemperature: calculateMetricScore('bodyTemperature', input.bodyTemperature, settings),
-        calories: calculateMetricScore('calories', input.calories, settings),
-        protein: calculateMetricScore('protein', input.protein, settings),
-        carbs: calculateMetricScore('carbs', input.carbs, settings),
-        fat: calculateMetricScore('fat', input.fat, settings),
+        calories: macro(calculateMetricScore('calories', input.calories, settings)),
+        protein: macro(calculateMetricScore('protein', input.protein, settings)),
+        carbs: macro(calculateMetricScore('carbs', input.carbs, settings)),
+        fat: macro(calculateMetricScore('fat', input.fat, settings)),
         water: calculateMetricScore('water', input.water, settings),
         weight: calculateMetricScore('weight', input.weight, settings),
         bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings),

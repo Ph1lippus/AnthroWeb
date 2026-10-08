@@ -102,12 +102,15 @@ const CourseRow: React.FC<CourseRowProps> = ({
                     <span className="course-sub">
                         <span>{course.credits} ECTS</span>
                         {course.code && <span>· {course.code}</span>}
+                        {/* Count alone is misleading: one entered input out of the
+                            one you have created so far reads as "1/1 done" - but
+                            it is still the one glanceable progress number, so it
+                            stays in the folded row. The weight breakdown is
+                            open-row detail. */}
                         <span>
                             · {prediction.gradedCount}/{prediction.totalCount || 0} inputs
                         </span>
-                        {/* Count alone is misleading: one entered input out of the
-                            one you have created so far reads as "1/1 done". */}
-                        {prediction.percent !== null && (
+                        {open && prediction.percent !== null && (
                             <span>
                                 ·{' '}
                                 {prediction.weightsClosed
@@ -143,17 +146,23 @@ const CourseRow: React.FC<CourseRowProps> = ({
                             (prediction.isPartial ? (
                                 // A letter grade here would read as a verdict. Half a
                                 // course scored 20/20 is a 20/20 SO FAR, not an A.
-                                <span className="score-block__letter">
-                                    {prediction.weightsClosed
-                                    ? `${prediction.gradedWeight}% of grade`
-                                    : `${prediction.gradedWeight}% of ${prediction.totalWeight}% allocated`}
-                                </span>
+                                // The weight context is open-row only; folded, the
+                                // block is kicker plus number.
+                                open && (
+                                    <span className="score-block__letter">
+                                        {prediction.weightsClosed
+                                        ? `${prediction.gradedWeight}% of grade`
+                                        : `${prediction.gradedWeight}% of ${prediction.totalWeight}% allocated`}
+                                    </span>
+                                )
                             ) : (
                                 <span className="score-block__letter">
                                     {letterFor(prediction.percent!)} · {prediction.percent!.toFixed(1)}%
                                 </span>
                             ))}
-                        {predictedRange !== null && (
+                        {/* The attainable span is detail: it shows with the open
+                            row and stays out of the folded one. */}
+                        {open && predictedRange !== null && (
                             <span
                                 className={`score-block__range${nearEdge ? ' score-block__range--edge' : ''}`}
                                 data-tip={
@@ -191,9 +200,13 @@ const CourseRow: React.FC<CourseRowProps> = ({
                                 {deltaPoints > 0 ? '+' : ''}
                                 {deltaPoints.toFixed(2)}
                             </span>
-                            <span className="score-block__letter">
-                                {deltaPoints > 0 ? 'beat' : 'missed'}
-                            </span>
+                            {/* The sign and colour already say beat or missed;
+                                the word is open-row detail. */}
+                            {open && (
+                                <span className="score-block__letter">
+                                    {deltaPoints > 0 ? 'beat' : 'missed'}
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
@@ -248,11 +261,6 @@ const CourseRow: React.FC<CourseRowProps> = ({
                 when there is nothing yet. */}
             <div className="course-actions">
                 <WeightBadge items={roots} onAssign={onAssignWeights} busy={weightsBusy} />
-                {tree.length === 0 && (
-                    <span className="course-empty-note">
-                        Add tests, homework or exams to start predicting this course.
-                    </span>
-                )}
             </div>
 
             {/* The grade the teacher gave, kept at the end of the line and always
@@ -273,14 +281,14 @@ const CourseRow: React.FC<CourseRowProps> = ({
                 <span className="item-score__sep">/ {scale.max_value}</span>
                 {finalGrade !== null && (
                     <>
-                        <span className="score-block__letter">
-                            {letterFor(finalGrade)} · {finalGrade.toFixed(1)}%
-                        </span>
-                        {deltaPoints !== null && (
-                            <span className="item-score__pct">
-                                predicted {formatPoints(predictedPoints, scale)}
-                            </span>
-                        )}
+                                <span className="score-block__letter">
+                                    {letterFor(finalGrade!)} · {finalGrade!.toFixed(1)}%
+                                </span>
+                                {open && deltaPoints !== null && (
+                                    <span className="item-score__pct">
+                                        predicted {formatPoints(predictedPoints, scale)}
+                                    </span>
+                                )}
                     </>
                 )}
                 {/* Adding, editing and deleting the subject all act on this same

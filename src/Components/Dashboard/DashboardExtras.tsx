@@ -4,6 +4,7 @@ import type { Book } from '../../services/bookService';
 import type { AcademicCourse, AcademicItem, StudySession } from '../../services/academicService';
 import type { AbstinenceGoal, AbstinenceHistory } from '../../services/abstinenceService';
 import type { DashboardExtrasPending } from '../../hooks/useDashboardExtras';
+import { isPastDeadline } from '../../utils/academicAlerts';
 
 interface DashboardExtrasProps {
     books: Book[];
@@ -31,7 +32,11 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
         const reading = books.filter(book => book.status === 'reading');
         const completed = books.filter(book => book.status === 'completed');
         const openItems = academicItems.filter(item => item.score == null);
-        const overdueItems = openItems.filter(item => item.due_date && item.due_date < new Date().toISOString().slice(0, 10));
+        // Past the deadline, not past the date: an exam that sat at 09:00 is
+        // overdue all afternoon, while an item with no hour owns its whole day
+        // and only goes over at the next midnight. Same lapse rule as the
+        // academic page's finished marker -- shared so the two can't disagree.
+        const overdueItems = openItems.filter(item => isPastDeadline(item));
         const studyMinutes = studySessions
             .filter(session => session.session_type !== 'break')
             .reduce((total, session) => total + session.duration_minutes, 0);

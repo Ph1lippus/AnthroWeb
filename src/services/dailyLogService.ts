@@ -48,6 +48,12 @@ export interface DailyLog {
     stretching?: boolean;
     reading?: boolean;
     no_sleep?: boolean;
+    /**
+     * A day off the food plan: the four food macros are stored exactly as typed
+     * but are left out of the day's score. Hydration still counts -- see
+     * `computeDailyScore` for why.
+     */
+    cheat_day?: boolean;
     // Written by the workout pages (setGymForDate), never by this service, so
     // the habit score and the workout heatmap stay one fact rather than two.
     gym?: boolean;
@@ -67,7 +73,7 @@ export const getUserDailyLogs = async (): Promise<DailyLog[]> => {
 
     const { data, error } = await supabase
         .from('daily_logs')
-        .select('log_date,wake_time,bedtime,sleep_duration,morning_systolic,morning_diastolic,morning_bpm,evening_systolic,evening_diastolic,evening_bpm,body_temperature,calories,protein,carbs,fat,water,daily_score,morning_mood,evening_mood,sleep_quality,morning_routine,evening_routine,fruit_serving,studied,journal,stretching,reading,project_work_done,no_sleep,gym,goal_snapshot,journal_morning,journal_evening,journal_links')
+        .select('log_date,wake_time,bedtime,sleep_duration,morning_systolic,morning_diastolic,morning_bpm,evening_systolic,evening_diastolic,evening_bpm,body_temperature,calories,protein,carbs,fat,water,daily_score,morning_mood,evening_mood,sleep_quality,morning_routine,evening_routine,fruit_serving,studied,journal,stretching,reading,project_work_done,no_sleep,cheat_day,gym,goal_snapshot,journal_morning,journal_evening,journal_links')
         .eq('user_id', userId)
         .order('log_date', { ascending: false });
 
@@ -161,6 +167,7 @@ export const createDailyLog = async (log: DailyLog) => {
             stretching: log.stretching,
             reading: log.reading,
             no_sleep: log.no_sleep,
+            cheat_day: log.cheat_day,
         }, { onConflict: 'user_id,log_date' })
         .select()
         .single();
@@ -210,7 +217,8 @@ export type DailyLogHabitColumn =
     | 'stretching'
     | 'reading'
     | 'project_work_done'
-    | 'no_sleep';
+    | 'no_sleep'
+    | 'cheat_day';
 
 /**
  * Writes one built-in habit for one day, on its own.

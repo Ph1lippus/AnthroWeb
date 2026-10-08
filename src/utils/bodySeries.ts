@@ -25,9 +25,9 @@ export interface BodySeriesInput {
  * `body_measurements` a real `body_fat` to store.
  *
  * There is no starting-value point here either. The value the user began at lives
- * in `user_settings.starting_weight` and is drawn as a reference line by the
- * chart, beside the target -- it is the origin of a trend rather than a
- * measurement on a day, so it has no date and no place in this series.
+ * in `user_settings.starting_weight` and has no date, so it has no place in a
+ * series of dated readings - the chart attaches it as its opening point, next to
+ * the target line, rather than this function inventing a date for it.
  */
 export const buildBodySeries = ({
     measurements,

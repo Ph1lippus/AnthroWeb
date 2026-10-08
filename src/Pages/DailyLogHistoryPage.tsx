@@ -44,6 +44,9 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.evening_systolic && log.evening_diastolic) chips.push({ label: 'PM BP', value: `${log.evening_systolic}/${log.evening_diastolic}` });
         if (log.morning_bpm) chips.push({ label: 'AM BPM', value: String(log.morning_bpm) });
         if (log.body_temperature) chips.push({ label: 'Temp', value: `${log.body_temperature}°C` });
+        // Said before the macros it applies to: on a cheat day they were recorded
+        // but kept out of the score, and a row showing 3200 kcal needs that said.
+        if (log.cheat_day) chips.push({ label: 'Nutrition', value: 'Cheat day' });
         if (log.calories) chips.push({ label: 'Calories', value: String(log.calories) });
         if (log.protein) chips.push({ label: 'Protein', value: `${log.protein}g` });
         if (log.carbs) chips.push({ label: 'Carbs', value: `${log.carbs}g` });

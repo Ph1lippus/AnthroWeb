@@ -83,7 +83,9 @@
   --color-danger: #db222a;
   --color-danger-dark: #451a1c;
   --color-dark: #343434;
-  --color-light: #fffbfb;
+  /* True white, not the old near-white #fffbfb: max contrast against the
+     background ramp in bright rooms. */
+  --color-light: #ffffff;
   /* Chart series palette. One place to retune every dashboard graph so a new
      chart can never introduce a colour that clashes with the existing set. */
   --chart-primary: #00ffa6;
@@ -114,7 +116,7 @@
   /* ---- Typography ----------------------------------------------------
      One terminal stack for the entire app. Every family variable below
      resolves to the same mono stack so that no element - not a Tailwind
-      + "ont-sans" +  utility, not a native <select> or <input> in Safari, not a
+      + "Font-sans" +  utility, not a native <select> or <input> in Safari, not a
      chart tick label - can quietly fall back to the OS UI font.
      Tailwind emits its own  + "--font-sans" +  /  + "--font-mono" +  in  + "@layer theme" + 
      and points  + "html" +  at  + "--font-sans" + ; because this :root is unlayered it
@@ -132,6 +134,10 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --text: #ffffff;
   --text-h: #ffffff;
+  /* Secondary text token. Two rules used this name with a #8a8f9a fallback and
+     nothing ever defined it; it is now real, and a step brighter than the
+     fallback was. */
+  --text-muted: #a8aeb9;
   --bg: #fffbfb;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
@@ -236,7 +242,10 @@ body {
   margin: 0;
 }
 body {
-  background-color: #000000;
+  /* Graphite, not pitch black: pure #000 under a glossy screen in a bright
+     room turns into a mirror. Matches the SVG layer's darkest stop, so this
+     only shows through before that layer paints (and if it ever fails). */
+  background-color: #191920;
   color: var(--color-light);
   font-family: var(--font-mono);
   /* `svh`, matching `#root` and the page wrappers below. These three used to
@@ -683,7 +692,7 @@ input[type='number']::-webkit-inner-spin-button {
   background: transparent;
   height: 30px;
   padding: 4px 12px;
-  color: rgba(193, 193, 193, 0.8);
+  color: rgba(233, 233, 233, 0.88);
   cursor: pointer;
   border-radius: 48px;
   text-decoration: none;
@@ -736,14 +745,18 @@ input[type='number']::-webkit-inner-spin-button {
   width: 3.75rem;
   z-index: 110;
   display: none;
+  /* Neutral greys, deliberately not the accent: the rail is furniture, not a
+     call to action, and a full-height strip of green tint made the whole left
+     edge glow. The surface sits a shade above the page black so the rail still
+     reads as its own plane. */
   background:
     linear-gradient(
       180deg,
-      rgba(0, 255, 166, 0.08),
-      rgba(0, 255, 166, 0.02) 35%,
-      rgba(0, 255, 166, 0.06)
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.012) 35%,
+      rgba(255, 255, 255, 0.03)
     ),
-    #0d1411f2;
+    #111113f2;
   backdrop-filter: blur(14px);
   padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
@@ -777,18 +790,21 @@ input[type='number']::-webkit-inner-spin-button {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 14px;
-  color: rgba(193, 193, 193, 0.75);
+  color: rgba(233, 233, 233, 0.85);
   text-decoration: none;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .sidebar-nav-link:hover {
-  /* Tinted with the accent rather than plain white, so hover and the active
-     state read as the same family of colour. */
-  background: rgba(0, 255, 166, 0.08);
+  /* White rather than the accent: the whole rail is neutral now, and hover
+     only needs to say "here", not "brand". */
+  background: rgba(255, 255, 255, 0.07);
   color: var(--color-light);
 }
 .sidebar-nav-link.active {
-  background: var(--accent-bg);
+  /* One step brighter than hover plus the accent on the icon and the bar: the
+     rail stays neutral furniture, but "you are here" is green -- the one place
+     the brand colour is allowed back in. */
+  background: rgba(255, 255, 255, 0.11);
   color: var(--color-primary);
 }
 /* Accent bar on the left edge marks the current section. */
@@ -1872,7 +1888,7 @@ input[type='number']::-webkit-inner-spin-button {
   transform: translateY(-50%);
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.44);
   pointer-events: none;
 }
 /* Edit Profile Form Styles - extends auth-card. Nine short fields in a 2-up grid
@@ -2256,7 +2272,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 .profile-info-label {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -2388,7 +2404,7 @@ input[type='number']::-webkit-inner-spin-button {
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.62);
 }
 /* Profile Loading */
 .profile-loading {
@@ -2487,7 +2503,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 .settings-subtitle {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.55);
   margin: 0.35rem 0 0;
 }
 .settings-list {
@@ -2539,7 +2555,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 .settings-item-description {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.55);
   line-height: 1.3;
 }
 .settings-item-arrow {
@@ -2553,7 +2569,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 .settings-version {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.38);
   margin: 0;
 }
 .settings-item:disabled {
@@ -2581,7 +2597,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 .settings-update-note {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.62);
   line-height: 1.4;
   white-space: pre-wrap;
 }
@@ -2647,7 +2663,7 @@ input[type='number']::-webkit-inner-spin-button {
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.46);
   pointer-events: none;
   transition: all 0.15s ease;
 }
@@ -2680,40 +2696,6 @@ input[type='number']::-webkit-inner-spin-button {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-/* Stats summary row - compact */
-.books-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-.books-stat-item {
-  background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.6rem 0.5rem;
-  text-align: center;
-}
-.books-stat-item:hover {
-  background: var(--accent-bg);
-}
-.books-stat-label {
-  display: block;
-  color: var(--color-light);
-  opacity: 0.5;
-  font-size: 0.6rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.2rem;
-}
-.books-stat-value {
-  display: block;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
 }
 /* Section header with icon */
 .books-section-header {
@@ -3013,7 +2995,7 @@ input[type='number']::-webkit-inner-spin-button {
   outline: none;
 }
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.46);
 }
 .search-clear-btn {
   position: absolute;
@@ -3226,7 +3208,7 @@ input[type='number']::-webkit-inner-spin-button {
   font-family: var(--font-mono);
   font-size: 0.85rem;
 }
-.form-control::placeholder { color: rgba(255, 255, 255, 0.35); }
+.form-control::placeholder { color: rgba(255, 255, 255, 0.46); }
 .form-control:hover { border-color: rgba(255, 255, 255, 0.12); }
 .form-control:focus {
   background: var(--accent-bg);
@@ -3612,13 +3594,6 @@ textarea.form-control {
 }
 /* Responsive adjustments for books page */
 @media (max-width: 768px) {
-  .books-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.4rem;
-  }
-  .books-stat-value {
-    font-size: 1rem;
-  }
   .timer-section {
     width: 100%;
     justify-content: center;
@@ -3699,40 +3674,6 @@ textarea.form-control {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-/* Stats summary row - compact */
-.projects-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-.projects-stat-item {
-  background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.6rem 0.5rem;
-  text-align: center;
-}
-.projects-stat-item:hover {
-  background: var(--accent-bg);
-}
-.projects-stat-label {
-  display: block;
-  color: var(--color-light);
-  opacity: 0.5;
-  font-size: 0.6rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.2rem;
-}
-.projects-stat-value {
-  display: block;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
 }
 /* Section header with icon */
 .projects-section-header {
@@ -4227,13 +4168,6 @@ textarea.form-control {
 }
 /* Responsive adjustments for projects page */
 @media (max-width: 768px) {
-    .projects-stats {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.4rem;
-    }
-    .projects-stat-value {
-        font-size: 1rem;
-    }
     .projects-two-col {
         grid-template-columns: 1fr;
         gap: 1rem;
@@ -4280,40 +4214,6 @@ textarea.form-control {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-/* Stats summary row - compact */
-.abstinence-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-.abstinence-stat-item {
-  background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.6rem 0.5rem;
-  text-align: center;
-}
-.abstinence-stat-item:hover {
-  background: var(--accent-bg);
-}
-.abstinence-stat-label {
-  display: block;
-  color: var(--color-light);
-  opacity: 0.5;
-  font-size: 0.6rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.2rem;
-}
-.abstinence-stat-value {
-  display: block;
-  color: var(--color-primary);
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
 }
 /* Section header with icon */
 .abstinence-section-header {
@@ -4670,13 +4570,6 @@ textarea.form-control {
 }
 /* Responsive adjustments for abstinence page */
 @media (max-width: 768px) {
-    .abstinence-stats {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.4rem;
-    }
-    .abstinence-stat-value {
-        font-size: 1rem;
-    }
     .abstinence-two-col {
         grid-template-columns: 1fr;
         gap: 1rem;
@@ -10214,7 +10107,7 @@ select.form-control option {
   justify-content: center;
   gap: 0.2rem;
   padding: 0.45rem 0.4rem;
-  color: rgba(193, 193, 193, 0.7);
+  color: rgba(233, 233, 233, 0.8);
   text-decoration: none;
   min-width: 0;
   flex: 1;
@@ -10734,7 +10627,7 @@ body {
   background: var(--accent-bg);
 }
 .measurement-field__input::placeholder {
-  color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.40);
 }
 
 /* One figure per row, name left and value right, at every width. Two columns of
@@ -11039,11 +10932,16 @@ body {
   margin-bottom: 0;
 }
 .academic-stats .analysis-card {
-  padding: 0.6rem 0.7rem;
+  padding: 0.5rem 0.6rem;
 }
 .academic-stats .analysis-card-value {
   font-size: 1.05rem; 
   place-self: center;
+}
+.academic-stats .analysis-card-hint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .academic-stats::-webkit-scrollbar { width: 4px; }
 .academic-stats::-webkit-scrollbar-thumb {
@@ -11067,8 +10965,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding-left: 0.75rem;
-  border-left: 1px solid #ffffff0f;
 }
 .academic-upcoming__head {
   display: flex;
@@ -11173,18 +11069,6 @@ body {
   border-radius: 25px;
 }
 
-/* ---------- the dated-deadline rail ---------- */
-.academic-upcoming {
-  width: 280px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding-left: 0.75rem;
-  border-left: 1px solid #ffffff0f;
-}
 .academic-upcoming__head {
   display: flex;
   align-items: center;
@@ -11436,8 +11320,7 @@ body {
 
 .collapse-card {
   background: #ffffff05;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 25px;
+  border-radius: 16px;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -11528,11 +11411,13 @@ body {
 /* ---------- Course row (the "line") ---------- */
 .course-row {
   background: #ffffff05;
-  border-radius: 20px;
-  padding: 0.7rem 0.8rem;
+  border-radius: 16px;
+  padding: 0.6rem;
 }
 .course-row:not(.course-row--open) {
-  height: 86px;
+  /* Content-sized rather than a fixed band: the folded row shows the title,
+     one short sub-line and the grade blocks, so the height is whatever those
+     lines actually need. */
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -11653,11 +11538,12 @@ body {
 }
 /* Thin bar under a course showing where the prediction sits. */
 .course-bar {
-  height: 3px;
+  height: 5px;
   background: #ffffff14;
-  border-radius: 25px;
+  border-radius: 16px;
   overflow: hidden;
   margin-top: 0.45rem;
+  margin-bottom: 0.45rem;
 }
 .course-bar__fill {
   height: 100%;
@@ -11686,7 +11572,6 @@ body {
   align-items: center;
   gap: 0.35rem;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
 }
 
 /* ---------- Item tree ---------- */
@@ -11694,14 +11579,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-top: 0.5rem;
 }
 .item-row {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   padding: 0.3rem 0.4rem;
-  border-radius: 25px;
+  border-radius: 20px;
   background: #ffffff05;
   flex-wrap: wrap;
 }
@@ -11716,6 +11600,58 @@ body {
   flex: 1;
   word-break: break-word;
   line-height: 1.25;
+}
+/* The finished tickbox. Smaller than the daily log's 1.25rem pill because an
+   item row is 0.3rem tall and the row's other controls are icon-sized. */
+.item-row__check {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  flex-shrink: 0;
+}
+/* The tick, re-fitted to the smaller box: the one inherited from
+   .checkbox-input:checked::after is drawn for a 1.25rem pill and sits high.
+   Spelled out in full because the derived span is not an :checked input and so
+   gets nothing from that rule. */
+.item-row__check:checked::after,
+.item-row__check--on::after {
+  content: '';
+  position: absolute;
+  left: 0.27rem;
+  top: 0.1rem;
+  width: 0.27rem;
+  height: 0.5rem;
+  border-style: solid;
+  border-color: #000000;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+/* A parent's derived tick: the same picture as a checked box, without being a
+   control. Nothing toggles it -- its children do. */
+.item-row__check--derived {
+  position: relative;
+  cursor: default;
+}
+/* Not a control, so it must not borrow the control's hover cue. */
+.item-row__check--derived:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.item-row__check--derived.item-row__check--on:hover {
+  border-color: var(--color-primary);
+}
+.item-row__check--on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+/* Finished work stays readable but steps back, and the strike says "done"
+   without anyone having to read the tick. */
+.item-row__name--done {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  opacity: 0.5;
+}
+.item-row--finished .item-row__cat {
+  opacity: 0.4;
 }
 .item-row__cat {
   font-size: 0.5rem;
@@ -11860,7 +11796,7 @@ body {
   font-weight: 700;
   color: var(--color-primary);
 }
-.num-input::placeholder { color: rgba(255, 255, 255, 0.28); }
+.num-input::placeholder { color: rgba(255, 255, 255, 0.40); }
 
 /* ---------- Weight check badge ---------- */
 .weight-badge {
@@ -11938,7 +11874,6 @@ body {
 
 /* ---------- Mobile ---------- */
 @media (max-width: 768px) {
-  .course-row:not(.course-row--open) { height: 132px; }
   .course-head { display: flex; flex-direction: column; align-items: stretch; }
   .course-scores { justify-content: flex-start; gap: 0.6rem; }
   .collapse-head { padding: 0.6rem; }
@@ -13287,7 +13222,7 @@ button.workout-ex__empty:hover {
     position: fixed;
     inset: 0;
     z-index: 9998;
-    background-color: #050706;
+    background-color: #191920;
     background-image: url('/background.svg');
     background-size: cover;
     background-position: center;

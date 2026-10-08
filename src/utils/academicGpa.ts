@@ -52,13 +52,24 @@ export const CATEGORY_LABELS: Record<ItemCategory, string> = {
 export const DEFAULT_ITEM_CATEGORY: ItemCategory = 'exam';
 
 /**
+ * The type a new SUB-work starts on. A sub-work is a slice of something bigger
+ * -- one problem set out of a homework, one section out of a project -- and
+ * those slices are work you do rather than work you sit, so Homework is the
+ * honest default. The parent's own type is deliberately not inherited: the
+ * children of an Exam are still homework.
+ */
+export const DEFAULT_SUBWORK_CATEGORY: ItemCategory = 'homework';
+
+/**
  * Categories that a course normally has more than one of, so their suggested
  * name carries an ordinal ("Second Exam").
  *
  * Homework and participation are deliberately NOT here: "First Homework" and
  * "First Participation" read as if there is a second one coming, when in a
  * course they are usually a single running commitment rather than a numbered
- * series. They take their bare label instead.
+ * series. They take their bare label instead -- at the top level. Under a
+ * parent they are a real series, and `suggestItemName`'s `repeat` flag is what
+ * makes them ordinal there.
  */
 const CATEGORIES_THAT_REPEAT: ReadonlySet<ItemCategory> = new Set<ItemCategory>(['exam', 'quiz', 'project']);
 
@@ -92,10 +103,15 @@ export const ordinalWord = (position: number): string =>
  * that already exist beside it. Typing is always optional: picking "Exam" in a
  * course with no exams gives "First Exam", and with one already there it gives
  * "Second Exam".
+ *
+ * `repeat` forces the ordinal on regardless of the category's usual habit --
+ * a sub-work is a slice of one parent, so those are a numbered series whatever
+ * they are called, and "First Homework" under a project reads as the first of
+ * the parts rather than as a promise that homework follows.
  */
-export const suggestItemName = (category: ItemCategory, existing: AcademicItem[]): string => {
+export const suggestItemName = (category: ItemCategory, existing: AcademicItem[], repeat = false): string => {
     const label = CATEGORY_LABELS[category] ?? 'Item';
-    if (!CATEGORIES_THAT_REPEAT.has(category)) return titleCase(label);
+    if (!repeat && !CATEGORIES_THAT_REPEAT.has(category)) return titleCase(label);
 
     // An edited item must not count itself, or re-picking its own category would
     // jump the name forward by one every time.
@@ -148,6 +164,22 @@ export interface AcademicItem {
      */
     minimum_grade?: number | null;
     due_date?: string | null;
+    /**
+     * The hour on that day, as "HH:MM" (or "HH:MM:SS" off Postgres). Null means
+     * the deadline is the whole day; a value makes it an instant -- 09:00 for a
+     * sitting, 23:59 for a portal closing -- which is what lets a past-due exam
+     * call itself finished the moment the hour passes rather than at midnight.
+     */
+    due_time?: string | null;
+    /**
+     * "Done", independent of grading: handed-in work with no score yet is
+     * finished, and a graded piece may not be. Never read by the GPA maths --
+     * it is a progress marker, not a score.
+     *
+     * A parent row's value is derived from its children in the UI and is not
+     * stored, so this only ever matters for leaves.
+     */
+    completed?: boolean;
     order_index?: number;
     created_at?: string;
     updated_at?: string;
@@ -279,6 +311,16 @@ export const sortForDisplay = (nodes: ItemNode[]): ItemNode[] =>
 
         if (dateA && dateB && dateA !== dateB) return dateA < dateB ? -1 : 1;
 
+        // Same day: a clock time settles it, earliest hour first. Work with no
+        // hour is end-of-day -- the deadline for a plain date IS midnight -- so
+        // it sorts after anything timed and two untimed rows fall through to the
+        // type ranking below.
+        if (dateA && dateB) {
+            const timeA = a.item.due_time ? a.item.due_time.slice(0, 5) : '23:59';
+            const timeB = b.item.due_time ? b.item.due_time.slice(0, 5) : '23:59';
+            if (timeA !== timeB) return timeA < timeB ? -1 : 1;
+        }
+
         // Same datedness: group by type so exams stay together, then by name.
         const rankA = categoryRank(a.item.category);
         const rankB = categoryRank(b.item.category);
@@ -330,6 +372,12 @@ export interface WeightCheck {
     /** 100 - total. Negative means the group overshoots. */
     missing: number;
     count: number;
+    /**
+     * Inputs worth 0%: present in the group but contributing nothing to it.
+     * A group can sum to 100 while one of these exists -- a new input joins a
+     * full group at 0 -- so the total alone cannot say the group is healthy.
+     */
+    zeroCount: number;
 }
 
 export const checkWeights = (items: { weight: number }[]): WeightCheck => {
@@ -339,6 +387,7 @@ export const checkWeights = (items: { weight: number }[]): WeightCheck => {
         balanced: Math.abs(total - 100) < 0.01,
         missing: round2(100 - total),
         count: items.length,
+        zeroCount: items.filter(item => !item.weight).length,
     };
 };
 

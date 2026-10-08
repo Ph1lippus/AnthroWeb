@@ -3,6 +3,7 @@ import {
     checkWeights,
     CATEGORY_LABELS,
     DEFAULT_ITEM_CATEGORY,
+    DEFAULT_SUBWORK_CATEGORY,
     effectiveMinimum,
     formatPoints,
     ITEM_CATEGORIES,
@@ -39,11 +40,16 @@ const ItemEditorModal: React.FC<ItemEditorModalProps> = ({
     busy = false,
 }) => {
     // A new input arrives unnamed, so the default type supplies a name and any
-    // later type change replaces it while the name is still ours to own.
-    const initialSuggestion = item === null ? suggestItemName(DEFAULT_ITEM_CATEGORY, siblings) : null;
+    // later type change replaces it while the name is still ours to own. Under
+    // a parent the default is Homework rather than the top-level Exam default:
+    // a sub-work is a slice of work you do, not a test you sit.
+    const defaultCategory = item === null && parent !== null ? DEFAULT_SUBWORK_CATEGORY : DEFAULT_ITEM_CATEGORY;
+    // Under a parent the name is ordinal too -- "First Homework", "Second
+    // Homework" -- counted against the siblings already under the same parent.
+    const initialSuggestion = item === null ? suggestItemName(defaultCategory, siblings, parent !== null) : null;
 
     const [name, setName] = useState(item?.name ?? initialSuggestion ?? '');
-    const [category, setCategory] = useState<ItemCategory>(item?.category ?? DEFAULT_ITEM_CATEGORY);
+    const [category, setCategory] = useState<ItemCategory>(item?.category ?? defaultCategory);
     // Flips the moment the user types, which stops a category change from
     // overwriting a name they wrote. An item opened for editing starts as
     // touched, so changing its type never renames work that is already saved.
@@ -57,6 +63,9 @@ const ItemEditorModal: React.FC<ItemEditorModalProps> = ({
         item?.score === null || item?.score === undefined ? '' : String(item.score),
     );
     const [dueDate, setDueDate] = useState(item?.due_date ?? '');
+    // Trimmed to HH:MM on the way in: Postgres hands a time back as "HH:MM:SS"
+    // and the input only understands "HH:MM".
+    const [dueTime, setDueTime] = useState(item?.due_time ? item.due_time.slice(0, 5) : '');
     // Held in the active scale's units, like every other grade on this page. Empty
     // inherits the course's minimum, which is the usual case.
     const [minimumGrade, setMinimumGrade] = useState(
@@ -68,7 +77,7 @@ const ItemEditorModal: React.FC<ItemEditorModalProps> = ({
     const applyCategory = (next: ItemCategory) => {
         setCategory(next);
         if (nameTouched) return;
-        setName(suggestItemName(next, siblings));
+        setName(suggestItemName(next, siblings, parent !== null));
     };
 
     /**
@@ -145,6 +154,13 @@ const ItemEditorModal: React.FC<ItemEditorModalProps> = ({
             score: trimmedScore === '' ? null : Number(trimmedScore),
             minimum_grade: trimmedMinimum === '' ? null : pointsToPercent(Number(trimmedMinimum), scale),
             due_date: dueDate || null,
+            // An hour without a day is nothing, so the time only survives when
+            // the date is there to hang it on -- clearing the date clears both.
+            due_time: dueDate && dueTime ? dueTime : null,
+            // The finished marker is not editable here -- it lives on the row's
+            // checkbox -- so an edit has to carry the saved value through rather
+            // than drop it.
+            completed: item?.completed ?? false,
         });
     };
 
@@ -280,20 +296,39 @@ const ItemEditorModal: React.FC<ItemEditorModalProps> = ({
                         <span className="academic-field-hint">{minimumHint}</span>
                     </div>
 
-                    <div className="mb-4">
-                        <label className="form-label">Due date (optional)</label>
-                        <input
-                            type="date"
-                            value={dueDate ?? ''}
-                            onChange={event => setDueDate(event.target.value)}
-                            className="form-control"
-                        />
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="form-label">Due date (optional)</label>
+                            <input
+                                type="date"
+                                value={dueDate ?? ''}
+                                onChange={event => setDueDate(event.target.value)}
+                                className="form-control"
+                            />
+                        </div>
+                        <div>
+                            {/* Off until there is a date to put it on: an hour on
+                                its own is not a deadline, and a greyed box says
+                                that faster than a validation message would. */}
+                            <label className="form-label">At (optional)</label>
+                            <input
+                                type="time"
+                                value={dueTime}
+                                onChange={event => setDueTime(event.target.value)}
+                                disabled={!dueDate}
+                                className="form-control"
+                            />
+                        </div>
                     </div>
 
-                    {/* Live check: reports the group total, never rewrites it. */}
-                    <div className={`weight-badge ${projected.balanced ? 'weight-badge--ok' : projected.total === 0 ? 'weight-badge--empty' : 'weight-badge--off'}`}>
+                    {/* Live check: reports the group total, never rewrites it.
+                        A total of 100 can still hide an input worth 0 -- a new
+                        one joining a full group -- so that case is named too. */}
+                    <div className={`weight-badge ${projected.balanced && projected.zeroCount === 0 ? 'weight-badge--ok' : projected.total === 0 ? 'weight-badge--empty' : 'weight-badge--off'}`}>
                         {projected.balanced
-                            ? 'This group adds up to 100%'
+                            ? (projected.zeroCount > 0
+                                ? `Adds up to 100%, but ${projected.zeroCount} input${projected.zeroCount === 1 ? '' : 's'} count 0%`
+                                : 'This group adds up to 100%')
                             : projected.total === 0
                               ? 'No weights set'
                               : `These will total ${projected.total}% (${projected.missing > 0 ? `${projected.missing} left` : `${Math.abs(projected.missing)} over`})`}
