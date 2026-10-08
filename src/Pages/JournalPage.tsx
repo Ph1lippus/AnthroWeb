@@ -9,7 +9,6 @@ import type { UserSettings } from '../services/profileService';
 import { Lightbulb, X, RotateCw, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye } from 'lucide-react';
 import { todayString, addDays, isDateString, formatDayLabel } from '../utils/dates';
 import { journalHabitFor } from '../utils/journalHabit';
-import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import JournalEditor from '../Components/Journal/JournalEditor';
 import { journalDocumentText, journalTopicSuggestions, parseJournalDocument, serializeJournalDocument } from '../utils/journalContent';
@@ -301,27 +300,11 @@ const JournalPage: React.FC = () => {
     }, [journalDocument, morningMood, eveningMood, performSave, settings]);
 
     // Settings come from a raw await, invisible to the app-level boot gate, so
-    // without this the splash lifts over the spinner below. `settingsLoaded`
+    // without this the splash would lift over an empty page. `settingsLoaded`
     // rather than `settings`: the gate reads `!settings`, and a user with no
     // settings row legitimately has `settings === null`, which would hold the
     // splash forever. The flag means "asked and answered", rejection included.
     useBootHold(!settingsLoaded || dayLogPlaceholder || dayLog === undefined);
-
-
-    if (!settings) {
-        return (
-            <>
-                <Title title="Journal" />
-                <div className="journal-page-wrapper">
-                    <div className="dashboard-section journal-section">
-                        <div className="journal-card">
-                            <LoadingSpinner />
-                        </div>
-                    </div>
-                </div>
-            </>
-        );
-    }
 
     return (
         <>

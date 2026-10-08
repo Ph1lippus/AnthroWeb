@@ -8046,21 +8046,32 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
    labelled boxes, which matched nothing else in the app and put the calculated
    metrics twenty-three fields away from the fields that produce them.
    ============================================ */
-.measurements-puzzle {
+/* The mosaic itself is `.daily-log-puzzle` / `.daily-log-col`, borrowed rather
+   than copied -- two columns, each packing independently -- so this block only
+   needs what the daily log does not already provide. Nothing: the two classes
+   above do the whole layout. Kept as a hook for the pair styling below, which
+   applies inside these cards and nowhere else. */
+
+/* A left/right pair on one row.
+   The two halves are the same measurement of the same thing, and the comparison
+   between them is the reason both exist -- so the boxes sit beside each other at
+   the same size as every other box rather than under a twin at half width. */
+.measurement-pair {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: end;
 }
-@media (min-width: 1100px) {
-  .measurements-puzzle {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  /* Core & Torso is the widest group and reads as the day's headline, so it takes
-     the left column and the two smaller limb groups share the right. */
-  .measurement-group-card:first-child {
-    grid-row: span 2;
-  }
+/* Which half is which. A tag rather than a suffix on the label, because the
+   label is already a noun ("Bicep Flexed") and reading "Bicep Flexed (Left)"
+   twice in a row is what made this worth splitting into pairs at all. */
+.measurement-pair__side {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.5;
+  margin-right: 0.3rem;
 }
 /* The calculated block as a rail card. It was the bottom section of the editor
    until it moved here, so it keeps its own card treatment rather than being
@@ -8071,13 +8082,17 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   border-radius: 16px;
   padding: 0.75rem 0.85rem;
   margin-bottom: 0.75rem;
+  text-align: left;
 }
-.measurement-derived__empty {
-  color: var(--color-light);
-  opacity: 0.45;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  margin: 0 0 0.5rem;
+
+/* The breakdown shell is the daily log's, so the collapse animation and the
+   heading treatment come from it unchanged. Only the grid inside is overridden:
+   `auto-fit minmax(200px, 1fr)` fits one column on a rail this narrow, which is
+   what is wanted, but the row layout below wants it stated rather than left to
+   work out how much rail there happens to be. */
+.measurements-stats .daily-score-breakdown__inner {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
 }
 
 /* ============================================
@@ -8104,23 +8119,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
-}
-/* The note beside each card's title. States what the chart is asserting rather
-   than naming it again -- both cards here need one sentence of explanation or
-   they read as decoration. */
-.mind-charts-subtitle {
-  color: var(--color-light);
-  opacity: 0.45;
-  font-size: 0.68rem;
-  line-height: 1.4;
-  text-align: right;
-  flex: 1;
-  min-width: 12rem;
-}
-/* The graph needs the full card width with no padding: the SVG is sized to the
-   card and a gutter here would put the legend out of line with the canvas. */
-.mind-charts-network-card .card-body {
-  padding: 0;
 }
 .mind-network {
   position: relative;
@@ -8186,9 +8184,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   margin: 0 auto;
 }
 @media (max-width: 640px) {
-  .mind-charts-subtitle {
-    text-align: left;
-  }
   .mind-network__legend-note {
     margin-left: 0;
     width: 100%;
@@ -9492,9 +9487,6 @@ select.form-control option {
 .daily-score-breakdown--open {
   grid-template-rows: 1fr;
   opacity: 1;
-  margin-top: 1.1rem;
-  padding-top: 1rem;
-  border-top-width: 1px;
 }
 .daily-score-breakdown__inner {
   display: grid;
@@ -10559,44 +10551,51 @@ body {
   min-height: 0;
   overflow: hidden;
 }
-/* Rail is a touch wider than the academic one: these values are longer strings
-   ("To target", "6.8 kg to lose") and truncation reads as a bug. */
+.measurements-card.daily-logs-card {
+  display: grid;
+}
+.measurements-inputs.daily-log-form {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.measurements-inputs.daily-log-form .measurements-scroll {
+  grid-column: 1 / -1;
+}
+.measurements-inputs.daily-log-form > .measurement-history {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1280px) {
+  .measurements-inputs.daily-log-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .measurements-body {
   display: grid;
-  grid-template-columns: 440px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   flex: 1;
   min-height: 0;
+}
+/* Match Daily Log: the calculated breakdown stays in a compact left rail and
+   the editable measurement groups get the larger mosaic area on the right. */
+@media (min-width: 1280px) {
+  .measurements-body {
+    grid-template-columns: minmax(0, 0.61fr) minmax(0, 1fr);
+  }
 }
 .measurements-stats {
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
-  padding-right: 0.25rem;
 }
 .measurements-stats::-webkit-scrollbar { width: 4px; }
 .measurements-stats::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 25px;
 }
-.measurements-stats__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-.measurements-stats__title {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--color-light);
-  opacity: 0.6;
-  margin: 0;
-}
+/* The rail's own heading row is gone -- the breakdown card carries the title and
+   the Trends button went with it -- but the tile overrides below still describe
+   what the rail shows, so only the two header rules are removed. */
 /* Reuse the dashboard's stat tiles at the academic page's denser scale. */
 .measurements-stats .analysis-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10609,24 +10608,16 @@ body {
 .measurements-stats .analysis-card-value {
   font-size: 1.05rem;
 }
-.measurements-stats .measurement-due {
-  margin-bottom: 0.6rem;
-}
 .measurements-inputs {
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
 }
-.measurements-inputs__head {
-  flex-shrink: 0;
-}
-.measurements-inputs__title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-light);
-  margin: 0.5rem 0 0;
-}
+/* The date heading above the inputs is gone -- the day it belongs to is on the
+   rail's day changer, where it can be changed rather than only read -- so the
+   rules that laid it out go with it. */
+
 /* books-page-wrapper is height-locked, so this is what actually scrolls. */
 .measurements-scroll {
   overflow-y: auto;
@@ -10648,44 +10639,6 @@ body {
    regardless of tone -- the same treatment GPA gets on the academic page. */
 .measurements-weight-card .analysis-card-value {
   color: var(--color-primary);
-}
-
-.measurement-navbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0 0 0.5rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-.measurement-navbar__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-light);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.measurement-navbar__btn:hover {
-  background: rgba(0, 255, 166, 0.14);
-}
-.measurement-navbar__date {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  color: var(--color-light);
-  padding: 0.4rem 0.6rem;
-  font-family: inherit;
-  font-size: 0.9rem;
-}
-.measurement-navbar__date::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.6;
 }
 
 .measurement-history {
@@ -10712,46 +10665,6 @@ body {
   background: rgba(0, 255, 166, 0.16);
   border-color: var(--color-primary);
   color: var(--color-primary);
-}
-
-/* Recency callout */
-.measurement-due {
-  display: flex;
-  gap: 0.9rem;
-  align-items: flex-start;
-  padding: 0.9rem 1rem;
-  border-radius: 10px;
-}
-.measurement-due__icon {
-  flex-shrink: 0;
-  margin-top: 0.2rem;
-}
-.measurement-due h4 {
-  margin: 0 0 0.2rem;
-  font-size: 0.95rem;
-}
-.measurement-due p {
-  margin: 0;
-  font-size: 0.82rem;
-  opacity: 0.85;
-}
-.measurement-due--none {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-.measurement-due--ok {
-  background: rgba(0, 255, 166, 0.08);
-  border: 1px solid rgba(0, 255, 166, 0.25);
-}
-.measurement-due--ok .measurement-due__icon {
-  color: var(--color-primary);
-}
-.measurement-due--late {
-  background: rgba(255, 111, 97, 0.1);
-  border: 1px solid rgba(255, 111, 97, 0.4);
-}
-.measurement-due--late .measurement-due__icon {
-  color: var(--color-danger);
 }
 
 /* Editor */
@@ -10824,52 +10737,55 @@ body {
   color: rgba(255, 255, 255, 0.28);
 }
 
-/* Derived preview */
-.measurement-derived {
-  margin-top: 1.25rem;
-  background: rgba(0, 255, 166, 0.04);
-  border: 1px solid rgba(0, 255, 166, 0.15);
-  border-radius: 10px;
-  padding: 1rem;
-}
-.measurement-derived__title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  margin: 0 0 0.75rem;
-  color: var(--color-primary);
-}
+/* One figure per row, name left and value right, at every width. Two columns of
+   this on the rail left "BMR (Mifflin-St Jeor)" and its 1854 kcal on separate
+   lines, which is the opposite of what the row is for. */
 .measurement-derived__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem 1rem;
-}
-@media (min-width: 480px) {
-  .measurement-derived__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 .measurement-derived__row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 0.5rem;
-  font-size: 0.78rem;
-  padding: 0.2rem 0;
+  font-size: 0.72rem;
+  padding: 0.22rem 0;
   border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
 }
+/* Truncates rather than wrapping: a name that breaks across two lines leaves its
+   value floating beside the gap between them, which reads as belonging to neither
+   half. The full name is on the field's tooltip. */
 .measurement-derived__label {
   opacity: 0.7;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .measurement-derived__value {
   color: var(--color-primary);
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-.measurement-derived__note {
-  margin: 0.75rem 0 0;
-  font-size: 0.72rem;
-  opacity: 0.55;
+/* No formula ran, so there is nothing to colour -- an accent-coloured dash would
+   read as a reading of zero. */
+.measurement-derived__value[data-empty="true"] {
+  color: var(--color-light);
+  opacity: 0.35;
+  font-weight: 400;
+}
+/* Autosave state. Sits in the actions row where the Save button used to be, so
+   the row still has something to say after the button went. */
+.measurement-save-state {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: var(--color-light);
+  opacity: 0.6;
+  min-width: 3.5rem;
 }
 
 /* Actions */
@@ -11615,12 +11531,24 @@ body {
   border-radius: 20px;
   padding: 0.7rem 0.8rem;
 }
+.course-row:not(.course-row--open) {
+  height: 86px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.course-row:not(.course-row--open) .course-title,
+.course-row:not(.course-row--open) .course-sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+}
 .course-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: 1fr;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 0.5rem;
-  flex-wrap: wrap;
   /* Now a button, so it needs the same reset the semester header carries. */
   width: 100%;
   background: transparent;
@@ -11635,11 +11563,15 @@ body {
 .course-chevron {
   flex-shrink: 0;
   align-self: center;
+  grid-column: 3;
+  grid-row: 1;
   opacity: 0.5;
   transition: transform 0.2s ease;
 }
 .course-row--open .course-chevron { transform: rotate(180deg); }
 .course-head__text {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -11669,7 +11601,11 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
-  flex-shrink: 0;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  justify-content: flex-end;
+  min-width: max-content;
 }
 .score-block {
   display: flex;
@@ -12002,7 +11938,8 @@ body {
 
 /* ---------- Mobile ---------- */
 @media (max-width: 768px) {
-  .course-head { flex-direction: column; align-items: stretch; }
+  .course-row:not(.course-row--open) { height: 132px; }
+  .course-head { display: flex; flex-direction: column; align-items: stretch; }
   .course-scores { justify-content: flex-start; gap: 0.6rem; }
   .collapse-head { padding: 0.6rem; }
   .collapse-body { padding: 0.5rem; }

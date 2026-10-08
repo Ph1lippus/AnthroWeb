@@ -1,15 +1,13 @@
 import React from 'react';
-import { Calculator } from 'lucide-react';
 import { computeBodyCalculations } from '../../utils/measurementCalculations';
 
 /**
  * The twenty derived body metrics.
  *
- * Lifted out of the editor's scroll area and into the page's left rail, where the
- * numbers they describe are not twenty-three fields away. The trade is that they
- * now describe the form rather than the saved snapshot, which is the point: a
- * derived figure is only interesting while the inputs producing it are still in
- * reach.
+ * The measurements page's answer to the daily log's score card, minus the ring:
+ * there is no score to show for a body measurement, so this panel is the whole of
+ * it. Same card, same collapsible shell, same category headings -- filled with
+ * figures a formula produced rather than scores out of 100.
  *
  * `computeBodyCalculations` is imported rather than the result being threaded
  * through, so this component can be handed the same typed values the editor holds
@@ -17,71 +15,133 @@ import { computeBodyCalculations } from '../../utils/measurementCalculations';
  * calling it per keystroke costs nothing and needs no cache.
  */
 
-/** Kept in one list, in the order a reader wants them: composition, then effort. */
-const DERIVED_ROWS: Array<{ key: keyof ReturnType<typeof computeBodyCalculations>; label: string; unit: string }> = [
-    { key: 'body_fat_percent', label: 'Body Fat (Navy)', unit: '%' },
-    { key: 'fat_mass', label: 'Fat Mass', unit: 'kg' },
-    { key: 'lean_body_mass', label: 'Lean Body Mass', unit: 'kg' },
-    { key: 'ffmi', label: 'FFMI', unit: '' },
-    { key: 'bmr', label: 'BMR (Mifflin-St Jeor)', unit: 'kcal' },
-    { key: 'metabolic_age', label: 'Metabolic Age', unit: 'yrs' },
-    { key: 'muscle_quality', label: 'Muscle Quality', unit: '%' },
-    { key: 'dynamic_strength', label: 'Dynamic Strength', unit: '/100' },
-    { key: 'waist_hip_ratio', label: 'Waist-Hip Ratio', unit: '' },
-    { key: 'waist_height_ratio', label: 'Waist-Height Ratio', unit: '' },
-    { key: 'shoulder_waist_ratio', label: 'Shoulder-Waist Ratio', unit: '' },
-    { key: 'shoulder_chest_ratio', label: 'Shoulder-Chest Ratio', unit: '' },
-    { key: 'shoulder_hip_ratio', label: 'Shoulder-Hip Ratio', unit: '' },
-    { key: 'thigh_calf_ratio', label: 'Thigh-Calf Ratio', unit: '' },
-    { key: 'bicep_ratio', label: 'Bicep-Forearm Ratio', unit: '' },
-    { key: 'torso_taper', label: 'Torso Taper (Shoulder-Waist)', unit: 'cm' },
-    { key: 'leg_torso_ratio', label: 'Leg-Torso Ratio', unit: '' },
-    { key: 'adonis_index', label: 'Adonis Index', unit: '' },
-    { key: 'bicep_flexing_symmetry', label: 'Bicep Symmetry', unit: '/100' },
-    { key: 'forearm_symmetry', label: 'Forearm Symmetry', unit: '/100' },
-];
-
-// The shape `computeBodyCalculations` returns, taken from the function itself so
-// the list below cannot drift out of step with it.
 type BodyCalculations = ReturnType<typeof computeBodyCalculations>;
 
-const DerivedMetrics: React.FC<{ values: BodyCalculations }> = ({ values }) => {
-    const anyInput = Object.values(values).some(v => v !== null && Number.isFinite(v));
+interface DerivedGroup {
+    key: string;
+    title: string;
+    rows: Array<{ key: keyof BodyCalculations; label: string; unit: string }>;
+}
+
+/**
+ * One figure per row, in the order a reader wants them.
+ *
+ * Rows rather than the daily log's chips: there are twenty of these and their
+ * labels are longer than the numbers, which on a rail this narrow means chips
+ * wrap two or three deep and the value ends up on a line of its own, away from
+ * the name it belongs to. A row keeps the two together at every width.
+ */
+const DERIVED_GROUPS: DerivedGroup[] = [
+    {
+        key: 'composition',
+        title: 'Composition',
+        rows: [
+            { key: 'body_fat_percent', label: 'Body Fat (Navy)', unit: '%' },
+            { key: 'fat_mass', label: 'Fat Mass', unit: 'kg' },
+            { key: 'lean_body_mass', label: 'Lean Body Mass', unit: 'kg' },
+            { key: 'muscle_quality', label: 'Muscle Quality', unit: '%' },
+        ],
+    },
+    {
+        key: 'ratios',
+        title: 'Ratios',
+        rows: [
+            { key: 'waist_hip_ratio', label: 'Waist-Hip', unit: '' },
+            { key: 'waist_height_ratio', label: 'Waist-Height', unit: '' },
+            { key: 'shoulder_waist_ratio', label: 'Shoulder-Waist', unit: '' },
+            { key: 'shoulder_chest_ratio', label: 'Shoulder-Chest', unit: '' },
+            { key: 'shoulder_hip_ratio', label: 'Shoulder-Hip', unit: '' },
+            { key: 'thigh_calf_ratio', label: 'Thigh-Calf', unit: '' },
+            { key: 'bicep_ratio', label: 'Bicep-Forearm', unit: '' },
+            { key: 'leg_torso_ratio', label: 'Leg-Torso', unit: '' },
+        ],
+    },
+    {
+        key: 'symmetry',
+        title: 'Symmetry',
+        rows: [
+            { key: 'bicep_flexing_symmetry', label: 'Bicep', unit: '/100' },
+            { key: 'forearm_symmetry', label: 'Forearm', unit: '/100' },
+        ],
+    },
+    {
+        key: 'metabolism',
+        title: 'Metabolism',
+        rows: [
+            { key: 'bmr', label: 'BMR (Mifflin-St Jeor)', unit: 'kcal' },
+            { key: 'metabolic_age', label: 'Metabolic Age', unit: 'yrs' },
+        ],
+    },
+    {
+        key: 'performance',
+        title: 'Performance',
+        rows: [
+            { key: 'ffmi', label: 'FFMI', unit: '' },
+            { key: 'dynamic_strength', label: 'Dynamic Strength', unit: '/100' },
+            { key: 'adonis_index', label: 'Adonis Index', unit: '' },
+            { key: 'torso_taper', label: 'Torso Taper (Shoulder-Waist)', unit: 'cm' },
+        ],
+    },
+];
+
+const formatValue = (value: number | null, unit: string): string =>
+    value != null
+        ? `${Number.isInteger(value) ? value : value.toFixed(1)}${unit ? ` ${unit}` : ''}`
+        : '—';
+
+const DerivedMetrics: React.FC<{ values: BodyCalculations; expanded: boolean }> = ({ values, expanded }) => {
+    const groups = DERIVED_GROUPS.map(group => {
+        const available = group.rows.filter(row => values[row.key] != null).length;
+        return {
+            ...group,
+            count: `${available}/${group.rows.length}`,
+            rows: group.rows.map(row => ({
+                ...row,
+                value: values[row.key],
+                shown: formatValue(values[row.key], row.unit),
+            })),
+        };
+    });
 
     return (
-        <div className="measurement-derived measurement-derived--rail">
-            <h4 className="measurement-derived__title">
-                <Calculator />Calculated
-            </h4>
-
-            {/* An explicit empty state rather than twenty em-dashes. Before
-                anything is typed there is nothing to calculate, and a column of
-                dashes reads as twenty broken numbers instead of one honest gap. */}
-            {!anyInput ? (
-                <p className="measurement-derived__empty">
-                    Fill in any measurement and the twenty derived figures appear here as you type.
-                </p>
-            ) : (
-                <div className="measurement-derived__grid">
-                    {DERIVED_ROWS.map(row => {
-                        const value = values[row.key];
-                        const shown = value != null
-                            ? `${Number.isInteger(value) ? value : value.toFixed(1)}${row.unit ? ` ${row.unit}` : ''}`
-                            : '—';
-                        return (
-                            <div key={row.key} className="measurement-derived__row">
-                                <span className="measurement-derived__label">{row.label}</span>
-                                <span className="measurement-derived__value">{shown}</span>
+        <div className="daily-score-card measurement-derived measurement-derived--rail">
+            {/*
+                Every metric is drawn from the first paint, calculated or not. The
+                panel is a map of what these twenty-three fields produce, so the
+                list of names does not depend on whether they have been filled in
+                yet -- a reader learns the whole set before typing anything, rather
+                than being handed twenty new rows one keystroke at a time. A
+                figure with nothing behind it is a muted dash, which says "not
+                calculated" without claiming to be a reading of zero.
+            */}
+            <div
+                className={`daily-score-breakdown ${expanded ? 'daily-score-breakdown--open' : ''}`}
+                aria-hidden={!expanded}
+            >
+                <div className="measurement-derived__body daily-score-breakdown__inner">
+                    {groups.map(group => (
+                        <div key={group.key} className="daily-score-category">
+                            <div className="daily-score-category-head">
+                                <span className="daily-score-category-title">{group.title}</span>
+                                <span className="daily-score-category-count">{group.count}</span>
                             </div>
-                        );
-                    })}
+                            <div className="measurement-derived__grid">
+                                {group.rows.map(row => (
+                                    <div key={row.key} className="measurement-derived__row">
+                                        <span className="measurement-derived__label">{row.label}</span>
+                                        <span
+                                            className="measurement-derived__value"
+                                            data-empty={row.value == null ? 'true' : undefined}
+                                        >
+                                            {row.shown}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
-            )}
-
-            <p className="measurement-derived__note">
-                Published formulas (US Navy body fat, Mifflin-St Jeor BMR, FFMI, Adonis index).
-                Stored with this snapshot when you save.
-            </p>
+            </div>
         </div>
     );
 };

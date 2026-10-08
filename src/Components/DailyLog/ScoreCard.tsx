@@ -1,5 +1,7 @@
 import React from 'react';
 import ScoreRing from './ScoreRing';
+import BreakdownPanel from './BreakdownPanel';
+import type { BreakdownGroup } from './BreakdownPanel';
 import { getScoreColor } from '../../utils/dailyScoring';
 import type { MetricScore } from '../../utils/dailyScoring';
 
@@ -66,6 +68,35 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
     metrics,
     expanded,
 }) => {
+    /*
+     * Built here and handed down rather than drawn inside the panel, because the
+     * category definitions are this card's business -- the panel is the shared
+     * shape, and the measurements page fills the same shape with different rows.
+     */
+    const groups: BreakdownGroup[] = CATEGORY_ORDER.map(cat => {
+        const catMetrics = METRIC_META.filter(m => m.cat === cat);
+        const logged = catMetrics.filter(m => metrics[m.key]?.logged).length;
+        return {
+            key: cat,
+            title: CATEGORY_LABELS[cat],
+            count: `${logged}/${catMetrics.length}`,
+            chips: catMetrics.map(m => {
+                const metric = metrics[m.key];
+                if (!metric?.logged) {
+                    return { key: m.key, label: m.label, value: '—', tone: 'missing' as const };
+                }
+                const color = getScoreColor(metric.score);
+                return {
+                    key: m.key,
+                    label: m.label,
+                    value: String(metric.score),
+                    tone: 'value' as const,
+                    color,
+                };
+            }),
+        };
+    });
+
     return (
         <div className="daily-score-card">
             <div className="daily-score-main">
@@ -81,48 +112,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
                 measuring, and the inner wrapper carries `overflow: hidden` so the
                 chips do not spill out while the rows are still collapsing.
             */}
-            <div
-                className={`daily-score-breakdown ${expanded ? 'daily-score-breakdown--open' : ''}`}
-                aria-hidden={!expanded}
-            >
-                <div className="daily-score-breakdown__inner">
-                    {CATEGORY_ORDER.map(cat => {
-                        const catMetrics = METRIC_META.filter(m => m.cat === cat);
-                        const logged = catMetrics.filter(m => metrics[m.key]?.logged).length;
-                        return (
-                            <div key={cat} className="daily-score-category">
-                                <div className="daily-score-category-head">
-                                    <span className="daily-score-category-title">{CATEGORY_LABELS[cat]}</span>
-                                    <span className="daily-score-category-count">{logged}/{catMetrics.length}</span>
-                                </div>
-                                <div className="metric-chips">
-                                    {catMetrics.map(m => {
-                                        const metric = metrics[m.key];
-                                        if (!metric?.logged) {
-                                            return (
-                                                <span key={m.key} className="metric-chip metric-chip--unlogged">
-                                                    <span className="metric-chip-dot" />
-                                                    <span className="metric-chip-label">{m.label}</span>
-                                                    <span className="metric-chip-value">—</span>
-                                                </span>
-                                            );
-                                        }
-                                        return (
-                                            <span key={m.key} className="metric-chip">
-                                                <span className="metric-chip-dot" style={{ background: getScoreColor(metric.score) }} />
-                                                <span className="metric-chip-label">{m.label}</span>
-                                                <span className="metric-chip-value" style={{ color: getScoreColor(metric.score) }}>
-                                                    {metric.score}
-                                                </span>
-                                            </span>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+            <BreakdownPanel expanded={expanded} groups={groups} />
         </div>
     );
 };

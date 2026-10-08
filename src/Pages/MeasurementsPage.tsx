@@ -1,15 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
 import MeasurementEditor from '../Components/Measurement/MeasurementEditor';
-import MeasurementStatsCards from '../Components/Measurement/MeasurementStatsCards';
 import DerivedMetrics from '../Components/Measurement/DerivedMetrics';
-import { useBodyMeasurements, useLatestMeasurement } from '../hooks/useMeasurements';
+import { useBodyMeasurements } from '../hooks/useMeasurements';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { usePRHistory } from '../hooks/useWorkouts';
 import { ageFromDob, measureDateToInput, computeBodyCalculations } from '../utils/measurementCalculations';
-import { addDays } from '../utils/dates';
-import { Ruler, ChevronLeft, ChevronRight, CalendarCheck2, CalendarClock, LineChart, ArrowRight } from 'lucide-react';
+import { addDays, formatDayLabel, isDateString } from '../utils/dates';
+import { ChevronLeft, ChevronRight, Calendar, CalendarCheck2, Rows3 } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 
@@ -19,12 +17,16 @@ const toDateString = measureDateToInput;
 type MeasurementValues = Record<string, string>;
 
 const MeasurementsPage: React.FC = () => {
-    const navigate = useNavigate();
     const today = toDateString(new Date());
     const [date, setDate] = useState(today);
+    /* Same call as the daily log's: open where there is room for it, closed on a
+     * phone, and a lazy initialiser rather than an effect so there is no first
+     * paint with the wrong one. */
+    const [breakdownOpen, setBreakdownOpen] = useState(
+        () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches
+    );
 
     const { data: records = [], isLoading } = useBodyMeasurements();
-    const { data: lastMeasurementDate } = useLatestMeasurement();
     const { settings, isLoading: settingsLoading } = useUserSettings();
     const { data: prHistory = [], isLoading: prLoading } = usePRHistory();
 
@@ -69,14 +71,6 @@ const MeasurementsPage: React.FC = () => {
         relativeBestLift: maxPRWeight > 0 ? maxPRWeight : null,
     }), [settings, maxPRWeight]);
 
-    const recency = useMemo(() => {
-        if (!lastMeasurementDate) return { kind: 'none' as const, days: null };
-        const last = new Date(lastMeasurementDate + 'T00:00:00').getTime();
-        const now = new Date();
-        const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        return { kind: 'known' as const, days: Math.floor((todayTs - last) / 86400000) };
-    }, [lastMeasurementDate]);
-
     /**
      * The rail's numbers come from the live form, not from what is stored.
      *
@@ -110,88 +104,86 @@ const MeasurementsPage: React.FC = () => {
     return (
         <>
             <Title title="Measurements" />
-            <div className="books-page-wrapper">
-                <div className="dashboard-section measurements-section">
-                    <div className="measurements-card">
-                        <div className="measurements-body">
-                            {/* Stats rail on the left, inputs on the right. Same
-                                shape as the academic page so the two read as one
-                                design rather than two separate apps. */}
-                            <aside className="measurements-stats">
-                                <div className="measurements-stats__head">
-                                    <h2 className="measurements-stats__title">Body metrics</h2>
+            <div className="daily-logs-page-wrapper">
+                <div className="dashboard-section daily-logs-section">
+                    <div className="daily-logs-card measurements-card">
+                        <aside className="daily-log-score-col measurements-stats">
+                            {/* The controls for this day, in the same row and the same
+                                order as the daily log's: the breakdown toggle first,
+                                because it is the one control here that does not act on
+                                the day, then the arrows and the picker. The way back to
+                                today is drawn only off today, which also keeps the row a
+                                fixed set of controls. */}
+                            <div className="daily-score-daynav">
+                                <div className="daily-log-daynav">
                                     <button
-                                        onClick={() => navigate('/Workouts')}
-                                        className="btn-action"
+                                        type="button"
+                                        className={`daily-log-daynav-btn${breakdownOpen ? ' daily-log-daynav-btn--on' : ''}`}
+                                        onClick={() => setBreakdownOpen(open => !open)}
+                                        data-tip={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                                        aria-label={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                                        aria-pressed={breakdownOpen}
                                     >
-                                        <LineChart className="mr-1" />Trends
-                                        <ArrowRight className="ml-1" />
+                                        <Rows3 size={14} aria-hidden="true" />
                                     </button>
-                                </div>
-
-                                {/* Recency callout */}
-                                {recency.kind === 'none' ? (
-                                    <div className="measurement-due measurement-due--none">
-                                        <Ruler className="measurement-due__icon" />
-                                        <div>
-                                            <h4>No measurements yet</h4>
-                                            <p>Log your first measurement on the right — a full week at 100 score, with a 10-point daily penalty on the 8th day if you skip.</p>
-                                        </div>
-                                    </div>
-                                ) : recency.days! <= 7 ? (
-                                    <div className="measurement-due measurement-due--ok">
-                                        <CalendarCheck2 className="measurement-due__icon" />
-                                        <div>
-                                            <h4>Measurements current</h4>
-                                            <p>Last logged {new Date(lastMeasurementDate! + 'T00:00:00').toLocaleDateString()} · score 100. Re-measure by {new Date(addDays(lastMeasurementDate!, 7) + 'T00:00:00').toLocaleDateString()} to keep it.</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="measurement-due measurement-due--late">
-                                        <CalendarClock className="measurement-due__icon" />
-                                        <div>
-                                            <h4>{recency.days} day{recency.days! === 1 ? '' : 's'} overdue</h4>
-                                            <p>Last logged {new Date(lastMeasurementDate! + 'T00:00:00').toLocaleDateString()}. Measure today to reset the recency score.</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* What the twenty-three boxes currently add up to,
-                                    above the stored figures below. Live first, then
-                                    history: a number you can watch move is more use
-                                    than one you have to look up. */}
-                                <DerivedMetrics values={derived} />
-
-                                <MeasurementStatsCards
-                                    records={records}
-                                    context={context}
-                                    targetWeight={settings?.target_weight ?? null}
-                                    targetBodyFat={settings?.target_bodyfat ?? null}
-                                    recencyDays={recency.kind === 'known' ? recency.days : null}
-                                />
-                            </aside>
-
-                            <section className="measurements-inputs">
-                                {/* Date + navigation */}
-                                <div className="measurement-navbar">
-                                    <button className="measurement-navbar__btn" onClick={() => setDate(addDays(date, -1))}>
-                                        <ChevronLeft />
+                                    <button
+                                        type="button"
+                                        className="daily-log-daynav-btn"
+                                        onClick={() => setDate(addDays(date, -1))}
+                                        data-tip="Previous day"
+                                        aria-label="Previous day"
+                                    >
+                                        <ChevronLeft size={15} />
                                     </button>
-                                    <input
-                                        type="date"
-                                        className="measurement-navbar__date"
-                                        value={date}
-                                        max={today}
-                                        onChange={(e) => e.target.value && setDate(e.target.value)}
-                                    />
-                                    <button className="measurement-navbar__btn" onClick={() => setDate(addDays(date, 1))}>
-                                        <ChevronRight />
+                                    <span className="daily-log-daynav-label" aria-live="polite">
+                                        {formatDayLabel(date)}
+                                    </span>
+                                    <label className="daily-log-daynav-btn" data-tip="Pick a day">
+                                        <Calendar size={14} aria-hidden="true" />
+                                        <span className="sr-only">Pick a day</span>
+                                        <input
+                                            type="date"
+                                            className="daily-log-daynav-input"
+                                            value={date}
+                                            max={today}
+                                            onChange={e => {
+                                                if (isDateString(e.target.value)) setDate(e.target.value);
+                                            }}
+                                        />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        className="daily-log-daynav-btn"
+                                        onClick={() => setDate(addDays(date, 1))}
+                                        data-tip="Next day"
+                                        aria-label="Next day"
+                                        disabled={date >= today}
+                                    >
+                                        <ChevronRight size={15} />
                                     </button>
                                     {date !== today && (
-                                        <button className="btn-form-cancel" onClick={() => setDate(today)}>Today</button>
+                                        <button
+                                            type="button"
+                                            className="daily-log-daynav-btn"
+                                            onClick={() => setDate(today)}
+                                            data-tip="Go to today"
+                                            aria-label="Go to today"
+                                        >
+                                            <CalendarCheck2 size={14} />
+                                        </button>
                                     )}
                                 </div>
+                            </div>
 
+{/* What the twenty-three boxes currently add up to,
+                                     live as they are typed rather than read back off a
+                                     saved snapshot: a number you can watch move is more
+                                     use than one you have to look up. */}
+                                <DerivedMetrics values={derived} expanded={breakdownOpen} />
+
+                        </aside>
+
+                        <section className="daily-log-form measurements-inputs">
                                 {recordDates.length > 0 && (
                                     <div className="measurement-history">
                                         {recordDates.map(d => (
@@ -206,14 +198,7 @@ const MeasurementsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                <div className="measurements-inputs__head">
-                                    <h3 className="measurements-inputs__title">
-                                        {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                                        {initial ? ' — saved' : ''}
-                                    </h3>
-                                </div>
-
-                                <div className="measurements-scroll">
+                                <div className="measurements-scroll daily-log-main">
                                     {isLoading ? (
                                         <LoadingSpinner />
                                     ) : (
@@ -229,7 +214,6 @@ const MeasurementsPage: React.FC = () => {
                                     )}
                                 </div>
                             </section>
-                        </div>
                     </div>
                 </div>
             </div>
