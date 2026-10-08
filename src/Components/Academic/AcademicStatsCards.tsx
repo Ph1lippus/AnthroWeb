@@ -49,6 +49,25 @@ interface Stat {
     highlight?: boolean;
 }
 
+const statTips: Record<string, string> = {
+    gpa: 'Credit-weighted average of courses with teacher-entered final grades.',
+    projected: 'Credit-weighted GPA using final grades plus the points currently banked in unfinished courses.',
+    semester: 'GPA for the most recently listed semester with its courses.',
+    next: 'The next whole-grade boundary above your earned GPA and how far away it is.',
+    weakest: 'The lowest current subject prediction.',
+    strongest: 'The highest current subject prediction.',
+    credits: 'Total ECTS included in the earned GPA.',
+    courses: 'Number of courses currently included in the earned GPA.',
+    accuracy: 'Average difference between a subject prediction and its teacher-entered final grade.',
+    'best-semester': 'Highest completed semester GPA.',
+    'worst-semester': 'Lowest completed semester GPA when at least two semesters have grades.',
+    spread: 'How much subject grades vary around their average.',
+    'in-progress': 'Courses that do not have a teacher-entered final grade yet.',
+    inputs: 'Assessment inputs with a score entered, compared with all created inputs.',
+    'credits-per-course': 'Average ECTS value across all courses.',
+    'on-the-edge': 'Subjects close to crossing into the next whole grade.',
+};
+
 const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
     courses,
     semesters,
@@ -74,6 +93,28 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
     const inputProgress = computeInputProgress(predictions);
     const inProgress = countCoursesInProgress(courses);
     const meanCredits = averageCredits(courses);
+    const projectedCoverage = courses.reduce(
+        (sum, course) => {
+            if (!course.id || course.credits <= 0) return sum;
+            const finalGrade = typeof course.final_grade === 'number' && !Number.isNaN(course.final_grade);
+            const prediction = predictions.get(course.id);
+            if (finalGrade) {
+                return {
+                    coveredCredits: sum.coveredCredits + course.credits,
+                    totalCredits: sum.totalCredits + course.credits,
+                };
+            }
+            if (prediction?.percent === null || prediction?.percent === undefined) return sum;
+            return {
+                coveredCredits: sum.coveredCredits + (course.credits * Math.min(100, prediction.gradedWeight)) / 100,
+                totalCredits: sum.totalCredits + course.credits,
+            };
+        },
+        { coveredCredits: 0, totalCredits: 0 },
+    );
+    const projectedConfidence = projectedCoverage.totalCredits > 0
+        ? Math.round((projectedCoverage.coveredCredits / projectedCoverage.totalCredits) * 100)
+        : null;
 
     // Best and worst completed term, so a single strong semester is visible next
     // to the aggregate instead of being averaged away.
@@ -123,8 +164,8 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
                 projected.points === null
                     ? 'Nothing measurable yet'
                     : projected.predictedCount === 0
-                      ? `${projected.finalCount} final grade${projected.finalCount === 1 ? '' : 's'}`
-                      : `${projected.finalCount} final + ${projected.predictedCount} in progress`,
+                      ? `${projected.finalCount} final grade${projected.finalCount === 1 ? '' : 's'} · confidence 100%`
+                      : `${projected.finalCount} final + ${projected.predictedCount} in progress · confidence ${projectedConfidence ?? 0}%`,
             icon: <Target size={14} className="analysis-card-icon" />,
             tone: projected.points === null ? 'flat' : 'good',
         },
@@ -291,6 +332,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             {stats.map(stat => (
                 <div
                     key={stat.key}
+                    data-tip={statTips[stat.key]}
                     className={`analysis-card analysis-card--${stat.tone}${stat.highlight ? ' academic-gpa-card' : ''}`}
                 >
                     <div className="analysis-card-head">

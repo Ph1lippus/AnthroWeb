@@ -249,6 +249,13 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
                         {column.map(group => {
                             const fields = MEASUREMENT_FIELDS.filter(f => f.group === group);
                             if (fields.length === 0) return null;
+                            // A field named as somebody's pair never gets a row of
+                            // its own -- it is already drawn beside its head, and
+                            // letting the loop reach it would put a second box of
+                            // the same reading underneath.
+                            const taken = new Set(
+                                fields.filter(x => x.pair).map(x => x.pair as string),
+                            );
                             return (
                                 <div key={group} className="card puzzle-card measurement-group-card">
                                     <div className="card-header">
@@ -257,6 +264,7 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
                                     </div>
                                     <div className="card-body">
                                         {fields.map(f => {
+                                            if (taken.has(f.id)) return null;
                                             // The head of a pair: both halves, side by
                                             // side. A pair with sides says which is
                                             // which; one without (chest beside
