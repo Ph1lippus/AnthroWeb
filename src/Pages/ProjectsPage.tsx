@@ -435,16 +435,7 @@ const ProjectsPage: React.FC = () => {
                 )}
                 <div className="project-card-details">
                     <div className="project-card-info">
-                        {project.status !== 'completed' && project.status !== 'archived' && (
-                            <button
-                                onClick={() => handleMarkCompleted(project)}
-                                className="project-complete-btn"
-                                data-tip="Mark as completed"
-                                aria-label="Mark as completed"
-                            >
-                                <Check />
-                            </button>
-                        )}
+                        
                         {project.deadline && (
                             <span className={`project-deadline ${overdue ? 'project-deadline--overdue' : ''}`}>
                                 {formatDate(project.deadline)}
@@ -577,9 +568,7 @@ const ProjectsPage: React.FC = () => {
 
                                         {!submittedSearch && plannedProjects.length > 0 && (
                                             <div className="projects-status-group">
-                                                <div className="projects-section-header">
-                                                    Planned ({plannedProjects.length})
-                                                </div>
+                                                
                                                 <div className="flex flex-col gap-2">
                                                     {plannedProjects.map(renderProjectCard)}
                                                 </div>

@@ -801,10 +801,6 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--color-light);
 }
 .sidebar-nav-link.active {
-  /* One step brighter than hover plus the accent on the icon and the bar: the
-     rail stays neutral furniture, but "you are here" is green -- the one place
-     the brand colour is allowed back in. */
-  background: rgba(255, 255, 255, 0.11);
   color: var(--color-primary);
 }
 /* Accent bar on the left edge marks the current section. */
@@ -2689,7 +2685,6 @@ input[type='number']::-webkit-inner-spin-button {
 /* Books card fills all vertical space */
 .books-card {
   width: 100%;
-  padding: 1rem;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -2838,8 +2833,8 @@ input[type='number']::-webkit-inner-spin-button {
 /* Book card - compact */
 .book-card {
   background: #ffffff05;
-  border-radius: 25px;
-  padding: 0.5rem 0.7rem;
+  border-radius: 16px;
+  padding: 0.6rem;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
@@ -3648,10 +3643,7 @@ textarea.form-control {
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 1rem;
-  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  align-items: center;  
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
@@ -3686,9 +3678,6 @@ textarea.form-control {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.4rem;
-  border-bottom: 1px solid #ffffff14;
   flex-shrink: 0;
 }
 .projects-section-header i {
@@ -3737,6 +3726,7 @@ textarea.form-control {
   min-height: 0;
   padding-right: 0.25rem;
 }
+
 .projects-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
@@ -3761,7 +3751,7 @@ textarea.form-control {
 .project-card {
   background: #ffffff05;
   border-radius: 25px;
-  padding: 0.5rem 0.7rem;
+  padding: 0.6rem 1rem;
   text-align: left;
   width: 100%;
   flex-shrink: 0;
@@ -3772,10 +3762,10 @@ textarea.form-control {
 /* Project title */
 .project-title {
   font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-primary);
+  font-weight: 500;
+  color: white;
   word-break: break-word;
-  line-height: 1.3;
+  line-height: 1.2;
   margin: 0;
   flex: 1;
   min-width: 0;
@@ -7311,7 +7301,6 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
    Below 1280px it collapses back to a single stacked column. */
 .daily-logs-card {
   width: 100%;
-  padding: 1rem;
   text-align: left;
   display: grid;
   grid-template-columns: 1fr;
@@ -10436,7 +10425,6 @@ body {
 }
 .measurements-card {
   width: 100%;
-  padding: 1rem;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -10889,8 +10877,6 @@ body {
    rest of the app.
    ============================================ */
 .dashboard-section.academic-section {
-  /* Wide enough that the 440px stats rail and the grading tree both have room,
-     so nothing is squeezed just to fit. */
   max-width: 100%;
   width: 100%;
   height: 100%;
@@ -10900,7 +10886,7 @@ body {
 }
 .academic-card {
   width: 100%;
-  text-align: left;
+  text-align: center;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -11895,9 +11881,8 @@ body {
 .scale-picker__select {
   background-color: #ffffff0a;
   color: var(--color-light);
-  border: 1px solid transparent;
-  border-radius: 25px;
-  padding: 0.35rem 1.8rem 0.35rem 0.7rem;
+  border-radius: 20px;
+  padding: 0.35rem 0.7rem 0.35rem 0.7rem;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 500;
@@ -11907,6 +11892,7 @@ body {
   background-position: right 0.55rem center;
   background-size: 14px;
   cursor: pointer;
+  text-align: center;
   line-height: 1;
 }
 .scale-picker__select:hover { background-color: var(--accent-bg); }
