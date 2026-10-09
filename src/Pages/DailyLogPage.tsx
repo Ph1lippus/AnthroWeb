@@ -1511,7 +1511,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         >
                                             {cheatStatus.allowed === null
                                                 ? '(macros 100)'
-                                                : `(${cheatStatus.used}/${cheatStatus.allowed} this ${cheatPeriodLabel}${cheatOverBudget})`}
+                                                : `(${cheatStatus.used}/${cheatStatus.allowed} this ${cheatPeriodLabel})`}
                                         </span>
                                     </label>
                                     <div className="scored-input-wrap">
