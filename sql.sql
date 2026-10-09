@@ -432,7 +432,7 @@ CREATE TABLE public.user_settings (
   active_goals jsonb,
   weight_unit text NOT NULL DEFAULT 'kg'::text CHECK (weight_unit = ANY (ARRAY['kg'::text, 'lbs'::text])),
   goal_history jsonb,
-  cheat_days_allowed integer CHECK (cheat_days_allowed IS NULL OR cheat_days_allowed >= 0),
+  cheat_days_allowed integer DEFAULT 1 CHECK (cheat_days_allowed IS NULL OR cheat_days_allowed >= 0),
   cheat_days_period text NOT NULL DEFAULT 'week'::text CHECK (cheat_days_period = ANY (ARRAY['week'::text, 'month'::text])),
   CONSTRAINT user_settings_pkey PRIMARY KEY (id),
   CONSTRAINT user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),

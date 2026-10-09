@@ -26,8 +26,9 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const [water, setWater] = useState('');
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
-    // The cheat-day budget: an empty box means "no budget" (unlimited), which is
-    // how this read before the allowance existed and is left as the default.
+    // The cheat-day budget: an empty box means "no budget" (unlimited). The
+    // stored default is one free cheat day per window, so a fresh account reads
+    // "1" here.
     const [cheatAllowed, setCheatAllowed] = useState('');
     const [cheatPeriod, setCheatPeriod] = useState<'week' | 'month'>('week');
 
@@ -313,8 +314,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
                             </div>
                         </div>
                         <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
-                            Within the allowance a cheat day is recorded but its food macros don't count in the day's score.
-                            Past it, those macros score 0 for the day.
+                            The first cheat days within the allowance score their food macros 100 for the day.
+                            Past the allowance those macros score 0.
                         </p>
 
                         <div style={{ marginTop: '1.5rem' }}>

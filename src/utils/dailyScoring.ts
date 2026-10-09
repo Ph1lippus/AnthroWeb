@@ -380,18 +380,17 @@ export interface DailyScoringInput {
     noSleep: boolean;
     /**
      * A day the food plan was deliberately broken. Within the user's cheat-day
-     * allowance the four food macros are left out of the day entirely rather
-     * than scored as zero: a planned cheat day is a choice, not a failure, and
-     * penalising it in the ring only makes the next honest day harder to read.
-     * Hydration is NOT wrapped -- water is the one nutrition habit a day off the
-     * plan does not excuse, so it keeps scoring against its goal.
+     * allowance the four food macros score a full 100: a planned break is a
+     * choice, not a failure, and a day off the plan should not read as a bad day
+     * because of it. Hydration is NOT wrapped -- water is the one nutrition habit
+     * a day off the plan does not excuse, so it keeps scoring against its goal.
      */
     cheatDay: boolean;
     /**
      * Whether this cheat day falls inside the allowance (see `utils/cheatDays`).
      * Optional and defaults to true so a caller that does not know about budgets
-     * keeps the old, always-free behaviour. When false, the four macros are
-     * pinned to 0 *and* counted, so an over-budget day pulls the ring down.
+     * keeps the always-free behaviour. When false, the four macros are pinned to
+     * 0 *and* counted, so an over-budget day pulls the ring down.
      */
     cheatDayExempt?: boolean;
     lastMeasurementDate?: string | null;
@@ -405,15 +404,15 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
     const noSleepMetric: MetricScore = { score: 0, logged: true };
     const sleep = (metric: MetricScore): MetricScore => (noSleep ? noSleepMetric : metric);
 
-    // Cheat day, two ways. Within the allowance the macros do not count at all:
-    // `logged: false` drops a metric from the average without scoring it, so the
-    // ring moves neither for nor against what was eaten. Past the allowance the
-    // same macros are pinned to 0 *and* logged, so an extra day off the plan
-    // drags the ring down instead of being waved through. Water is unwrapped in
-    // both cases -- drinking is the one nutrition habit a day off does not excuse.
+    // Cheat day, two ways. Within the allowance the macros score a full 100 *and*
+    // stay logged, so a planned break reads as a good day rather than a hole in
+    // the ring. Past the allowance the same macros are pinned to 0 *and* logged,
+    // so an extra day off the plan drags the ring down instead of being waved
+    // through. Water is unwrapped in both cases -- drinking is the one nutrition
+    // habit a day off does not excuse.
     const macro = (metric: MetricScore): MetricScore => {
         if (!cheatDay) return metric;
-        return cheatDayExempt ? { score: 0, logged: false } : { score: 0, logged: true };
+        return cheatDayExempt ? { score: 100, logged: true } : { score: 0, logged: true };
     };
 
     const metrics: Record<string, MetricScore> = {

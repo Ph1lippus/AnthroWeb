@@ -354,6 +354,68 @@ if (!existsSync(`${dir}/0019_cheat_day_allowance.sql`)) {
     check('running it a second time is a no-op', secondPass === '', secondPass);
 }
 
+// 0020 pins the intended default (one free cheat day) and backfills the rows
+// 0019 created as null. 0019's own test above asserts it still leaves a fresh
+// row null, which is what makes 0020 the migration that decides the meaning.
+console.log('\n== 0020 defaults the allowance to one ==');
+if (!existsSync(`${dir}/0020_cheat_day_default.sql`)) {
+    console.log('  --   no 0020_cheat_day_default.sql to replay');
+} else {
+    const full2 = readFileSync('sql.sql', 'utf8').split(/^INDEXES\.\s*$/m)[0];
+    const stripped2 = full2
+        .replace(/^[ \t]*cheat_days_allowed\b.*$/gm, '')
+        .replace(/^[ \t]*cheat_days_period\b.*$/gm, '');
+
+    const fresh2 = new PGlite();
+    await bootstrap(fresh2);
+    const base2 = await applyAllStatements(fresh2, stripped2);
+    check('the stripped baseline applies', base2 === null, base2 ?? '');
+    for (const statement of splitStatements(readFileSync(`${dir}/0019_cheat_day_allowance.sql`, 'utf8'))) {
+        await fresh2.exec(statement);
+    }
+
+    await fresh2.exec(`insert into auth.users (id) values ('${USER}')`);
+    await fresh2.exec(`insert into public.user_settings (user_id) values ('${USER}')`);
+    const { rows: before2 } = await fresh2.query(
+        `select cheat_days_allowed from public.user_settings where user_id = '${USER}'`,
+    );
+    check('the row 0019 created has no allowance yet', before2[0]?.cheat_days_allowed === null,
+        JSON.stringify(before2[0]?.cheat_days_allowed));
+
+    for (const statement of splitStatements(readFileSync(`${dir}/0020_cheat_day_default.sql`, 'utf8'))) {
+        await fresh2.exec(statement);
+    }
+
+    const { rows: backfilled } = await fresh2.query(
+        `select cheat_days_allowed from public.user_settings where user_id = '${USER}'`,
+    );
+    check('a pre-existing null allowance is backfilled to one',
+        backfilled[0]?.cheat_days_allowed === 1, JSON.stringify(backfilled[0]?.cheat_days_allowed));
+
+    const { rows: def } = await fresh2.query(
+        `select column_default from information_schema.columns
+          where table_schema='public' and table_name='user_settings' and column_name='cheat_days_allowed'`,
+    );
+    check('the column default is one', String(def[0]?.column_default ?? '').includes('1'), String(def[0]?.column_default));
+
+    // A deliberate "no limit" is a null the user set, and there is no trigger to
+    // re-apply the default, so a later clear stays cleared.
+    await fresh2.exec(`update public.user_settings set cheat_days_allowed = null where user_id = '${USER}'`);
+    const { rows: cleared } = await fresh2.query(
+        `select cheat_days_allowed from public.user_settings where user_id = '${USER}'`,
+    );
+    check('clearing the allowance still stores null', cleared[0]?.cheat_days_allowed === null,
+        JSON.stringify(cleared[0]?.cheat_days_allowed));
+
+    let second2 = '';
+    try {
+        for (const statement of splitStatements(readFileSync(`${dir}/0020_cheat_day_default.sql`, 'utf8'))) await fresh2.exec(statement);
+    } catch (error) {
+        second2 = String(error.message ?? error).split('\n')[0];
+    }
+    check('running 0020 twice is a no-op', second2 === '', second2);
+}
+
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} passed, 0 failed` : `\nFAILURES: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

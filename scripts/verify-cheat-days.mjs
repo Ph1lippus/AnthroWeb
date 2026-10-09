@@ -38,6 +38,10 @@ const load = (path, deps = {}) => {
 
 const dates = load('src/utils/dates.ts');
 const cheat = load('src/utils/cheatDays.ts', { dates });
+// dailyScoring imports nothing, so it loads without dependencies. The budget
+// decides *which* cheat day is exempt; the scorer decides what "exempt" does to
+// the four food macros, and that is the half that changed with the allowance.
+const scoring = load('src/utils/dailyScoring.ts');
 
 for (const name of ['periodBounds', 'startOfWeekMonday', 'cheatDayStatus']) {
     if (typeof cheat[name] !== 'function') {
@@ -114,6 +118,37 @@ const unmarked = cheat.cheatDayStatus({
 });
 check('used counts earlier cheat days even when this one is not a cheat day',
     unmarked.used === 2 && unmarked.exempt === true, JSON.stringify(unmarked));
+
+console.log('\n== what "exempt" does to the food macros ==');
+const HABITS = {
+    morningRoutine: false, eveningRoutine: false, fruitServing: false, studied: false,
+    journal: false, stretching: false, reading: false, projectWorkDone: false, gym: false,
+};
+const scoreInput = (over = {}) => ({
+    wakeTime: '', bedtime: '', sleepQuality: '',
+    morningSystolic: '', morningDiastolic: '', morningBpm: '',
+    eveningSystolic: '', eveningDiastolic: '', eveningBpm: '', bodyTemperature: '',
+    calories: '2000', protein: '150', carbs: '200', fat: '65', water: '2500',
+    weight: null, bodyFat: null, morningMood: '', eveningMood: '',
+    habits: HABITS, customCompleted: 0, customTotal: 0,
+    activeGoals: null, settings: null, noSleep: false, cheatDay: false, ...over,
+});
+
+const FOOD = ['calories', 'protein', 'carbs', 'fat'];
+const free = scoring.computeDailyScore(scoreInput({ cheatDay: true, cheatDayExempt: true }));
+check('a covered cheat day scores all four food macros 100',
+    FOOD.every(k => free.metrics[k].score === 100 && free.metrics[k].logged === true),
+    JSON.stringify(FOOD.map(k => free.metrics[k])));
+
+const penalised = scoring.computeDailyScore(scoreInput({ cheatDay: true, cheatDayExempt: false }));
+check('an over-budget cheat day scores all four food macros 0 and counts them',
+    FOOD.every(k => penalised.metrics[k].score === 0 && penalised.metrics[k].logged === true),
+    JSON.stringify(FOOD.map(k => penalised.metrics[k])));
+
+const normal = scoring.computeDailyScore(scoreInput());
+check('a normal day still scores food against its goal, not the cheat rule',
+    normal.metrics.calories.score === 50 && normal.metrics.calories.logged === true,
+    JSON.stringify(normal.metrics.calories));
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} passed, 0 failed` : `\nFAILURES: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

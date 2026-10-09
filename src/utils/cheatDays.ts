@@ -86,8 +86,9 @@ export interface CheatDayStatus {
  *
  * Days after `date` are not counted, which is what stops a cheat day marked
  * later in the window from retroactively pushing an earlier one over budget.
- * The trade is that marking an out-of-order day can change an earlier day's
- * verdict without its stored score being recomputed until it is opened again.
+ * Marking an out-of-order day can still change a *later* day's verdict without
+ * that day being open, so the stored scores of the window's cheat days are
+ * recomputed whenever one is toggled (see `services/cheatDayRecalc`).
  */
 export const cheatDayStatus = (options: {
     logs: CheatDayLog[];

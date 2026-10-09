@@ -87,10 +87,10 @@ export interface UserSettings {
     goal_history?: unknown[] | null;
     weight_unit?: 'kg' | 'lbs';
     /**
-     * The cheat-day budget. Null means unlimited, which is the behaviour every
-     * user had before the allowance existed; a number (including 0) applies.
-     * `period` is the window the number is counted over. See
-     * `src/utils/cheatDays.ts` for how a day is judged against it.
+     * The cheat-day budget. Defaults to 1 (one free cheat day per window).
+     * Null means unlimited -- a cleared box deliberately turns the budget off; a
+     * number (including 0) applies. `period` is the window the number is counted
+     * over. See `src/utils/cheatDays.ts` for how a day is judged against it.
      */
     cheat_days_allowed?: number | null;
     cheat_days_period?: 'week' | 'month';
@@ -132,7 +132,9 @@ export const createUserSettings = async (settings: UserSettings) => {
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
             weight_unit: settings.weight_unit || 'kg',
-            cheat_days_allowed: settings.cheat_days_allowed ?? null,
+            // One free cheat day a week is the default the app ships with; an
+            // explicit null still means "no limit" for callers that ask for it.
+            cheat_days_allowed: settings.cheat_days_allowed !== undefined ? settings.cheat_days_allowed : 1,
             cheat_days_period: settings.cheat_days_period || 'week',
         })
         .select()

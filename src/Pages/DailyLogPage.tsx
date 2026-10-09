@@ -13,6 +13,7 @@ import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
 import { cheatDayStatus } from '../utils/cheatDays';
+import { recalcCheatDayScores } from '../services/cheatDayRecalc';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { moodFor, meanMood } from '../utils/moodSeries';
 import { MoodReadout } from '../Components/Journal/Mood';
@@ -591,9 +592,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         allowed: settings?.cheat_days_allowed ?? null,
         period: settings?.cheat_days_period ?? 'week',
     }), [allLogs, logDate, cheatDay, settings]);
-    // A day off the plan the budget can still cover: macros recorded and ignored.
-    const macrosIgnored = cheatDay && cheatStatus.exempt;
     // A day off the plan the budget cannot cover: macros scored 0 and counted.
+    // Within the allowance the macros score a full 100 instead (see the scorer),
+    // so the boxes keep their normal green border on a covered cheat day.
     const cheatOverBudget = cheatDay && !cheatStatus.exempt;
     const cheatPeriodLabel = (settings?.cheat_days_period ?? 'week') === 'month' ? 'month' : 'week';
 
@@ -913,6 +914,22 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 written = true;
                 queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
                 queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+                if (column === 'cheat_day' && settings) {
+                    // A cheat day moves the window's free/over-budget line, so the
+                    // other cheat days in the window have to be re-scored from their
+                    // stored rows. Today is left to its own autosave, which is a beat
+                    // behind this write and would otherwise race it.
+                    void recalcCheatDayScores({
+                        allowed: settings.cheat_days_allowed ?? null,
+                        period: settings.cheat_days_period ?? 'week',
+                        anchorDate: logDate,
+                        excludeDates: [logDate],
+                    })
+                        .then(() => {
+                            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+                        })
+                        .catch(error => console.error('Cheat-day recalculation failed:', error));
+                }
             })
             .catch(error => {
                 setValue(!value);
@@ -937,7 +954,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                     setHabitSaveState('idle');
                 }, 2000);
             });
-    }, [logDate, queryClient]);
+    }, [logDate, queryClient, settings]);
 
     useEffect(() => {
         if (saveError) {
@@ -1057,6 +1074,20 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             }
             await updateUserSettings(updated);
             queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
+            if (cheatChanged) {
+                // The budget is a global rule, so a change to it can move the
+                // free/over-budget line in every window, not just this day's. The
+                // open day is left to its autosave, which follows the settings change.
+                void recalcCheatDayScores({
+                    allowed: cheat.allowed,
+                    period: cheat.period,
+                    excludeDates: logDate ? [logDate] : [],
+                })
+                    .then(() => {
+                        queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
+                    })
+                    .catch(error => console.error('Cheat-day recalculation failed:', error));
+            }
         }
 
         if (existingLog?.id) {
@@ -1473,13 +1504,13 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <span
                                             className="text-sm opacity-60"
                                             data-tip={cheatStatus.allowed === null
-                                                ? "Food macros are recorded but don't count in today's score. Water still counts."
+                                                ? "Food macros score 100 today. Water still counts."
                                                 : cheatOverBudget
                                                     ? `Over your cheat-day allowance (${cheatStatus.allowed} per ${cheatPeriodLabel}). The food macros score 0 today.`
-                                                    : `Within your cheat-day allowance. Up to ${cheatStatus.allowed} per ${cheatPeriodLabel}; food macros don't count on those days. Water still counts.`}
+                                                    : `Within your cheat-day allowance. Up to ${cheatStatus.allowed} per ${cheatPeriodLabel}; the first ${cheatStatus.allowed} cheat days score the food macros 100. Water still counts.`}
                                         >
                                             {cheatStatus.allowed === null
-                                                ? '(macros off)'
+                                                ? '(macros 100)'
                                                 : `(${cheatStatus.used}/${cheatStatus.allowed} this ${cheatPeriodLabel}${cheatOverBudget ? ' — over limit, macros score 0' : ''})`}
                                         </span>
                                     </label>
@@ -1488,7 +1519,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCalories(e.target.value);
                                             else if (e.target.value === '') setCalories('');
-                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Calories <span className="scored-input-goal-inline">{nutritionGoals?.calories || 2000}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1496,7 +1527,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setProtein(e.target.value);
                                             else if (e.target.value === '') setProtein('');
-                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Protein <span className="scored-input-goal-inline">{nutritionGoals?.protein || 150}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1504,7 +1535,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
                                             else if (e.target.value === '') setCarbs('');
-                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Carbs <span className="scored-input-goal-inline">{nutritionGoals?.carbs || 200}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1512,7 +1543,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setFat(e.target.value);
                                             else if (e.target.value === '') setFat('');
-                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Fat <span className="scored-input-goal-inline">{nutritionGoals?.fat || 65}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">

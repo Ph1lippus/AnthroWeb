@@ -8,7 +8,7 @@
  *    by the page so the card cannot hold a second copy of it that disagrees.
  *
  *  - The row is `flex-wrap: nowrap` in a panel that is the narrowest of three tracks,
- *    roughly 277px at the split. Every control is fixed-width and the date label takes
+ *    a fixed 288px at the split. Every control is fixed-width and the date label takes
  *    the slack, so a control added without re-doing the arithmetic does not push
  *    anything onto a second line -- it takes the date's characters instead, one of
  *    them at a time, and only on the days where the date is longest.
@@ -34,6 +34,7 @@ const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 const page = code('src/Pages/DailyLogPage.tsx');
 const card = code('src/Components/DailyLog/ScoreCard.tsx');
+const panel = code('src/Components/DailyLog/BreakdownPanel.tsx');
 const row = /<div className="daily-log-daynav">([\s\S]*?)\n        <\/div>/.exec(page)?.[1] ?? '';
 
 console.log('\n== one breakdown, one control ==');
@@ -52,8 +53,12 @@ console.log('\n== one breakdown, one control ==');
         /window\.matchMedia\('\(min-width: 768px\)'\)\.matches/.test(page));
     check('the card reads the page\'s value',
         /expanded=\{breakdownOpen\}/.test(page) && /expanded: boolean/.test(card));
+    // The card hands the page's value straight to the panel, and the panel is
+    // where the `expanded` class is actually picked. That is the same assertion
+    // across the panel being extracted for the measurements page to share: the
+    // card still owns nothing and still reacts to the page.
     check('and the page is what draws it',
-        /daily-score-breakdown \$\{expanded \?/.test(card));
+        /<BreakdownPanel expanded=\{expanded\}/.test(card) && /daily-score-breakdown \$\{expanded \?/.test(panel));
     check('and the card carries no toggle of its own',
         !/onToggleExpanded/.test(card) && !/onToggleExpanded/.test(page));
     check('the row\'s control is the only one that toggles it',
@@ -65,7 +70,7 @@ console.log('\n== the row\'s new control ==');
 {
     check('the day row was found', row.length > 0);
     // Icon only, as every other control in this row is. A name on screen would not
-    // fit: the panel is 277px wide in the split layout.
+    // fit: the panel is 288px wide in the split layout.
     check('it is a button in the day row, using the row\'s own control class',
         /daily-log-daynav-btn\$\{breakdownOpen \? ' daily-log-daynav-btn--on' : ''\}/.test(row));
     // First, because it is the one control in the row that does not act on the day:
@@ -98,15 +103,17 @@ console.log('\n== the date keeps its width ==');
 {
     const split = /@media \(min-width: 1280px\) \{\s*\.daily-log-daynav \{[^}]*\}\s*\.daily-log-daynav-btn \{[^}]*\}\s*\}/.exec(rules)?.[0] ?? '';
     check('the split-layout rule was found', split.length > 0);
-    // Seven controls at 1.7rem plus 0.25rem gaps take 218px of a 277px panel, which
-    // leaves the date 59px -- a pixel under what "Mon, Sep 29" needs. The circles have
-    // to give up more than they did for six.
+    // Seven controls at 1.7rem plus 0.25rem gaps take 218px, which against the old
+    // 277px panel left the date 59px -- a pixel under what "Mon, Sep 29" needs. The
+    // circles have to give up more than they did for six.
     const size = /width:\s*([\d.]+)rem/.exec(split)?.[1];
     const gap = /gap:\s*([\d.]+)rem/.exec(split)?.[1];
     check('the controls are sized', !!size && !!gap, split.trim());
+    // The score track is a fixed 18rem (288px) in the split; the check is that the
+    // controls never take so much of it that the date falls under ~70px.
     const controls = 7 * Number(size) * 16 + 7 * Number(gap) * 16;
-    check('seven of them leave the date at least 70px of the 277px panel',
-        277 - controls >= 70, `${Math.round(controls)}px of controls`);
+    check('seven of them leave the date at least 70px of the 288px panel',
+        288 - controls >= 70, `${Math.round(controls)}px of controls`);
     // Asserted against the comment as well as the rule: the arithmetic is the kind of
     // thing that goes stale silently, and the comment is what a later reader trusts.
     check('and the comment counts seven controls, not six',
