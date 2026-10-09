@@ -7295,8 +7295,8 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   flex-direction: column;
 }
 /* Daily Log card fills content height (page scrolls, not the container).
-   On wide screens this is a 2-column grid: a sticky score panel plus the form.
-   Below 1280px it collapses back to a single stacked column. */
+   On wide screens this is a three-column grid: the score panel, the cards, the
+   habits. Below 1280px it collapses back to a single stacked column. */
 .daily-logs-card {
   width: 100%;
   text-align: left;
@@ -7305,22 +7305,43 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   gap: 1rem;
   align-items: start;
 }
-/* Desktop split: score | column 2 | habits.
-   The score column is the smallest at roughly 70% of the width it had when all
-   three were equal, and columns 2 and 3 stay the same size as each other. The
-   form spans tracks 2 and 3 and splits them evenly, so those two match
-   exactly. 0.61fr rather than 0.7fr because fr units divide the whole free
-   space: 0.7fr of 2.7 total would only be 78% of the old track, whereas
-   0.61fr of 2.61 lands on 70%. Below this width the score drops to the top and
-   habits goes last. */
+/* Desktop split: score | cards | habits. The middle is the widest of the three
+   because it is the column that shows cards side by side; the other two are
+   sized to what they actually hold rather than to a share of the page.
+
+   Left, a fixed 18rem (288px). The day row is the widest thing in it, and its
+   width is arithmetic, not a fraction: seven controls at 1.6rem with 0.2rem
+   gaps take 202px, and "Mon, Sep 29" needs about 72px of the rest, so 288px is
+   the narrowest the label survives at -- and the label is the reason the
+   column exists at that width, since "Yesterday" and "Today" are shorter still.
+   Score card content wraps inside it.
+
+   Middle, 1fr: every pixel the other two leave over goes to the cards.
+
+   Right, a fixed 22rem (352px): card padding and the gap leave 152px per half
+   of the habits card's two-up split, which is enough to write "Morning
+   Routine" on one line -- and past that it would be middle-column space the
+   puzzle would rather have.
+
+   The form gives up its own box in this layout (`.daily-log-form` below) so
+   that `.daily-log-main` and `.daily-log-habits` are placed straight into
+   tracks 2 and 3: they are columns of *this* grid, not of the form's. The
+   measurements page borrows these classes but keeps its form box -- it has no
+   habits column, and its form still spans tracks 2 and 3 the way it used to. */
 @media (min-width: 1280px) {
   .daily-logs-card {
-    grid-template-columns: minmax(0, 0.61fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr) minmax(0, 28rem);
     grid-template-areas:
-      "score form form";
+      "score main habits";
   }
   .daily-log-score-col { grid-area: score; }
-  .daily-log-form { grid-area: form; }
+  /* Named areas for the two children the form lets through, so they stay in
+     their tracks no matter what else is in the grid -- the edit-by-id "Today's
+     Log" row is a full-width item and would otherwise push auto-placed columns
+     into the wrong ones. */
+  .daily-logs-card:not(.measurements-card) .daily-log-form { display: contents; }
+  .daily-logs-card:not(.measurements-card) .daily-log-main { grid-area: main; }
+  .daily-logs-card:not(.measurements-card) .daily-log-habits { grid-area: habits; }
 }
 /* The score panel sticks so the ring and its breakdown stay in view while
    scrolling the cards beside it. Only useful in the split layout. */
@@ -7350,14 +7371,7 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   gap: 1rem;
   align-items: start;
 }
-/* Wide screens: the form covers tracks 2 and 3 of the three-column grid, so
-   splitting it into two equal tracks makes column 2 and the habits column the
-   same width as the score column. */
-@media (min-width: 1280px) {
-  .daily-log-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+
 .daily-log-form .card {
   background: #ffffff08;
   box-shadow: none;
@@ -7706,18 +7720,20 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
    user asked for is deterministic.
 
    .daily-logs-card is the outer three-column split:
-        [ score | column 2 | habits ]
-   The score column is deliberately the narrowest; columns 2 and 3 are the same
-   width as each other.
+        [ score | cards | habits ]
+   The score column is the narrowest and fixed at the width its day row needs;
+   the cards column is the widest and takes all the leftover space; habits is
+   fixed at the width its checkboxes need.
 
-   .daily-log-form splits into:
-        [ .daily-log-main | .daily-log-habits ]
-   .daily-log-main is column 2: a two-up puzzle grid above a full-width blood
-   pressure card.
+   The form is not a column of its own in this layout: it is `display:
+   contents`, so its two children take tracks 2 and 3 directly.
+   .daily-log-main is the cards column: a two-up puzzle grid above a full-width
+   blood pressure card.
         left sub-column:  Sleep, then Body Metrics underneath
         right sub-column: Nutrition, then Mood underneath
         then Blood Pressure & HR spanning both sub-columns
-   .daily-log-habits is column 3: habit checkboxes with Projects beside them.
+   .daily-log-habits is the habits column: habit checkboxes with Projects
+   beside them.
 
    Below 1280px everything stacks - score first, habits last - and on phones
    the cards fall to one per row. */
@@ -9213,15 +9229,16 @@ select.form-control option {
   width: 100%;
   gap: 0.35rem;
 }
-/* Only in the split layout. There the score panel is the narrowest of three tracks
-   -- about 277px at the 1280px breakpoint, where 0.61fr of the free space lands --
-   and six controls at 1.9rem plus 0.35rem gaps take 216px of it, leaving the date
-   roughly 60px. That is within a pixel of what "Mon, Sep 29" needs, so the circles
-   give up a little here rather than the date losing a character every day of the
-   year. The breakdown toggle was the seventh, and at those sizes it took the date
-   back down to 59px -- one pixel under the mark, which truncates "Mon, Sep 29" to
-   "Mon, Sep 2…". So the circles give up a little more: 1.6rem and a 0.2rem gap bring
-   seven of them to 202px and the date back to about 75px.
+/* Only in the split layout. There the score panel is a fixed 18rem (288px), and
+   that width is this row's arithmetic rather than a share of the page: left at
+   their roomier size, six controls at 1.9rem plus 0.35rem gaps take 216px of it,
+   leaving the date roughly 60px. That is within a pixel of what "Mon, Sep 29"
+   needs, so the circles give up a little here rather than the date losing a
+   character every day of the year. The breakdown toggle was the seventh, and at
+   those sizes it took the date back down to 59px -- one pixel under the mark,
+   which truncates "Mon, Sep 29" to "Mon, Sep 2…". So the circles give up a little
+   more: 1.6rem and a 0.2rem gap bring seven of them to 202px and the date back to
+   about 86px of the 288px panel.
 
    Below the split the panel is the full page width, so the controls stay at the
    larger size -- which is also where they are being touched rather than clicked. */
@@ -10437,6 +10454,16 @@ body {
   display: grid;
   grid-template-columns: 1fr;
 }
+/* The measurements page borrows the daily log's card and form, but it has no
+   habits column: its form keeps its own box (above) and spans the two right
+   tracks itself, which is the shape the daily log's form used to have. So it
+   takes back the two names the daily log's `display: contents` form gave up. */
+@media (min-width: 1280px) {
+  .measurements-card.daily-logs-card {
+    grid-template-areas: "score form form";
+  }
+  .measurements-inputs.daily-log-form { grid-area: form; }
+}
 .measurements-inputs.daily-log-form .measurements-scroll {
   grid-column: 1 / -1;
 }
@@ -10444,8 +10471,8 @@ body {
   grid-column: 1 / -1;
 }
 @media (min-width: 1280px) {
-  .measurements-inputs.daily-log-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .measurements-inputs{
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 .measurements-body {
