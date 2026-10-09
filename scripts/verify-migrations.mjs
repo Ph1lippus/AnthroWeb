@@ -277,6 +277,83 @@ if (!existsSync(`${dir}/0012_notes_position.sql`)) {
     check('running it a second time is a no-op', secondPass === '', secondPass);
 }
 
+// 0019 adds the cheat-day budget to user_settings. Same reasoning as 0012 above:
+// the baseline already carries the columns, so the main loop only exercises the
+// idempotent branch, and what matters for a deploy is the branch against a
+// database that predates them.
+console.log('\n== 0019 against a database that predates the columns ==');
+if (!existsSync(`${dir}/0019_cheat_day_allowance.sql`)) {
+    console.log('  --   no 0019_cheat_day_allowance.sql to replay; sql.sql is the whole schema');
+} else {
+    const full = readFileSync('sql.sql', 'utf8').split(/^INDEXES\.\s*$/m)[0];
+    // Whole lines, not `[^,]*`, because the period's CHECK contains commas
+    // inside ARRAY['week','month'] and a comma-anchored pattern would stop short
+    // of the end of the line and leave a dangling fragment behind.
+    const stripped = full
+        .replace(/^[ \t]*cheat_days_allowed\b.*$/gm, '')
+        .replace(/^[ \t]*cheat_days_period\b.*$/gm, '');
+    check('the cheat-day columns were found in the baseline to strip', stripped !== full);
+
+    const fresh = new PGlite();
+    await bootstrap(fresh);
+    const base = await applyAllStatements(fresh, stripped);
+    check('the stripped baseline applies', base === null, base ?? '');
+
+    const { rows: beforeRows } = await fresh.query(
+        `select column_name from information_schema.columns
+          where table_schema='public' and table_name='user_settings'
+            and column_name in ('cheat_days_allowed','cheat_days_period')`,
+    );
+    check('both columns are absent beforehand', beforeRows.length === 0, `n=${beforeRows.length}`);
+
+    const migration = readFileSync(`${dir}/0019_cheat_day_allowance.sql`, 'utf8');
+    for (const statement of splitStatements(migration)) await fresh.exec(statement);
+
+    const { rows: afterRows } = await fresh.query(
+        `select column_name, is_nullable, column_default from information_schema.columns
+          where table_schema='public' and table_name='user_settings'
+            and column_name in ('cheat_days_allowed','cheat_days_period')
+          order by column_name`,
+    );
+    check('the migration adds both columns', afterRows.length === 2, `n=${afterRows.length}`);
+    const allowed = afterRows.find(r => r.column_name === 'cheat_days_allowed');
+    const period = afterRows.find(r => r.column_name === 'cheat_days_period');
+    // Nullable on purpose: null is the "no budget" default every existing row
+    // takes, which is what keeps their history scoring the way it always has.
+    check('the allowance is nullable', allowed?.is_nullable === 'YES', String(allowed?.is_nullable));
+    check('the period is not nullable', period?.is_nullable === 'NO', String(period?.is_nullable));
+    check("the period defaults to 'week'", String(period?.column_default ?? '').includes('week'));
+
+    await fresh.exec(`insert into auth.users (id) values ('${USER}')`);
+    await fresh.exec(`insert into public.user_settings (user_id) values ('${USER}')`);
+    const { rows: legacy } = await fresh.query(
+        `select cheat_days_allowed, cheat_days_period from public.user_settings where user_id = '${USER}'`,
+    );
+    check('a settings row with no allowance gets no budget',
+        legacy[0]?.cheat_days_allowed === null, JSON.stringify(legacy[0]?.cheat_days_allowed));
+    check('and the window defaults to a week',
+        legacy[0]?.cheat_days_period === 'week', String(legacy[0]?.cheat_days_period));
+
+    // The CHECK keeps a negative budget out. Left unguarded it would read as "no
+    // allowance" while not being the null the client treats as unlimited, so the
+    // two would disagree about what the row meant.
+    let negative = '';
+    try {
+        await fresh.exec(`update public.user_settings set cheat_days_allowed = -1 where user_id = '${USER}'`);
+    } catch (error) {
+        negative = String(error.message ?? error).split('\n')[0];
+    }
+    check('a negative allowance is rejected', negative !== '', negative || 'accepted -1');
+
+    let secondPass = '';
+    try {
+        for (const statement of splitStatements(migration)) await fresh.exec(statement);
+    } catch (error) {
+        secondPass = String(error.message ?? error).split('\n')[0];
+    }
+    check('running it a second time is a no-op', secondPass === '', secondPass);
+}
+
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} passed, 0 failed` : `\nFAILURES: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -86,6 +86,14 @@ export interface UserSettings {
      */
     goal_history?: unknown[] | null;
     weight_unit?: 'kg' | 'lbs';
+    /**
+     * The cheat-day budget. Null means unlimited, which is the behaviour every
+     * user had before the allowance existed; a number (including 0) applies.
+     * `period` is the window the number is counted over. See
+     * `src/utils/cheatDays.ts` for how a day is judged against it.
+     */
+    cheat_days_allowed?: number | null;
+    cheat_days_period?: 'week' | 'month';
     created_at?: string;
     updated_at?: string;
 }
@@ -124,6 +132,8 @@ export const createUserSettings = async (settings: UserSettings) => {
             target_bodyfat: settings.target_bodyfat,
             last_measurement_date: settings.last_measurement_date,
             weight_unit: settings.weight_unit || 'kg',
+            cheat_days_allowed: settings.cheat_days_allowed ?? null,
+            cheat_days_period: settings.cheat_days_period || 'week',
         })
         .select()
         .single();
@@ -156,6 +166,17 @@ export const updateUserSettings = async (settings: UserSettings) => {
             weight_unit: settings.weight_unit || 'kg',
             active_goals: settings.active_goals,
             goal_history: settings.goal_history,
+            // Only written when the caller actually carries them. EditProfilePage
+            // builds a settings object without the cheat fields, and defaulting
+            // `period` to 'week' here would silently reset a user who had chosen
+            // 'month' every time they touched their profile. Left out entirely,
+            // PostgREST leaves the stored columns alone.
+            ...(settings.cheat_days_allowed !== undefined
+                ? { cheat_days_allowed: settings.cheat_days_allowed }
+                : {}),
+            ...(settings.cheat_days_period !== undefined
+                ? { cheat_days_period: settings.cheat_days_period }
+                : {}),
             updated_at: new Date().toISOString(),
         }, {
             onConflict: 'user_id'

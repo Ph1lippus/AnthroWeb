@@ -8,6 +8,8 @@ import type { DailyLog } from '../services/dailyLogService';
 import { useDailyLogs } from '../hooks/useDailyLogs';
 import { queryKeys } from '../utils/queryKeys';
 import { getScoreColor, BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
+import { cheatDayStatus } from '../utils/cheatDays';
+import { useUserSettings } from '../hooks/useUserSettings';
 import { moodFor } from '../utils/moodSeries';
 import LoadingSpinner from '../Components/LoadingSpinner';
 
@@ -15,6 +17,7 @@ const DailyLogHistoryPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { logs } = useDailyLogs();
+    const { settings } = useUserSettings();
     const [deleteTarget, setDeleteTarget] = useState<DailyLog | null>(null);
 
     const handleDelete = async () => {
@@ -46,7 +49,18 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.body_temperature) chips.push({ label: 'Temp', value: `${log.body_temperature}°C` });
         // Said before the macros it applies to: on a cheat day they were recorded
         // but kept out of the score, and a row showing 3200 kcal needs that said.
-        if (log.cheat_day) chips.push({ label: 'Nutrition', value: 'Cheat day' });
+        // Re-judged here against the allowance so a day that ran past the budget
+        // reads as the penalised one it was rather than a free break.
+        if (log.cheat_day) {
+            const status = cheatDayStatus({
+                logs: logs ?? [],
+                date: log.log_date,
+                isCheat: true,
+                allowed: settings?.cheat_days_allowed ?? null,
+                period: settings?.cheat_days_period ?? 'week',
+            });
+            chips.push({ label: 'Nutrition', value: status.exempt ? 'Cheat day' : 'Cheat day (over)' });
+        }
         if (log.calories) chips.push({ label: 'Calories', value: String(log.calories) });
         if (log.protein) chips.push({ label: 'Protein', value: `${log.protein}g` });
         if (log.carbs) chips.push({ label: 'Carbs', value: `${log.carbs}g` });

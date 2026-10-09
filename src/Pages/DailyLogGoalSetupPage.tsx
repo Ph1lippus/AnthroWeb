@@ -26,6 +26,10 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const [water, setWater] = useState('');
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
+    // The cheat-day budget: an empty box means "no budget" (unlimited), which is
+    // how this read before the allowance existed and is left as the default.
+    const [cheatAllowed, setCheatAllowed] = useState('');
+    const [cheatPeriod, setCheatPeriod] = useState<'week' | 'month'>('week');
 
     const formatTimeInput = (value: string): string => {
         const numbers = value.replace(/\D/g, '').slice(0, 4);
@@ -79,6 +83,12 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         setBedtime(goals.sleep.bedtime || '');
                     }
                 }
+                setCheatAllowed(
+                    userSettings?.cheat_days_allowed != null
+                        ? String(userSettings.cheat_days_allowed)
+                        : ''
+                );
+                setCheatPeriod(userSettings?.cheat_days_period === 'month' ? 'month' : 'week');
             } finally {
                 // In a `finally` because this flag is both the page's gate and the
                 // boot splash's. A rejected request has to count as "asked and
@@ -108,6 +118,14 @@ const DailyLogGoalSetupPage: React.FC = () => {
         if (!hasAnyGoal) {
             setMessage({ text: 'Set at least one goal before saving.', type: 'error' });
             showToast('error', 'Set at least one goal');
+            return;
+        }
+
+        // Empty means unlimited, so only a filled box has to be a real count.
+        const cheatAllowedValue = cheatAllowed.trim() === '' ? null : parseInt(cheatAllowed, 10);
+        if (cheatAllowedValue !== null && (Number.isNaN(cheatAllowedValue) || cheatAllowedValue < 0)) {
+            setMessage({ text: 'Cheat days must be a whole number of 0 or more, or left blank for no limit.', type: 'error' });
+            showToast('error', 'Enter a valid cheat-day allowance');
             return;
         }
 
@@ -143,6 +161,11 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 // only ever ask "what are my goals now?".
                 active_goals: latestGoals(history, goals) as unknown as Record<string, unknown>,
                 goal_history: history,
+                // The budget is a plain setting, not a versioned goal: it is a
+                // rule about how many breaks you take, not a target a day is
+                // scored against, so it is not stamped into goal_history.
+                cheat_days_allowed: cheatAllowedValue,
+                cheat_days_period: cheatPeriod,
             };
             await updateUserSettings(updatedSettings);
             // Charts, insight cards and the daily log all read settings through
@@ -267,6 +290,32 @@ const DailyLogGoalSetupPage: React.FC = () => {
                             <TimeField id="wakeTime" label="Wake Time" value={wakeTime} onChange={setWakeTime} hint="07:00" />
                             <TimeField id="bedtime" label="Bedtime" value={bedtime} onChange={setBedtime} hint="23:00" />
                         </div>
+
+                        {/* Cheat-day budget. Blank box means no limit, which is how
+                            the app behaved before this setting existed. */}
+                        <div className="form-grid">
+                            {renderInput('cheatAllowed', 'Cheat Days Allowed', cheatAllowed, setCheatAllowed, 'number', 'Blank = no limit')}
+                            <div className="mb-3 text-start">
+                                <label htmlFor="cheatPeriod" className="form-label">Cheat Days Per</label>
+                                <div className="t-input-wrap">
+                                    <div className="t-input">
+                                        <select
+                                            className="form-control"
+                                            id="cheatPeriod"
+                                            value={cheatPeriod}
+                                            onChange={(e) => setCheatPeriod(e.target.value === 'month' ? 'month' : 'week')}
+                                        >
+                                            <option value="week">Week (Mon–Sun)</option>
+                                            <option value="month">Month</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
+                            Within the allowance a cheat day is recorded but its food macros don't count in the day's score.
+                            Past it, those macros score 0 for the day.
+                        </p>
 
                         <div style={{ marginTop: '1.5rem' }}>
                             <button type="submit" className="btn btn-primary w-100" disabled={saving}>

@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
 import type { ActiveGoals } from '../../utils/dailyScoring';
 
+export interface CheatDayBudget {
+    /** How many cheat days are allowed, or `null` for no limit. */
+    allowed: number | null;
+    period: 'week' | 'month';
+}
+
 interface DayGoalsEditorProps {
     open: boolean;
     /** Goals currently in force for this day, used to prefill the fields. */
     goals: ActiveGoals | null;
     /** The date being edited, shown in the heading so it is unambiguous. */
     dateLabel: string;
+    /**
+     * The cheat-day budget. Unlike the goals, this is a global setting, so the
+     * editor prefills it from here and hands the edited value back on save.
+     */
+    cheatAllowed: number | null;
+    cheatPeriod: 'week' | 'month';
     onClose: () => void;
-    onSave: (goals: ActiveGoals) => Promise<void>;
+    onSave: (goals: ActiveGoals, cheat: CheatDayBudget) => Promise<void>;
 }
 
 const FIELD = 'form-control';
@@ -30,6 +42,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
     open,
     goals,
     dateLabel,
+    cheatAllowed,
+    cheatPeriod,
     onClose,
     onSave,
 }) => {
@@ -40,6 +54,9 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
     const [water, setWater] = useState('');
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
+    // Held as a string so an empty box can mean "no limit" rather than 0.
+    const [cheatAllowedInput, setCheatAllowedInput] = useState('');
+    const [cheatPeriodInput, setCheatPeriodInput] = useState<'week' | 'month'>('week');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +75,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
             setWater(toStr(goals?.nutrition?.water));
             setWakeTime(goals?.sleep?.wake_time ?? '');
             setBedtime(goals?.sleep?.bedtime ?? '');
+            setCheatAllowedInput(cheatAllowed != null ? String(cheatAllowed) : '');
+            setCheatPeriodInput(cheatPeriod === 'month' ? 'month' : 'week');
             setError(null);
         }
     }
@@ -67,6 +86,13 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
     const num = (value: string) => (value.trim() === '' ? null : Number(value));
 
     const handleSave = async () => {
+        // Blank means no limit, so only a filled box has to be a real count.
+        const parsedCheat = cheatAllowedInput.trim() === '' ? null : Number(cheatAllowedInput);
+        if (parsedCheat !== null && (!Number.isFinite(parsedCheat) || parsedCheat < 0)) {
+            setError('Cheat days must be a whole number of 0 or more, or left blank for no limit.');
+            return;
+        }
+
         setSaving(true);
         setError(null);
         try {
@@ -86,6 +112,9 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                     wake_time: wakeTime || null,
                     bedtime: bedtime || null,
                 },
+            }, {
+                allowed: parsedCheat === null ? null : Math.trunc(parsedCheat),
+                period: cheatPeriodInput,
             });
             onClose();
         } catch (e) {
@@ -147,6 +176,29 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                             value={bedtime}
                             onChange={e => setBedtime(e.target.value)}
                         />
+                    </div>
+
+                    <div>
+                        <label className={LABEL}>Cheat days allowed</label>
+                        <input
+                            type="number"
+                            className={FIELD}
+                            value={cheatAllowedInput}
+                            onChange={e => setCheatAllowedInput(e.target.value)}
+                            inputMode="numeric"
+                            placeholder="No limit"
+                        />
+                    </div>
+                    <div>
+                        <label className={LABEL}>Cheat days per</label>
+                        <select
+                            className={FIELD}
+                            value={cheatPeriodInput}
+                            onChange={e => setCheatPeriodInput(e.target.value === 'month' ? 'month' : 'week')}
+                        >
+                            <option value="week">Week (Mon–Sun)</option>
+                            <option value="month">Month</option>
+                        </select>
                     </div>
                 </div>
 

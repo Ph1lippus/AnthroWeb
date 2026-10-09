@@ -12,6 +12,8 @@ import type { UserSettings } from '../services/profileService';
 import type { Habit } from '../services/habitService';
 import type { Project } from '../services/projectService';
 import { computeDailyScore, calculateSleepDuration, BUILTIN_HABIT_COUNT } from '../utils/dailyScoring';
+import { cheatDayStatus } from '../utils/cheatDays';
+import { useDailyLogs } from '../hooks/useDailyLogs';
 import { moodFor, meanMood } from '../utils/moodSeries';
 import { MoodReadout } from '../Components/Journal/Mood';
 import type { ActiveGoals } from '../utils/dailyScoring';
@@ -21,6 +23,7 @@ import { useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
+import type { CheatDayBudget } from '../Components/DailyLog/DayGoalsEditor';
 import HabitEditorModal from '../Components/DailyLog/HabitEditorModal';
 import ConfirmModal from '../Components/ConfirmModal';
 import ContextMenu from '../Components/ContextMenu';
@@ -572,6 +575,28 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 || a.title.localeCompare(b.title));
     }, [projects, selectedProjectIds]);
 
+    // --- Cheat-day budget ---
+    //
+    // Every log is needed, not just this day's, because "is this cheat day the
+    // first of the week or the third" is a fact about the window. The shared
+    // `daily-logs` query is already fetched and invalidated around saves, so this
+    // costs no extra request when the history or dashboard have been visited.
+    const { logs: allLogs } = useDailyLogs();
+    const cheatStatus = useMemo(() => cheatDayStatus({
+        logs: allLogs ?? [],
+        date: logDate,
+        // The form is the source of truth for this day: the toggle moves before
+        // the write, and the stored row may still hold yesterday's answer.
+        isCheat: cheatDay,
+        allowed: settings?.cheat_days_allowed ?? null,
+        period: settings?.cheat_days_period ?? 'week',
+    }), [allLogs, logDate, cheatDay, settings]);
+    // A day off the plan the budget can still cover: macros recorded and ignored.
+    const macrosIgnored = cheatDay && cheatStatus.exempt;
+    // A day off the plan the budget cannot cover: macros scored 0 and counted.
+    const cheatOverBudget = cheatDay && !cheatStatus.exempt;
+    const cheatPeriodLabel = (settings?.cheat_days_period ?? 'week') === 'month' ? 'month' : 'week';
+
     // --- Scoring (fair, grouped) ---
     const scoreResult = useMemo(() => computeDailyScore({
         wakeTime,
@@ -603,8 +628,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         settings: effectiveSettings,
         noSleep,
         cheatDay,
+        cheatDayExempt: cheatStatus.exempt,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate]);
 
     const calculatedScore = scoreResult.score;
     // The day's average rating, for the mood card's header. Null rather than zero
@@ -1006,16 +1032,30 @@ const [breakdownOpen, setBreakdownOpen] = useState(
      * re-stamps today's snapshot from the same resolved values instead of writing
      * the pre-edit targets back over this change.
      */
-    const handleSaveDayGoals = async (goals: ActiveGoals) => {
+    const handleSaveDayGoals = async (goals: ActiveGoals, cheat: CheatDayBudget) => {
         const viewingToday = isDateString(logDate) && logDate === todayString();
 
-        if (viewingToday && settings) {
-            const history = withVersion(parseGoalHistory(settings.goal_history), logDate, goals);
-            await updateUserSettings({
+        // The cheat-day budget is a global setting, not a per-day one, so it is
+        // written whichever day is open. The goals stay tied to the day: only
+        // today's edit feeds goal_history -- passing a past date to withVersion
+        // would drop every version after that date. The two are therefore
+        // combined into one settings write, but only the goal half is gated on
+        // today.
+        const cheatChanged = (settings?.cheat_days_allowed ?? null) !== cheat.allowed
+            || (settings?.cheat_days_period ?? 'week') !== cheat.period;
+
+        if (settings && (viewingToday || cheatChanged)) {
+            const updated: UserSettings = {
                 ...settings,
-                active_goals: latestGoals(history, goals) as unknown as Record<string, unknown>,
-                goal_history: history,
-            });
+                cheat_days_allowed: cheat.allowed,
+                cheat_days_period: cheat.period,
+            };
+            if (viewingToday) {
+                const history = withVersion(parseGoalHistory(settings.goal_history), logDate, goals);
+                updated.active_goals = latestGoals(history, goals) as unknown as Record<string, unknown>;
+                updated.goal_history = history;
+            }
+            await updateUserSettings(updated);
             queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
         }
 
@@ -1432,9 +1472,15 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <span className="text-sm opacity-90">Cheat Day</span>
                                         <span
                                             className="text-sm opacity-60"
-                                            data-tip="Food macros are recorded but don't count in today's score. Water still counts."
+                                            data-tip={cheatStatus.allowed === null
+                                                ? "Food macros are recorded but don't count in today's score. Water still counts."
+                                                : cheatOverBudget
+                                                    ? `Over your cheat-day allowance (${cheatStatus.allowed} per ${cheatPeriodLabel}). The food macros score 0 today.`
+                                                    : `Within your cheat-day allowance. Up to ${cheatStatus.allowed} per ${cheatPeriodLabel}; food macros don't count on those days. Water still counts.`}
                                         >
-                                            (macros off)
+                                            {cheatStatus.allowed === null
+                                                ? '(macros off)'
+                                                : `(${cheatStatus.used}/${cheatStatus.allowed} this ${cheatPeriodLabel}${cheatOverBudget ? ' — over limit, macros score 0' : ''})`}
                                         </span>
                                     </label>
                                     <div className="scored-input-wrap">
@@ -1442,7 +1488,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCalories(e.target.value);
                                             else if (e.target.value === '') setCalories('');
-                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories && !cheatDay ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Calories <span className="scored-input-goal-inline">{nutritionGoals?.calories || 2000}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1450,7 +1496,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setProtein(e.target.value);
                                             else if (e.target.value === '') setProtein('');
-                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein && !cheatDay ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (protein ? '' : ' scored-input--empty')} placeholder=" " style={protein && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('protein')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Protein <span className="scored-input-goal-inline">{nutritionGoals?.protein || 150}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1458,7 +1504,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
                                             else if (e.target.value === '') setCarbs('');
-                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs && !cheatDay ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (carbs ? '' : ' scored-input--empty')} placeholder=" " style={carbs && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('carbs')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Carbs <span className="scored-input-goal-inline">{nutritionGoals?.carbs || 200}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1466,7 +1512,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setFat(e.target.value);
                                             else if (e.target.value === '') setFat('');
-                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat && !cheatDay ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
+                                        }} className={"scored-input" + (fat ? '' : ' scored-input--empty')} placeholder=" " style={fat && !macrosIgnored ? { borderColor: getScoreColor(scoreOf('fat')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Fat <span className="scored-input-goal-inline">{nutritionGoals?.fat || 65}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
@@ -1762,6 +1808,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 open={showGoalsEditor}
                 goals={activeGoals}
                 dateLabel={dateLabel}
+                cheatAllowed={settings?.cheat_days_allowed ?? null}
+                cheatPeriod={settings?.cheat_days_period ?? 'week'}
                 onClose={() => setShowGoalsEditor(false)}
                 onSave={handleSaveDayGoals}
             />
