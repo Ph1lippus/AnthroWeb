@@ -4603,10 +4603,6 @@ textarea.form-control {
   flex-direction: column;
   align-items: stretch;
   flex-shrink: 0;
-  padding: 1rem;
-  /* dvh, not vh: vh is the full layout viewport, URL bar included, so on a
-     phone this would be taller than the visible area and push the last line of a
-     note under the browser chrome. */
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
