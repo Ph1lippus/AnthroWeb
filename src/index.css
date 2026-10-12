@@ -10049,39 +10049,758 @@ select.form-control option {
   }
 }
 /* ============================================
-   STUDY TIMER - placeholder page
+   TIMER PAGE
+
+   Built on the shell the Daily Log and Academic pages already use --
+   `.books-page-wrapper` > `.dashboard-section.timer-section` > `.timer-card` --
+   so the three read as one app. Everything below is new.
+
+   The display is CRT-styled rather than an `analysis-card` with a number in it.
+   A countdown that renders like a statistic gets ignored; one that looks like a
+   piece of equipment gets watched. The ring is the same SVG technique
+   `.score-ring` uses, for the same reason and with the same reasoning about why
+   the arc is driven by `stroke-dashoffset`.
    ============================================ */
-.study-timer-page {
+
+.dashboard-section.timer-section {
+  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+.timer-card {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+/* Two rails: the ring on the left, the panels on the right. Sized so the ring
+   column is content-driven and takes the extra width on a wide screen rather
+   than leaving a hole beside the digits. */
+.timer-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.timer-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: 0.25rem;
-  max-width: 640px;
-  margin: 0 auto;
+  justify-content: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.5rem;
 }
-.study-timer-icon {
+
+.timer-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+}
+.timer-panels::-webkit-scrollbar { width: 4px; }
+.timer-panels::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 25px;
+}
+.timer-panels::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- the display --------------------------------------------------------- */
+
+.timer-display {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.timer-display__inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  /* The digits are the loudest thing on the page by a wide margin, and every
+     one of them is a phosphor colour, so the phase label underneath is held
+     well back to keep the hierarchy honest. */
+  pointer-events: none;
+}
+
+/* VT323 rather than the app's JetBrains Mono. The whole page is monospace
+   already, so the display needed a second voice rather than more size, and VT323
+   is loaded by index.html for exactly this kind of terminal readout. The bloom is
+   what makes it read as a screen and not as a font. */
+.timer-digits {
+  font-family: var(--font-display);
+  color: var(--color-primary);
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 10px rgba(0, 255, 166, 0.45),
+    0 0 28px rgba(0, 255, 166, 0.18);
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+.timer-digits--stopped { opacity: 0.35; text-shadow: none; }
+/* Expired. The colour is the app's own danger red rather than a new red, so the
+   page keeps to the palette it has everywhere else. */
+.timer-digits--done {
+  color: #ff5a60;
+  text-shadow: 0 0 12px rgba(255, 90, 96, 0.5);
+  animation: timer-digits-pulse 1.6s ease-in-out infinite;
+}
+@keyframes timer-digits-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.timer-phase {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--color-light);
+  opacity: 0.5;
+  padding-left: 0.22em;
+}
+.timer-phase--work { color: var(--color-primary); opacity: 0.95; }
+.timer-phase--rest { color: #4da6ff; opacity: 0.85; }
+.timer-phase--long { color: #b48dff; opacity: 0.85; }
+
+.timer-round {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--color-light);
+  opacity: 0.4;
+  letter-spacing: 0.08em;
+}
+
+/* A slow sweep around the ring while it runs. Reads as "live" from across the
+   room, which a static arc does not. */
+.timer-sweep {
+  transform-origin: center;
+  animation: timer-sweep 2.4s linear infinite;
+}
+@keyframes timer-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .timer-sweep { animation: none; }
+  .timer-digits--done { animation: none; opacity: 1; }
+}
+
+/* --- controls ------------------------------------------------------------ */
+
+.timer-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  margin-bottom: 1rem;
-  border-radius: 50%;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.timer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 3.25rem;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border-radius: 25px;
   background: #ffffff0a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--color-primary);
-  font-size: 1.75rem;
-}
-.study-timer-title {
-  font-size: 1.3rem;
-}
-.study-timer-page .showcase-text {
+  color: var(--color-light);
   font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.timer-btn:hover:not(:disabled) { background: #ffffff14; }
+.timer-btn:active:not(:disabled) { transform: translateY(1px); }
+.timer-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.timer-btn--primary {
+  background: var(--color-primary);
+  color: #000000;
+  min-width: 5.5rem;
+}
+.timer-btn--primary:hover:not(:disabled) { background: var(--color-primary-dark); }
+.timer-btn--danger { background: var(--color-danger-dark); color: #ff6b70; }
+.timer-btn--danger:hover:not(:disabled) { background: var(--color-danger-dark); }
+.timer-btn--small {
+  min-width: 0;
+  height: 1.9rem;
+  padding: 0 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+/* --- digit pad ----------------------------------------------------------- */
+
+/* Three independent fields rather than one `HH:MM:SS` input. One field means
+   the user has to clear the whole thing to fix a single digit and has to know
+   the format; three fields means each is typed on its own and the value updates
+   as they go. */
+.timer-pad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+.timer-pad__field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+.timer-pad__input {
+  width: 3.1rem;
+  height: 3.4rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  line-height: 1;
+  color: var(--color-primary);
+  background: #ffffff08;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.timer-pad__input::-webkit-outer-spin-button,
+.timer-pad__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.timer-pad__input:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.12); }
+.timer-pad__input:focus {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  outline: none;
+}
+.timer-pad__input:disabled { opacity: 0.4; cursor: default; }
+.timer-pad__unit {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-light);
+  opacity: 0.45;
+}
+.timer-pad__colon {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  color: var(--color-primary);
+  opacity: 0.4;
+  /* Sits on the text baseline rather than the middle of the box, so the three
+     fields read as one number instead of three stacked inputs. */
+  align-self: center;
+  margin-top: -0.9rem;
+}
+
+/* --- preset chips -------------------------------------------------------- */
+
+.timer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.timer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 25px;
+  background: #ffffff0a;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.timer-chip:hover:not(:disabled) { background: var(--accent-bg); color: var(--color-primary); }
+.timer-chip:disabled { opacity: 0.35; cursor: not-allowed; }
+.timer-chip--on {
+  background: var(--accent-bg);
+  color: var(--color-primary);
+  border-color: var(--accent-border);
+}
+.timer-chip__x {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.45;
+  font-size: 0.85rem;
+}
+.timer-chip__x:hover { opacity: 1; }
+
+/* --- sections inside the panels ----------------------------------------- */
+
+.timer-block {
+  background: #ffffff08;
+  border-radius: 20px;
+  padding: 1rem;
+  min-width: 0;
+}
+.timer-block__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #ffffff14;
+}
+.timer-block__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  min-width: 0;
+}
+.timer-block__title svg { opacity: 0.6; flex-shrink: 0; }
+.timer-block__actions { margin-left: auto; display: flex; gap: 0.3rem; flex-shrink: 0; }
+
+/* A labelled row of inputs. The label sits above rather than beside so a row of
+   five fields stays readable on a phone without the labels wrapping. */
+.timer-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.6rem;
+}
+.timer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/* --- weekday toggles ----------------------------------------------------- */
+
+/* A row of seven small pills. Squares rather than circles because a weekday is a
+   fixed slot in a row and circles make the row look uneven when one is selected. */
+.timer-days {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.timer-day {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 12px;
+  background: #ffffff08;
+  border: 1px solid transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.timer-day:hover:not(:disabled) { background: #ffffff14; }
+.timer-day--on {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--color-primary);
+}
+.timer-day:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- settings rows ------------------------------------------------------- */
+
+/* The app has no switch primitive, so this is one: a 2.1rem track with a knob
+   that slides. Built out of spans rather than a checkbox so it can be sized and
+   coloured in CSS like every other control here, and wrapped in a real button so
+   it is reachable by keyboard and announces its state. */
+.timer-switch {
+  position: relative;
+  width: 2.1rem;
+  height: 1.15rem;
+  border-radius: 25px;
+  background: #ffffff14;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.timer-switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0.15rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--color-light);
+  transform: translateY(-50%);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease;
+}
+.timer-switch--on { background: var(--accent-bg); }
+.timer-switch--on::after { transform: translateY(-50%) translateX(0.95rem); background: var(--color-primary); }
+.timer-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.timer-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+}
+.timer-setting + .timer-setting { border-top: 1px solid #ffffff0f; }
+.timer-setting__text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.timer-setting__label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-light);
+}
+.timer-setting__hint {
+  font-size: 0.62rem;
+  color: var(--color-light);
+  opacity: 0.45;
+  line-height: 1.35;
+}
+
+/* A real range input, restyled. There is no range styling anywhere in the app
+   yet, so this establishes it rather than borrowing one. */
+.timer-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 0.3rem;
+  border-radius: 25px;
+  background: #ffffff14;
+  outline: none;
+  cursor: pointer;
+}
+.timer-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 255, 166, 0.35);
+}
+.timer-range::-moz-range-thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 255, 166, 0.35);
+}
+.timer-range:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- sound picker -------------------------------------------------------- */
+
+.timer-sounds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr));
+  gap: 0.4rem;
+}
+.timer-sound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.3rem;
+  border-radius: 14px;
+  background: #ffffff08;
+  border: 1px solid transparent;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.timer-sound:hover:not(:disabled) { background: #ffffff14; }
+.timer-sound--on {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--color-primary);
+}
+.timer-sound:disabled { opacity: 0.4; cursor: not-allowed; }
+.timer-sound svg { opacity: 0.7; }
+
+/* --- rows: presets and alarms ------------------------------------------- */
+
+/* The app's own item-row treatment (`course-row`), reused so the preset and alarm
+   lists are visually the same kind of object as every other list in the app. The
+   extra bits are the countdown-to-next strip and the row's enabled state. */
+.timer-row--off { opacity: 0.5; }
+
+.timer-row__main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.timer-row__when {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--color-primary);
+  opacity: 0.8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.timer-row__when--off { color: var(--color-light); opacity: 0.4; }
+
+/* The big time in an alarm row. Its own size rather than the shared
+   `.score-block__value`, because on this page it is the thing being read rather
+   than a figure to compare. */
+.timer-row__clock {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--color-light);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.timer-row--off .timer-row__clock { opacity: 0.5; }
+
+/* --- world clock --------------------------------------------------------- */
+
+.timer-world-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.timer-world {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 14px;
+  background: #ffffff06;
+  border: 1px solid #ffffff0f;
+}
+.timer-world--local { background: var(--accent-bg); border-color: var(--accent-border); }
+.timer-world__place { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.timer-world__city {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timer-world__meta {
+  font-size: 0.55rem;
+  color: var(--color-light);
+  opacity: 0.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.timer-world__time { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; }
+.timer-world__clock {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--color-light);
+}
+.timer-world--local .timer-world__clock { color: var(--color-primary); }
+/* The day marker. Without it "09:00" in Tokyo means nothing to somebody in
+   London at 23:00, because the number that matters is which day it is on. */
+.timer-world__day {
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+.timer-world__day--past { color: #ffb84d; }
+
+/* --- time's up overlay --------------------------------------------------- */
+
+.timer-up-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-panel);
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: timer-up-in 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes timer-up-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.timer-up {
+  width: 100%;
+  max-width: 26rem;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.timer-up__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: rgba(255, 90, 96, 0.12);
+  border: 1px solid rgba(255, 90, 96, 0.3);
+  color: #ff5a60;
+  font-size: 1.6rem;
+  animation: timer-up-ring 1.8s ease-in-out infinite;
+}
+@keyframes timer-up-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 90, 96, 0.35); }
+  50% { box-shadow: 0 0 0 0.7rem rgba(255, 90, 96, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .timer-up-overlay { animation: none; }
+  .timer-up__icon { animation: none; }
+}
+.timer-up__title {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--color-primary);
+  text-shadow: 0 0 14px rgba(0, 255, 166, 0.35);
+}
+.timer-up__label {
   font-size: 0.8rem;
-  line-height: 1.6;
-  opacity: 0.7;
-  margin: 0.75rem 0 1.5rem;
+  color: var(--color-light);
+  opacity: 0.65;
+  line-height: 1.5;
+  max-width: 30ch;
+}
+/* The overlay is deliberately not a toast. A toast fades on a timer, which means
+   a message you walked away from is a message you never read -- and this is the
+   one moment in the app's life where being missed is the failure. */
+.timer-up__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+/* --- nav badge ----------------------------------------------------------- */
+
+/* Shown on the Timer entry in the rail and the mobile bar while anything is
+   running. Absolute inside the nav item's existing box so neither nav bar's
+   layout shifts when a timer starts. */
+.timer-nav-badge {
+  position: absolute;
+  bottom: 0.15rem;
+  right: 0.1rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 25px;
+  background: var(--color-primary);
+  color: #000000;
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* --- empty --------------------------------------------------------------- */
+
+.timer-empty-hint {
+  font-size: 0.62rem;
+  color: var(--color-light);
+  opacity: 0.4;
+  text-align: center;
+  line-height: 1.45;
+  padding: 0.25rem 0;
+}
+
+/* --- responsive ---------------------------------------------------------- */
+
+/* Below 1023px the height lock releases so the page itself scrolls. Same
+   boundary as the sidebar-to-bottom-bar switch, for the same reason: a nested
+   scroll area on a touch device traps content, and a timer whose controls are
+   below an unreachable fold is worse than no timer. */
+@media (max-width: 1023px) {
+  .books-page-wrapper:has(.timer-section) {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .timer-section,
+  .timer-card,
+  .timer-body,
+  .timer-stage,
+  .timer-panels {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+  .timer-panels { padding-right: 0; }
+  /* One column, display first. */
+  .timer-body { grid-template-columns: minmax(0, 1fr); }
+  .timer-stage { order: -1; }
+}
+
+/* The ring's SVG is sized in em off a font-size the page sets, so the only thing
+   a phone needs is for that to be smaller. Everything else is already fluid. */
+@media (max-width: 768px) {
+  .timer-stage { padding: 0.25rem 0; }
+  .timer-btn--primary { min-width: 5rem; }
+  .timer-pad__input { width: 2.9rem; height: 3.1rem; font-size: 1.7rem; }
+  .timer-day { width: 1.95rem; height: 1.95rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-btn,
+  .timer-chip,
+  .timer-day,
+  .timer-sound,
+  .timer-switch,
+  .timer-switch::after { transition: none; }
 }
 
 /* ============================================
@@ -10869,7 +11588,6 @@ body {
 
 .slogan,
 .showcase-title,
-.study-timer-title,
 .settings-title {
   font-family: var(--font-logo);
   font-weight: 200;
@@ -10879,7 +11597,10 @@ body {
 }
 .slogan { font-size: 2.6rem; }
 .showcase-title { font-size: 1.8rem; }
-.study-timer-title { font-size: 1.3rem; }
+/* `.study-timer-title` used to sit in this group and was removed with the
+   placeholder page. It was the wrong place for it anyway: `--font-logo` is
+   Rubik Glitch, which is a hero face, and the timer page is a data page. Its
+   display uses VT323 instead -- see `.timer-digits`. */
 .settings-title { font-size: 1.3rem; }
 .auth-title,
 .profile-name {

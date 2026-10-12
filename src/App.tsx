@@ -9,6 +9,7 @@ import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom'
 import { LoadingBarProvider } from './hooks/useLoadingBar'
 import { ConfirmModalProvider } from './hooks/useConfirmModal'
+import { TimerEngineProvider } from './hooks/useTimerEngine'
 import { useBootFetchHandoff, useBootHold, dismissBootScreenImmediate } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,7 +29,7 @@ const WorkoutsPage = lazy(pageLoaders['/Workouts']);
 const ProjectsPage = lazy(pageLoaders['/Projects']);
 const AbstinencePage = lazy(pageLoaders['/Abstinence']);
 const AcademicPage = lazy(pageLoaders['/Academic']);
-const StudyTimerPage = lazy(pageLoaders['/Study-Timer']);
+const TimerPage = lazy(pageLoaders['/Timer']);
 const NotesPage = lazy(pageLoaders['/Notes']);
 const SettingsPage = lazy(pageLoaders['/Settings']);
 const AppPage = lazy(pageLoaders['/Settings/App']);
@@ -183,6 +184,11 @@ const AuthenticatedApp: React.FC = () => {
             '/Measurements': ['/Dashboard', '/Daily-Log', '/Workouts'],
             '/Workouts': ['/Daily-Log', '/Dashboard', '/Measurements'],
             '/Notes': ['/Daily-Log', '/Dashboard', '/Profile'],
+            // A running timer makes this the page somebody keeps coming back to
+            // from elsewhere in the app, so it is worth having loaded. The engine
+            // itself lives above the routes and needs no preloading -- this is
+            // about the page and its three queries.
+            '/Timer': ['/Daily-Log', '/Dashboard', '/Notes'],
         };
         const routes = likelyNextRoutes[location.pathname] ?? ['/Daily-Log', '/Dashboard'];
         const requestIdle = window.requestIdleCallback;
@@ -267,7 +273,14 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Projects" element={<ProjectsPage />} />
                 <Route path="/Abstinence" element={<AbstinencePage />} />
                 <Route path="/Academic" element={<AcademicPage />} />
-                <Route path="/Study-Timer" element={<StudyTimerPage />} />
+                <Route path="/Timer" element={<TimerPage />} />
+                {/* The timer page started as a "Study Timer" placeholder and grew
+                    into a clock: countdown, stopwatch, intervals, alarms and a world
+                    clock. The route moved with it so the name matches what the page
+                    is, and this carries old bookmarks and any notification that still
+                    points at the old path onto it. `replace` so Back does not bounce
+                    forward into the redirect again. */}
+                <Route path="/Study-Timer" element={<Navigate to="/Timer" replace />} />
                 <Route path="/Notes" element={<NotesPage />} />
                 {/* Same workspace, a different page open. The route parameter selects it,
                     which keeps notes deep-linkable and gives Back a step to return to. */}
@@ -291,9 +304,23 @@ function App() {
     <BrowserRouter>
       <ScrollToTop />
       <LoadingBarProvider>
-        <ConfirmModalProvider>
-          <AuthenticatedApp />
-        </ConfirmModalProvider>
+        {/* Above the routes, not inside them. A countdown that unmounts when the
+            page does is useless for the thing a countdown is for -- being checked
+            from somewhere else in the app -- and it means the nav badge in
+            SidebarNav and MobileNavbar reads the same state the page does, so the
+            two cannot disagree.
+
+            Outside AuthenticatedApp deliberately: that component returns null
+            until the session resolves, so a provider inside it would be torn down
+            and rebuilt at boot. The engine restores from localStorage on mount, so
+            the result would be right, but a running timer would briefly show
+            nothing in the rail during every cold start. Mounted here it survives
+            that handover, and a guest simply never has anything to run. */}
+        <TimerEngineProvider>
+          <ConfirmModalProvider>
+            <AuthenticatedApp />
+          </ConfirmModalProvider>
+        </TimerEngineProvider>
       </LoadingBarProvider>
     </BrowserRouter>
   )

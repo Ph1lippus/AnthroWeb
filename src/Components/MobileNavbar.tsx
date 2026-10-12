@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LogOut, Menu, Settings } from 'lucide-react';
 import { navItems, isNavItemActive } from '../utils/navItems';
+import TimerBadge from './Timer/TimerBadge';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { useAcademicAlerts } from '../hooks/useAcademicAlerts';
 import { supabase } from '../services/supabaseClient';
@@ -121,6 +122,11 @@ const MobileNavbar: React.FC = () => {
                                     >
                                         <Icon className="mobile-more-icon" aria-hidden="true" />
                                         {label}
+                                        {/* The running timer's remaining time, on the Timer entry
+                                            only. In the More sheet rather than the bar itself,
+                                            because Timer is not one of the five primary slots and
+                                            adding it would take one away from an existing page. */}
+                                        {to === '/Timer' && <TimerBadge />}
                                     </button>
                                 )
                             )}

@@ -19,7 +19,7 @@ export const pageLoaders: Record<string, PageLoader> = {
     '/Projects': () => import('../Pages/ProjectsPage'),
     '/Abstinence': () => import('../Pages/AbstinencePage'),
     '/Academic': () => import('../Pages/AcademicPage'),
-    '/Study-Timer': () => import('../Pages/StudyTimerPage'),
+    '/Timer': () => import('../Pages/TimerPage'),
     '/Notes': () => import('../Pages/NotesPage'),
     '/Settings': () => import('../Pages/SettingsPage'),
     '/Settings/App': () => import('../Pages/AppPage'),
@@ -72,6 +72,15 @@ const dataLoaders: Record<string, DataLoader[]> = {
         { key: queryKeys.academicCourses, load: () => import('../services/academicService').then(module => module.getUserAcademicCourses()) },
         { key: queryKeys.academicItems, load: () => import('../services/academicService').then(module => module.getUserAcademicItems()) },
         { key: queryKeys.gpaScales, load: () => import('../services/academicService').then(module => module.ensureDefaultGpaScales()) },
+    ],
+    // The timer page paints from localStorage first, so it does not *need* these
+    // to open. Prefetching them anyway means the preset and alarm lists are
+    // already there when the panel is switched to, rather than filling in a beat
+    // after the ring is already running.
+    '/Timer': [
+        { key: queryKeys.timerPresets, load: () => import('../services/timerService').then(module => module.getTimerPresets()) },
+        { key: queryKeys.timerAlarms, load: () => import('../services/timerService').then(module => module.getTimerAlarms()) },
+        { key: queryKeys.timerSettings, load: () => import('../services/timerService').then(module => module.getTimerSettings()) },
     ],
 };
 

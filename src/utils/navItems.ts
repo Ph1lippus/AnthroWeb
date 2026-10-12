@@ -9,7 +9,7 @@ import {
     Ban,
     GraduationCap,
     StickyNote,
-    Hourglass,
+    Timer,
     CircleUserRound,
     Network,
 } from 'lucide-react';
@@ -42,7 +42,12 @@ export const navItems: NavItem[] = [
     { to: '/Abstinence', label: 'Abstinence', icon: Ban },
     { to: '/Academic', label: 'Academic', icon: GraduationCap },
     { to: '/Notes', label: 'Notes', icon: StickyNote },
-    { to: '/Study-Timer', label: 'Study Timer', icon: Hourglass },
+    // Was `/Study-Timer` and "Study Timer", which described one narrow use of
+    // what the page turned out to be. It is a clock now -- countdown, stopwatch,
+    // intervals, alarms and a world clock -- so it is named for the page rather
+    // than for the first thing anybody would have used it for. `/Study-Timer`
+    // still redirects here, so old bookmarks land on it.
+    { to: '/Timer', label: 'Timer', icon: Timer },
     { to: '/Profile', label: 'Profile', icon: CircleUserRound },
 ];
 
@@ -75,7 +80,9 @@ const PAGE_TITLES: Record<string, string> = {
     '/Projects': 'Projects',
     '/Abstinence': 'Abstinence',
     '/Academic': 'Academic',
-    '/Study-Timer': 'Study Timer',
+    // No `/Study-Timer` entry. That route redirects to `/Timer`, so a title for
+    // it would only ever be read during the redirect itself.
+    '/Timer': 'Timer',
     '/Notes': 'Notes',
     '/Settings': 'Settings',
     '/Settings/App': 'App Settings',

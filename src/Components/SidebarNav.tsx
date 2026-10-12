@@ -8,6 +8,7 @@ import { useAuthSession } from '../hooks/useAuthSession';
 import { supabase } from '../services/supabaseClient';
 import AcademicAlertBanner from './AcademicAlertBanner';
 import ConfirmModal from './ConfirmModal';
+import TimerBadge from './Timer/TimerBadge';
 import { preloadRoute } from '../utils/routePreloaders';
 
 interface TooltipState {
@@ -225,6 +226,10 @@ const SidebarNav: React.FC = () => {
                                 {...handlers}
                             >
                                 <Icon className="sidebar-nav-icon" aria-hidden="true" />
+                                {/* The running timer's remaining time, on the Timer entry only.
+                                    Absolute inside the link's own box, so a timer starting or
+                                    stopping shifts nothing else in the rail. */}
+                                {item.to === '/Timer' && <TimerBadge />}
                             </NavLink>
                         );
                     })}

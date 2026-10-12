@@ -660,6 +660,87 @@ CREATE INDEX IF NOT EXISTS exercises_user_id_aliases_lower_gin
   ON public.exercises USING gin (public.lower_array(aliases));
 
 
+-- ============================================
+-- TIMER
+--
+-- Presets, alarms and preferences for the timer page, from
+-- supabase/migrations/0021_timer_tables.sql. None of it is a study session: this
+-- is configuration only, and the running timer's deadline stays in
+-- localStorage so the display can paint before any request goes out.
+-- ============================================
+
+CREATE TABLE public.timer_presets (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  label text NOT NULL,
+  seconds integer,
+  kind text NOT NULL DEFAULT 'countdown'::text CHECK (kind = ANY (ARRAY['countdown'::text, 'interval'::text])),
+  work_seconds integer,
+  rest_seconds integer,
+  long_rest_seconds integer,
+  rounds_before_long integer,
+  total_rounds integer,
+  position integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT timer_presets_pkey PRIMARY KEY (id),
+  CONSTRAINT timer_presets_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT timer_presets_seconds_positive CHECK (seconds IS NULL OR seconds > 0),
+  CONSTRAINT timer_presets_seconds_fits CHECK (seconds IS NULL OR seconds <= 359999),
+  CONSTRAINT timer_presets_work_positive CHECK (work_seconds IS NULL OR work_seconds > 0),
+  CONSTRAINT timer_presets_rest_positive CHECK (rest_seconds IS NULL OR rest_seconds > 0),
+  CONSTRAINT timer_presets_work_fits CHECK (work_seconds IS NULL OR work_seconds <= 86400),
+  -- A countdown carries a duration and no interval shape; an interval carries
+  -- the shape and no duration. Both filled has no single meaning for the client.
+  CONSTRAINT timer_presets_shape_exclusive CHECK (
+    (kind = 'countdown' AND seconds IS NOT NULL
+      AND work_seconds IS NULL AND rest_seconds IS NULL
+      AND long_rest_seconds IS NULL AND rounds_before_long IS NULL AND total_rounds IS NULL)
+    OR
+    (kind = 'interval' AND seconds IS NULL AND work_seconds IS NOT NULL AND rest_seconds IS NOT NULL)
+  )
+);
+
+CREATE TABLE public.timer_alarms (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  label text NOT NULL DEFAULT 'Alarm'::text,
+  hour integer NOT NULL CHECK (hour >= 0 AND hour <= 23),
+  minute integer NOT NULL CHECK (minute >= 0 AND minute <= 59),
+  days_of_week integer[] NOT NULL DEFAULT '{}'::integer[],
+  enabled boolean NOT NULL DEFAULT true,
+  sound text NOT NULL DEFAULT 'chime'::text CHECK (sound = ANY (ARRAY['chime'::text, 'bell'::text, 'digital'::text, 'radar'::text])),
+  position integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT timer_alarms_pkey PRIMARY KEY (id),
+  CONSTRAINT timer_alarms_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  -- A day outside 0..6 can never be scheduled, so it is refused at the boundary
+  -- rather than stored and silently skipped forever.
+  CONSTRAINT timer_alarms_days_valid CHECK (
+    days_of_week <@ ARRAY[0, 1, 2, 3, 4, 5, 6]::integer[]
+  )
+);
+
+CREATE TABLE public.timer_settings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  sound text NOT NULL DEFAULT 'chime'::text CHECK (sound = ANY (ARRAY['chime'::text, 'bell'::text, 'digital'::text, 'radar'::text])),
+  volume real NOT NULL DEFAULT 0.6 CHECK (volume >= 0 AND volume <= 1),
+  vibrate boolean NOT NULL DEFAULT true,
+  notify boolean NOT NULL DEFAULT true,
+  keep_awake boolean NOT NULL DEFAULT true,
+  hundredths boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT timer_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT timer_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+
+-- Sorting and lookup keys. Both clients always ask for a user's rows ordered by
+-- `position`, and created_at alone reorders anything added in the same second.
+CREATE INDEX IF NOT EXISTS timer_presets_user_position_idx ON public.timer_presets (user_id, position);
+CREATE INDEX IF NOT EXISTS timer_alarms_user_position_idx ON public.timer_alarms (user_id, position);
+
+
 INDEXES.
 
 Table	Columns	Name	

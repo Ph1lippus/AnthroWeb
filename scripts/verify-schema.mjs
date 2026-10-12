@@ -72,7 +72,11 @@ const tables = (await db.query(
     `select table_name from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name`,
 )).rows.map(r => r.table_name);
-check('all 37 tables are created', tables.length === 37, `${tables.length} tables`);
+// 40, not 37: the timer page's migration added timer_presets, timer_alarms and
+// timer_settings. The count is the point of the check -- sql.sql is a GUI export
+// that grows by hand, so a table that exists in a migration but never made it
+// into the schema of record is exactly the drift that is otherwise invisible.
+check('all 40 tables are created', tables.length === 40, `${tables.length} tables`);
 
 // ---------------------------------------------------------------------------
 // Every table is per-user data, so `user_id` has to be NOT NULL with a foreign key

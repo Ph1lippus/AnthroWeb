@@ -57,4 +57,10 @@ export const queryKeys = {
     projects: ['projects'] as const,
     abstinenceGoals: ['abstinence-goals'] as const,
     abstinenceHistory: ['abstinence-history'] as const,
+    // Timer. Configuration only -- the running timer's deadline is a
+    // localStorage timestamp, not a query, so it has no key here. See
+    // `useTimerEngine` for why that split is deliberate.
+    timerPresets: ['timer-presets'] as const,
+    timerAlarms: ['timer-alarms'] as const,
+    timerSettings: ['timer-settings'] as const,
 } as const;
