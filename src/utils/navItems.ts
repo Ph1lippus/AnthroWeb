@@ -84,7 +84,11 @@ const PAGE_TITLES: Record<string, string> = {
     // it would only ever be read during the redirect itself.
     '/Timer': 'Timer',
     '/Notes': 'Notes',
+    // `/Settings` redirects to `/Settings/Security`, so the title for the
+    // section is listed explicitly alongside App and Account rather than relying
+    // on the walk-up fallback, which would label it "Settings".
     '/Settings': 'Settings',
+    '/Settings/Security': 'Security',
     '/Settings/App': 'App Settings',
     '/Settings/Account': 'Account',
     '/Profile': 'Profile',

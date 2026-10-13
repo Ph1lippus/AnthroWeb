@@ -369,7 +369,7 @@ const validateForm = () => {
                             ], false, (v) => setWeightUnit(v as 'kg' | 'lbs'))}
                         </div>
 
-                        <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+                        <button type="submit" className="btn-primary w-100" disabled={loading}>
                             {loading ? (isNewUser ? 'Creating...' : 'Saving...') : (isNewUser ? 'Complete Profile' : 'Save Changes')}
                         </button>
                     </form>

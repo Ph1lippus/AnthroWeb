@@ -319,7 +319,7 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         </p>
 
                         <div style={{ marginTop: '1.5rem' }}>
-                            <button type="submit" className="btn btn-primary w-100" disabled={saving}>
+                            <button type="submit" className="btn-primary w-100" disabled={saving}>
                                 {saving ? 'Saving...' : 'Save Goals'}
                             </button>
                         </div>

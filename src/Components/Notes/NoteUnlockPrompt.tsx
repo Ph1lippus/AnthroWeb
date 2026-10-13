@@ -161,10 +161,10 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
                     </p>
                 )}
 
-                <button type="button" className="btn btn-link" onClick={onForgotPin}>
+                <button type="button" className="btn-link" onClick={onForgotPin}>
                     I forgot this page&rsquo;s PIN
                 </button>
-                <button type="button" className="btn btn-link" onClick={onBack}>Back to pages</button>
+                <button type="button" className="btn-link" onClick={onBack}>Back to pages</button>
             </div>
         </div>
     );

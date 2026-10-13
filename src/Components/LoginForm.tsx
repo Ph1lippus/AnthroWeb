@@ -101,7 +101,7 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
                         {fieldErrors.password && <p className="t-error-msg">{fieldErrors.password}</p>}
                     </div>
                 </div>
-                <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+                <button type="submit" className="btn-primary w-100" disabled={loading}>
                     {loading ? 'Logging in...' : 'Login'}
                 </button>
             </form>

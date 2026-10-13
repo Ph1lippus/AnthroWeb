@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { KeyRound } from 'lucide-react';
 
 /**
  * Explains what a recovery phrase is, before anyone goes looking for one.
@@ -9,6 +8,11 @@ import { KeyRound } from 'lucide-react';
  * own data, and the instinct in that moment is to dismiss things. Here the
  * person chose to open it, so it can afford to say why it exists and what
  * happens if it is lost.
+ *
+ * On `auth-card` like the other forms: this is prose plus an acknowledgement
+ * plus one button, which is the same shape as login and register, and it was
+ * rendering in a separate modal vocabulary with a checkbox and a button styled
+ * differently from every other control in the app.
  */
 interface RecoveryPhraseDialogProps {
     onClose: () => void;
@@ -18,31 +22,30 @@ const RecoveryPhraseDialog: React.FC<RecoveryPhraseDialogProps> = ({ onClose }) 
     const [acknowledged, setAcknowledged] = useState(false);
 
     return (
-        <div className="vault-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="vault-recovery-title">
-            <div className="vault-modal">
-                <div className="vault-lock-icon" aria-hidden="true">
-                    <KeyRound size={26} />
-                </div>
-                <h2 id="vault-recovery-title" className="vault-lock-title">About your recovery phrase</h2>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="vault-recovery-title">
+            <div className="auth-card auth-card-narrow text-start">
+                <h2 id="vault-recovery-title" className="auth-title text-center">
+                    About your recovery phrase
+                </h2>
 
-                <p>
-                    When you turned on encryption, you were shown a list of 24 words.
-                    Those words are the only way to open your data without the PIN.
+                <p className="auth-text auth-text-muted">
+                    When you turned on encryption, you were shown 24 words. Those words
+                    are the only way to open your data without the PIN.
                 </p>
-                <p>
+                <p className="auth-text auth-text-muted">
                     Your data is encrypted on this device before it is sent, and the key
-                    that opens it is derived from your PIN. Nobody else holds it --
-                    not this app, not the database, not whoever runs the server. That is
-                    the point, and it also means that if you lose both the PIN and the
-                    phrase, the data cannot be recovered by anyone.
+                    that opens it comes from your PIN. Nobody else holds it — not this
+                    app, not the database, not whoever runs the server. That is the
+                    point, and it also means that losing both the PIN and the phrase
+                    loses the data for good.
                 </p>
-                <p className="vault-lock-hint">
-                    If you wrote the phrase down, enter it on the lock screen under
-                    &ldquo;Forgot your PIN?&rdquo; The words are not case-sensitive and
+                <p className="auth-text auth-text-muted mb-3">
+                    If you wrote it down, enter it on the lock screen under
+                    &ldquo;Forgot your PIN?&rdquo; The words are not case-sensitive;
                     the order matters.
                 </p>
 
-                <label className="vault-modal-check">
+                <label className="auth-checkbox">
                     <input
                         type="checkbox"
                         checked={acknowledged}
@@ -53,7 +56,7 @@ const RecoveryPhraseDialog: React.FC<RecoveryPhraseDialogProps> = ({ onClose }) 
 
                 <button
                     type="button"
-                    className="btn-action vault-lock-primary"
+                    className="btn-primary w-100"
                     disabled={!acknowledged}
                     onClick={onClose}
                 >

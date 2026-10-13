@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import { establishAccountKey, forgetAccountKey, resetNotePin } from '../../services/noteService';
 import { hasAccountRecovery } from '../../services/vault/accountRecovery';
@@ -96,10 +96,9 @@ const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBac
     };
 
     return (
-        <div className="vault-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-pin-recovery-title">
-            <div className="vault-modal">
-                <div className="vault-lock-icon" aria-hidden="true"><KeyRound size={24} /></div>
-                <h2 id="note-pin-recovery-title" className="vault-lock-title">Reset this page&rsquo;s PIN</h2>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-pin-recovery-title">
+            <div className="auth-card auth-card-narrow">
+                <h2 id="note-pin-recovery-title" className="auth-title">Reset this page&rsquo;s PIN</h2>
 
                 {recoveryOff ? (
                     <div className="vault-warning">
@@ -115,10 +114,11 @@ const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBac
                     </div>
                 ) : stage === 'password' ? (
                     <>
-                        <p className="vault-lock-hint">
-                            Confirm your account password to replace this page&rsquo;s PIN. The
-                            page itself is never decrypted -- only the key protecting it moves.
+                        <p className="auth-text auth-text-muted mb-3">
+                            Confirm your account password. The page is never decrypted
+                            &mdash; only the key protecting it moves.
                         </p>
+                        <div className="mb-3 text-start">
                         <label className="form-label" htmlFor="note-recovery-password">
                             Account password
                         </label>
@@ -134,16 +134,18 @@ const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBac
                                 />
                             </div>
                         </div>
-                        <p className="vault-lock-hint">
+                        <p className="auth-text auth-text-muted">
                             A wrong password signs you out. That is deliberate: the app
                             cannot tell a typo from somebody else at the keyboard.
                         </p>
+                        </div>
                     </>
                 ) : (
                     <>
-                        <p className="vault-lock-hint">
+                        <p className="auth-text auth-text-muted mb-3">
                             Password confirmed. Choose a new PIN for this page.
                         </p>
+                        <div className="mb-3 text-start">
                         <label className="form-label" htmlFor="note-recovery-pin">New PIN</label>
                         <div className="t-input-wrap">
                             <div className="t-input">
@@ -158,7 +160,9 @@ const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBac
                                 />
                             </div>
                         </div>
-                        <label className="form-label" htmlFor="note-recovery-confirm">Type it again</label>
+                        </div>
+                        <div className="mb-3 text-start">
+                        <label className="form-label" htmlFor="note-recovery-confirm">Confirm PIN</label>
                         <div className="t-input-wrap">
                             <div className="t-input">
                                 <input
@@ -172,26 +176,27 @@ const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBac
                                 />
                             </div>
                         </div>
+                        </div>
                         {pin && confirmPin && pin !== confirmPin && (
                             <p className="t-error-msg" role="alert">Those do not match.</p>
                         )}
                     </>
                 )}
 
-                {error && <p className="t-error-msg" role="alert">{error}</p>}
+                {error && <div className="auth-error">{error}</div>}
 
                 <div className="vault-setup-actions">
                     {!recoveryOff && (
                         <button
                             type="button"
-                            className="btn btn-primary"
+                            className="btn-primary w-100"
                             disabled={busy || (stage === 'password' ? !password : pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirmPin)}
                             onClick={() => void (stage === 'password' ? verify() : reset())}
                         >
                             {busy ? 'Working...' : stage === 'password' ? 'Confirm' : 'Reset PIN'}
                         </button>
                     )}
-                    <button type="button" className="btn btn-link" onClick={onBack}>Back</button>
+                    <button type="button" className="btn-link w-100" onClick={onBack}>Back</button>
                 </div>
             </div>
         </div>

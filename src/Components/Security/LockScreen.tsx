@@ -141,7 +141,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </p>
                         <button
                             type="button"
-                            className="btn btn-primary"
+                            className="btn-primary"
                             disabled={busy || cooldown > 0 || recoveryProgress === 0}
                             onClick={() => void submit(entry)}
                         >
@@ -149,7 +149,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </button>
                         <button
                             type="button"
-                            className="btn btn-link"
+                            className="btn-link"
                             onClick={() => { setUseRecovery(false); setEntry(''); setError(null); }}
                         >
                             Use your PIN instead
@@ -216,7 +216,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
 
                 <button
                     type="button"
-                    className="btn btn-link"
+                    className="btn-link"
                     onClick={() => { setUseRecovery(true); setEntry(''); setError(null); }}
                     disabled={busy || useRecovery}
                 >

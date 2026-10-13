@@ -13,7 +13,7 @@ import {
     importAbstinenceFromCSV,
 } from '../services/abstinenceService';
 import type { AbstinenceGoal, AbstinenceHistory } from '../services/abstinenceService';
-import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flame, Check } from 'lucide-react';
+import { SquarePen, Flag, Trash2, Calendar, Search, X, History, Flame, Check } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { queryKeys } from '../utils/queryKeys';
@@ -579,7 +579,6 @@ const AbstinencePage: React.FC = () => {
                             <LoadingSpinner />
                         ) : goals.length === 0 && history.length === 0 ? (
                             <div className="abstinence-empty">
-                                <ShieldHalf className="abstinence-empty-icon" />
                                 <p className="abstinence-empty-title">No abstinence goals yet</p>
                                 <p className="abstinence-empty-text">Add your first goal to start tracking your streaks!</p>
                             </div>

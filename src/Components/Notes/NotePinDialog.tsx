@@ -1,24 +1,20 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, TriangleAlert, Check } from 'lucide-react';
-import { MIN_PIN_LENGTH } from '../../services/vault/keyring';
-import { assertNotePin, retryAfterMs } from '../../services/vault/noteLock';
+import { describeRetry } from '../../services/vault/keyring';
+import { MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
 import type { Note } from '../../services/noteService';
 
 /**
- * Set or remove a note's own PIN.
+ * Set or remove the PIN on one page.
  *
- * Separate from the app lock because it answers a different question. The app
- * lock is "is this person allowed into the app at all"; this is "is this person
- * allowed to read *this page*", which is the case where the device is shared and
- * the app is unlocked legitimately.
+ * Built from `auth-card` on purpose: this is a form asking for a secret, which is
+ * exactly what the login and register forms are. It previously rendered in its own
+ * `vault-modal` vocabulary, and because `.btn-primary` was only ever defined as
+ * `.auth-card .btn-primary`, its buttons came out completely unstyled -- a bare
+ * grey browser button sitting under a styled form. Sharing the auth card fixes
+ * that by construction rather than by adding the missing rules again elsewhere.
  *
- * Which is why the dialog says plainly that locking a page does nothing while the
- * app is unlocked. It would be dishonest to let someone lock a page believing it
- * is hidden from someone who has the app PIN -- it is not, and the note key is
- * deliberately wrapped under the master key so that an unlocked app reads locked
- * notes without a prompt. The lock protects the page from a glance in the
- * sidebar, from someone opening the app on a shared device, and from the title
- * being visible at all.
+ * The icon that sat above the title is gone. On a card this narrow it pushed the
+ * form down and repeated what the title already said.
  */
 
 export type NoteLockMode = 'on' | 'off';
@@ -26,138 +22,139 @@ export type NoteLockMode = 'on' | 'off';
 interface NotePinDialogProps {
     note: Note;
     mode: NoteLockMode;
-    /** Attempts already made, for the backoff display. */
-    failedAttempts?: number;
+    /** Consecutive failed attempts already recorded on the row. */
+    failedAttempts: number;
     onClose: () => void;
+    /**
+     * Empty string means "remove the lock". The caller owns the write, because it
+     * also has to flush the pending autosave first -- a dialog that sealed the
+     * page itself would race that timer and write stale text back over the new
+     * key.
+     */
     onSubmit: (pin: string) => Promise<void>;
 }
 
-const NotePinDialog: React.FC<NotePinDialogProps> = ({ note, mode, failedAttempts = 0, onClose, onSubmit }) => {
+const NotePinDialog: React.FC<NotePinDialogProps> = ({
+    note, mode, onClose, onSubmit,
+}) => {
     const [pin, setPin] = useState('');
     const [confirm, setConfirm] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
-    const wait = retryAfterMs(failedAttempts);
+    // Read the persisted deadline on mount rather than deriving it from local
+    // state, so a reload cannot reset how many attempts have already failed.
+    const [wait] = useState(() => {
+        const until = note.lock_retry_after;
+        if (!until) return 0;
+        return Math.max(0, new Date(until).getTime() - Date.now());
+    });
 
     const submit = async () => {
+        setBusy(true);
         setError(null);
         try {
-            assertNotePin(pin);
+            await onSubmit(mode === 'off' ? '' : pin);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'That PIN is too short.');
-            return;
-        }
-        if (pin !== confirm) {
-            setError('Those do not match.');
-            return;
-        }
-        setBusy(true);
-        try {
-            await onSubmit(pin);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not lock this page.');
-        } finally {
+            setError(err instanceof Error ? err.message : 'Could not update the PIN.');
             setBusy(false);
         }
     };
 
     if (mode === 'off') {
         return (
-            <div className="vault-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-unlock-title">
-                <div className="vault-modal">
-                    <div className="vault-lock-icon" aria-hidden="true"><Unlock size={24} /></div>
-                    <h2 id="note-unlock-title" className="vault-lock-title">Remove this page&apos;s PIN?</h2>
-                    <p>
-                        &ldquo;{note.title || 'Untitled'}&rdquo; will be readable from the
-                        sidebar and the editor without a PIN. Its contents stay
-                        encrypted on disk exactly as they are now -- this only removes
-                        the extra prompt.
+            <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-unlock-title">
+                <div className="auth-card auth-card-narrow">
+                    <h2 id="note-unlock-title" className="auth-title">Remove this PIN?</h2>
+                    <p className="auth-text auth-text-muted mb-3">
+                        {note.title || 'This page'} becomes readable without a PIN. Its
+                        contents stay encrypted as they are.
                     </p>
-                    <div className="vault-setup-actions">
-                        <button
-                            type="button"
-                            className="btn-action vault-lock-danger"
-                            disabled={busy}
-                            onClick={() => void onSubmit('')}
-                        >
-                            {busy ? 'Removing...' : 'Remove PIN'}
-                        </button>
-                        <button type="button" className="btn btn-link" onClick={onClose}>Cancel</button>
-                    </div>
+                    {error && <div className="auth-error">{error}</div>}
+                    <button
+                        type="button"
+                        className="btn-primary w-100"
+                        disabled={busy}
+                        onClick={() => void submit()}
+                    >
+                        {busy ? 'Removing...' : 'Remove PIN'}
+                    </button>
+                    <button type="button" className="btn-link w-100" onClick={onClose}>
+                        Cancel
+                    </button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="vault-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-lock-title">
-            <div className="vault-modal">
-                <div className="vault-lock-icon" aria-hidden="true"><Lock size={24} /></div>
-                <h2 id="note-lock-title" className="vault-lock-title">Lock this page</h2>
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-lock-title">
+            <div className="auth-card auth-card-narrow">
+                <h2 id="note-lock-title" className="auth-title">Lock this page</h2>
+                <p className="auth-text auth-text-muted mb-3">
+                    Its title and contents stop showing until this PIN is entered.
+                </p>
 
-                <div className="vault-warning">
-                    <TriangleAlert size={18} aria-hidden="true" />
-                    <div>
-                        <strong>What this does and does not do.</strong>
-                        <p className="vault-lock-hint">
-                            The page&apos;s title and contents stop showing in the
-                            sidebar and stop loading until this PIN is entered. It
-                            does <em>not</em> hide the page from someone who already
-                            has into the app -- an unlocked app can read it. If you
-                            need that, lock the whole app instead.
-                        </p>
-                    </div>
-                </div>
+                {error && <div className="auth-error">{error}</div>}
 
                 {wait > 0 ? (
-                    <p className="t-error-msg" role="alert">
-                        Too many attempts. Try again in {Math.ceil(wait / 1000)}s.
+                    <p className="t-error-msg mb-3" role="alert">
+                        Too many attempts. Try again in {describeRetry(wait)}.
                     </p>
                 ) : (
                     <>
-                        <label className="form-label" htmlFor="note-pin">PIN for this page</label>
-                        <input
-                            id="note-pin"
-                            type="password"
-                            className="form-control"
-                            value={pin}
-                            onChange={e => { setPin(e.target.value); setError(null); }}
-                            autoComplete="new-password"
-                            inputMode="numeric"
-                        />
-                        <p className="vault-lock-hint">
-                            At least {MIN_PIN_LENGTH} characters. Longer is much
-                            stronger. If you forget it, this page can still be
-                            opened with your app recovery words.
-                        </p>
+                        <div className="mb-3 text-start">
+                            <label htmlFor="note-pin" className="form-label">PIN</label>
+                            <div className="t-input-wrap">
+                                <div className="t-input">
+                                    <input
+                                        id="note-pin"
+                                        className="form-control"
+                                        type="password"
+                                        inputMode="numeric"
+                                        autoComplete="new-password"
+                                        placeholder={`At least ${MIN_NOTE_PIN_LENGTH} digits`}
+                                        value={pin}
+                                        onChange={e => { setPin(e.target.value); setError(null); }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-                        <label className="form-label" htmlFor="note-pin-confirm">Type it again</label>
-                        <input
-                            id="note-pin-confirm"
-                            type="password"
-                            className="form-control"
-                            value={confirm}
-                            onChange={e => { setConfirm(e.target.value); setError(null); }}
-                            autoComplete="new-password"
-                            inputMode="numeric"
-                        />
+                        <div className="mb-3 text-start">
+                            <label htmlFor="note-pin-confirm" className="form-label">Confirm PIN</label>
+                            <div className="t-input-wrap">
+                                <div className={`t-input ${pin && confirm && pin !== confirm ? 'is-error' : ''}`}>
+                                    <input
+                                        id="note-pin-confirm"
+                                        className="form-control"
+                                        type="password"
+                                        inputMode="numeric"
+                                        autoComplete="new-password"
+                                        placeholder="Type it again"
+                                        value={confirm}
+                                        onChange={e => { setConfirm(e.target.value); setError(null); }}
+                                    />
+                                </div>
+                                {pin && confirm && pin !== confirm && (
+                                    <p className="t-error-msg">Those do not match.</p>
+                                )}
+                            </div>
+                        </div>
                     </>
                 )}
 
-                {error && <p className="t-error-msg" role="alert">{error}</p>}
-
-                <div className="vault-setup-actions">
-                    <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={busy || wait > 0 || pin.length < MIN_PIN_LENGTH || pin !== confirm}
-                        onClick={() => void submit()}
-                    >
-                        {busy ? 'Locking...' : <><Check size={15} /> Lock page</>}
-                    </button>
-                    <button type="button" className="btn btn-link" onClick={onClose}>Cancel</button>
-                </div>
+                <button
+                    type="button"
+                    className="btn-primary w-100"
+                    disabled={busy || wait > 0 || pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirm}
+                    onClick={() => void submit()}
+                >
+                    {busy ? 'Locking...' : 'Lock page'}
+                </button>
+                <button type="button" className="btn-link w-100" onClick={onClose}>
+                    Cancel
+                </button>
             </div>
         </div>
     );

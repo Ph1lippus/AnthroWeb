@@ -172,7 +172,7 @@ const SecuritySettings: React.FC = () => {
                 </p>
 
                 {stage === 'off' && (
-                    <button type="button" className="btn btn-primary" onClick={() => { reset(); setStage('choosing'); }}>
+                    <button type="button" className="btn-primary" onClick={() => { reset(); setStage('choosing'); }}>
                         Turn on encryption
                     </button>
                 )}
@@ -213,13 +213,13 @@ const SecuritySettings: React.FC = () => {
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn btn-primary"
+                                className="btn-primary"
                                 disabled={busy || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
                                 onClick={() => void runEnable()}
                             >
                                 {busy ? 'Setting up...' : 'Continue'}
                             </button>
-                            <button type="button" className="btn btn-link" onClick={() => { reset(); setStage('off'); }}>
+                            <button type="button" className="btn-link" onClick={() => { reset(); setStage('off'); }}>
                                 Cancel
                             </button>
                         </div>
@@ -250,7 +250,7 @@ const SecuritySettings: React.FC = () => {
                                 {copied ? <Check size={15} /> : <Copy size={15} />}
                                 {copied ? 'Copied' : 'Copy'}
                             </button>
-                            <button type="button" className="btn btn-primary" onClick={() => void runSeal()}>
+                            <button type="button" className="btn-primary" onClick={() => void runSeal()}>
                                 I have written them down
                             </button>
                         </div>
@@ -330,13 +330,13 @@ const SecuritySettings: React.FC = () => {
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn btn-primary"
+                                className="btn-primary"
                                 disabled={busy || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
                                 onClick={() => void runChangePin()}
                             >
                                 {busy ? 'Changing...' : 'Change PIN'}
                             </button>
-                            <button type="button" className="btn btn-link" onClick={() => { reset(); setStage('on'); }}>
+                            <button type="button" className="btn-link" onClick={() => { reset(); setStage('on'); }}>
                                 Cancel
                             </button>
                         </div>
@@ -389,7 +389,7 @@ const SecuritySettings: React.FC = () => {
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn btn-primary"
+                                className="btn-primary"
                                 disabled={busy || !accountPassword}
                                 onClick={() => void runEnableRecovery()}
                             >
@@ -409,7 +409,7 @@ const SecuritySettings: React.FC = () => {
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn btn-outline-danger"
+                                className="btn-outline-danger"
                                 disabled={busy}
                                 onClick={() => void runDisableRecovery()}
                             >

@@ -57,7 +57,7 @@ const ForgotPasswordForm: React.FC<{ idPrefix?: string }> = ({ idPrefix = 'forgo
                     {fieldError && <p className="t-error-msg">{fieldError}</p>}
                 </div>
             </div>
-            <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+            <button type="submit" className="btn-primary w-100" disabled={loading}>
                 {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
         </form>
