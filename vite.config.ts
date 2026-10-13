@@ -29,19 +29,23 @@ export default defineConfig({
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: /\.(?:js|css|woff2?|ttf|svg|png|ico)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'anthroweb-static',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-            },
-          },
-        ],
+        // No runtime caching for JS/CSS.
+        //
+        // This used to register a `CacheFirst` rule for `\.js$`, `\.css$` and
+        // friends with a 30-day expiry. `CacheFirst` serves whatever is already
+        // cached and does not revalidate, so once a bundle was cached the app
+        // kept running that exact build for a month. `registerType: 'autoUpdate'`
+        // does not help: it updates the service worker, but this rule answers
+        // the asset request from its own cache before the worker ever sees it.
+        //
+        // It was also redundant. Vite emits content-hashed filenames
+        // (`AppPage-D3fxX-Rt.js`), so a new build never collides with a cached
+        // URL, and every one of those assets is already in the precache manifest
+        // -- which is what actually delivers updates correctly.
+        //
+        // The symptom this caused was a stale bundle throwing
+        // "Missing Supabase environment variables" after a rebuild that had
+        // baked the values in correctly.
       },
     }),
   ],

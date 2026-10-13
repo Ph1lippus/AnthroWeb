@@ -239,18 +239,17 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                     </p>
                 ) : (
                     <ul className="notes-rail-items">
-                        /**
- * A locked page's label in the list.
- *
- * The service already blanks the title on a locked row, so this is what puts
- * something back -- and the something is deliberately the same for every locked
- * page. A row reading "Locked page" next to the real title has leaked the part
- * that is actually worth hiding.
- */
-{rows.map(row => {
+                        {rows.map(row => {
                             const { note, depth, childCount } = row;
                             const id = note.id!;
                             const locked = isLockedRow(note);
+                            // A locked page's label in the list.
+                            //
+                            // The service already blanks the title on a locked row, so
+                            // this is what puts something back -- and the something is
+                            // deliberately the same for every locked page. A row reading
+                            // "Locked page" next to the real title has leaked the part
+                            // that is actually worth hiding.
                             const title = locked ? LOCKED_LABEL : note.title?.trim() || 'Untitled';
                             const isActive = note.id === activeId;
                             // A branch starts folded; the set holds the ones that were opened.
