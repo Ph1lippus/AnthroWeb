@@ -45,22 +45,55 @@ jobs:
       # not fail, it becomes the literal `undefined` inside the bundle, and the
       # installed app then throws "Missing Supabase environment variables" on
       # launch. The build stayed green that way, which is why `vite.config.ts`
-      # now refuses to build for production without them; this step is where those
-      # two values have to come from.
+      # now refuses to build for production without them.
       #
-      # Repository variables rather than secrets, and not marked sensitive. These
-      # are Supabase *publishable* values: they are baked into the bundle by
-      # design and are readable by anyone who opens the app. Marking them secret
-      # would only hide them from the build log, which is the opposite of useful
-      # when the failure being debugged is "the value was not there".
+      # `vars.* || secrets.*` on purpose: GitHub splits these across two tabs and
+      # only one of them is correct for a value that is not a secret. Accepting
+      # either means the answer to "which tab" does not matter, which is the right
+      # call for a publishable key that only exists to be published.
       #
-      # VITE_SUPABASE_SERVICE_ROLE_KEY must never appear here. Anything with a
-      # VITE_ prefix is published to the client; that one would be a full bypass
-      # of row level security.
+      # VITE_SUPABASE_SERVICE_ROLE_KEY must never be added here. Anything with a
+      # VITE_ prefix is inlined into the client bundle, and that one is a full
+      # bypass of row level security.
+      - name: Check build variables are present
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          # Written as `if` blocks rather than `[ -z "$X" ] && MISSING="..."`.
+          # GitHub runs this with `bash -e`, and a `&&` chain whose test fails
+          # leaves the list returning non-zero -- which is exempt from `-e` only
+          # by a subtle rule. `if` makes it obvious, and this cannot be run
+          # locally to find out.
+          MISSING=""
+          if [ -z "$VITE_SUPABASE_URL" ]; then
+            MISSING="$MISSING VITE_SUPABASE_URL"
+          fi
+          if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            MISSING="$MISSING VITE_SUPABASE_ANON_KEY"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing$MISSING"
+            echo ""
+            echo "The APK bundles the web build, so this runner needs the same two"
+            echo "values Vercel has. Add them at:"
+            echo ""
+            echo "  Repo -> Settings -> Secrets and variables -> Actions"
+            echo "    -> the 'Variables' tab (or 'Secrets'; both are read)"
+            echo ""
+            echo "  VITE_SUPABASE_URL      https://<ref>.supabase.co"
+            echo "  VITE_SUPABASE_ANON_KEY sb_publishable_..."
+            echo ""
+            echo "Values are in Supabase -> Project Settings -> API."
+            echo "These are publishable and are inlined into the bundle by design."
+            exit 1
+          fi
+          echo "Both build variables are present."
+
       - name: Build web assets
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Sync Capacitor
