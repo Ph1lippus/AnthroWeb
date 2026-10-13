@@ -39,7 +39,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The web bundle is built here and shipped inside the APK, so the runner
+      # needs the same two values Vercel has. Vite inlines `import.meta.env.VITE_*`
+      # textually at build time -- a variable that is absent does not warn and does
+      # not fail, it becomes the literal `undefined` inside the bundle, and the
+      # installed app then throws "Missing Supabase environment variables" on
+      # launch. The build stayed green that way, which is why `vite.config.ts`
+      # now refuses to build for production without them; this step is where those
+      # two values have to come from.
+      #
+      # Repository variables rather than secrets, and not marked sensitive. These
+      # are Supabase *publishable* values: they are baked into the bundle by
+      # design and are readable by anyone who opens the app. Marking them secret
+      # would only hide them from the build log, which is the opposite of useful
+      # when the failure being debugged is "the value was not there".
+      #
+      # VITE_SUPABASE_SERVICE_ROLE_KEY must never appear here. Anything with a
+      # VITE_ prefix is published to the client; that one would be a full bypass
+      # of row level security.
       - name: Build web assets
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Sync Capacitor
