@@ -5,7 +5,19 @@ import type { JournalDocument } from '../../utils/journalContent';
 
 interface JournalEditorProps {
     value: JournalDocument;
-    onChange: (value: JournalDocument) => void;
+    /**
+     * An updater, not a next value.
+     *
+     * These two editors are siblings holding opposite halves of one document, so
+     * a `onChange(next: JournalDocument)` made each one spread the `value` it
+     * closed over. TipTap emits from both in the same React batch often enough
+     * (a keystroke landing next to a mood tap) that the second call rebuilt the
+     * document from the pre-first-call value and silently threw the first change
+     * away. Taking an updater lets each half write against the latest state
+     * instead of its own snapshot, which is also exactly what `setState` already
+     * does -- so the page can hand `setJournalDocument` straight through.
+     */
+    onChange: (update: (current: JournalDocument) => JournalDocument) => void;
     /** The day's two ratings. Held by the page, because the page autosaves them. */
     morningMood: number | null;
     eveningMood: number | null;
@@ -56,7 +68,7 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                         <div className="journal-node-hint">Intentions, dreams, sleep and anticipation</div>
                         <Editor
                             initialHtml={value.morning}
-                            onChange={morning => onChange({ ...value, morning })}
+                            onChange={morning => onChange(current => ({ ...current, morning }))}
                             focusMode={focusMode}
                         />
                     </div>
@@ -73,7 +85,7 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                         <div className="journal-node-hint">Gratitude, wins, friction and processing</div>
                         <Editor
                             initialHtml={value.evening}
-                            onChange={evening => onChange({ ...value, evening })}
+                            onChange={evening => onChange(current => ({ ...current, evening }))}
                             focusMode={focusMode}
                         />
                     </div>

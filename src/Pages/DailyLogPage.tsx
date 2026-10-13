@@ -4,7 +4,8 @@ import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, His
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, setDailyLogHabit, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import type { DailyLog, DailyLogHabitColumn } from '../services/dailyLogService';
-import { getUserSettings, updateUserSettings } from '../services/profileService';
+import { updateUserSettings } from '../services/profileService';
+import { useUserSettings } from '../hooks/useUserSettings';
 import { getUserHabits, toggleHabitForDate, createHabit, deleteHabit, getCompletedHabitsForDate } from '../services/habitService';
 import { useUpdateHabit } from '../hooks/useHabitData';
 import { getUserProjects } from '../services/projectService';
@@ -71,11 +72,51 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches
 );
     const [isEditing, setIsEditing] = useState(false);
-    const [settings, setSettings] = useState<UserSettings | null>(null);
+    /**
+     * Settings come from React Query, not from a `useState` filled once at mount.
+     *
+     * The mount-time copy was the reason editing today's goals appeared to do
+     * nothing. `handleSaveDayGoals` writes the new `goal_history` to Postgres and
+     * then invalidates `queryKeys.userSettings` -- but this page was not reading
+     * that key, so the invalidation was a no-op here and the page kept the
+     * pre-edit copy for the rest of the session. Every goal on the page then
+     * resolved against the old history, and the debounced autosave wrote that old
+     * value straight back into today's `goal_snapshot`. The edit reappeared only
+     * tomorrow, when the new history version finally won for a date that was no
+     * longer "today" -- and was then frozen into the row permanently.
+     *
+     * Reading the key that is already being invalidated fixes all of that at the
+     * source. `useUserSettings` is that reader; it is what every other page uses.
+     */
+    const { settings, isLoading: settingsLoading, isError: settingsError } = useUserSettings();
     const [habits, setHabits] = useState<Habit[]>([]);
     const [completedHabits, setCompletedHabits] = useState<Set<string>>(new Set());
     const [loadingHabits, setLoadingHabits] = useState(true);
-    const [settingsLoaded, setSettingsLoaded] = useState(false);
+    /**
+     * "Asked and answered", not "have a value".
+     *
+     * A user with no settings row legitimately has `settings === null`, so this
+     * flag -- not the settings object -- is what the boot hold and the
+     * onboarding redirect read. `isLoading` covers it, including on error, which
+     * is the same condition this describes.
+     */
+    const settingsLoaded = !settingsLoading;
+
+    /**
+     * Send first-time users to onboarding -- but only when we actually know.
+     *
+     * This was a bare `settingsLoaded && !settings?.active_goals` calling
+     * `navigate` during render, which is a side effect in the render phase and
+     * would fire a second time under StrictMode's double render. Worse, a failed
+     * fetch used to arrive here as `settings === null`, so a transient network
+     * error threw a returning user into the setup page -- where saving replaces
+     * their `goal_history` with a single version. Hence the three conditions:
+     * the answer arrived, it was not an error, and it has no goals in it.
+     */
+    const needsGoalSetup = settingsLoaded && !settingsError && !settings?.active_goals;
+    useEffect(() => {
+        if (needsGoalSetup) navigate('/Daily-Log/Setup');
+    }, [needsGoalSetup, navigate]);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     /**
      * The save callbacks are invoked from a timer and from the unmount cleanup,
@@ -105,9 +146,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // In edit-by-id mode the loaded log owns the date instead and we never
     // write the param. An absent or malformed ?date= falls back to today.
     const dateParam = searchParams.get('date');
+    /**
+     * The local calendar date, read once per render and shared.
+     *
+     * Hoisted above the goal resolution because "is this today" is what decides
+     * whether a day's goals come from the editable history or from the frozen
+     * snapshot. Two separate `todayString()` calls can straddle midnight and
+     * disagree with each other, and the page then resolves one question with two
+     * different answers in the same render.
+     */
+    const today = todayString();
     const logDate = id
         ? (existingLog?.log_date ?? '')
-        : (isDateString(dateParam) ? dateParam : todayString());
+        : (isDateString(dateParam) ? dateParam : today);
 
     const setLogDate = useCallback((date: string) => {
         if (!isDateString(date)) return;
@@ -431,24 +482,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         loadLog();
     }, [id]);
 
-    // Load user settings
-    useEffect(() => {
-        const loadSettings = async () => {
-            try {
-                const userSettings = await getUserSettings();
-                setSettings(userSettings);
-            } finally {
-                // In a `finally` because this flag is what the page gates its
-                // render on, and it is what the boot splash waits for. A rejected
-                // request must still count as "asked and answered": leaving it
-                // false strands the page on its spinner forever, and strands
-                // anything waiting on the page behind the splash too.
-                setSettingsLoaded(true);
-            }
-        };
-        loadSettings();
-    }, []);
-
     // Load habits
     useEffect(() => {
         const loadHabits = async () => {
@@ -514,9 +547,21 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 history: parseGoalHistory(settings?.goal_history),
                 date: logDate,
                 fallback: (settings?.active_goals as ActiveGoals | undefined) ?? null,
-                today: todayString(),
+                today: today,
             }),
-        [existingLog, settings, logDate],
+        /**
+         * `today` is a dependency, not an incidental read.
+         *
+         * `resolveGoalsForDay` treats today differently from every other day --
+         * today resolves from the history, a past day resolves from its frozen
+         * snapshot. Calling `todayString()` inside the memo without depending on
+         * it meant the memo could keep classifying a day as "past" after
+         * midnight, so the snapshot won and today's goals went stale. The
+         * roll-forward effect does move `logDate`, which hides this most of the
+         * time -- but it polls every 60 seconds, so there is a window where the
+         * two disagree about which day it is.
+         */
+        [existingLog, settings, logDate, today],
     );
 
     // Only what scoring reads: the day's goals plus the body targets.
@@ -1072,7 +1117,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 updated.active_goals = latestGoals(history, goals) as unknown as Record<string, unknown>;
                 updated.goal_history = history;
             }
-            await updateUserSettings(updated);
+            const savedSettings = await updateUserSettings(updated);
+            /**
+             * Put the row that was just written into the cache directly, *and*
+             * invalidate. The invalidation alone leaves a window between the write
+             * and the refetch landing in which the page is still reading the
+             * pre-edit history -- and the debounced autosave runs 600ms after the
+             * next field change, well inside that window, writing the stale
+             * resolution back into the row. Seeding the cache with the server's
+             * own response closes the window without a round trip.
+             */
+            if (savedSettings) {
+                queryClient.setQueryData(queryKeys.userSettings, savedSettings);
+            }
             queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
             if (cheatChanged) {
                 // The budget is a global rule, so a change to it can move the
@@ -1093,6 +1150,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         if (existingLog?.id) {
             await updateDailyLog(existingLog.id, { goal_snapshot: goals as unknown as Record<string, unknown> });
             setGoalsExplicitlyEdited(true);
+            /**
+             * Reflect the new snapshot locally instead of waiting for the refetch.
+             *
+             * The effect that applies a fetched row is guarded on the day it last
+             * applied, precisely so an autosave-triggered refetch does not refill
+             * the form under the cursor -- which means the refetch that follows
+             * this invalidation is *discarded*. So `existingLog.goal_snapshot`
+             * stayed at the pre-edit value for the rest of the session, and for a
+             * past day the next autosave read its resolution straight back out of
+             * that stale snapshot and undid the edit. Patching the object here
+             * makes the local copy agree with the database immediately.
+             */
+            setExistingLog(prev => prev ? { ...prev, goal_snapshot: goals as unknown as Record<string, unknown> } : prev);
             queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(logDate) });
             queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
         }
@@ -1151,8 +1221,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         );
     }
 
-    if (settingsLoaded && !settings?.active_goals) {
-        navigate('/Daily-Log/Setup');
+    if (needsGoalSetup) {
         return null;
     }
 
@@ -1160,7 +1229,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         ? new Date(logDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
         : '';
 
-    const today = todayString();
     const isToday = logDate === today;
 
     // These lived in the top navbar, then inside the score card. They are above

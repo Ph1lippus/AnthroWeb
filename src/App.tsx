@@ -9,6 +9,7 @@ import ScrollToTop from './Components/ScrollToTop'
 import { BrowserRouter, Routes, Route, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom'
 import { LoadingBarProvider } from './hooks/useLoadingBar'
 import { ConfirmModalProvider } from './hooks/useConfirmModal'
+import AppLockGate from './Components/Security/AppLockGate'
 import { TimerEngineProvider } from './hooks/useTimerEngine'
 import { useBootFetchHandoff, useBootHold, dismissBootScreenImmediate } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
@@ -34,6 +35,7 @@ const NotesPage = lazy(pageLoaders['/Notes']);
 const SettingsPage = lazy(pageLoaders['/Settings']);
 const AppPage = lazy(pageLoaders['/Settings/App']);
 const AccountPage = lazy(pageLoaders['/Settings/Account']);
+const SecurityPage = lazy(pageLoaders['/Settings/Security']);
 const ProfilePage = lazy(pageLoaders['/Profile']);
 const EditProfilePage = lazy(pageLoaders['/Profile/Edit']);
 const CreditsPage = lazy(pageLoaders['/credits']);
@@ -288,6 +290,7 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/Settings" element={<SettingsPage />} />
                 <Route path="/Settings/App" element={<AppPage />} />
                 <Route path="/Settings/Account" element={<AccountPage />} />
+                <Route path="/Settings/Security" element={<SecurityPage />} />
                 <Route path="/Profile" element={<ProfilePage />} />
                 <Route path="/Profile/Edit" element={<EditProfilePage />} />
                 <Route path="*" element={<DefaultRoute />} />
@@ -318,7 +321,18 @@ function App() {
             that handover, and a guest simply never has anything to run. */}
         <TimerEngineProvider>
           <ConfirmModalProvider>
-            <AuthenticatedApp />
+            {/* The lock gate sits above the routes, not inside them.
+
+                Inside would be wrong in a way that is not obvious: a gate
+                rendered as part of the page tree still lets the router mount the
+                current route, so its queries fire and its content renders before
+                the lock screen paints. Those query results then land in the
+                persisted cache -- which is the copy the PIN is supposed to be
+                protecting. Here nothing under it mounts at all until the keyring
+                is open. */}
+            <AppLockGate>
+              <AuthenticatedApp />
+            </AppLockGate>
           </ConfirmModalProvider>
         </TimerEngineProvider>
       </LoadingBarProvider>

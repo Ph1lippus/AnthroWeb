@@ -6,7 +6,8 @@ import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { startAuthSession } from './services/authSession'
-import { initializeQueryPersistence } from './services/queryPersistence'
+import { initializeQueryPersistence, setVaultOpenCheck } from './services/queryPersistence'
+import { isVaultOpen, registerCacheClear } from './hooks/useAppLock'
 
 if (Capacitor.isNativePlatform()) {
     StatusBar.setOverlaysWebView({ overlay: true });
@@ -45,6 +46,12 @@ const bootstrap = async (): Promise<void> => {
         // A storage failure must not prevent the app from loading with a fresh cache.
         console.warn('Query cache persistence is unavailable', error)
     }
+
+    // Tying the two together here rather than inside either module: the persister
+    // decides whether to write, and the lock decides when. `main.tsx` is the only
+    // place holding both the query client and the boot sequence.
+    setVaultOpenCheck(isVaultOpen)
+    registerCacheClear(() => queryClient.clear())
 
     createRoot(document.getElementById('root')!).render(
         <StrictMode>

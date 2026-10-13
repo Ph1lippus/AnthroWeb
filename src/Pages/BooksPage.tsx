@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
@@ -54,9 +54,24 @@ const groupBooksByPrefix = (books: Book[]): { grouped: GroupedBooks[]; ungrouped
 };
 
 const BooksPage: React.FC = () => {
+    const queryClient = useQueryClient();
     const booksQuery = useQuery({
         queryKey: queryKeys.books,
         queryFn: getUserBooks,
+        /**
+         * This page is the authority for a reading list, and it is a list people
+         * come back to and edit in place -- so it must not render a snapshot.
+         *
+         * The cache is persisted to IndexedDB for 24 hours and restored before the
+         * first paint, which is what makes navigation feel instant. The global
+         * `staleTime` of two minutes decides whether that restored snapshot still
+         * counts as fresh, and `refetchOnWindowFocus` is off so nothing corrects
+         * it later. So a reload within that window painted the list exactly as it
+         * was before the last save, and every page number set that session
+         * appeared not to have stuck -- even though it had, in Postgres.
+         */
+        staleTime: 0,
+        refetchOnMount: 'always',
     });
     const [localBooks, setLocalBooks] = useState<Book[]>();
     const books = useMemo(() => localBooks ?? booksQuery.data ?? [], [localBooks, booksQuery.data]);
@@ -116,6 +131,23 @@ const BooksPage: React.FC = () => {
         toastTimerRef.current = setTimeout(() => setToast(null), 2500);
     };
 
+    /**
+     * Re-read the list and put it *in the cache*, not just in local state.
+     *
+     * Every mutation on this page used to end with `setLocalBooks(refreshed)`,
+     * which repainted this component and nothing else. The `queryKeys.books`
+     * entry kept the pre-save snapshot, which is what other pages read
+     * (dashboard, domain stats) and -- because the cache is persisted -- what
+     * the next reload painted too. Writing it back here is the single line that
+     * makes "save, refresh, still there" true.
+     */
+    const refreshBooks = useCallback(async (): Promise<Book[]> => {
+        const refreshed = await getUserBooks();
+        queryClient.setQueryData<Book[]>(queryKeys.books, refreshed);
+        setLocalBooks(refreshed);
+        return refreshed;
+    }, [queryClient]);
+
     const handlePickRandom = () => {
         if (notStartedBooks.length === 0) return;
         const randomIndex = Math.floor(Math.random() * notStartedBooks.length);
@@ -169,9 +201,7 @@ const BooksPage: React.FC = () => {
                 showToast('success', 'Book added successfully');
             }
 
-            const refreshedBooks = await getUserBooks();
-            console.log(`✅ After submit: Setting ${refreshedBooks.length} books in state`);
-            setLocalBooks(refreshedBooks);
+            await refreshBooks();
             resetForm();
         } catch {
             showToast('error', 'Failed to save book');
@@ -205,9 +235,7 @@ const BooksPage: React.FC = () => {
                 progress: totalPagesNum > 0 ? Math.round((currentPageNum / totalPagesNum) * 100) : 0,
             });
 
-            const refreshedBooks = await getUserBooks();
-            console.log(`✅ After edit: Setting ${refreshedBooks.length} books in state`);
-            setLocalBooks(refreshedBooks);
+            await refreshBooks();
             closeEditModal();
             showToast('success', 'Book updated successfully');
         } catch {
@@ -220,19 +248,40 @@ const BooksPage: React.FC = () => {
     const handleDelete = async () => {
         if (!deleteTarget) return;
         const deletedTitle = deleteTarget.title;
-        await deleteBook(deleteTarget.id!);
-        const refreshedBooks = await getUserBooks();
-        console.log(`✅ After delete: Setting ${refreshedBooks.length} books in state`);
-        setLocalBooks(refreshedBooks);
-        setDeleteTarget(null);
-        showToast('error', `Deleted "${deletedTitle}"`);
+        try {
+            await deleteBook(deleteTarget.id!);
+            await refreshBooks();
+            setDeleteTarget(null);
+            // This was reporting a successful delete through the error style, in
+            // red, with the error icon -- which is its own kind of "the app is
+            // broken" when the thing that actually failed was two pages away.
+            showToast('success', `Deleted "${deletedTitle}"`);
+        } catch {
+            showToast('error', `Could not delete "${deletedTitle}"`);
+        }
     };
 
+    /**
+     * Commit a page number, and say so either way.
+     *
+     * This used to be called from a keypress with nothing awaiting it and nothing
+     * catching it. When the write failed -- row-level rejection, a dropped
+     * connection -- the rejection went nowhere: no toast, no state change, and
+     * the `<input>` still showing the typed number because it is uncontrolled and
+     * nothing had told it otherwise. The card looked saved. Refreshing brought
+     * back the old value, which is indistinguishable from the save never having
+     * been attempted.
+     */
     const handlePageUpdate = async (book: Book, newPage: number) => {
-        await updateBookProgress(book.id!, newPage, book.total_pages);
-        const refreshedBooks = await getUserBooks();
-        console.log(`✅ After page update: Setting ${refreshedBooks.length} books in state`);
-        setLocalBooks(refreshedBooks);
+        if (!book.id || newPage === book.current_page) return;
+        try {
+            await updateBookProgress(book.id, newPage, book.total_pages);
+            await refreshBooks();
+        } catch (err) {
+            showToast('error', err instanceof Error && err.message
+                ? `Could not save page: ${err.message}`
+                : 'Could not save page');
+        }
     };
 
     const handleExport = async () => {
@@ -258,9 +307,7 @@ const BooksPage: React.FC = () => {
                 await importBooksFromCSV(content);
                 setImportError(null);
                 setShowImportModal(false);
-                const refreshedBooks = await getUserBooks();
-                console.log(`✅ After import: Setting ${refreshedBooks.length} books in state`);
-                setLocalBooks(refreshedBooks);
+                await refreshBooks();
             } catch {
                 setImportError('Failed to import books. Please check your CSV format.');
             }
@@ -390,11 +437,10 @@ const BooksPage: React.FC = () => {
             setShowDuplicatesModal(false);
             setDuplicateGroups([]);
             setSelectedDeleteIds(new Set());
-            const refreshedBooks = await getUserBooks();
-            console.log(`✅ After delete duplicates: Setting ${refreshedBooks.length} books in state`);
-            setLocalBooks(refreshedBooks);
+            await refreshBooks();
         } catch (err) {
             console.error('Failed to delete duplicates:', err);
+            showToast('error', 'Could not remove duplicates');
         } finally {
             setDuplicatesDeleting(false);
         }
@@ -493,11 +539,31 @@ const BooksPage: React.FC = () => {
         setSubmittedSearch('');
     };
 
+    /**
+     * Commit the typed page number.
+     *
+     * Wired to Enter *and* to blur, because Enter is not the only way people
+     * finish typing a number. Tabbing away, clicking another card, or dismissing
+     * the on-screen keyboard all blur the field -- and with Enter as the only
+     * trigger, every one of those simply discarded what had been typed with no
+     * indication that it had. On a phone, where the keyboard dismisses the field
+     * as a matter of course, that is most of the ways this field is used.
+     */
+    const commitPage = (input: HTMLInputElement, book: Book) => {
+        const newPage = parseInt(input.value, 10);
+        if (Number.isNaN(newPage) || newPage === book.current_page) {
+            // Nothing to write. Put the stored value back so a half-typed number
+            // does not sit there looking like a pending edit.
+            input.value = String(book.current_page);
+            return;
+        }
+        void handlePageUpdate(book, newPage);
+    };
+
     const handlePageKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, book: Book) => {
         if (e.key === 'Enter') {
-            const input = e.target as HTMLInputElement;
-            const newPage = parseInt(input.value) || 0;
-            handlePageUpdate(book, newPage);
+            e.preventDefault();
+            commitPage(e.target as HTMLInputElement, book);
         }
     };
 
@@ -573,8 +639,13 @@ const BooksPage: React.FC = () => {
                     <input
                         type="number"
                         defaultValue={book.current_page}
+                        /* Re-seeds the field from the stored value once a save
+                           lands, and -- because it changes with `current_page` --
+                           also rolls back a failed one. Without it the input kept
+                           showing the number that had failed to save. */
                         key={book.id + '-' + book.current_page}
                         onKeyDown={(e) => handlePageKeyDown(e, book)}
+                        onBlur={(e) => commitPage(e.target, book)}
                         className="book-page-input"
                         min="0"
                         max={book.total_pages > 0 ? book.total_pages : undefined}

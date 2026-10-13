@@ -74,6 +74,20 @@ interface NotesSidebarProps {
  * same time. A page has to be renameable, nestable and throwable-away without
  * being opened.
  */
+
+/**
+ * What a locked page is called in the rail.
+ *
+ * The same for every locked page, on purpose. The service already blanks the
+ * title on a locked row, so without this it would render "Untitled" -- which is
+ * both wrong and still a title. A row reading "Locked page" next to the real one
+ * has leaked the part worth hiding.
+ */
+const LOCKED_LABEL = 'Locked page';
+
+/** Whether this row is a page carrying its own PIN. */
+const isLockedRow = (note: Note): boolean => Boolean(note.lock_enabled);
+
 const NotesSidebar: React.FC<NotesSidebarProps> = ({
     rows,
     tags,
@@ -225,10 +239,19 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                     </p>
                 ) : (
                     <ul className="notes-rail-items">
-                        {rows.map(row => {
+                        /**
+ * A locked page's label in the list.
+ *
+ * The service already blanks the title on a locked row, so this is what puts
+ * something back -- and the something is deliberately the same for every locked
+ * page. A row reading "Locked page" next to the real title has leaked the part
+ * that is actually worth hiding.
+ */
+{rows.map(row => {
                             const { note, depth, childCount } = row;
                             const id = note.id!;
-                            const title = note.title?.trim() || 'Untitled';
+                            const locked = isLockedRow(note);
+                            const title = locked ? LOCKED_LABEL : note.title?.trim() || 'Untitled';
                             const isActive = note.id === activeId;
                             // A branch starts folded; the set holds the ones that were opened.
                             const isCollapsed = isFolded(row, unfolded);
@@ -343,11 +366,17 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                                             type="button"
                                             className={`notes-rail-item${
                                                 isActive ? ' notes-rail-item--active' : ''
-                                            }${!note.title?.trim() ? ' notes-rail-item--untitled' : ''}`}
+                                            }${!note.title?.trim() && !locked ? ' notes-rail-item--untitled' : ''}`}
                                             onClick={() => onSelect(id)}
-                                            onDoubleClick={() => beginRename(note)}
+                                            // A locked page is renamed through the
+                                            // editor, never from the rail: the
+                                            // rename field would put the title back
+                                            // on screen, and the title is the part
+                                            // being kept off it.
+                                            onDoubleClick={locked ? undefined : () => beginRename(note)}
                                             aria-current={isActive ? 'page' : undefined}
                                             data-tip={title}
+                                            data-locked={locked ? 'true' : undefined}
                                             // To the right of the rail, not under it. The rail
                                             // is against the left edge of the window, so a
                                             // tip placed under the icon would sit on top of
@@ -534,3 +563,4 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
 };
 
 export default NotesSidebar;
+

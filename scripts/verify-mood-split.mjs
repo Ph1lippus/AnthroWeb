@@ -268,21 +268,27 @@ for (const file of COLUMN_FILES) {
 // The two literals in the client that name columns for Postgres. A stray `mood`
 // in either is the exact failure this migration would otherwise ship: it passes
 // every type check in the repo and 400s on the dashboard in production.
+//
+// Both lists are read out of the object literals rather than out of the call
+// that uses them. `createDailyLog` builds its row as `const row = { ... }` and
+// then upserts `{ ...write }`, because with the vault armed it has to seal the
+// row's private fields before it can name the columns -- so the columns are no
+// longer spelled at the call site. Reading the literals keeps the check on what
+// it was always really about: which column names reach Postgres.
 const serviceSource = stripComments(readFileSync('src/services/dailyLogService.ts', 'utf8'));
 
-const selectList = /\.select\(\s*'([^']*)'\s*\)/.exec(serviceSource)?.[1] ?? '';
-const selectedColumns = selectList ? selectList.split(',').map(c => c.trim()) : [];
-check('the daily-logs select list was found', selectedColumns.length > 0);
-check('the daily-logs select names no dropped column',
-    !selectedColumns.includes('mood'), selectedColumns.join(','));
-check('the daily-logs select carries both new mood columns',
-    selectedColumns.includes('morning_mood') && selectedColumns.includes('evening_mood'),
-    selectedColumns.join(','));
+// `select('*')` for the log list, since migration 0024 moved the private columns
+// into a sealed payload: a named select that omitted `vault` would come back with
+// every private field null and no error at all. The thing to assert is that the
+// list is `*`, which is the only shape that is correct while sealing.
+check('the daily-logs select is *, so sealed payloads come back with it',
+    /\.from\('daily_logs'\)\s*\.select\('\*'\)/.test(serviceSource),
+    'a named select cannot work once the private columns live in `vault`');
 
-// The upsert body, up to the options object that follows it.
-const upsertBody = /\.upsert\(\s*\{([\s\S]*?)\}\s*,\s*\{/.exec(serviceSource)?.[1] ?? '';
+// The column list for the upsert.
+const upsertBody = (/const row = \{([\s\S]*?)\n    \};/.exec(serviceSource)?.[1] ?? '');
 const upsertKeys = [...upsertBody.matchAll(/^\s+([a-z_]+)\s*:/gm)].map(m => m[1]);
-check('the daily-log upsert body was found', upsertKeys.length > 20, `${upsertKeys.length} keys`);
+check('the daily-log row body was found', upsertKeys.length > 20, `${upsertKeys.length} keys`);
 check('the daily-log upsert writes no dropped column',
     !upsertKeys.includes('mood'), upsertKeys.join(','));
 check('the daily-log upsert writes both new mood columns',

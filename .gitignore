@@ -22,7 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env*.local
+
+# Secrets. `.env` was tracked here from the first commit, and the existing
+# `.env*.local` rule did not cover it -- so the day a service-role key or an
+# OAuth client secret was added to `.env`, it would have been committed silently.
+# The publishable anon key in the committed `.env` is harmless by design (it
+# ships in the bundle and is protected by RLS), but it is in history permanently,
+# which is why the rule has to be right now rather than when it is needed.
+.env
+.env.*
+!.env.example
 
 # Android / Capacitor build outputs + signing key (never commit the production keystore)
 android/.gradle/

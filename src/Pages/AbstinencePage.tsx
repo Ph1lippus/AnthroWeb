@@ -17,6 +17,7 @@ import { SquarePen, Flag, Trash2, Calendar, ShieldHalf, Search, X, History, Flam
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { queryKeys } from '../utils/queryKeys';
+import { todayString } from '../utils/dates';
 
 const AbstinencePage: React.FC = () => {
     const [localGoals, setLocalGoals] = useState<AbstinenceGoal[]>();
@@ -47,7 +48,15 @@ const AbstinencePage: React.FC = () => {
 
     // Add form state
     const [name, setName] = useState('');
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    /**
+     * Today, as a local calendar date.
+     *
+     * `toISOString()` is UTC, so this was tomorrow for anyone whose evening
+     * falls after 20:00 west of Greenwich -- and this is the default start date
+     * that gets written to the database. A goal created at 9pm started a day in
+     * the future, which then counted against the user's own target from day one.
+     */
+    const [startDate, setStartDate] = useState(todayString());
     const [endDate, setEndDate] = useState('');
     const [targetDays, setTargetDays] = useState('');
     const [notes, setNotes] = useState('');
@@ -84,7 +93,7 @@ const AbstinencePage: React.FC = () => {
 
     const resetForm = () => {
         setName('');
-        setStartDate(new Date().toISOString().split('T')[0]);
+        setStartDate(todayString());
         setEndDate('');
         setTargetDays('');
         setNotes('');
@@ -266,7 +275,10 @@ const AbstinencePage: React.FC = () => {
     const formatDate = (dateStr?: string | null) => {
         if (!dateStr) return null;
         try {
-            const d = new Date(dateStr);
+            // `T00:00:00` matters: a bare `YYYY-MM-DD` is parsed as UTC midnight,
+            // so west of Greenwich this rendered the day before the one stored.
+            const d = new Date(`${dateStr}T00:00:00`);
+            if (Number.isNaN(d.getTime())) return dateStr;
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         } catch {
             return dateStr;

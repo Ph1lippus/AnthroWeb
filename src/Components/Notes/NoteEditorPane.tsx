@@ -6,6 +6,7 @@ import {
     Eye,
     Keyboard,
     ListTree,
+    Lock,
     PanelLeft,
     Palette,
     Pin,
@@ -19,6 +20,8 @@ import NoteIconBadge from './NoteIconBadge';
 import NoteColorPicker from './NoteColorPicker';
 import NoteIconPicker from './NoteIconPicker';
 import ShortcutsSheet from './ShortcutsSheet';
+import NotePinDialog from './NotePinDialog';
+import type { NoteLockMode } from './NotePinDialog';
 import ConfirmModal from '../ConfirmModal';
 import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
@@ -55,6 +58,22 @@ interface NoteEditorPaneProps {
     allNotes: Note[];
     onDeleted: () => void;
     /**
+     * The page's lock state changed, so the list and the pane both have to
+     * re-read it.
+     *
+     * Its own callback rather than a query client here, because what needs
+     * invalidating is the workspace's: the sidebar list has to come back as
+     * "Locked page" and the pane has to swap the editor for the PIN pad. Left to
+     * this component it could only refresh itself, which would show a locked
+     * page still containing the text it was just locked out of.
+     */
+    onLockChanged?: () => void;
+    /**
+     * Hand back the row after the lock changed, so the pane can adopt it. The
+     * workspace owns the note object, so the pane cannot simply replace it.
+     */
+    onChanged?: (note: Note) => void;
+    /**
      * Return to the page list. Optional on purpose: it is only reachable where
      * the list is not already on screen, so leaving it undefined is what keeps
      * the button off the split layout, where it would be a no-op next to a rail
@@ -90,6 +109,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     note,
     allNotes,
     onDeleted,
+    onLockChanged,
+    onChanged,
     onClose,
     railHidden = false,
     onToggleRail,
@@ -108,6 +129,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     const [content, setContent] = useState(note.content ?? '');
     const [actionError, setActionError] = useState<string | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    /** Which way round the lock dialog is going, or null when it is closed. */
+    const [lockDialog, setLockDialog] = useState<{ mode: NoteLockMode } | null>(null);
     const [newTag, setNewTag] = useState('');
     const [showExport, setShowExport] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
@@ -540,6 +563,22 @@ return (
                         <Pin size={14} fill={note.is_pinned ? 'currentColor' : 'none'} />
                     </button>
 
+                    {/* Sits between pin and trash, where the eye goes looking for
+                        "protect this" -- pin and trash are the two actions either
+                        side of it that are about the page rather than the text. */}
+                    <button
+                        type="button"
+                        className={`note-action-btn${note.lock_enabled ? ' note-action-btn--pinned' : ''}`}
+                        onClick={() => setLockDialog({ mode: note.lock_enabled ? 'off' : 'on' })}
+                        data-tip={note.lock_enabled ? 'Remove this page\u2019s PIN' : 'Lock this page with a PIN'}
+                        aria-label={note.lock_enabled ? 'Remove this page\u2019s PIN' : 'Lock this page with a PIN'}
+                        aria-pressed={Boolean(note.lock_enabled)}
+                    >
+                        {note.lock_enabled
+                            ? <Lock size={14} fill="currentColor" />
+                            : <Lock size={14} fill="none" />}
+                    </button>
+
                     <button
                         type="button"
                         className="note-action-btn note-action-btn--danger"
@@ -551,6 +590,40 @@ return (
                     </button>
                 </div>
             </div>
+
+            {/* Portalled like the pickers, and for the same reason: a modal inside the editor
+                sits inside a transformed ancestor, so a `position: fixed` overlay
+                is positioned against the editor rather than the viewport. */}
+            {lockDialog && (
+                <NotePinDialog
+                    note={note}
+                    mode={lockDialog.mode}
+                    failedAttempts={note.lock_failed_attempts ?? 0}
+                    onClose={() => setLockDialog(null)}
+                    onSubmit={async pin => {
+                        const { lockNote, unlockNote } = await import('../../services/noteService');
+                        // The pending autosave has to land before the page is
+                        // re-sealed, or it would write the old payload back over
+                        // the new key and the note would open to stale text.
+                        if (timerRef.current) {
+                            clearTimeout(timerRef.current);
+                            timerRef.current = null;
+                        }
+                        pendingRef.current = null;
+
+                        const updated = pin
+                            ? await lockNote(note.id!, pin)
+                            : await unlockNote(note.id!);
+
+                        setLockDialog(null);
+                        // Handed the row back so the editor keeps showing what is
+                        // stored, rather than the pre-lock copy in state -- which
+                        // after locking is the text that is no longer readable.
+                        onLockChanged?.();
+                        onChanged?.(updated);
+                    }}
+                />
+            )}
 
             {/* Both panels are portalled to <body> by Popover, which is what makes
                 them work here at all -- see the note on that component for the four

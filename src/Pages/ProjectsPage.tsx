@@ -5,6 +5,7 @@ import type { Project, ProjectPlanItem, ProjectStatus } from '../services/projec
 import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import { todayString } from '../utils/dates';
 
 const priorityColors: Record<string, string> = {
     low: '#43b67d',
@@ -322,18 +323,28 @@ const ProjectsPage: React.FC = () => {
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return null;
         try {
-            const d = new Date(dateStr);
+            // `T00:00:00` matters: a bare `YYYY-MM-DD` is parsed as UTC midnight,
+            // so west of Greenwich this rendered the day before the one stored.
+            const d = new Date(`${dateStr}T00:00:00`);
+            if (Number.isNaN(d.getTime())) return dateStr;
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         } catch {
             return dateStr;
         }
     };
 
+    /**
+     * Overdue against the *local* calendar day.
+     *
+     * A `date` column from Postgres is a bare `YYYY-MM-DD`, and `new Date` on
+     * one of those is UTC midnight. Comparing it to a local midnight put a
+     * deadline that fell today in the past for anyone west of Greenwich -- so
+     * projects turned red on the morning they were due rather than the day
+     * after.
+     */
     const isOverdue = (deadline?: string) => {
         if (!deadline) return false;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return new Date(deadline) < today;
+        return deadline < todayString();
     };
 
     const openViewModal = async (project: Project) => {

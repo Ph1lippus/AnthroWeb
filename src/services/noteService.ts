@@ -1,4 +1,8 @@
 import { supabase } from './supabaseClient';
+import { openRow, openRows, sealExistingRow } from './vault/rows';
+import { isVaultOpen } from './vault/keyring';
+import { armNoteLock, disarmNoteLock, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
+import type { NoteLockColumns } from './vault/noteLock';
 
 export interface Note {
     id?: string;
@@ -43,7 +47,49 @@ export interface Note {
     notes_tags?: string[] | null;
     created_at?: string;
     updated_at?: string;
+    /**
+     * Sealed private fields, when the vault is on. Present on the way out of
+     * the database and removed again by `openRow`; never hold one of these.
+     */
+    vault?: string | null;
+    /** Whether this page carries its own PIN, independent of the app lock. */
+    lock_enabled?: boolean;
+    /** Failed unlock attempts, persisted so a reload cannot reset the backoff. */
+    lock_failed_attempts?: number;
+    /** When attempts are refused again. Null when there is no cooldown. */
+    lock_retry_after?: string | null;
 }
+
+/**
+ * Open a list of notes for display, leaving locked pages closed.
+ *
+ * A locked page must NOT be decrypted here. The sidebar is the reason somebody
+ * locks a page in the first place -- it is the one view always on screen, and
+ * the one a person glances at on a shared device. Decrypting every row to render
+ * a list would make the lock decorative: the title and the first line of every
+ * locked page would be sitting in memory and in the persisted cache the whole
+ * time the sidebar is open.
+ *
+ * So a locked note comes back as a stub with no title, no body and no tags. It
+ * renders as "Locked page", sorts by the `updated_at` that stays in the clear,
+ * and prompts for its PIN when opened.
+ */
+const openForDisplay = async <T extends Note>(rows: (Note & T)[], userId: string): Promise<Note[]> => {
+    const out: Note[] = [];
+    for (const row of rows) {
+        if (row.lock_enabled) {
+            // Strip the ciphertext too. Leaving it here would put a sealed blob
+            // into the query cache for a row nobody is allowed to read.
+            const stub = { ...row } as Note;
+            delete stub.vault;
+            out.push({ ...stub, title: null, content: '', notes_tags: [], notes_cover: null });
+            continue;
+        }
+        const { rows: opened } = await openRows<Note>('notes', [row], userId);
+        if (opened[0]) out.push(opened[0]);
+    }
+    return out;
+};
 
 /**
  * Live notes for the sidebar: pinned first, then most recently touched.
@@ -70,7 +116,7 @@ export const getUserNotes = async (): Promise<Note[]> => {
         return [];
     }
 
-    return data as Note[];
+    return openForDisplay((data ?? []) as Note[], user.id);
 };
 
 /** Thrown-away pages, newest deletion first. Backs the trash view. */
@@ -90,7 +136,7 @@ export const getTrashedNotes = async (): Promise<Note[]> => {
         return [];
     }
 
-    return data as Note[];
+    return openForDisplay((data ?? []) as Note[], user.id);
 };
 
 // Single note for the editor. Scoped to the caller's id so a guessed uuid in the
@@ -117,7 +163,9 @@ export const getNoteById = async (id: string, includeTrashed = false): Promise<N
         throw error;
     }
 
-    return (data as Note) ?? null;
+    if (!data) return null;
+    const { rows } = await openRows<Note>('notes', [data as Note], user.id);
+    return rows[0] ?? null;
 };
 
 // Create a new page. Title defaults to empty rather than being required, so
@@ -136,6 +184,17 @@ export const createNote = async (note: {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
+    /**
+     * A new row has no id yet, so it cannot be sealed against one.
+     *
+     * `sealRow` binds the payload's authenticated data to the row id, which is
+     * what stops a sealed note being copied onto another row and opened there.
+     * For an insert there is nothing to bind to, so the row is created with its
+     * fields in the clear and sealed by the very next update. That is a real and
+     * brief window, and it is closed immediately below by re-sealing the row the
+     * database assigned -- rather than by weakening the binding for everyone
+     * after.
+     */
     const { data, error } = await supabase
         .from('notes')
         .insert({
@@ -159,20 +218,84 @@ export const createNote = async (note: {
         console.error('Error creating note:', error.message);
         throw error;
     }
-    return data as Note;
+
+    const created = data as Note;
+    const resealed = await resealNote(created, user.id);
+    return resealed;
+};
+
+/**
+ * Move an already-written row's private fields into its sealed payload.
+ *
+ * Used in two places, both of which are the same situation: a row that was
+ * written before the vault knew its id, or before the vault existed at all. The
+ * fields are already in the database, so this reads the row, re-writes it with a
+ * sealed payload, and blanks the plaintext columns.
+ *
+ * Best-effort by design. If the seal fails the row is still correct, just not
+ * yet private, so the error is surfaced and nothing else changes -- the
+ * alternative, refusing the write, would lose the user's text over a crypto
+ * failure.
+ */
+const resealNote = async (note: Note, userId: string): Promise<Note> => {
+    const { vault, blanks, sealed } = await sealExistingRow('notes', note as unknown as Record<string, unknown>, userId);
+    if (!sealed || !vault) return note;
+
+    const { error } = await supabase
+        .from('notes')
+        .update({ vault, ...blanks })
+        .eq('id', note.id!);
+
+    if (error) {
+        console.error('Could not seal a new note:', error.message);
+        return note;
+    }
+    return { ...note, ...blanks, vault } as Note;
 };
 
 // Update a note. Every write stamps updated_at, which is what the list sorts on
 // -- so autosave also drives "last edited" ordering. Callers doing rapid
 // successive updates need their own ordering guard; see useUpdateNote.
+//
+// When the vault is on, this is the only place a note's private fields change,
+// so it is where they are sealed. `updates` is a *partial* -- a colour change
+// carries no title -- so a partial update is merged onto the stored row rather
+// than sealed on its own. Sealing the partial would seal a note whose title had
+// been dropped from the payload, and the next read would reopen it without one.
 export const updateNote = async (id: string, updates: Partial<Note>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const payload: Record<string, unknown> = {
+        ...updates,
+        updated_at: new Date().toISOString(),
+    };
+
+    // Nothing to merge onto when the row is not sealed -- a pin toggle, a colour,
+    // a reorder. Those touch only clear columns, so the write goes out as it
+    // always did, without paying for a read.
+    if (isVaultOpen() && !updates.vault) {
+        const existing = await getNoteById(id, true);
+        if (existing) {
+            const { vault, blanks, sealed } = await sealExistingRow(
+                'notes',
+                { ...existing, ...payload } as unknown as object,
+                user.id,
+            );
+            if (sealed && vault) {
+                for (const key of Object.keys(blanks)) {
+                    if (key in payload) payload[key] = blanks[key];
+                }
+                payload.vault = vault;
+            }
+        }
+    }
+
     const { data, error } = await supabase
         .from('notes')
-        .update({
-            ...updates,
-            updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -180,12 +303,139 @@ export const updateNote = async (id: string, updates: Partial<Note>) => {
         console.error('Error updating note:', error.message);
         throw error;
     }
-    return data as Note;
+
+    if (!isVaultOpen() || !data?.vault) return data as Note;
+    const { rows } = await openRows<Note>('notes', [data as Note], user.id);
+    return rows[0] ?? (data as Note);
 };
 
 /** Toggle pin status. */
 export const togglePinNote = async (id: string, isPinned: boolean) => {
     return updateNote(id, { is_pinned: !isPinned });
+};
+
+/**
+ * Lock a page behind its own PIN.
+ *
+ * Two things happen in one write, and they have to happen together: the page's
+ * contents are re-sealed under the *note's* key rather than the app's master key,
+ * and the note key is wrapped three ways so it survives any one of them being
+ * lost.
+ *
+ * Re-sealing under the note key is the whole point. If the contents stayed sealed
+ * under the master key, the per-note PIN would be decorative -- anyone with the
+ * app unlocked could read them. The master wrap still exists, so the app can read
+ * a locked page without a prompt; the note PIN is what stops the sidebar and the
+ * list from showing it.
+ */
+export const lockNote = async (id: string, pin: string): Promise<Note> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+    if (!isVaultOpen()) throw new Error('Turn on app encryption in Settings first.');
+
+    const { data: fetched } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+    if (!fetched) throw new Error('That page no longer exists.');
+
+    // The currently-open note, so the payload describes the whole page rather
+    // than a partial.
+    const current = await getNoteById(id, true);
+    if (!current) throw new Error('That page no longer exists.');
+
+    const lockColumns = await armNoteLock(id, pin);
+    const noteKey = await unlockNoteWithPin(lockColumns as NoteLockColumns, id, pin);
+    if (!noteKey) throw new Error('Could not set that PIN.');
+
+    const { vault, blanks, sealed } = await sealExistingRow('notes', current as unknown as object, user.id, noteKey);
+    if (!sealed || !vault) throw new Error('Could not lock this page.');
+
+    const { data, error } = await supabase
+        .from('notes')
+        .update({ vault, ...blanks, ...lockColumns })
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Could not lock note:', error.message);
+        throw error;
+    }
+    void fetched;
+    return { ...data as Note, ...blanks, vault } as Note;
+};
+
+/**
+ * Remove a page's PIN.
+ *
+ * The contents are re-sealed under the master key, because that is what the rest
+ * of the app reads them with. Locking and unlocking therefore both rewrite the
+ * note's payload -- which is a few kilobytes of AES-GCM on a document, not a
+ * re-encryption of a vault.
+ */
+export const unlockNote = async (id: string): Promise<Note> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data: fetched } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+    if (!fetched) throw new Error('That page no longer exists.');
+
+    // Read through the app's master key, which is how a locked page is opened
+    // by an unlocked app.
+    const noteKey = await unlockNoteWithMaster(fetched as NoteLockColumns, id);
+    const current = noteKey
+        ? (await openRow('notes', fetched as Note, user.id, noteKey))
+        : await getNoteById(id, true);
+    if (!current) throw new Error('That page no longer exists.');
+
+    const { vault, blanks, sealed } = await sealExistingRow('notes', current as unknown as object, user.id);
+    if (!sealed || !vault) throw new Error('Could not unlock this page.');
+
+    const { data, error } = await supabase
+        .from('notes')
+        .update({ vault, ...blanks, ...disarmNoteLock() })
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Could not unlock note:', error.message);
+        throw error;
+    }
+    return { ...data as Note, ...blanks, vault } as Note;
+};
+
+/**
+ * Record a failed unlock attempt.
+ *
+ * The backoff has to live in the database, not in component state: state resets
+ * on a reload, and a lock whose backoff can be reset by refreshing the page is
+ * not a lock.
+ */
+export const updateNoteLockAttempts = async (id: string, attempts: number): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const retryAfter = attempts > 0
+        ? new Date(Date.now() + retryAfterMs(attempts)).toISOString()
+        : null;
+    await supabase
+        .from('notes')
+        .update({ lock_failed_attempts: attempts, lock_retry_after: retryAfter })
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .then(({ error }) => {
+            if (error) console.error('Could not record a lock attempt:', error.message);
+        });
 };
 
 /**

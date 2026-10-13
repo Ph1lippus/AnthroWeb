@@ -30,7 +30,12 @@
     "verify:cheat-days": "node scripts/verify-cheat-days.mjs",
     "verify:topic-graph": "node scripts/verify-topic-graph.mjs",
     "verify:timer": "node scripts/verify-timer.mjs",
-    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav && npm run verify:mood-split && npm run verify:mood-math && npm run verify:cheat-days && npm run verify:topic-graph && npm run verify:timer",
+    "verify:vault-crypto": "node --experimental-strip-types --no-warnings scripts/verify-vault-crypto.mjs",
+    "verify:vault-rows": "node --experimental-strip-types --no-warnings scripts/verify-vault-rows.mjs",
+    "verify:note-lock": "node --experimental-strip-types --no-warnings scripts/verify-note-lock.mjs",
+    "verify:note-lock-e2e": "node --experimental-strip-types --no-warnings scripts/verify-note-lock-e2e.mjs",
+    "verify:journal-dateswitch": "node scripts/verify-journal-dateswitch.mjs",
+    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav && npm run verify:mood-split && npm run verify:mood-math && npm run verify:cheat-days && npm run verify:topic-graph && npm run verify:timer && npm run verify:journal-dateswitch && npm run verify:vault-crypto && npm run verify:vault-rows && npm run verify:note-lock && npm run verify:note-lock-e2e",
     "preview": "vite preview"
   },
   "dependencies": {

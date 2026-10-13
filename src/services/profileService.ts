@@ -96,24 +96,89 @@ export interface UserSettings {
     cheat_days_period?: 'week' | 'month';
     created_at?: string;
     updated_at?: string;
+
+    /**
+     * The encryption keyring. `vault_enabled` is the only field anything
+     * branches on; the rest are the wrapped master key and the parameters that
+     * produced it, and are meaningless without it.
+     *
+     * `false` -- the default, and every account that has never set a PIN. Every
+     * read and write path behaves exactly as it did before the vault existed,
+     * which is what makes the feature safe to ship on.
+     */
+    vault_enabled?: boolean;
+    vault_version?: number;
+    vault_enabled_at?: string | null;
+    vault_pin_salt?: string | null;
+    vault_pin_iterations?: number | null;
+    /** Master key sealed under PBKDF2(PIN). Useless without the PIN. */
+    vault_pin_wrapped?: string | null;
+    vault_recovery_salt?: string | null;
+    vault_recovery_iterations?: number | null;
+    /** Master key sealed under PBKDF2(recovery phrase). The way back in. */
+    vault_recovery_wrapped?: string | null;
+    vault_pin_changed_at?: string | null;
+
+    /** Sealed private fields for this row, or null when not sealed. */
+    vault?: string | null;
 }
 
-// Fetch user settings
-export const getUserSettings = async () => {
+/**
+ * The raw fetch. `null` means "no settings row"; a failure throws.
+ *
+ * This distinction is what the goals flow needs. The daily log reads a null
+ * result as "this user has never set up goals" and redirects to setup -- so one
+ * dropped connection would send a returning user through onboarding, where
+ * saving collapses their `goal_history` to a single version. A row-level
+ * rejection and a blank table are different facts.
+ *
+ * Throwing is right *here* and wrong in `getUserSettings` below. Six existing
+ * callers -- including the sign-in path -- were written against a service that
+ * degrades to null, and several of them are `try/finally` with no `catch`, so a
+ * throw becomes an unhandled rejection or, in the login case, a "Failed to
+ * login" message shown to someone whose password was correct. Rather than
+ * change the contract under them, the throwing behaviour lives here and only
+ * `useUserSettings` -- which can express the difference in React Query's error
+ * state -- calls it.
+ */
+export const fetchUserSettings = async () => {
     const userId = await getCurrentUserId();
     if (!userId) return null;
-    
+
+    // `maybeSingle` rather than `single`: "no rows" is a legitimate answer here,
+    // not an error, and `single` reports it as PGRST116.
     const { data, error } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', userId)
-        .single();
-    
-    if (error && error.code !== 'PGRST116') {
+        .maybeSingle();
+
+    if (error) {
         console.error('Error fetching user settings:', error.message);
-        return null;
+        throw error;
     }
     return data as UserSettings | null;
+};
+
+/**
+ * Fetch user settings, degrading to `null` on failure.
+ *
+ * The original contract, deliberately kept intact: eight call sites depend on
+ * it, and a rejected request must not reach them as an exception. In particular
+ * `LoginForm` awaits this between a successful sign-in and its navigation, so a
+ * throw here would be reported to the user as a failed login with a correct
+ * password.
+ */
+export const getUserSettings = async (): Promise<UserSettings | null> => {
+    try {
+        return await fetchUserSettings();
+    } catch (error) {
+        // Already logged by `fetchUserSettings`. Swallowed on purpose: for these
+        // callers "no settings" and "settings unavailable" lead to the same
+        // recovery, which is to render as if they were still being set up.
+        void error;
+        return null;
+    }
 };
 
 // Create user settings (after registration/onboarding)

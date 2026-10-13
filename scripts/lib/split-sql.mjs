@@ -14,8 +14,8 @@
  *  - `$$ ... $$` dollar-quoted bodies, which is how every function and DO block
  *    in supabase/migrations is written. These contain semicolons, single quotes
  *    and `--` freely, so neither of the rules above can be applied inside them.
- *    The tag is arbitrary (`$function$`, `$body$`), so this matches any `$$`
- *    rather than assuming the empty tag.
+ *    The tag is arbitrary (`$function$`, `$body$`, `$fmt$`), so this matches any
+ *    dollar-delimited tag rather than assuming the empty one.
  *
  * Comments are dropped rather than kept, because the callers pass each statement
  * to `exec` on its own and a leading comment would otherwise ride along with the
@@ -24,13 +24,17 @@
 export const splitStatements = sql => {
     const parts = [];
     let current = '';
-    let quote = null;      // the open delimiter: "'", '"' or '$$'
+    let quote = null;      // the open delimiter: "'", '"', or a dollar tag incl. '$'
     for (let i = 0; i < sql.length; i++) {
         const char = sql[i];
 
-        if (quote === '$$') {
+        if (quote && quote.startsWith('$')) {
             current += char;
-            if (char === '$' && sql[i + 1] === '$') { current += sql[++i]; quote = null; }
+            if (sql.startsWith(quote, i)) {
+                current += sql.slice(i + 1, i + quote.length);
+                i += quote.length - 1;
+                quote = null;
+            }
             continue;
         }
 
@@ -41,7 +45,18 @@ export const splitStatements = sql => {
             continue;
         }
 
-        if (sql.startsWith('$$', i)) { quote = '$$'; current += '$$'; i++; continue; }
+        // `$tag$` where tag is an identifier, or the empty `$$`. A bare `$` that
+        // starts neither is an ordinary character -- a parameter placeholder, or
+        // the `$1` in a prepared statement -- and must not open a body.
+        if (char === '$') {
+            const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+            if (tag) {
+                quote = tag[0];
+                current += tag[0];
+                i += tag[0].length - 1;
+                continue;
+            }
+        }
         if (char === "'" || char === '"') { quote = char; current += char; continue; }
 
         if (sql.startsWith('--', i)) {

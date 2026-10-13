@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
-import { User, Target, Weight, Smartphone, LogOut, ChevronRight } from 'lucide-react';
+import { User, Target, Weight, Smartphone, LogOut, ChevronRight, ShieldCheck } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
     const navigate = useNavigate();
@@ -24,6 +24,12 @@ const SettingsPage: React.FC = () => {
             description: 'Track your weight, body fat, and progress',
             icon: <Weight />,
             action: () => navigate('/Measurements')
+        },
+        {
+            title: 'Security',
+            description: 'Lock the app with a PIN and encrypt your data',
+            icon: <ShieldCheck />,
+            action: () => navigate('/Settings/Security')
         },
         {
             title: 'App',

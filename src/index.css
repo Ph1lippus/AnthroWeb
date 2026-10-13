@@ -8440,6 +8440,14 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 }
 /* Journal editor section */
 .journal-rich-editor-loading { padding: 2rem; opacity: .6; }
+/* Shown for the moment between picking a day and that day's row landing in the
+   form. The editors are uncontrolled, so leaving them mounted here would mean
+   writing into the previous day's entry. */
+.journal-log-loading {
+  padding: 2rem;
+  opacity: .6;
+  text-align: center;
+}
 .journal-editor-header {
   display: flex;
   align-items: center;
@@ -13962,4 +13970,400 @@ button.workout-ex__empty:hover {
     .loader-screen {
         left: 3.75rem;
     }
+}
+
+/* ---------------------------------------------------------------------------
+   Vault: the lock screen, the PIN pad, and the security settings.
+
+   Kept together because these are one feature and one colour set. The surface
+   colours come from the existing CSS variables rather than literals so the lock
+   screen follows the same theme as the rest of the app -- a lock screen that
+   ignores dark mode is the one screen nobody is going to debug carefully.
+   --------------------------------------------------------------------------- */
+
+.vault-lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--color-bg, #0b0b0d);
+  color: var(--color-text, #f5f5f7);
+  overflow-y: auto;
+}
+
+/* Nothing to show, and nothing safe to show. A spinner here would be a hint
+   that something is loading; a blank frame is honest. */
+.vault-lock-screen--checking {
+  background: var(--color-bg, #0b0b0d);
+}
+
+.vault-lock-card {
+  width: 100%;
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.vault-lock-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-primary, #7c5cff) 18%, transparent);
+  color: var(--color-primary, #7c5cff);
+}
+
+.vault-lock-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.vault-lock-subtitle,
+.vault-lock-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  opacity: 0.65;
+}
+
+.vault-lock-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.vault-lock-dots {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.vault-lock-dot {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.35;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.vault-lock-dot--filled {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.vault-lock-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.vault-lock-key {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 500;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, transform 80ms ease;
+}
+
+.vault-lock-key:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.vault-lock-key:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.vault-lock-key:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.vault-lock-key--muted {
+  font-size: 1rem;
+  opacity: 0.7;
+}
+
+.vault-lock-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  color: inherit;
+}
+
+.vault-lock-input:focus-visible {
+  outline: 2px solid var(--color-primary, #7c5cff);
+  outline-offset: 1px;
+}
+
+.vault-lock-recovery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 100%;
+}
+
+.vault-lock-progress {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+
+.vault-lock-primary {
+  background: var(--color-primary, #7c5cff);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vault-lock-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vault-lock-link {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.vault-lock-danger {
+  background: none;
+  border: 1px solid var(--color-danger, #e5484d);
+  color: var(--color-danger, #e5484d);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  cursor: pointer;
+}
+
+.vault-lock-error {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-danger, #e5484d);
+}
+
+.vault-lock-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* --- modal --- */
+
+.vault-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgb(0 0 0 / 0.65);
+}
+
+.vault-modal {
+  width: 100%;
+  max-width: 30rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: var(--color-surface, #17171a);
+  color: var(--color-text, #f5f5f7);
+}
+
+.vault-modal p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.vault-modal-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+/* --- settings --- */
+
+.vault-settings {
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.vault-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background: var(--color-surface, #17171a);
+}
+
+.vault-settings-heading {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.vault-settings-subheading {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.vault-settings-blurb {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.vault-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.vault-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.vault-warning {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.875rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-warning, #f5a524) 12%, transparent);
+  color: var(--color-warning, #f5a524);
+}
+
+.vault-warning strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.vault-warning .vault-lock-hint {
+  color: inherit;
+}
+
+.vault-phrase {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.875rem;
+  list-style: none;
+  counter-reset: phrase;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.vault-phrase li {
+  counter-increment: phrase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  text-align: center;
+  padding: 0.25rem 0;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.vault-phrase li::before {
+  content: counter(phrase);
+  display: block;
+  font-size: 0.625rem;
+  opacity: 0.45;
+}
+
+.vault-seal-progress {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.vault-progress-bar {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  overflow: hidden;
+}
+
+.vault-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary, #7c5cff);
+  transition: width 160ms ease;
+}
+
+/* --- per-note lock -------------------------------------------------------
+   Reuses the lock screen's pad and dots; only the container is new, because
+   this one sits inside the notes layout rather than over the whole app. */
+
+.note-unlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 22rem;
+  padding: 1.5rem;
+}
+
+.note-unlock-card {
+  width: 100%;
+  max-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  text-align: center;
+}
+
+/* The rail row for a locked page. Dimmed so it reads as not-quite-present
+   without disappearing -- it is still a page in the tree and still holds
+   children that need somewhere to hang. */
+.notes-rail-item[data-locked='true'] {
+  opacity: 0.6;
+  font-style: italic;
 }

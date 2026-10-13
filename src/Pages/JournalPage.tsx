@@ -151,11 +151,30 @@ const JournalPage: React.FC = () => {
     // Only apply a day's data once, so an autosave that invalidates the query
     // does not refill the form underneath the cursor and undo the edit.
     const appliedDateRef = useRef<string | null>(null);
+    /**
+     * The date whose row is actually in the form right now.
+     *
+     * This is NOT `logDate`, and the difference is the whole reason entries used
+     * to follow each other around the calendar. The TipTap editors are
+     * uncontrolled -- `NoteEditor` reads `initialHtml` once, at construction --
+     * so a remount is the only thing that can put a new day's text into them.
+     * Keying them on `logDate` remounted them in the same commit as the date
+     * change, which is *before* the query for that day resolves: the editors
+     * came up holding the previous day's prose, the fetch landed a moment later,
+     * and because no remount followed, they kept it. The next keystroke then
+     * saved yesterday's entry onto today's row.
+     *
+     * So the key has to advance only once the new day's data has been applied.
+     * This state is that signal: `null` until the first successful apply, and
+     * from then on always naming the day the form currently holds.
+     */
+    const [appliedDate, setAppliedDate] = useState<string | null>(null);
     useEffect(() => {
         if (dayLogPlaceholder || dayLog === undefined) return;
         if (dayLogFetching) return;
         if (appliedDateRef.current === logDate) return;
         appliedDateRef.current = logDate;
+        setAppliedDate(logDate);
 
         if (dayLog) {
             // Populating the editor from a fetched log is an external-system sync
@@ -213,8 +232,35 @@ const JournalPage: React.FC = () => {
     }, [logDate, setLogDate]);
 
     // Auto-save function
+    /**
+     * The tail of the whole-row write queue.
+     *
+     * `performSave` updates most of a `daily_logs` row, so two overlapping calls
+     * are not two independent fields landing in either order -- they are two
+     * complete copies of the same row racing, and whichever response resolves
+     * last decides what is stored. A cold Supabase start or a slow network gets
+     * there easily. Chaining every write behind this reference makes the order
+     * the order the edits were made in. Same pattern as `DailyLogPage`.
+     */
+    const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+
     const performSave = useCallback(async () => {
         if (!settings) return;
+
+        /**
+         * Refuse to write while the form belongs to a different day.
+         *
+         * `performSave` closes over `logDate` and over the editor state at the
+         * same time, and a slow fetch can leave those two describing different
+         * days: the URL has already moved on while the editors still hold the
+         * previous day's text. Saving then wrote the new day with the old day's
+         * prose -- and because `log_date` travels in the payload, it also
+         * *renamed* the old row to the new date, so an entry silently moved
+         * instead of being copied. A mis-timed autosave has to be a no-op. The
+         * pending payload is still written, by the unmount flush below, against
+         * the day it actually belongs to.
+         */
+        if (appliedDate !== logDate) return;
 
         const journalEntry = serializeJournalDocument(journalDocument);
         const journalText = journalDocumentText(journalDocument);
@@ -247,16 +293,31 @@ const JournalPage: React.FC = () => {
                 daily_score: isEditing && existingLog?.daily_score != null ? existingLog.daily_score : null,
             };
 
-            if (isEditing && existingLog?.id) {
-                await updateDailyLog(existingLog.id, logData);
-            } else {
-                const newLog = await createDailyLog(logData);
-                if (newLog) {
-                    setExistingLog(newLog as DailyLog);
-                    setIsEditing(true);
-                }
-            }
-            setLastSaved(new Date());
+            /**
+             * Whole-row writes, one at a time, in the order they were made.
+             *
+             * This writes most of a `daily_logs` row, so two overlapping calls
+             * are not two independent fields landing in either order -- they are
+             * two complete copies of the same row racing, and whichever response
+             * resolves last decides what is stored. Chaining through the tail
+             * promise makes the order the order the edits were made in. The
+             * leading `catch` keeps one failed save from poisoning every save
+             * that follows it.
+             */
+            await (saveChainRef.current = saveChainRef.current
+                .catch(() => undefined)
+                .then(async () => {
+                    if (isEditing && existingLog?.id) {
+                        await updateDailyLog(existingLog.id, logData);
+                    } else {
+                        const newLog = await createDailyLog(logData);
+                        if (newLog) {
+                            setExistingLog(newLog as DailyLog);
+                            setIsEditing(true);
+                        }
+                    }
+                    setLastSaved(new Date());
+                }));
 
             // The daily log's own score card reads this row's mood, and the
             // dashboard and history read the whole list. Without this the page
@@ -270,7 +331,7 @@ const JournalPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [settings, logDate, journalDocument, morningMood, eveningMood, isEditing, existingLog, queryClient]);
+    }, [settings, logDate, appliedDate, journalDocument, morningMood, eveningMood, isEditing, existingLog, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -278,6 +339,22 @@ const JournalPage: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [saveError]);
+
+    /**
+     * The latest `performSave`, for flushes that must not re-run on every render.
+     *
+     * `performSave` is a new closure on every render, so an effect that depends
+     * on it runs on every render too -- which would flush the debounce on every
+     * keystroke and defeat it entirely. Holding it in a ref lets the unmount
+     * cleanup below run exactly once, while still calling the current version.
+     */
+    const performSaveRef = useRef(performSave);
+    // Published for the flush below, which cannot see a render. In an effect
+    // rather than during render: writing a ref while rendering is what makes a
+    // component miss an update when the value is also read during that render.
+    useEffect(() => {
+        performSaveRef.current = performSave;
+    }, [performSave]);
 
     // Debounced auto-save
     useEffect(() => {
@@ -299,12 +376,61 @@ const JournalPage: React.FC = () => {
         };
     }, [journalDocument, morningMood, eveningMood, performSave, settings]);
 
+    /**
+     * Write the pending entry on the way out, instead of dropping it.
+     *
+     * The cleanup above cancels the timer, and `performSave` is in its dependency
+     * list while depending on `logDate` -- so changing day, navigating away, or
+     * closing the tab all cancelled the save with up to two seconds of typing
+     * still sitting in it. That is the second way entries went missing, and it
+     * is silent: nothing is pending anywhere by the time anyone notices.
+     *
+     * The outgoing day is still the one in `performSaveRef` at this instant,
+     * because the debounce effect's cleanup runs before the next render commits,
+     * so the flush writes to the day the edit actually belongs to.
+     */
+    useEffect(() => {
+        const flushPending = () => {
+            if (!autoSaveTimerRef.current) return;
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+            void performSaveRef.current();
+        };
+
+        // A tab close or a pagehide gives no chance to await anything, but the
+        // request still has to be *issued* -- that is all `fetch` needs to
+        // survive the navigation, and it is why this is not a debounce flush
+        // alone. Without it the last couple of seconds of writing are lost on
+        // every refresh, which is exactly how this reads from the outside.
+        const onPageHide = () => flushPending();
+        window.addEventListener('pagehide', onPageHide);
+        document.addEventListener('visibilitychange', onPageHide);
+
+        return () => {
+            window.removeEventListener('pagehide', onPageHide);
+            document.removeEventListener('visibilitychange', onPageHide);
+            flushPending();
+        };
+    }, []);
+
     // Settings come from a raw await, invisible to the app-level boot gate, so
     // without this the splash would lift over an empty page. `settingsLoaded`
     // rather than `settings`: the gate reads `!settings`, and a user with no
     // settings row legitimately has `settings === null`, which would hold the
     // splash forever. The flag means "asked and answered", rejection included.
     useBootHold(!settingsLoaded || dayLogPlaceholder || dayLog === undefined);
+
+    /**
+     * True while the URL names a day the form has not caught up with.
+     *
+     * The editors can only ever hold one day at a time, and during the gap
+     * between clicking the arrow and the row arriving, they still hold the
+     * previous one. Leaving them on screen and writable during that window is
+     * how a person ends up typing into yesterday's entry -- and the text then
+     * either vanishes when the real day mounts over it, or is attributed to a
+     * day they were not looking at. A day you have not loaded is not editable.
+     */
+    const dayIsPending = appliedDate !== logDate;
 
     return (
         <>
@@ -415,16 +541,33 @@ const JournalPage: React.FC = () => {
                         </div>
 
                         <div className="journal-log-form">
-                            <JournalEditor
-                                key={logDate}
-                                value={journalDocument}
-                                onChange={setJournalDocument}
-                                morningMood={morningMood}
-                                eveningMood={eveningMood}
-                                onMorningMood={setMorningMood}
-                                onEveningMood={setEveningMood}
-                                focusMode={focusMode}
-                            />
+                            {/*
+                                Held back until the row for the URL's day is
+                                actually in the form. `key` is the *applied* day,
+                                not `logDate`: the editors are uncontrolled, so a
+                                remount is the only thing that can put a new day's
+                                text into them, and it has to happen after the
+                                fetch resolves rather than in the same commit as
+                                the click. Keying on `logDate` mounted them with
+                                the previous day's prose and left them there --
+                                which then saved that day over the new one.
+                            */}
+                            {dayIsPending ? (
+                                <div className="journal-log-loading">
+                                    Loading {formatDayLabel(logDate).toLowerCase()}...
+                                </div>
+                            ) : (
+                                <JournalEditor
+                                    key={appliedDate}
+                                    value={journalDocument}
+                                    onChange={setJournalDocument}
+                                    morningMood={morningMood}
+                                    eveningMood={eveningMood}
+                                    onMorningMood={setMorningMood}
+                                    onEveningMood={setEveningMood}
+                                    focusMode={focusMode}
+                                />
+                            )}
 
                         </div>
                     </div>

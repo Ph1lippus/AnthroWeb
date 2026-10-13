@@ -6,6 +6,7 @@ import LoadingSpinner from '../LoadingSpinner';
 import ConfirmModal from '../ConfirmModal';
 import NotesSidebar from './NotesSidebar';
 import NoteEditorPane from './NoteEditorPane';
+import NoteUnlockPrompt from './NoteUnlockPrompt';
 import NoteIconBadge from './NoteIconBadge';
 import QuickSwitcher from './QuickSwitcher';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
@@ -191,6 +192,32 @@ const NotesWorkspace: React.FC = () => {
         if (!id) return null;
         return notes.find(note => note.id === id) ?? null;
     }, [id, notes]);
+
+    /**
+     * The page key for a locked note, once its PIN has been entered.
+     *
+     * Session-only and in memory only. It is not written anywhere, so closing
+     * the tab or reloading puts the prompt back -- which is the correct
+     * behaviour, and the reason a locked page cannot be left readable by whoever
+     * walks up to the device next.
+     */
+    const [noteKeys, setNoteKeys] = useState<Record<string, CryptoKey>>({});
+
+    /**
+     * Re-read the list after a lock or unlock.
+     *
+     * Without this the sidebar keeps showing the page's title and its first line
+     * after it has just been locked out of, which is the one thing the lock
+     * exists to stop. `useNotes` owns the cache key, so invalidating the root
+     * brings both the list and the open pane back consistent.
+     */
+    const handleLockChanged = useCallback(() => {
+        void notesQuery.refetch();
+    }, [notesQuery]);
+
+    const handleUnlocked = useCallback((noteId: string, key: CryptoKey) => {
+        setNoteKeys(current => ({ ...current, [noteId]: key }));
+    }, []);
 
     /**
      * Whether the rail is on screen.
@@ -603,6 +630,20 @@ const NotesWorkspace: React.FC = () => {
                             permanently empty pane: the page opens with its title and an
                             empty body. */}
                         {!editorSettled ? null : activeNote ? (
+                            // A locked page shows the prompt instead of the editor.
+                            // Not an overlay: the editor mounted underneath would
+                            // already have the page's text in the DOM and in the
+                            // query cache, and the lock would be hiding rather than
+                            // preventing.
+                            activeNote.lock_enabled && activeNote.id && !noteKeys[activeNote.id] ? (
+                                <NoteUnlockPrompt
+                                    key={activeNote.id}
+                                    note={activeNote}
+                                    onUnlocked={key => handleUnlocked(activeNote.id!, key)}
+                                    onUseRecovery={() => navigate('/Settings/Security')}
+                                    onBack={() => navigate('/Notes')}
+                                />
+                            ) : (
                             // Keyed by id so opening a different page remounts the
                             // editor with a fresh document instead of reconciling one
                             // note's content into another's.
@@ -611,6 +652,8 @@ const NotesWorkspace: React.FC = () => {
                                 note={activeNote}
                                 allNotes={notes}
                                 onDeleted={() => navigate('/Notes', { replace: true })}
+                                onLockChanged={handleLockChanged}
+                                onChanged={() => handleLockChanged()}
                                 // Only reachable where the rail is not, which is the
                                 // stacked layout. On the split there is nothing to go
                                 // back to, so the button does not render there.
@@ -621,6 +664,7 @@ const NotesWorkspace: React.FC = () => {
                                 railHidden={!showRail}
                                 onToggleRail={narrow ? undefined : handleToggleRail}
                             />
+                            )
                         ) : (
                             <>
                                 {/* Reachable on a narrow screen when the route names a

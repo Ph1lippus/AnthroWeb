@@ -1,4 +1,5 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
+import { todayString } from '../utils/dates';
 
 // Abstinence Goal types
 export interface AbstinenceGoal {
@@ -117,7 +118,7 @@ export const createAbstinenceGoal = async (goal: {
         .insert({
             user_id: user.id,
             name: goal.name,
-            start_date: goal.start_date || new Date().toISOString().split('T')[0],
+            start_date: goal.start_date || todayString(),
             end_date: goal.end_date || null,
             target_days: goal.target_days || null,
             notes: goal.notes,
@@ -168,9 +169,18 @@ export const deleteAbstinenceGoal = async (id: string) => {
 export const endAbstinenceGoal = async (goal: AbstinenceGoal): Promise<void> => {
     if (!goal.id) return;
 
-    const endDate = new Date().toISOString().split('T')[0];
-    const startDate = new Date(goal.start_date);
-    const end = new Date(endDate);
+    /**
+     * Both dates parsed as local calendar days.
+     *
+     * `new Date('YYYY-MM-DD')` is parsed as UTC midnight by specification, so a
+     * date string off the database came back as the *previous* day for anyone
+     * west of Greenwich -- a streak that read one day short and a goal that
+     * appeared to have started a day before it did. Appending `T00:00:00` makes
+     * it local midnight, which is what a date column means.
+     */
+    const endDate = todayString();
+    const startDate = new Date(`${goal.start_date}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
     const durationDays = Math.floor((end.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
     // Add to history
@@ -255,7 +265,7 @@ export const importAbstinenceFromCSV = async (csvContent: string) => {
             goalsToCreate.push({
                 user_id: user.id,
                 name: name.trim(),
-                start_date: startDate || new Date().toISOString().split('T')[0],
+                start_date: startDate || todayString(),
                 end_date: endDate || null,
                 target_days: targetDays,
                 notes: notes || undefined,

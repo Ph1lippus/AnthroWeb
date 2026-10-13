@@ -66,23 +66,30 @@ const JournalEditPage: React.FC = () => {
     }, [id]);
 
     const performSave = useCallback(async () => {
-        if (!id || !settings) return;
+        if (!id || !settings || !existingLog) return;
 
         setSaving(true);
         setSaveError(null);
         try {
-            const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
-                log_date: existingLog?.log_date || new Date().toISOString().split('T')[0],
+            /**
+             * No `log_date`. This page edits an existing row, addressed by id, and
+             * `updateDailyLog` refuses to write the date for exactly that reason --
+             * sending it here would mean "and move this row to that day". It also
+             * removes the UTC fallback that used to sit in its place: an evening
+             * west of UTC stamped the entry onto tomorrow. The date a row has is
+             * the date it was created on, and that is not this page's to change.
+             */
+            const logData: Partial<DailyLog> = {
                 journal_entry: serializeJournalDocument(journalDocument),
                 journal_morning: journalDocument.morning || null,
                 journal_evening: journalDocument.evening || null,
                 journal_links: journalTopicSuggestions(journalDocument),
                 // See journalHabitFor: content ticks the habit, absence leaves
                 // the stored tick alone.
-                journal: journalHabitFor(journalDocumentText(journalDocument), existingLog?.journal),
+                journal: journalHabitFor(journalDocumentText(journalDocument), existingLog.journal),
                 morning_mood: morningMood,
                 evening_mood: eveningMood,
-                daily_score: existingLog?.daily_score != null ? existingLog.daily_score : null,
+                daily_score: existingLog.daily_score != null ? existingLog.daily_score : null,
             };
 
             await updateDailyLog(id, logData);
@@ -92,9 +99,7 @@ const JournalEditPage: React.FC = () => {
             // read these rows. Editing a past entry without this left every one
             // of them showing what it had before the edit.
             queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogs });
-            if (existingLog?.log_date) {
-                queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(existingLog.log_date) });
-            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(existingLog.log_date) });
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save. Please try again.';
             setSaveError(message);
@@ -102,7 +107,7 @@ const JournalEditPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [id, settings, journalDocument, morningMood, eveningMood, existingLog, queryClient]);
+    }, [id, settings, existingLog, journalDocument, morningMood, eveningMood, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -111,15 +116,26 @@ const JournalEditPage: React.FC = () => {
         }
     }, [saveError]);
 
+    /**
+     * The latest `performSave`, so the unmount flush below can reach it without
+     * depending on a closure that is new on every render -- depending on that
+     * would flush the debounce on every keystroke.
+     */
+    const performSaveRef = useRef(performSave);
     useEffect(() => {
-        if (!settings) return;
+        performSaveRef.current = performSave;
+    }, [performSave]);
+
+    useEffect(() => {
+        if (!settings || !existingLog) return;
 
         if (autoSaveTimerRef.current) {
             clearTimeout(autoSaveTimerRef.current);
         }
 
         autoSaveTimerRef.current = setTimeout(() => {
-            performSave();
+            autoSaveTimerRef.current = null;
+            void performSave();
         }, 2000);
 
         return () => {
@@ -127,13 +143,62 @@ const JournalEditPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [journalDocument, morningMood, eveningMood, performSave, settings]);
+    }, [journalDocument, morningMood, eveningMood, performSave, settings, existingLog]);
+
+    // Write the pending entry on the way out. The cleanup above cancels the timer,
+    // so navigating away -- or refreshing, which is where this was noticed --
+    // discarded up to two seconds of writing with nothing pending anywhere by
+    // the time anyone looked. `pagehide` issues the request even when the page is
+    // being torn down, which is the part a plain unmount flush cannot cover.
+    useEffect(() => {
+        const flushPending = () => {
+            if (!autoSaveTimerRef.current) return;
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
+            void performSaveRef.current();
+        };
+
+        const onPageHide = () => flushPending();
+        window.addEventListener('pagehide', onPageHide);
+        document.addEventListener('visibilitychange', onPageHide);
+
+        return () => {
+            window.removeEventListener('pagehide', onPageHide);
+            document.removeEventListener('visibilitychange', onPageHide);
+            flushPending();
+        };
+    }, []);
 
     // Both the log and the settings come from a raw `Promise.all`, invisible to the
     // app-level boot gate, so the splash would otherwise lift over the spinner
     // below. Guarded on `id` because the loader returns early without an id, and
     // `dataLoaded` only covers the case where it actually fetched something.
     useBootHold(id ? !dataLoaded : false);
+
+    /**
+     * Loading while the fetch is outstanding; a real answer afterwards.
+     *
+     * `!settings || !existingLog` was the gate, and both are legitimately null
+     * once the request has been answered -- a user with no settings row, or an id
+     * that no longer exists. So this rendered the spinner for a deleted entry
+     * and for a settings failure, forever, with no way out. `dataLoaded` says
+     * "asked and answered", and only then can the absence of a log be treated as
+     * the answer it is.
+     */
+    if (!dataLoaded) {
+        return (
+            <>
+                <Title title="Edit Journal" />
+                <div className="journal-page-wrapper">
+                    <div className="dashboard-section journal-section">
+                        <div className="journal-card">
+                            <LoadingSpinner />
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     if (!settings || !existingLog) {
         return (
@@ -142,7 +207,12 @@ const JournalEditPage: React.FC = () => {
                 <div className="journal-page-wrapper">
                     <div className="dashboard-section journal-section">
                         <div className="journal-card">
-                            <LoadingSpinner />
+                            <div className="journal-card-body">
+                                <p>This entry could not be found. It may have been deleted.</p>
+                                <button type="button" className="btn-action" onClick={() => navigate('/Journal')}>
+                                    Back to journal
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -198,7 +268,12 @@ const JournalEditPage: React.FC = () => {
                         </div>
 
                         <div className="journal-log-form">
+                            {/* Keyed on the row being edited. The editors read their
+                                content once at mount, so without this a different
+                                id in the URL would leave the previous entry's text
+                                on screen to be autosaved over the new one. */}
                             <JournalEditor
+                                key={existingLog.id}
                                 value={journalDocument}
                                 onChange={setJournalDocument}
                                 morningMood={morningMood}

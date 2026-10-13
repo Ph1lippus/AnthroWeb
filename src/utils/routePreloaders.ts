@@ -23,6 +23,7 @@ export const pageLoaders: Record<string, PageLoader> = {
     '/Notes': () => import('../Pages/NotesPage'),
     '/Settings': () => import('../Pages/SettingsPage'),
     '/Settings/App': () => import('../Pages/AppPage'),
+    '/Settings/Security': () => import('../Pages/SecurityPage'),
     '/Settings/Account': () => import('../Pages/AccountPage'),
     '/Profile': () => import('../Pages/ProfilePage'),
     '/Profile/Edit': () => import('../Pages/EditProfilePage'),
@@ -49,10 +50,17 @@ const dataLoaders: Record<string, DataLoader[]> = {
         { key: queryKeys.dailyLogs, load: () => import('../services/dailyLogService').then(module => module.getUserDailyLogs()) },
         { key: queryKeys.habits, load: () => import('../services/habitService').then(module => module.getUserHabits()) },
         { key: queryKeys.habitLogs, load: () => import('../services/habitService').then(module => module.getAllHabitLogs()) },
-        { key: queryKeys.userSettings, load: () => import('../services/profileService').then(module => module.getUserSettings()) },
+        { key: queryKeys.userSettings, load: () => import('../services/profileService').then(module => module.fetchUserSettings()) },
     ],
     '/Daily-Log': [
-        { key: queryKeys.userSettings, load: () => import('../services/profileService').then(module => module.getUserSettings()) },
+        // `fetchUserSettings`, not `getUserSettings`, and it has to match what
+        // `useUserSettings` uses for this key. A prefetch populates the very
+        // cache the hook then reads: a loader that swallowed a failure would
+        // leave a cached `null` behind for thirty seconds, and the daily log
+        // reads a null as "no goals have ever been set" -- so a blip while
+        // hovering the nav bar could send someone to onboarding and cost them
+        // their goal history. Same key, same semantics, or the cache lies.
+        { key: queryKeys.userSettings, load: () => import('../services/profileService').then(module => module.fetchUserSettings()) },
         { key: queryKeys.habits, load: () => import('../services/habitService').then(module => module.getUserHabits()) },
     ],
     '/Measurements': [

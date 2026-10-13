@@ -1,0 +1,326 @@
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { fetchUserSettings, updateUserSettings } from '../services/profileService';
+import type { UserSettings } from '../services/profileService';
+import {
+    generateRecoveryPhrase,
+    getMasterKey,
+    isUnlocked,
+    lockKeyring,
+    provisionVault,
+    rewrapMasterForPin,
+    unlockWithPin,
+    unlockWithRecoveryPhrase,
+    validateRecoveryPhrase,
+    type VaultProvisioning,
+    type VaultSettings,
+} from '../services/vault/keyring';
+
+/**
+ * Narrow the settings row to what the keyring reads.
+ *
+ * The keyring wants exactly these fields and nothing else. Naming the shape
+ * rather than casting means that if a column is renamed in the migration and in
+ * `UserSettings` together, this stops compiling instead of quietly unwrapping
+ * `undefined`.
+ */
+const toVaultSettings = (settings: UserSettings): VaultSettings => ({
+    vault_enabled: settings.vault_enabled ?? false,
+    vault_pin_salt: settings.vault_pin_salt ?? null,
+    vault_pin_iterations: settings.vault_pin_iterations ?? null,
+    vault_pin_wrapped: settings.vault_pin_wrapped ?? null,
+    vault_recovery_salt: settings.vault_recovery_salt ?? null,
+    vault_recovery_iterations: settings.vault_recovery_iterations ?? null,
+    vault_recovery_wrapped: settings.vault_recovery_wrapped ?? null,
+});
+
+/**
+ * Whether the app is showing a lock screen, and how it gets unlocked.
+ *
+ * Built on an external store rather than React context for the same reason
+ * `useAuthSession` is: the gate has to be readable from a module that runs before
+ * React renders anything -- `main.tsx` has to hold the boot splash until the
+ * lock state is known, or the app paints a private page and then covers it.
+ *
+ * States, in the order they resolve:
+ *
+ *   'checking' -- we do not yet know whether this account has a PIN. The splash
+ *                 stays up. Showing content here would flash private data
+ *                 before the lock screen replaced it.
+ *   'disabled' -- no PIN set. The app renders normally.
+ *   'locked'   -- a PIN is set and the keyring is not open. Lock screen.
+ *   'unlocked' -- the master key is in memory. The app renders.
+ *
+ * The master key lives in module scope inside `keyring.ts` and nowhere else. It
+ * is never written to storage in the clear, so this store holds a boolean, not a
+ * secret.
+ */
+
+export type LockState = 'checking' | 'disabled' | 'locked' | 'unlocked';
+
+export interface LockSnapshot {
+    state: LockState;
+    /** Set when a PIN exists but the vault could not be opened for some reason. */
+    error: string | null;
+}
+
+let snapshot: LockSnapshot = { state: 'checking', error: null };
+const listeners = new Set<() => void>();
+
+const emit = (next: Partial<LockSnapshot>) => {
+    snapshot = { ...snapshot, ...next };
+    for (const listener of listeners) listener();
+};
+
+const subscribe = (listener: () => void) => {
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+    };
+};
+
+const getSnapshot = () => snapshot;
+
+export const useAppLock = (): LockSnapshot =>
+    useSyncExternalStore(subscribe, getSnapshot);
+
+/** Read the lock state without subscribing. For module-level gates. */
+export const getLockState = (): LockState => snapshot.state;
+
+/**
+ * Should the app lock itself when it goes to the background?
+ *
+ * On by default, and it is the setting people are most likely to change and most
+ * likely to need. A phone left on a table with the app open is the exact
+ * scenario the PIN exists for, and on Android the WebView keeps running in the
+ * background for a long time.
+ */
+const IDLE_LOCK_MS = 5 * 60_000;
+let idleLockMs = IDLE_LOCK_MS;
+let lockOnBackground = true;
+
+export const configureLock = (options: { idleLockMs?: number; lockOnBackground?: boolean }) => {
+    if (options.idleLockMs !== undefined) idleLockMs = options.idleLockMs;
+    if (options.lockOnBackground !== undefined) lockOnBackground = options.lockOnBackground;
+};
+
+/**
+ * Ask the keyring whether this account is armed, and adopt the answer.
+ *
+ * Called once at boot, before the first route renders. A failure here resolves to
+ * 'checking' forever rather than to 'disabled' -- failing open on an error would
+ * mean a transient network blip turns the lock off, which is the one direction
+ * this can fail in that matters.
+ */
+export const initialiseAppLock = async (): Promise<LockState> => {
+    try {
+        const settings = await fetchUserSettings();
+        const state: LockState = settings?.vault_enabled ? 'locked' : 'disabled';
+        emit({ state, error: null });
+        return state;
+    } catch (error) {
+        emit({
+            state: 'checking',
+            error: error instanceof Error ? error.message : 'Could not check the lock.',
+        });
+        return 'checking';
+    }
+};
+
+/**
+ * Try a PIN. Returns true on success.
+ *
+ * The false case covers "wrong PIN" and "the vault is broken" equally, on
+ * purpose: telling a user which one it was is information about a stored key
+ * that does not need to be handed out. Rate limiting lives on the attempts
+ * counter in the note lock; for the app PIN the cost per attempt is the full
+ * 600k-iteration derivation, which is the throttle.
+ */
+export const unlock = async (pin: string): Promise<boolean> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) {
+        emit({ state: 'disabled', error: null });
+        return true;
+    }
+    const ok = await unlockWithPin(toVaultSettings(settings), pin);
+    if (ok) emit({ state: 'unlocked', error: null });
+    return ok;
+};
+
+/** Try a recovery phrase. The way back in when the PIN is gone. */
+export const unlockWithRecovery = async (phrase: string): Promise<boolean> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) return false;
+    // Validated before the slow derivation so a mistyped word fails in
+    // milliseconds with a useful message, rather than after half a second of
+    // PBKDF2 and then the same unhelpful "wrong" answer.
+    if (!(await validateRecoveryPhrase(phrase))) {
+        emit({ error: 'That recovery phrase is not valid. Check the words and their order.' });
+        return false;
+    }
+    const ok = await unlockWithRecoveryPhrase(toVaultSettings(settings), phrase);
+    if (ok) emit({ state: 'unlocked', error: null });
+    return ok;
+};
+
+/** Lock now. Drops the key and closes the cache so nothing private is on disk. */
+export const lock = (): void => {
+    lockKeyring();
+    // Clear before the state flips, while the query client is still reachable.
+    // Order matters: the persister's `shouldDehydrateQuery` asks this module
+    // whether the vault is open, so clearing after `lockKeyring` but before the
+    // emit is what stops the last flush from writing the cache that was just
+    // populated.
+    clearPrivateCache();
+    emit({ state: 'locked', error: null });
+};
+
+/**
+ * Empty the on-device cache.
+ *
+ * The persisted copy is the largest plaintext store of this app's private data
+ * outside the database -- every note and journal day the user has opened, in
+ * IndexedDB, for twenty-four hours. Locking that does not also clear it would
+ * mean the PIN protects the app and not the disk it sits on, which is the
+ * distinction that matters for the scenario the PIN exists for.
+ *
+ * Registered by `main.tsx`, which is the only place with the query client to
+ * hand. Optional so this module stays testable without one.
+ */
+let clearPrivateCacheImpl: (() => void) | null = null;
+
+export const registerCacheClear = (clear: () => void): void => {
+    clearPrivateCacheImpl = clear;
+};
+
+const clearPrivateCache = (): void => {
+    try {
+        clearPrivateCacheImpl?.();
+    } catch (error) {
+        // A cache that cannot be cleared is worth knowing about, but not worth
+        // refusing to lock over: the lock itself has already happened.
+        console.warn('Could not clear the on-device cache on lock', error);
+    }
+};
+
+/** Whether the vault is currently open. */
+export const isVaultOpen = (): boolean => isUnlocked();
+
+/** The master key handle, for services that seal and open rows. */
+export const vaultKey = (): CryptoKey | null => getMasterKey();
+
+export interface EnableVaultResult {
+    ok: boolean;
+    error?: string;
+    /** Shown once, and never again. This is the only time it exists. */
+    recoveryPhrase?: string;
+}
+
+/**
+ * Turn the vault on: generate the master key and a recovery phrase, and write
+ * both wraps to `user_settings`.
+ *
+ * The caller is responsible for then sealing existing rows with the key that is
+ * now in memory -- this only arms the vault. That split is deliberate: arming is
+ * one write that either lands or does not, whereas sealing is a long walk over
+ * every row the user has ever written, and those must not be one operation.
+ */
+export const enableVault = async (pin: string): Promise<EnableVaultResult> => {
+    try {
+        const recoveryPhrase = await generateRecoveryPhrase();
+        const { provisioning } = await provisionVault(pin, recoveryPhrase);
+        await writeProvisioning(provisioning);
+        emit({ state: 'unlocked', error: null });
+        return { ok: true, recoveryPhrase };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : 'Could not turn on encryption.' };
+    }
+};
+
+/** Change the PIN. Re-wraps 32 bytes; no stored data is rewritten. */
+export const changePin = async (currentPin: string, nextPin: string): Promise<{ ok: boolean; error?: string }> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) return { ok: false, error: 'Encryption is not on.' };
+    const opened = await unlockWithPin(toVaultSettings(settings), currentPin);
+    if (!opened) return { ok: false, error: 'That PIN is not right.' };
+    try {
+        const wrapped = await rewrapMasterForPin(nextPin);
+        await updateUserSettings({ ...settings, ...wrapped, vault_pin_changed_at: new Date().toISOString() });
+        return { ok: true };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : 'Could not change the PIN.' };
+    }
+};
+
+/** Turn the vault off. Requires the key in memory, and warns about the payload. */
+export const disableVault = async (): Promise<{ ok: boolean; error?: string }> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) return { ok: true };
+    if (!isUnlocked()) return { ok: false, error: 'Unlock the app first.' };
+    try {
+        await updateUserSettings({
+            ...settings,
+            vault_enabled: false,
+            vault_pin_wrapped: null,
+            vault_pin_salt: null,
+            vault_recovery_wrapped: null,
+            vault_recovery_salt: null,
+        } as unknown as UserSettings);
+        lockKeyring();
+        emit({ state: 'disabled', error: null });
+        return { ok: true };
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : 'Could not turn encryption off.' };
+    }
+};
+
+const writeProvisioning = async (provisioning: VaultProvisioning): Promise<void> => {
+    const settings = await fetchUserSettings();
+    if (!settings) throw new Error('No settings row to enable encryption on.');
+    await updateUserSettings({ ...settings, ...provisioning } as unknown as UserSettings);
+};
+
+/**
+ * Lock after a period of inactivity, and on backgrounding.
+ *
+ * Mounted once by `AppLockGate`. Deliberately counts activity rather than only
+ * checking whether the document is visible: a user reading a long journal entry
+ * is present but not moving a mouse, and locking them out mid-sentence is worse
+ * than leaving a phone unlocked on a table for five minutes.
+ */
+export const useAutoLock = (enabled: boolean): void => {
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const reset = useCallback(() => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+            if (getLockState() === 'unlocked') lock();
+        }, idleLockMs);
+    }, []);
+
+    useEffect(() => {
+        if (!enabled) return;
+
+        reset();
+        const events = ['pointerdown', 'keydown', 'visibilitychange', 'focus'] as const;
+        for (const event of events) window.addEventListener(event, reset, { passive: true });
+
+        // Backgrounding is its own rule, independent of the idle timer: a phone
+        // pocketed for ten seconds is not the same as a phone left on a desk.
+        const onHide = () => {
+            if (document.visibilityState === 'hidden' && lockOnBackground && getLockState() === 'unlocked') {
+                lock();
+            }
+        };
+        document.addEventListener('visibilitychange', onHide);
+
+        return () => {
+            for (const event of events) window.removeEventListener(event, reset);
+            document.removeEventListener('visibilitychange', onHide);
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, [enabled, reset]);
+};
+
+/** Local convenience for components that want a plain boolean. */
+export const useIsUnlocked = (): boolean => useAppLock().state === 'unlocked';
+

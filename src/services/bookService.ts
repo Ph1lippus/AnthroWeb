@@ -1,4 +1,5 @@
 import { supabase, getCurrentUserId } from './supabaseClient';
+import { todayString } from '../utils/dates';
 
 // Book types
 export interface Book {
@@ -9,9 +10,15 @@ export interface Book {
     current_page: number;
     progress: number;
     status: 'planned' | 'reading' | 'completed' | 'dropped';
-    notes?: string;
-    started_at?: string;
-    completed_at?: string;
+    notes?: string | null;
+    started_at?: string | null;
+    /**
+     * Nullable, and deliberately distinct from "absent". `undefined` is dropped
+     * by `JSON.stringify` before the request is built, so it means "don't touch
+     * this column"; `null` means "clear it". A date column has to be clearable
+     * -- a book that reached 100% and is being read again is not still finished.
+     */
+    completed_at?: string | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -239,7 +246,18 @@ export const updateBookProgress = async (id: string, currentPage: number, totalP
         current_page: currentPage,
         progress,
         status,
-        completed_at: status === 'completed' ? new Date().toISOString().split('T')[0] : undefined,
+        /**
+         * `null`, not `undefined`.
+         *
+         * `undefined` is dropped by `JSON.stringify` on the way to PostgREST, so
+         * the key never reached the database at all and the column kept whatever
+         * it had. A book that once hit 100% therefore kept its completion date
+         * forever, even after being dragged back to page 12 -- and this is a
+         * date column, which makes `toISOString()` the wrong call twice over:
+         * it is UTC, so it is tomorrow for anyone whose evening is after 20:00
+         * west of UTC. `todayString()` is the local calendar date.
+         */
+        completed_at: status === 'completed' ? todayString() : null,
     });
 };
 
