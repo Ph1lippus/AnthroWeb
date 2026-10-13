@@ -42,7 +42,12 @@
 
     <!-- The timer's vibration pattern. `navigator.vibrate` in an Android WebView
          silently does nothing without this, and it is a normal permission that is
-         granted at install with no prompt -- so the alternative is a switch in the
-         app that appears to work and does not. -->
+         granted at install with no prompt, so the alternative is a switch in the
+         app that appears to work and does not.
+
+         Dashes in this comment are spelled out in words rather than typed as a
+         repeated hyphen character, because XML forbids that sequence inside a
+         comment. A merger that cannot parse this file fails the whole release
+         build, which is how this reached CI. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

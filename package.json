@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "verify:schema": "node scripts/verify-schema.mjs",
+    "verify:android-xml": "node scripts/verify-android-xml.mjs",
     "verify:migrations": "node scripts/verify-migrations.mjs",
     "verify:grid": "node scripts/verify-grid.mjs",
     "verify:editor-dom": "node scripts/verify-editor-dom.mjs",
@@ -35,7 +36,7 @@
     "verify:note-lock": "node --experimental-strip-types --no-warnings scripts/verify-note-lock.mjs",
     "verify:note-lock-e2e": "node --experimental-strip-types --no-warnings scripts/verify-note-lock-e2e.mjs",
     "verify:journal-dateswitch": "node scripts/verify-journal-dateswitch.mjs",
-    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav && npm run verify:mood-split && npm run verify:mood-math && npm run verify:cheat-days && npm run verify:topic-graph && npm run verify:timer && npm run verify:journal-dateswitch && npm run verify:vault-crypto && npm run verify:vault-rows && npm run verify:note-lock && npm run verify:note-lock-e2e",
+    "verify": "npm run lint && npm run build && npm run verify:schema && npm run verify:android-xml && npm run verify:migrations && npm run verify:grid && npm run verify:editor-dom && npm run verify:focus-mode && npm run verify:markdown && npm run verify:notes-tree && npm run verify:alerts && npm run verify:body-series && npm run verify:toggle-keys && npm run verify:tab-indent && npm run verify:block-actions && npm run verify:block-menu-placement && npm run verify:sidebar-menu && npm run verify:notes-appearance && npm run verify:popover-dismissal && npm run verify:habit-rename && npm run verify:daily-log-daynav && npm run verify:mood-split && npm run verify:mood-math && npm run verify:cheat-days && npm run verify:topic-graph && npm run verify:timer && npm run verify:journal-dateswitch && npm run verify:vault-crypto && npm run verify:vault-rows && npm run verify:note-lock && npm run verify:note-lock-e2e",
     "preview": "vite preview"
   },
   "dependencies": {
