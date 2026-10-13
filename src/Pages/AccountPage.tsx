@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
+import SettingsShell from '../Components/Settings/SettingsShell';
 import ConfirmModal from '../Components/ConfirmModal';
 import { getCurrentUser, signOutUser } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
@@ -54,7 +55,7 @@ const AccountPage: React.FC = () => {
     return (
         <>
             <Title title="Account" />
-            <div className="page-main-with-secondary">
+            <SettingsShell>
                 <div className="settings-container">
                     <div className="settings-header">
                         <h1 className="settings-title">
@@ -81,7 +82,7 @@ const AccountPage: React.FC = () => {
 
                     {error && <p className="settings-update-error">{error}</p>}
                 </div>
-            </div>
+            </SettingsShell>
 
             <ConfirmModal
                 open={confirmOpen}

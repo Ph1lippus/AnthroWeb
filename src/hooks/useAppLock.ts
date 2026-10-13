@@ -284,15 +284,38 @@ export const enableVault = async (pin: string): Promise<EnableVaultResult> => {
     }
 };
 
-/** Change the PIN. Re-wraps 32 bytes; no stored data is rewritten. */
-export const changePin = async (currentPin: string, nextPin: string): Promise<{ ok: boolean; error?: string }> => {
+/**
+ * Change the PIN. Re-wraps 32 bytes; no stored data is rewritten.
+ *
+ * No current-PIN prompt, and that is deliberate rather than a shortcut. Reaching
+ * this screen already means the app is unlocked -- `AppLockGate` sits in front of
+ * every route -- so the master key is in memory and there is nothing the old PIN
+ * would be proving. Someone standing at an unlocked device has already read
+ * every sealed row on it; asking them for a PIN they may not know protects
+ * nothing and costs the owner a field they did not ask for.
+ *
+ * What still gates it is the lock itself: `rewrapMasterForPin` reads the master
+ * key held in memory, so with the app locked this returns an error rather than
+ * re-wrapping anything, and the write below is the only thing that persists.
+ */
+export const changePin = async (nextPin: string): Promise<{ ok: boolean; error?: string }> => {
     const settings = await fetchUserSettings();
     if (!settings?.vault_enabled) return { ok: false, error: 'Encryption is not on.' };
-    const opened = await unlockWithPin(toVaultSettings(settings), currentPin);
-    if (!opened) return { ok: false, error: 'That PIN is not right.' };
+    if (!getMasterKey()) {
+        return { ok: false, error: 'Unlock the app first, then change the PIN.' };
+    }
     try {
         const wrapped = await rewrapMasterForPin(nextPin);
-        await updateUserSettings({ ...settings, ...wrapped, vault_pin_changed_at: new Date().toISOString() });
+        await updateUserSettings({
+            ...settings,
+            ...wrapped,
+            vault_pin_changed_at: new Date().toISOString(),
+            // A PIN change is a successful act, so it clears any standing
+            // throttle from earlier wrong guesses -- otherwise the owner could
+            // correctly change their PIN and still find the new one refused.
+            vault_failed_attempts: 0,
+            vault_retry_after: null,
+        } as unknown as UserSettings);
         return { ok: true };
     } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : 'Could not change the PIN.' };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Title from '../Components/Title';
+import SettingsShell from '../Components/Settings/SettingsShell';
 import { Package, RotateCw, Download, Info, ChevronRight } from 'lucide-react';
 import { checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp } from '../services/updateService';
 import type { UpdateInfo } from '../services/updateService';
@@ -94,7 +95,7 @@ const AppPage: React.FC = () => {
     return (
         <>
             <Title title="App" />
-            <div className="page-main-with-secondary">
+            <SettingsShell>
                 <div className="settings-container">
                     <div className="settings-header">
                         <h1 className="settings-title">
@@ -148,7 +149,7 @@ const AppPage: React.FC = () => {
                         <p className="settings-version">AnthroWeb {versionLabel}</p>
                     </div>
                 </div>
-            </div>
+            </SettingsShell>
         </>
     );
 };

@@ -30,7 +30,6 @@ const SecuritySettings: React.FC = () => {
     const [stage, setStage] = useState<Stage>('off');
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
-    const [currentPin, setCurrentPin] = useState('');
     const [phrase, setPhrase] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -84,7 +83,7 @@ const SecuritySettings: React.FC = () => {
     };
 
     const reset = () => {
-        setPin(''); setConfirmPin(''); setCurrentPin('');
+        setPin(''); setConfirmPin('');
         setError(null); setPhrase(''); setProgress(null); setCopied(false);
     };
 
@@ -129,7 +128,7 @@ const SecuritySettings: React.FC = () => {
         setBusy(true);
         setError(null);
         try {
-            const result = await changePin(currentPin, pin);
+            const result = await changePin(pin);
             if (!result.ok) { setError(result.error ?? 'Could not change the PIN.'); return; }
             setStage('on');
             reset();
@@ -300,16 +299,6 @@ const SecuritySettings: React.FC = () => {
 
                 {stage === 'changing' && (
                     <div className="vault-setup">
-                        <label className="form-label" htmlFor="vault-current-pin">Current PIN</label>
-                        <input
-                            id="vault-current-pin"
-                            type="password"
-                            className="form-control"
-                            value={currentPin}
-                            onChange={e => setCurrentPin(e.target.value)}
-                            autoComplete="current-password"
-                            inputMode="numeric"
-                        />
                         <label className="form-label" htmlFor="vault-newer-pin">New PIN</label>
                         <input
                             id="vault-newer-pin"
@@ -320,15 +309,29 @@ const SecuritySettings: React.FC = () => {
                             autoComplete="new-password"
                             inputMode="numeric"
                         />
+                        <label className="form-label" htmlFor="vault-confirm-newer-pin">Type it again</label>
+                        <input
+                            id="vault-confirm-newer-pin"
+                            type="password"
+                            className="form-control"
+                            value={confirmPin}
+                            onChange={e => setConfirmPin(e.target.value)}
+                            autoComplete="new-password"
+                            inputMode="numeric"
+                        />
+                        {confirmPin && pin !== confirmPin && (
+                            <p className="t-error-msg" role="alert">Those do not match.</p>
+                        )}
                         <p className="vault-lock-hint">
                             Changing the PIN re-wraps the key. Your data is not re-encrypted,
-                            so this is instant and nothing can be lost.
+                            so this is instant and nothing can be lost. If you have forgotten
+                            the current PIN, use your recovery words on the lock screen.
                         </p>
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
                                 className="btn btn-primary"
-                                disabled={busy || !currentPin || pin.length < MIN_PIN_LENGTH}
+                                disabled={busy || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
                                 onClick={() => void runChangePin()}
                             >
                                 {busy ? 'Changing...' : 'Change PIN'}
