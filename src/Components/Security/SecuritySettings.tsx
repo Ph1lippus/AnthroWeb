@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { ShieldAlert, Copy, Check, TriangleAlert } from 'lucide-react';
+import { ShieldAlert, Copy, Check, TriangleAlert, Eye, EyeOff } from 'lucide-react';
 import { enableVault, changePin, disableVault, lock } from '../../hooks/useAppLock';
 import { MIN_PIN_LENGTH } from '../../services/vault/keyring';
 import { sealAllExistingRows } from '../../services/vault/seal';
+import { buildAccountRecovery, clearAccountRecovery, hasAccountRecovery } from '../../services/vault/accountRecovery';
+import { fetchUserSettings, updateUserSettings } from '../../services/profileService';
 import type { SealProgress } from '../../services/vault/seal';
 
 /**
@@ -34,6 +36,52 @@ const SecuritySettings: React.FC = () => {
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(false);
     const [progress, setProgress] = useState<SealProgress | null>(null);
+
+    // Page recovery is deliberately its own section rather than part of the
+    // encryption wizard: it is what makes a forgotten page PIN recoverable, and
+    // it has to be available whether or not the app vault is ever turned on.
+    const [accountPassword, setAccountPassword] = useState('');
+    const [showAccountPassword, setShowAccountPassword] = useState(false);
+    const [recoveryOn, setRecoveryOn] = useState<boolean | null>(null);
+    const [accountError, setAccountError] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        void fetchUserSettings().then(settings => {
+            setRecoveryOn(hasAccountRecovery(settings));
+        }).catch(() => setRecoveryOn(false));
+    }, [stage]);
+
+    const runEnableRecovery = async () => {
+        setBusy(true);
+        setAccountError(null);
+        try {
+            const columns = await buildAccountRecovery(accountPassword);
+            const settings = await fetchUserSettings();
+            if (!settings) throw new Error('No settings row.');
+            await updateUserSettings({ ...settings, ...columns });
+            setRecoveryOn(true);
+            setAccountPassword('');
+        } catch (err) {
+            setAccountError(err instanceof Error ? err.message : 'Could not turn on recovery.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const runDisableRecovery = async () => {
+        setBusy(true);
+        setAccountError(null);
+        try {
+            const settings = await fetchUserSettings();
+            if (!settings) throw new Error('No settings row.');
+            await updateUserSettings({ ...settings, ...clearAccountRecovery() });
+            setRecoveryOn(false);
+        } catch (err) {
+            setAccountError(err instanceof Error ? err.message : 'Could not turn off recovery.');
+        } finally {
+            setBusy(false);
+        }
+    };
 
     const reset = () => {
         setPin(''); setConfirmPin(''); setCurrentPin('');
@@ -125,18 +173,18 @@ const SecuritySettings: React.FC = () => {
                 </p>
 
                 {stage === 'off' && (
-                    <button type="button" className="btn-action vault-lock-primary" onClick={() => { reset(); setStage('choosing'); }}>
+                    <button type="button" className="btn btn-primary" onClick={() => { reset(); setStage('choosing'); }}>
                         Turn on encryption
                     </button>
                 )}
 
                 {stage === 'choosing' && (
                     <div className="vault-setup">
-                        <label className="vault-lock-label" htmlFor="vault-new-pin">Choose a PIN</label>
+                        <label className="form-label" htmlFor="vault-new-pin">Choose a PIN</label>
                         <input
                             id="vault-new-pin"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={pin}
                             onChange={e => setPin(e.target.value)}
                             autoComplete="new-password"
@@ -149,30 +197,30 @@ const SecuritySettings: React.FC = () => {
                             a copy of your database.
                         </p>
 
-                        <label className="vault-lock-label" htmlFor="vault-confirm-pin">Type it again</label>
+                        <label className="form-label" htmlFor="vault-confirm-pin">Type it again</label>
                         <input
                             id="vault-confirm-pin"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={confirmPin}
                             onChange={e => setConfirmPin(e.target.value)}
                             autoComplete="new-password"
                             inputMode="numeric"
                         />
                         {confirmPin && pin !== confirmPin && (
-                            <p className="vault-lock-error" role="alert">Those do not match.</p>
+                            <p className="t-error-msg" role="alert">Those do not match.</p>
                         )}
 
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn-action vault-lock-primary"
+                                className="btn btn-primary"
                                 disabled={busy || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
                                 onClick={() => void runEnable()}
                             >
                                 {busy ? 'Setting up...' : 'Continue'}
                             </button>
-                            <button type="button" className="btn-action vault-lock-link" onClick={() => { reset(); setStage('off'); }}>
+                            <button type="button" className="btn btn-link" onClick={() => { reset(); setStage('off'); }}>
                                 Cancel
                             </button>
                         </div>
@@ -203,7 +251,7 @@ const SecuritySettings: React.FC = () => {
                                 {copied ? <Check size={15} /> : <Copy size={15} />}
                                 {copied ? 'Copied' : 'Copy'}
                             </button>
-                            <button type="button" className="btn-action vault-lock-primary" onClick={() => void runSeal()}>
+                            <button type="button" className="btn btn-primary" onClick={() => void runSeal()}>
                                 I have written them down
                             </button>
                         </div>
@@ -252,21 +300,21 @@ const SecuritySettings: React.FC = () => {
 
                 {stage === 'changing' && (
                     <div className="vault-setup">
-                        <label className="vault-lock-label" htmlFor="vault-current-pin">Current PIN</label>
+                        <label className="form-label" htmlFor="vault-current-pin">Current PIN</label>
                         <input
                             id="vault-current-pin"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={currentPin}
                             onChange={e => setCurrentPin(e.target.value)}
                             autoComplete="current-password"
                             inputMode="numeric"
                         />
-                        <label className="vault-lock-label" htmlFor="vault-newer-pin">New PIN</label>
+                        <label className="form-label" htmlFor="vault-newer-pin">New PIN</label>
                         <input
                             id="vault-newer-pin"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={pin}
                             onChange={e => setPin(e.target.value)}
                             autoComplete="new-password"
@@ -279,20 +327,98 @@ const SecuritySettings: React.FC = () => {
                         <div className="vault-setup-actions">
                             <button
                                 type="button"
-                                className="btn-action vault-lock-primary"
+                                className="btn btn-primary"
                                 disabled={busy || !currentPin || pin.length < MIN_PIN_LENGTH}
                                 onClick={() => void runChangePin()}
                             >
                                 {busy ? 'Changing...' : 'Change PIN'}
                             </button>
-                            <button type="button" className="btn-action vault-lock-link" onClick={() => { reset(); setStage('on'); }}>
+                            <button type="button" className="btn btn-link" onClick={() => { reset(); setStage('on'); }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {error && <p className="vault-lock-error" role="alert">{error}</p>}
+                {error && <p className="t-error-msg" role="alert">{error}</p>}
+            </section>
+
+            <section className="vault-settings-section">
+                <h2 className="vault-settings-heading">Page recovery</h2>
+                <p className="vault-settings-blurb">
+                    Lets you reset a page PIN you have forgotten, by confirming your account
+                    password. Independent of the app lock -- you can set this up whether or
+                    not encryption is on.
+                </p>
+
+                {!recoveryOn && (
+                    <div className="vault-setup">
+                        <p className="vault-lock-hint">
+                            You will be asked for your account password now. It is checked by
+                            the sign-in server and never stored here -- what gets saved is a
+                            value that proves a correct password without revealing it.
+                        </p>
+                        <label className="form-label" htmlFor="vault-account-password">
+                            Account password
+                        </label>
+                        <div className="t-input-wrap">
+                            <div className="t-input">
+                                <input
+                                    id="vault-account-password"
+                                    className="form-control"
+                                    type={showAccountPassword ? 'text' : 'password'}
+                                    value={accountPassword}
+                                    onChange={e => setAccountPassword(e.target.value)}
+                                    autoComplete="current-password"
+                                />
+                                <button
+                                    type="button"
+                                    className="password-toggle"
+                                    aria-label={showAccountPassword ? 'Hide password' : 'Show password'}
+                                    onClick={() => setShowAccountPassword(v => !v)}
+                                >
+                                    {showAccountPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                        </div>
+                        {accountError && <p className="t-error-msg" role="alert">{accountError}</p>}
+
+                        <div className="vault-setup-actions">
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                disabled={busy || !accountPassword}
+                                onClick={() => void runEnableRecovery()}
+                            >
+                                {busy ? 'Checking...' : 'Turn on recovery'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {recoveryOn && (
+                    <div className="vault-setup">
+                        <p className="vault-lock-confirm">
+                            <ShieldAlert size={16} aria-hidden="true" />
+                            Recovery is on. A forgotten page PIN can be replaced with your
+                            account password.
+                        </p>
+                        <div className="vault-setup-actions">
+                            <button
+                                type="button"
+                                className="btn btn-outline-danger"
+                                disabled={busy}
+                                onClick={() => void runDisableRecovery()}
+                            >
+                                Turn off recovery
+                            </button>
+                        </div>
+                        <p className="vault-lock-hint">
+                            Turning this off does not lock any page. It only means a page PIN
+                            you forget afterwards cannot be reset this way.
+                        </p>
+                    </div>
+                )}
             </section>
         </div>
     );

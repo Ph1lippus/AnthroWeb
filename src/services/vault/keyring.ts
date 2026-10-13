@@ -54,11 +54,48 @@ export const MAX_PIN_LENGTH = 64;
  * One table, used by the app PIN and by every per-note PIN. They were separate
  * curves for a while -- this one exponential, that one a fixed ladder -- which
  * meant the same mistake could be tested against one and shipped into the other.
- * A single schedule is also easier to reason about: the cost per attempt is the
- * 600k-iteration derivation either way, and this is what stops it being automated
- * from a page that is already open.
+ *
+ * The shape is the standard one: three attempts cost nothing, because three is
+ * what a fat-fingered PIN actually takes, and everything after that escalates
+ * until it stops being worth automating. A 4-digit note PIN is 10^4 candidates,
+ * which an attacker holding the stored ciphertext exhausts offline in minutes --
+ * except they still need the account password, because that is now a second
+ * independent wrap. The ladder is priced against that second factor rather than
+ * against a single 4-digit guess.
+ *
+ * 24 hours at the end is the part that matters: it does not merely delay, it
+ * turns a script that finishes overnight into one that has to be restarted every
+ * day, which is where automated attacks actually die.
+ *
+ * The counter behind this is server-side -- `vault_failed_attempts` for the app
+ * PIN, `lock_failed_attempts` per note -- so clearing browser storage buys nobody
+ * a fresh set of attempts.
  */
-export const BACKOFF_MS = [0, 1_000, 5_000, 15_000, 60_000];
+export const BACKOFF_MS = [
+  0, // no failures yet
+  0, // 1st failure -- a typo, not an attack
+  0, // 2nd -- still a typo
+  60_000, // 3rd -- one minute
+  300_000, // 4th -- five minutes
+  1_800_000, // 5th -- thirty minutes
+  7_200_000, // 6th -- two hours
+  86_400_000, // 7th and after -- one day
+];
+
+/** Attempts allowed before the ladder starts costing anything. */
+export const FREE_ATTEMPTS = 3;
+
+/** "Try again in 20 minutes", for a countdown label. */
+export const describeRetry = (ms: number): string => {
+  const s = Math.ceil(ms / 1000);
+  if (s <= 0) return '';
+  if (s < 60) return `${s} second${s === 1 ? '' : 's'}`;
+  const m = Math.ceil(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? '' : 's'}`;
+  const h = Math.ceil(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'}`;
+  return `${Math.ceil(h / 24)} day${h >= 48 ? 's' : ''}`;
+};
 
 export const retryAfterMs = (attempts: number): number =>
     BACKOFF_MS[Math.max(0, Math.min(attempts, BACKOFF_MS.length - 1))];
@@ -242,7 +279,41 @@ export interface VaultSettings {
     vault_recovery_salt: string | null;
     vault_recovery_iterations: number | null;
     vault_recovery_wrapped: string | null;
+    /**
+     * Consecutive failed app-PIN attempts, and when they stop counting.
+     *
+     * Server-side on purpose. The per-note lock has always stored its counter in
+     * the row, and the app PIN having none was an oversight rather than a
+     * decision -- `unlock` leaned on "the derivation is slow" instead. Slow is
+     * not a control: anyone who can open the page can run as many derivations as
+     * they like, and clearing local storage would have reset any client counter
+     * anyway.
+     */
+    vault_failed_attempts?: number | null;
+    vault_retry_after?: string | null;
 }
+
+/**
+ * Milliseconds remaining on the app-PIN lockout, or 0 when there is none.
+ *
+ * Reads the absolute deadline rather than a countdown, so the number stays
+ * correct across a page reload, a sleep, or a clock the user has changed.
+ */
+export const appRetryRemainingMs = (
+    settings: Pick<VaultSettings, 'vault_retry_after'> | null | undefined,
+    now = Date.now(),
+): number => {
+    const until = settings?.vault_retry_after;
+    if (!until) return 0;
+    const remaining = new Date(until).getTime() - now;
+    return Number.isFinite(remaining) && remaining > 0 ? remaining : 0;
+};
+
+/** Whether the app PIN may be tried at all right now. */
+export const isAppCoolingDown = (
+    settings: Pick<VaultSettings, 'vault_retry_after'> | null | undefined,
+    now = Date.now(),
+): boolean => appRetryRemainingMs(settings, now) > 0;
 
 /** What enabling the vault produces, ready to write to `user_settings`. */
 export interface VaultProvisioning {

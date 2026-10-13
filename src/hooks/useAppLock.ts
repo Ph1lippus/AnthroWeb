@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { fetchUserSettings, updateUserSettings } from '../services/profileService';
+import { forgetAccountKey } from '../services/noteService';
 import type { UserSettings } from '../services/profileService';
 import {
+    appRetryRemainingMs,
+    describeRetry,
     generateRecoveryPhrase,
     getMasterKey,
     isUnlocked,
     lockKeyring,
     provisionVault,
     rewrapMasterForPin,
+    retryAfterMs,
     unlockWithPin,
     unlockWithRecoveryPhrase,
     validateRecoveryPhrase,
@@ -131,9 +135,16 @@ export const initialiseAppLock = async (): Promise<LockState> => {
  *
  * The false case covers "wrong PIN" and "the vault is broken" equally, on
  * purpose: telling a user which one it was is information about a stored key
- * that does not need to be handed out. Rate limiting lives on the attempts
- * counter in the note lock; for the app PIN the cost per attempt is the full
- * 600k-iteration derivation, which is the throttle.
+ * that does not need to be handed out.
+ *
+ * Failed attempts are counted server-side in `vault_failed_attempts` and
+ * refused outright while `vault_retry_after` is in the future. That is a real
+ * control rather than a speed bump: the counter lives in the row, so reloading
+ * the page, clearing storage, or opening a private window all start from the
+ * same number, and the ladder eventually reaches a full day.
+ *
+ * A success clears the counter. Otherwise a user who fat-fingers their PIN three
+ * times on Monday and remembers it on Tuesday would still be served a lockout.
  */
 export const unlock = async (pin: string): Promise<boolean> => {
     const settings = await fetchUserSettings();
@@ -141,9 +152,40 @@ export const unlock = async (pin: string): Promise<boolean> => {
         emit({ state: 'disabled', error: null });
         return true;
     }
+
+    const locked = appRetryRemainingMs(settings as unknown as VaultSettings);
+    if (locked > 0) {
+        emit({ state: 'locked', error: `Too many attempts. Try again in ${describeRetry(locked)}.` });
+        return false;
+    }
+
     const ok = await unlockWithPin(toVaultSettings(settings), pin);
-    if (ok) emit({ state: 'unlocked', error: null });
-    return ok;
+    if (ok) {
+        if ((settings.vault_failed_attempts ?? 0) > 0) {
+            await updateUserSettings({
+                ...settings,
+                vault_failed_attempts: 0,
+                vault_retry_after: null,
+            } as unknown as UserSettings);
+        }
+        emit({ state: 'unlocked', error: null });
+        return true;
+    }
+
+    const attempts = (settings.vault_failed_attempts ?? 0) + 1;
+    const wait = retryAfterMs(attempts);
+    await updateUserSettings({
+        ...settings,
+        vault_failed_attempts: attempts,
+        // An absolute deadline rather than a duration, so the value stays
+        // meaningful when read back on a device whose clock has since moved.
+        vault_retry_after: wait > 0 ? new Date(Date.now() + wait).toISOString() : null,
+    } as unknown as UserSettings);
+
+    if (wait > 0) {
+        emit({ state: 'locked', error: `Wrong PIN. Try again in ${describeRetry(wait)}.` });
+    }
+    return false;
 };
 
 /** Try a recovery phrase. The way back in when the PIN is gone. */
@@ -165,6 +207,12 @@ export const unlockWithRecovery = async (phrase: string): Promise<boolean> => {
 /** Lock now. Drops the key and closes the cache so nothing private is on disk. */
 export const lock = (): void => {
     lockKeyring();
+    // The account wrap key is derived from the account password and has no
+    // on-disk form to wipe, so the only way to drop it is to drop the reference.
+    // Locking the app is exactly the moment that reference should go: it is what
+    // stands between "someone walked away from an unlocked session" and a key
+    // that unlocks locked pages without a PIN.
+    forgetAccountKey();
     // Clear before the state flips, while the query client is still reachable.
     // Order matters: the persister's `shouldDehydrateQuery` asks this module
     // whether the vault is open, so clearing after `lockKeyring` but before the

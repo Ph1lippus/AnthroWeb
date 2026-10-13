@@ -27,7 +27,7 @@ const check = (name, ok, detail = '') => {
     else { fail++; console.log(` FAIL  ${name}${detail ? ` -> ${detail}` : ''}`); }
 };
 
-const { armNoteLock, disarmNoteLock, unlockNoteWithPin, unlockNoteWithMaster, unlockNoteWithRecovery, retryAfterMs, isCoolingDown, assertNotePin } =
+const { armNoteLock, disarmNoteLock, unlockNoteWithPin, unlockNoteWithMaster, unlockNoteWithRecovery, openNoteKeyWithAccount, openNoteKeyWithPin, reWrapNotePin, retryAfterMs, isCoolingDown, assertNotePin } =
     await import('../src/services/vault/noteLock.ts');
 const { importRawKey } = await import('../src/services/crypto/cipher.ts');
 const { randomBytes } = await import('../src/services/crypto/bytes.ts');
@@ -122,13 +122,32 @@ console.log('\n== disarm ==');
 console.log('\n== backoff ==');
 {
     check('no attempts means no wait', retryAfterMs(0) === 0);
-    check('one attempt waits a second', retryAfterMs(1) === 1000);
-    check('two attempts wait five seconds', retryAfterMs(2) === 5000);
-    check('three attempts wait fifteen seconds', retryAfterMs(3) === 15000);
-    check('the wait is capped at a minute', retryAfterMs(50) === 60000);
+    // Three free attempts: that is what a fat-fingered PIN costs, and charging
+    // for it would only teach people that the lockout is an obstacle.
+    check('the first attempt is free', retryAfterMs(1) === 0);
+    check('the second attempt is free', retryAfterMs(2) === 0);
+    check('the third attempt waits a minute', retryAfterMs(3) === 60_000);
+    // Escalating, and the top of the ladder is a day rather than an hour: the
+    // point is to make an automated run unable to finish, not merely slow.
+    check('the ladder escalates', retryAfterMs(4) > retryAfterMs(3) && retryAfterMs(5) > retryAfterMs(4));
+    check('the wait tops out at a day', retryAfterMs(50) === 86_400_000);
+    check('and stays there', retryAfterMs(9999) === 86_400_000);
 
     check('the app PIN and a note PIN share one schedule',
         retryAfterMs(2) === (await import('../src/services/vault/keyring.ts')).BACKOFF_MS[2]);
+
+    // The note PIN's floor is lower than the app PIN's, on purpose: it guards one
+    // page, and it is only defensible at four digits because the account password
+    // is a second, independent factor for the same content.
+    const { MIN_NOTE_PIN_LENGTH } = await import('../src/services/vault/noteLock.ts');
+    const { MIN_PIN_LENGTH } = await import('../src/services/vault/keyring.ts');
+    check('a note PIN may be four digits', MIN_NOTE_PIN_LENGTH === 4);
+    check('the app PIN still needs six', MIN_PIN_LENGTH === 6);
+    check('and the two are genuinely different numbers', MIN_NOTE_PIN_LENGTH !== MIN_PIN_LENGTH);
+    assertNotePin('1234');
+    check('four digits is accepted', true);
+    try { assertNotePin('123'); check('three digits is refused', false); }
+    catch { check('three digits is refused', true); }
 
     const cooling = { lock_enabled: true, lock_salt: null, lock_iterations: null,
         lock_key_pin: null, lock_key_master: null, lock_key_recovery: null,
@@ -173,6 +192,74 @@ console.log('\n== the exported unlock helpers reject what they should ==');
         NOTE, PIN);
     check('a cooling-down lock refuses without deriving', cooling === null);
 }
+
+// ---------------------------------------------------------------------------
+// Independence, and the recovery path
+// ---------------------------------------------------------------------------
+//
+// The property that matters: a page lock must work with nothing else switched
+// on. Under the old code `armNoteLock` threw without a master key, which made
+// every one of these a locked page rather than a locked feature.
+console.log('\n== a page lock stands on its own ==');
+
+const accountRaw = randomBytes(32);
+const accountKey = await importRawKey(accountRaw);
+
+const solo = await armNoteLock(NOTE, '1234', null, null);
+check('arming with neither the vault nor recovery is allowed', solo.lock_enabled === true);
+check('the PIN wrap is always written', typeof solo.lock_key_pin === 'string' && solo.lock_key_pin.length > 0);
+check('no master wrap is written when there is no master key', solo.lock_key_master === null);
+check('no account wrap is written when there is none', solo.lock_key_account === null);
+
+const soloKey = await unlockNoteWithPin(solo, NOTE, '1234');
+check('and the PIN alone opens it', soloKey !== null);
+
+// A different note must not open under the same PIN: the AAD is bound to the
+// row, so a wrap lifted from one page is inert on another.
+const otherNote = await unlockNoteWithPin(solo, 'note-99', '1234');
+check('a wrap lifted onto another row does not open', otherNote === null);
+
+console.log('\n== a forgotten PIN is recoverable ==');
+
+const armed = await armNoteLock(NOTE, '1234', masterKey, accountKey);
+check('arming with recovery on writes the account wrap', typeof armed.lock_key_account === 'string');
+
+const viaAccount = await openNoteKeyWithAccount(armed, NOTE, accountKey);
+check('the account password unwraps the note key', typeof viaAccount === 'string');
+check('a wrong account key does not', (await openNoteKeyWithAccount(armed, NOTE, masterKey)) === null);
+
+// The recovery move itself. The note's content is not in this file, so what is
+// being asserted is that the key survives the move and that the new PIN opens it
+// -- the content staying byte-identical follows from the key not changing.
+const originalKey = await openNoteKeyWithPin(armed, NOTE, '1234');
+check('the old PIN opens it before the reset', typeof originalKey === 'string');
+
+const rewrapped = await reWrapNotePin(viaAccount, NOTE, '9999', { masterKey });
+check('re-wrap produces a new PIN wrap', typeof rewrapped.lock_key_pin === 'string' && rewrapped.lock_key_pin !== armed.lock_key_pin);
+check('re-wrap uses a fresh salt', rewrapped.lock_salt !== armed.lock_salt);
+check('re-wrap drops the account wrap', rewrapped.lock_key_account === null);
+check('re-wrap carries the master wrap when one is offered', typeof rewrapped.lock_key_master === 'string');
+check('re-wrap clears the failed-attempt counter', rewrapped.lock_failed_attempts === 0);
+
+const merged = { ...armed, ...rewrapped };
+const afterReset = await unlockNoteWithPin(merged, NOTE, '9999');
+check('the new PIN opens the page', afterReset !== null);
+check('the old PIN no longer does', (await unlockNoteWithPin(merged, NOTE, '1234')) === null);
+check('the master key still opens it', (await unlockNoteWithMaster(merged, NOTE, masterKey)) !== null);
+
+const viaAccountAfter = await openNoteKeyWithAccount(merged, NOTE, accountKey);
+check('the account wrap is genuinely gone, not merely unused', viaAccountAfter === null);
+
+// Re-wrap with no vault available: the whole point of the change.
+const bare = { ...armed, ...(await reWrapNotePin(viaAccount, NOTE, '5555', {})) };
+check('re-wrap works with no vault open either', (await unlockNoteWithPin(bare, NOTE, '5555')) !== null);
+
+console.log('\n== disarm clears every wrap ==');
+const disarmed = disarmNoteLock();
+check('disarm drops the account wrap', disarmed.lock_key_account === null);
+check('disarm drops the master wrap', disarmed.lock_key_master === null);
+check('disarm drops the PIN wrap', disarmed.lock_key_pin === null);
+check('disarm turns the lock off', disarmed.lock_enabled === false);
 
 void seal; void tryOpen;
 

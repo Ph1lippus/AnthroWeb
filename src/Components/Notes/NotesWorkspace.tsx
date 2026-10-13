@@ -7,6 +7,7 @@ import ConfirmModal from '../ConfirmModal';
 import NotesSidebar from './NotesSidebar';
 import NoteEditorPane from './NoteEditorPane';
 import NoteUnlockPrompt from './NoteUnlockPrompt';
+import NotePinRecovery from './NotePinRecovery';
 import NoteIconBadge from './NoteIconBadge';
 import QuickSwitcher from './QuickSwitcher';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
@@ -202,6 +203,9 @@ const NotesWorkspace: React.FC = () => {
      * walks up to the device next.
      */
     const [noteKeys, setNoteKeys] = useState<Record<string, CryptoKey>>({});
+    // Which locked page is mid-recovery, if any. Null means the unlock prompt is
+    // showing normally.
+    const [recoveringPin, setRecoveringPin] = useState(false);
 
     /**
      * Re-read the list after a lock or unlock.
@@ -636,13 +640,22 @@ const NotesWorkspace: React.FC = () => {
                             // query cache, and the lock would be hiding rather than
                             // preventing.
                             activeNote.lock_enabled && activeNote.id && !noteKeys[activeNote.id] ? (
+                                recoveringPin ? (
+                                    <NotePinRecovery
+                                        noteId={activeNote.id}
+                                        onDone={() => { setRecoveringPin(false); }}
+                                        onBack={() => setRecoveringPin(false)}
+                                    />
+                                ) : (
                                 <NoteUnlockPrompt
                                     key={activeNote.id}
                                     note={activeNote}
                                     onUnlocked={key => handleUnlocked(activeNote.id!, key)}
                                     onUseRecovery={() => navigate('/Settings/Security')}
+                                    onForgotPin={() => setRecoveringPin(true)}
                                     onBack={() => navigate('/Notes')}
                                 />
+                                )
                             ) : (
                             // Keyed by id so opening a different page remounts the
                             // editor with a fresh document instead of reconciling one

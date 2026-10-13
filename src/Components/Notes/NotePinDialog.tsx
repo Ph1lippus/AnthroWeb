@@ -83,7 +83,7 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({ note, mode, failedAttempt
                         >
                             {busy ? 'Removing...' : 'Remove PIN'}
                         </button>
-                        <button type="button" className="btn-action vault-lock-link" onClick={onClose}>Cancel</button>
+                        <button type="button" className="btn btn-link" onClick={onClose}>Cancel</button>
                     </div>
                 </div>
             </div>
@@ -111,16 +111,16 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({ note, mode, failedAttempt
                 </div>
 
                 {wait > 0 ? (
-                    <p className="vault-lock-error" role="alert">
+                    <p className="t-error-msg" role="alert">
                         Too many attempts. Try again in {Math.ceil(wait / 1000)}s.
                     </p>
                 ) : (
                     <>
-                        <label className="vault-lock-label" htmlFor="note-pin">PIN for this page</label>
+                        <label className="form-label" htmlFor="note-pin">PIN for this page</label>
                         <input
                             id="note-pin"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={pin}
                             onChange={e => { setPin(e.target.value); setError(null); }}
                             autoComplete="new-password"
@@ -132,11 +132,11 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({ note, mode, failedAttempt
                             opened with your app recovery words.
                         </p>
 
-                        <label className="vault-lock-label" htmlFor="note-pin-confirm">Type it again</label>
+                        <label className="form-label" htmlFor="note-pin-confirm">Type it again</label>
                         <input
                             id="note-pin-confirm"
                             type="password"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={confirm}
                             onChange={e => { setConfirm(e.target.value); setError(null); }}
                             autoComplete="new-password"
@@ -145,18 +145,18 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({ note, mode, failedAttempt
                     </>
                 )}
 
-                {error && <p className="vault-lock-error" role="alert">{error}</p>}
+                {error && <p className="t-error-msg" role="alert">{error}</p>}
 
                 <div className="vault-setup-actions">
                     <button
                         type="button"
-                        className="btn-action vault-lock-primary"
+                        className="btn btn-primary"
                         disabled={busy || wait > 0 || pin.length < MIN_PIN_LENGTH || pin !== confirm}
                         onClick={() => void submit()}
                     >
                         {busy ? 'Locking...' : <><Check size={15} /> Lock page</>}
                     </button>
-                    <button type="button" className="btn-action vault-lock-link" onClick={onClose}>Cancel</button>
+                    <button type="button" className="btn btn-link" onClick={onClose}>Cancel</button>
                 </div>
             </div>
         </div>

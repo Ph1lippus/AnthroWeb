@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Lock, Delete, AlertTriangle, KeyRound } from 'lucide-react';
-import { MIN_PIN_LENGTH, BACKOFF_MS } from '../../services/vault/keyring';
-import { isCoolingDown, retryAfterMs } from '../../services/vault/noteLock';
+import { MIN_PIN_LENGTH, BACKOFF_MS, describeRetry } from '../../services/vault/keyring';
+import { isCoolingDown, retryAfterMs, MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
 import type { Note } from '../../services/noteService';
 
 /**
@@ -30,12 +30,13 @@ interface NoteUnlockPromptProps {
     note: Note;
     onUnlocked: (key: CryptoKey) => void;
     onUseRecovery: () => void;
+    onForgotPin: () => void;
     onBack: () => void;
 }
 
-const PIN_LENGTH = 6;
+const PIN_LENGTH = MIN_NOTE_PIN_LENGTH;
 
-const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, onUseRecovery, onBack }) => {
+const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, onUseRecovery, onForgotPin, onBack }) => {
     const [entry, setEntry] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -154,13 +155,16 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
                 </div>
 
                 {error && (
-                    <p className="vault-lock-error" role="alert">
+                    <p className="t-error-msg" role="alert">
                         <AlertTriangle size={15} aria-hidden="true" />
-                        {error}{cooldown > 0 ? ` Try again in ${Math.ceil(cooldown / 1000)}s.` : ''}
+                        {error}{cooldown > 0 ? ` Try again in ${describeRetry(cooldown)}.` : ''}
                     </p>
                 )}
 
-                <button type="button" className="btn-action vault-lock-link" onClick={onBack}>Back to pages</button>
+                <button type="button" className="btn btn-link" onClick={onForgotPin}>
+                    I forgot this page&rsquo;s PIN
+                </button>
+                <button type="button" className="btn btn-link" onClick={onBack}>Back to pages</button>
             </div>
         </div>
     );

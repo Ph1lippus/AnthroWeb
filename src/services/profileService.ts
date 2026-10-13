@@ -119,6 +119,26 @@ export interface UserSettings {
     vault_recovery_wrapped?: string | null;
     vault_pin_changed_at?: string | null;
 
+    /**
+     * Failed app-PIN attempts, and when attempts stop being accepted.
+     *
+     * Server-side so the lockout survives a reload, a new tab, or a cleared
+     * browser cache. Cleared on a successful unlock.
+     */
+    vault_failed_attempts?: number;
+    vault_retry_after?: string | null;
+
+    /**
+     * Account-recovery material, so a forgotten page PIN can be reset.
+     *
+     * `account_recovery_verifier` is an AES-GCM wrap of a fixed probe string
+     * under PBKDF2(account password) -- a password check, not a stored password
+     * and not a password-equivalent. See `services/vault/accountRecovery.ts`.
+     */
+    account_recovery_salt?: string | null;
+    account_recovery_iterations?: number | null;
+    account_recovery_verifier?: string | null;
+
     /** Sealed private fields for this row, or null when not sealed. */
     vault?: string | null;
 }

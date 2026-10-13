@@ -1,7 +1,125 @@
 import { supabase } from './supabaseClient';
 import { openRow, openRows, sealExistingRow } from './vault/rows';
-import { isVaultOpen } from './vault/keyring';
-import { armNoteLock, disarmNoteLock, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
+import { getUserSettings } from './profileService';
+import { armNoteLock, disarmNoteLock, openNoteKeyWithAccount, reWrapNotePin, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
+import { checkAccountPassword, deriveAccountWrapKey, type AccountRecoveryColumns } from './vault/accountRecovery';
+import { getMasterKey, isVaultOpen } from './vault/keyring';
+
+/**
+ * The account wrap key, held for the length of the session.
+ *
+ * Derived from the account password, which the app never stores -- so unlike the
+ * app master key there is nothing to re-derive it from later. Keeping it in a
+ * module variable is what lets `lockNote` add the account wrap without prompting
+ * for the account password every time somebody locks a page.
+ *
+ * Cleared by `forgetAccountKey`, which the session-ending paths call. Held
+ * nowhere else: not localStorage, not sessionStorage, not a module the UI can
+ * reach for.
+ */
+let sessionAccountKey: CryptoKey | null = null;
+
+/**
+ * The account wrap key, if one has been established this session.
+ *
+ * Null when account recovery is off, or when the user has not re-entered their
+ * account password since the page loaded. Both are ordinary states, not errors:
+ * the note lock simply gets fewer wraps.
+ */
+const cachedAccountKey = async (): Promise<CryptoKey | null> => sessionAccountKey;
+
+/**
+ * Prove the account password and hold the resulting key for this session.
+ *
+ * Returns false for a wrong password without touching what is already cached, so
+ * a mistyped attempt does not log the user out of the wrapping they had.
+ */
+export const establishAccountKey = async (password: string): Promise<boolean> => {
+    const settings = await getUserSettings();
+    const row = settings as unknown as AccountRecoveryColumns | null;
+    if (!row?.account_recovery_verifier) return false;
+
+    const key = await deriveAccountWrapKey(row, password);
+    if (!key) return false;
+    sessionAccountKey = key;
+    return true;
+};
+
+/** Drop the cached account key. Called whenever the session ends. */
+export const forgetAccountKey = (): void => {
+    sessionAccountKey = null;
+};
+
+/**
+ * Replace a forgotten note PIN.
+ *
+ * The recovery path, and the reason a forgotten PIN is an inconvenience rather
+ * than a loss. It is a re-wrap: the account password unwraps the note key, and
+ * that same key is wrapped under the new PIN. The page's ciphertext is never
+ * opened, so there is no plaintext to mishandle and no window in which the
+ * content exists unprotected.
+ *
+ * Throws when the account password is wrong -- the caller decides what that
+ * means for the session, because only the UI knows whether this was a failed
+ * recovery attempt or a different person at the keyboard.
+ */
+export const resetNotePin = async (id: string, accountPassword: string, newPin: string): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data: note, error } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+    if (error) throw error;
+    if (!note) throw new Error('That page no longer exists.');
+    if (!note.lock_enabled) throw new Error('That page is not locked.');
+
+    const settings = await getUserSettings();
+    const recovery = settings as unknown as AccountRecoveryColumns | null;
+    if (!recovery?.account_recovery_verifier) {
+        throw new Error('Set up account recovery in Settings to reset a forgotten page PIN.');
+    }
+    if (!(await checkAccountPassword(recovery, accountPassword))) {
+        throw new Error('That is not your account password.');
+    }
+
+    const accountKey = await deriveAccountWrapKey(recovery, accountPassword);
+    if (!accountKey) throw new Error('Could not verify your account password.');
+
+    const encodedKey = await openNoteKeyWithAccount(note as NoteLockColumns, id, accountKey);
+    if (!encodedKey) {
+        throw new Error(
+            'This page was locked before account recovery was set up, so its PIN cannot be reset. ' +
+            'Its other unlock routes still work.',
+        );
+    }
+
+    const masterKey = getMasterKey();
+    const columns = await reWrapNotePin(encodedKey, id, newPin, { masterKey });
+
+    const { error: updateError } = await supabase
+        .from('notes')
+        .update(columns)
+        .eq('id', id)
+        .eq('user_id', user.id);
+    if (updateError) throw updateError;
+};
+
+/**
+ * Try every route to a note's key, cheapest rejection first.
+ *
+ * The master key is a single AES open, so it goes first. The PIN is a local
+ * PBKDF2 over the stored salt and is the only route here that is a guess, so it
+ * goes last and is the only one worth a backoff.
+ */
+export const tryNoteKeys = async (note: NoteLockColumns, id: string, pin: string): Promise<CryptoKey | null> => {
+    const viaMaster = await unlockNoteWithMaster(note, id);
+    if (viaMaster) return viaMaster;
+    return unlockNoteWithPin(note, id, pin);
+};
 import type { NoteLockColumns } from './vault/noteLock';
 
 export interface Note {
@@ -331,7 +449,6 @@ export const togglePinNote = async (id: string, isPinned: boolean) => {
 export const lockNote = async (id: string, pin: string): Promise<Note> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
-    if (!isVaultOpen()) throw new Error('Turn on app encryption in Settings first.');
 
     const { data: fetched } = await supabase
         .from('notes')
@@ -346,7 +463,14 @@ export const lockNote = async (id: string, pin: string): Promise<Note> => {
     const current = await getNoteById(id, true);
     if (!current) throw new Error('That page no longer exists.');
 
-    const lockColumns = await armNoteLock(id, pin);
+    // The account wrap, when the user has opted into account recovery. Held in
+    // memory only -- it is derived from a password that is not stored, so there
+    // is nothing to read back on the next lock. A user without recovery enabled
+    // gets a PIN-only lock, which works: `armNoteLock` treats the master wrap as
+    // a bonus rather than a precondition.
+    const accountKey = await cachedAccountKey();
+
+    const lockColumns = await armNoteLock(id, pin, undefined, accountKey);
     const noteKey = await unlockNoteWithPin(lockColumns as NoteLockColumns, id, pin);
     if (!noteKey) throw new Error('Could not set that PIN.');
 

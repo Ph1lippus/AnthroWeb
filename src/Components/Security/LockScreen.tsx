@@ -118,7 +118,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
 
                 {useRecovery ? (
                     <div className="vault-lock-recovery">
-                        <label htmlFor="vault-recovery-input" className="vault-lock-label">
+                        <label htmlFor="vault-recovery-input" className="form-label">
                             Recovery phrase
                         </label>
                         <p className="vault-lock-hint">
@@ -126,7 +126,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </p>
                         <textarea
                             id="vault-recovery-input"
-                            className="vault-lock-input"
+                            className="form-control"
                             value={entry}
                             onChange={e => setEntry(e.target.value)}
                             placeholder="word word word ..."
@@ -141,7 +141,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </p>
                         <button
                             type="button"
-                            className="btn-action vault-lock-primary"
+                            className="btn btn-primary"
                             disabled={busy || cooldown > 0 || recoveryProgress === 0}
                             onClick={() => void submit(entry)}
                         >
@@ -149,7 +149,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </button>
                         <button
                             type="button"
-                            className="btn-action vault-lock-link"
+                            className="btn btn-link"
                             onClick={() => { setUseRecovery(false); setEntry(''); setError(null); }}
                         >
                             Use your PIN instead
@@ -208,7 +208,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                 )}
 
                 {error && (
-                    <p className="vault-lock-error" role="alert">
+                    <p className="t-error-msg" role="alert">
                         <AlertTriangle size={15} aria-hidden="true" />
                         {cooldown > 0 ? `${error} Try again in ${Math.ceil(cooldown / 1000)}s.` : error}
                     </p>
@@ -216,7 +216,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
 
                 <button
                     type="button"
-                    className="btn-action vault-lock-link"
+                    className="btn btn-link"
                     onClick={() => { setUseRecovery(true); setEntry(''); setError(null); }}
                     disabled={busy || useRecovery}
                 >
