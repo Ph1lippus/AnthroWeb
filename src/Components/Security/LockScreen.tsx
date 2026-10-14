@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, Delete, AlertTriangle } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ShieldCheck, AlertTriangle } from 'lucide-react';
 import { unlock, unlockWithRecovery } from '../../hooks/useAppLock';
 import { BACKOFF_MS, RECOVERY_WORDS } from '../../services/vault/keyring';
 
@@ -17,11 +17,29 @@ import { BACKOFF_MS, RECOVERY_WORDS } from '../../services/vault/keyring';
  *    reachable from here, because a lock you cannot get back into is the same
  *    outcome as having no lock at all.
  *
- * The keypad is a `<button>` grid rather than a real `<input type=password>`:
- * a hidden input still receives synthetic keystrokes from password managers and
- * from accessibility tooling, and `inputMode="numeric"` on a visible field lets a
- * phone offer the right keyboard without inviting autofill into a field that is
- * not a password field for the site's accounts.
+ * A REAL INPUT, NOT A GRID OF DIGIT BUTTONS
+ *
+ * This was a 3x4 `<button>` grid, and the comment above it explained why: "a
+ * hidden input still receives synthetic keystrokes from password managers". True,
+ * and paid for with something much more expensive -- the screen could only be
+ * operated by clicking. No hardware keyboard, no Bluetooth keyboard, no switch,
+ * no screen reader driving the caret, and no paste. Everyone who types their PIN
+ * rather than taps it was locked out of the lock screen, which is the one screen
+ * where being locked out is not a mild inconvenience.
+ *
+ * What the grid was actually buying is two things, and both survive in a real
+ * field: `inputMode="numeric"` still gets a phone its number pad, and
+ * `autoComplete="new-password"` still keeps the value out of a password
+ * manager's suggestions and out of a dictation path into a field that is not one
+ * of the site's accounts. Digits-only is a `replace(/\D/g, '')` on change rather
+ * than something the markup prevents, which is a weaker guarantee stated in a
+ * place that cannot silently rot.
+ *
+ * Auto-submits on the sixth digit, which is the same rule the page PIN uses and
+ * the reason this reads as a lock rather than a form.
+ *
+ * The key glyph that shared a cell with `0` opened the recovery-phrase dialog.
+ * It is a link beside the PIN field now, so nothing it could do has been lost.
  */
 
 const PIN_LENGTH = 6;
@@ -51,8 +69,8 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
     const [useRecovery, setUseRecovery] = useState(false);
 
     // Count the cooldown down so the remaining wait is visible rather than the
-    // keypad simply being dead -- a keypad that does nothing looks broken, and a
-    // lock screen is exactly where someone will assume it is.
+    // field simply being dead -- a field that refuses input with no reason reads
+    // as broken, and a lock screen is exactly where someone will assume it is.
     useEffect(() => {
         if (cooldown <= 0) return;
         const timer = setInterval(() => setCooldown(value => Math.max(0, value - 1000)), 1000);
@@ -81,29 +99,16 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
         }
     }, [attempts, busy, cooldown, useRecovery]);
 
-    const press = (digit: string) => {
+    const type = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (busy || cooldown > 0) return;
         setError(null);
-        const next = useRecovery
-            ? `${entry}${entry ? ' ' : ''}${digit.toLowerCase()}`
-            : (entry + digit).slice(0, PIN_LENGTH);
+        const next = event.target.value.replace(/\D/g, '').slice(0, PIN_LENGTH);
         setEntry(next);
 
         // Submit as soon as there is enough to be worth trying. Auto-submit on the
         // last digit is what makes a PIN feel like a lock rather than a form.
-        if (!useRecovery && next.length === PIN_LENGTH) void submit(next);
+        if (next.length === PIN_LENGTH) void submit(next);
     };
-
-    const backspace = () => {
-        if (busy || cooldown > 0) return;
-        setError(null);
-        setEntry(value => (useRecovery ? value.replace(/\S+\s?$/, '') : value.slice(0, -1)));
-    };
-
-    const dots = useMemo(
-        () => Array.from({ length: PIN_LENGTH }, (_, i) => i < entry.length),
-        [entry],
-    );
 
     const recoveryProgress = entry.trim() ? entry.trim().split(/\s+/).length : 0;
 
@@ -117,7 +122,7 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                 {username && <p className="vault-lock-subtitle">Signed in as {username}</p>}
 
                 {useRecovery ? (
-                    <div className="vault-lock-recovery">
+                    <div className="vault-lock-fields">
                         <label htmlFor="vault-recovery-input" className="form-label">
                             Recovery phrase
                         </label>
@@ -156,55 +161,34 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
                         </button>
                     </div>
                 ) : (
-                    <>
-                        <div className="vault-lock-dots" role="status" aria-label={`${entry.length} of ${PIN_LENGTH} digits entered`}>
-                            {dots.map((filled, i) => (
-                                <span key={i} className={`vault-lock-dot${filled ? ' vault-lock-dot--filled' : ''}`} />
-                            ))}
-                        </div>
-
-                        <div className="vault-lock-pad">
-                            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit => (
-                                <button
-                                    key={digit}
-                                    type="button"
-                                    className="vault-lock-key"
-                                    onClick={() => press(digit)}
-                                    disabled={busy || cooldown > 0}
-                                >
-                                    {digit}
-                                </button>
-                            ))}
+                    <div className="vault-lock-fields">
+                        <label htmlFor="vault-pin-input" className="sr-only">App PIN</label>
+                        <input
+                            id="vault-pin-input"
+                            className="vault-lock-input"
+                            type="password"
+                            inputMode="numeric"
+                            autoComplete="new-password"
+                            aria-autocomplete="none"
+                            spellCheck={false}
+                            maxLength={PIN_LENGTH}
+                            placeholder={`${PIN_LENGTH}-digit PIN`}
+                            value={entry}
+                            onChange={type}
+                            disabled={busy || cooldown > 0}
+                            autoFocus
+                        />
+                        <div className="vault-lock-actions">
                             <button
                                 type="button"
-                                className="vault-lock-key vault-lock-key--muted"
+                                className="vault-lock-link"
                                 onClick={onRecoveryPhrase}
                                 disabled={busy || cooldown > 0}
-                                data-tip="Use a recovery phrase"
                             >
-                                <span className="sr-only">Use a recovery phrase</span>
-                                <KeyIcon />
-                            </button>
-                            <button
-                                type="button"
-                                className="vault-lock-key"
-                                onClick={() => press('0')}
-                                disabled={busy || cooldown > 0}
-                            >
-                                0
-                            </button>
-                            <button
-                                type="button"
-                                className="vault-lock-key vault-lock-key--muted"
-                                onClick={backspace}
-                                disabled={busy || cooldown > 0 || entry.length === 0}
-                                data-tip="Delete"
-                            >
-                                <Delete size={20} />
-                                <span className="sr-only">Delete</span>
+                                Show my recovery words
                             </button>
                         </div>
-                    </>
+                    </div>
                 )}
 
                 {error && (
@@ -226,13 +210,5 @@ const LockScreen: React.FC<LockScreenProps> = ({ username, onRecoveryPhrase }) =
         </div>
     );
 };
-
-/** A small key glyph, for the recovery-phrase key on the pad. */
-const KeyIcon: React.FC = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <circle cx="8" cy="15" r="3.5" />
-        <path d="M10.8 12.2 20 3m-3 3 2 2m-5 1 2 2" strokeLinecap="round" />
-    </svg>
-);
 
 export default LockScreen;

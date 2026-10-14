@@ -222,5 +222,97 @@ console.log('\n== the production cost factor is the documented one ==');
     })());
 }
 
+console.log('\n== a stored value is read in either spelling ==');
+{
+    // Migrations 0024 and 0025 declared the wrapped keys as `bytea` while
+    // documenting, in the same files, why they must not be. PostgREST returns a
+    // `bytea` as `\x`-prefixed hex, and `atob` rejects that outright -- which put
+    // "Failed to execute 'atob' on 'Window'" in front of anyone trying to open a
+    // locked page. 0027 converts the columns; this is what makes the value
+    // readable in the meantime, and on any database that has not been migrated.
+    const bytes = randomBytes(32);
+    const base64 = toBase64(bytes);
+    const hex = `\\x${Buffer.from(bytes).toString('hex')}`;
+
+    check('the hex spelling is what PostgREST produces', /^\\x[0-9a-f]{64}$/.test(hex), hex);
+    check('and it is not something atob accepts', await (async () => {
+        const strict = s => {
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s) || s.length % 4 !== 0) {
+                throw new Error('InvalidCharacterError');
+            }
+            return Buffer.from(s, 'base64').toString('binary');
+        };
+        const real = globalThis.atob;
+        globalThis.atob = strict;
+        try {
+            atob(hex);
+            return false;
+        } catch {
+            return true;
+        } finally {
+            globalThis.atob = real;
+        }
+    })());
+
+    check('fromBase64 reads the hex spelling to the same bytes',
+        toBase64(fromBase64(hex)) === base64);
+    check('and still reads the base64 spelling',
+        toBase64(fromBase64(base64)) === base64);
+    check('a value the migration has not reached still opens', await (async () => {
+        // The shape that actually failed: a key derived from a salt that came
+        // back hex, opening a wrap that came back hex.
+        const salt = fromBase64(hex);
+        const key = await deriveKey('pin', salt, ITERATIONS);
+        const wrapped = await seal(key, toBase64(randomBytes(32)), 'aad');
+        const opened = await tryOpen(key, `\\x${Buffer.from(wrapped, 'base64').toString('hex')}`, 'aad');
+        return opened !== null;
+    })());
+
+    check('a genuinely corrupt value says so, in words', await (async () => {
+        const strict = s => {
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s) || s.length % 4 !== 0) {
+                throw new Error("Failed to execute 'atob' on 'Window': The string to be decoded is not correctly encoded.");
+            }
+            return Buffer.from(s, 'base64').toString('binary');
+        };
+        const real = globalThis.atob;
+        globalThis.atob = strict;
+        try {
+            fromBase64('not base64 at all!!');
+            return false;
+        } catch (error) {
+            // The platform's own message names a browser function and neither the
+            // column nor the row. This one says what it is.
+            return /not valid base64/.test(error.message) && !/atob/.test(error.message);
+        } finally {
+            globalThis.atob = real;
+        }
+    })());
+}
+
+console.log('\n== a stored salt is the salt, not a row of zeroes ==');
+{
+    // `wipeBytes` fills the buffer in place, and both of these encoded the salt
+    // *after* wiping it -- so every vault provisioned, and every PIN changed,
+    // stored base64 of sixteen zero bytes. Valid base64, so nothing failed, and
+    // both sides read the same zeroes, so nothing looked wrong. A salt that is
+    // always the same salt is not a salt.
+    const { provisionVault } = await import('../src/services/vault/keyring.ts');
+    const zeroSalt = toBase64(new Uint8Array(new ArrayBuffer(16)));
+
+    const a = await provisionVault('123456', 'word '.repeat(24).trim());
+    const b = await provisionVault('123456', 'word '.repeat(24).trim());
+
+    check('a provisioned salt is not sixteen zero bytes',
+        a.provisioning.vault_pin_salt !== zeroSalt, a.provisioning.vault_pin_salt);
+    check('and neither is the recovery salt',
+        a.provisioning.vault_recovery_salt !== zeroSalt, a.provisioning.vault_recovery_salt);
+    check('two provisions use two different PIN salts',
+        a.provisioning.vault_pin_salt !== b.provisioning.vault_pin_salt);
+    check('and two different recovery salts',
+        a.provisioning.vault_recovery_salt !== b.provisioning.vault_recovery_salt);
+    check('a stored salt decodes to the 16 bytes it claims', fromBase64(a.provisioning.vault_pin_salt).length === 16);
+}
+
 console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILURES'}: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

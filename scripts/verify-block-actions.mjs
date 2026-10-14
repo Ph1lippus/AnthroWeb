@@ -78,6 +78,7 @@ const { LiftToggleOnBackspace, ToggleDetails } = await import('../src/utils/note
 const {
     deleteBlocks,
     duplicateBlocks,
+    markTarget,
     moveBlocks,
     overTarget,
     resolveBlockTarget,
@@ -446,5 +447,113 @@ console.log('\n== a mark command hands the selection back as it was ==');
     instance.destroy();
 }
 
-console.log(fail === 0 ? `\nALL PASS: ${pass} checks` : `\n${fail} FAILED of ${pass + fail}`);
+console.log('\n== a mark acts on the selection, not on the block ==');
+{
+    // The reported bug, and the reason `markTarget` exists.
+    //
+    // `resolveBlockTarget` is block-aligned on purpose: it is what makes Delete
+    // from a grip three lines into a paragraph take the paragraph. Every action in
+    // the block menu used that range, including the inline marks -- so selecting
+    // two words in a long paragraph and pressing Italic italicised the whole
+    // paragraph, and selecting across three paragraphs italicised all three.
+
+    /**
+     * The document range covering `needle` inside the block whose text is `text`.
+     *
+     * Worked out from the document rather than written down as a number. Hand-
+     * counted positions across a three-paragraph document are how this test ends
+     * up asserting the wrong range and passing for the wrong reason.
+     */
+    const spanOf = (instance, text, needle) => {
+        let blockPos = -1;
+        let content = '';
+        instance.state.doc.descendants((node, pos) => {
+            if (node.isTextblock && node.textContent === text) {
+                blockPos = pos;
+                content = node.textContent;
+            }
+        });
+        if (blockPos < 0) throw new Error(`no block holding ${JSON.stringify(text)}`);
+        const offset = content.indexOf(needle);
+        if (offset < 0) throw new Error(`${JSON.stringify(text)} does not hold ${JSON.stringify(needle)}`);
+        // A paragraph's own text starts one position after the paragraph.
+        return { from: blockPos + 1 + offset, to: blockPos + 1 + offset + needle.length };
+    };
+
+    const instance = await make('<p>The quick brown fox jumps over the lazy dog</p>');
+
+    // "brown" alone: a partial selection inside one block.
+    const { from, to } = spanOf(instance, 'The quick brown fox jumps over the lazy dog', 'brown');
+    instance.view.dispatch(
+        instance.state.tr.setSelection(TextSelection.create(instance.state.doc, from, to)),
+    );
+
+    const block = resolveBlockTarget(instance, -1);
+    check('the block target is still the whole paragraph',
+        block.blocks === 1 && block.from < from && block.to > to, JSON.stringify(block));
+
+    const marks = markTarget(instance, block, 'selection');
+    check('and the mark target is just the selection',
+        marks.from === from && marks.to === to, JSON.stringify(marks));
+
+    overTarget(instance, marks, () => instance.chain().focus().toggleMark('italic').run());
+    check('Italic marks the word and nothing else',
+        instance.getHTML() === '<p>The quick <em>brown</em> fox jumps over the lazy dog</p>',
+        instance.getHTML());
+    check('and leaves the selection where it was',
+        instance.state.selection.from === from && instance.state.selection.to === to,
+        `${instance.state.selection.from}-${instance.state.selection.to}`);
+
+    // A selection spanning several paragraphs is one range, and it is the range
+    // the reader highlighted. It was previously widened to whole blocks, which at
+    // either end meant words they had not selected becoming styled.
+    const wide = await make('<p>First line of one</p><p>Second line of two</p><p>Third line</p>');
+    // From "line" in the first paragraph to "Third" in the third: deliberately not
+    // aligned to any block edge, so a widened range could not produce this.
+    const start = spanOf(wide, 'First line of one', 'line');
+    const end = spanOf(wide, 'Third line', 'Third');
+    wide.commands.setTextSelection({ from: start.from, to: end.to });
+
+    const wideBlock = resolveBlockTarget(wide, -1);
+    check('three selected lines are still three blocks', wideBlock.blocks === 3, JSON.stringify(wideBlock));
+    const wideMarks = markTarget(wide, wideBlock, 'selection');
+    check('and the mark target is exactly the selection, not the block edges',
+        wideMarks.from === start.from && wideMarks.to === end.to, JSON.stringify(wideMarks));
+    overTarget(wide, wideMarks, () => wide.chain().focus().toggleMark('italic').run());
+    const wideHtml = wide.getHTML();
+    check('the ends of the selection are not padded out to their blocks',
+        wideHtml === '<p>First <em>line of one</em></p>'
+            + '<p><em>Second line of two</em></p>'
+            + '<p><em>Third</em> line</p>',
+        wideHtml);
+    wide.destroy();
+
+    // A collapsed caret has no selection to narrow to, so the block stays the unit
+    // -- which is right, because a mark on a caret is a pending mark and the next
+    // character typed comes out styled.
+    instance.commands.setTextSelection(from);
+    const caretMarks = markTarget(instance, resolveBlockTarget(instance, -1), 'selection');
+    check('a collapsed caret falls back to the block',
+        caretMarks.from === block.from && caretMarks.to === block.to, JSON.stringify(caretMarks));
+
+    // The other entry point, and the reason `markTarget` takes `source`. Clicking
+    // a button outside the editor does not collapse the selection, so a grip can be
+    // clicked while a selection sits elsewhere in the document. Marking *that*
+    // would be a worse bug than the block-wide one being fixed here.
+    instance.view.dispatch(
+        instance.state.tr.setSelection(TextSelection.create(instance.state.doc, from, to)),
+    );
+    const grip = resolveBlockTarget(instance, 0);
+    check('the grip resolves the block under it, not the selection',
+        grip.blocks === 1 && grip.from === 0 && grip.to === 45, JSON.stringify(grip));
+    check('and a handle menu marks that block rather than the stale selection',
+        (() => {
+            const overHandle = markTarget(instance, grip, 'handle');
+            return overHandle.from === 0 && overHandle.to === 45;
+        })(), JSON.stringify(markTarget(instance, grip, 'handle')));
+
+    instance.destroy();
+}
+
+console.log(`\n${fail === 0 ? `\nALL PASS: ${pass} checks` : `\n${fail} FAILED of ${pass + fail}`}`);
 process.exit(fail === 0 ? 0 : 1);

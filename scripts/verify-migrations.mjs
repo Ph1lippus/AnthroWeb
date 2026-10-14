@@ -108,6 +108,13 @@ for (const file of files) {
 const USER = '00000000-0000-0000-0000-0000000000aa';
 const TEMPLATE = '00000000-0000-0000-0000-0000000000bb';
 const SESSION = '00000000-0000-0000-0000-0000000000cc';
+
+// What the client actually sends: a base64 string as a plain SQL literal into a
+// `bytea` column. Not a `\x` literal, which is the other way to write one. Used
+// by both halves of the 0027 section below, so it lives out here rather than
+// being declared inside either of them.
+const SALT = 'q83v1pQ0Y8mZ2rT7wX9cV4bN6hJ1kL5dF0gA3sUyE8=';
+const WRAPPED = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v2W3x4Y5z6A7b8C9d0E1f2G3h4I5j6K7l8M9n0=';
 await applied.exec(`insert into auth.users (id) values ('${USER}')`);
 await applied.exec(`insert into public.workout_templates (id, user_id, name)
     values ('${TEMPLATE}', '${USER}', 'Push A')`);
@@ -414,6 +421,262 @@ if (!existsSync(`${dir}/0020_cheat_day_default.sql`)) {
         second2 = String(error.message ?? error).split('\n')[0];
     }
     check('running 0020 twice is a no-op', second2 === '', second2);
+}
+
+// 0027 converts the wrapped keys from `bytea` to `text`. Applying cleanly is the
+// easy half and the main loop above already proves it; what matters is the value
+// that comes out the other side, because the two obvious conversions disagree and
+// only one of them is right.
+//
+// The client writes base64 *text* into these columns. Postgres reads a plain
+// string into `bytea` as escape format, so the bytes stored are the ASCII of that
+// base64. `convert_from(col,'UTF8')` reads them back as text and gets the base64
+// again. `encode(col,'base64')` would re-encode those ASCII bytes and produce a
+// string that decodes to the base64 text rather than to the key -- a wrong answer
+// that looks like a working one, which is the worst shape for this to fail in.
+console.log('\n== 0027 converts a bytea key column without mangling it ==');
+if (!existsSync(`${dir}/0027_key_material_text.sql`)) {
+    console.log('  --   no 0027_key_material_text.sql to replay');
+} else {
+    const fresh3 = new PGlite();
+    await bootstrap(fresh3);
+    const base3 = await applyAllStatements(fresh3, runnable);
+    check('the baseline applies', base3 === null, base3 ?? '');
+    for (const file of ['0024_vault.sql', '0025_note_lock_recovery.sql']) {
+        for (const statement of splitStatements(readFileSync(`${dir}/${file}`, 'utf8'))) {
+            await fresh3.exec(statement);
+        }
+    }
+
+    const { rows: typesBefore } = await fresh3.query(
+        `select table_name, column_name, data_type from information_schema.columns
+          where table_schema='public'
+            and (table_name, column_name) in (
+              ('user_settings','vault_pin_salt'), ('user_settings','vault_pin_wrapped'),
+              ('notes','lock_salt'), ('notes','lock_key_pin'))`,
+    );
+    check('0024 really did declare them bytea',
+        typesBefore.length === 4 && typesBefore.every(r => r.data_type === 'bytea'),
+        JSON.stringify(typesBefore.map(r => `${r.table_name}.${r.column_name}=${r.data_type}`)));
+
+    await fresh3.exec(`insert into auth.users (id) values ('${USER}')`);
+
+    // Exactly what the client sends: a base64 string as a plain SQL literal into a
+    // bytea column. Not a `\x` literal, which is the other way to write one.
+    await fresh3.exec(
+        `insert into public.user_settings
+            (user_id, vault_enabled, vault_version, vault_pin_salt, vault_pin_iterations,
+             vault_pin_wrapped, vault_recovery_salt, vault_recovery_iterations, vault_recovery_wrapped)
+         values ('${USER}', true, 1, '${SALT}', 600000, '${WRAPPED}',
+                 '${SALT}', 600000, '${WRAPPED}')`,
+    );
+    await fresh3.exec(
+        `insert into public.notes (user_id, title, lock_enabled, lock_salt, lock_iterations, lock_key_pin)
+         values ('${USER}', 'Locked page', true, '${SALT}', 600000, '${WRAPPED}')`,
+    );
+
+    // What PostgREST sends back while the column is still bytea. This is the exact
+    // string that reached `atob` and produced
+    // "Failed to execute 'atob' on 'Window': The string to be decoded is not
+    // correctly encoded."
+    const { rows: hexBefore } = await fresh3.query(
+        `select lock_salt::text as raw from public.notes where title = 'Locked page'`,
+    );
+    check('a bytea column reaches the client as \\x-prefixed hex',
+        /^\\x[0-9a-f]+$/.test(hexBefore[0]?.raw ?? ''), String(hexBefore[0]?.raw));
+    check('which is not something atob accepts',
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(hexBefore[0]?.raw ?? ''), String(hexBefore[0]?.raw));
+
+    const migration3 = readFileSync(`${dir}/0027_key_material_text.sql`, 'utf8');
+    for (const statement of splitStatements(migration3)) await fresh3.exec(statement);
+
+    const { rows: typesAfter } = await fresh3.query(
+        `select table_name, column_name, data_type from information_schema.columns
+          where table_schema='public'
+            and (table_name, column_name) in (
+              ('user_settings','vault_pin_salt'), ('user_settings','vault_pin_wrapped'),
+              ('user_settings','account_recovery_verifier'),
+              ('notes','lock_salt'), ('notes','lock_key_pin'), ('notes','lock_key_account'))`,
+    );
+    check('every one of them is text now',
+        typesAfter.length === 6 && typesAfter.every(r => r.data_type === 'text'),
+        JSON.stringify(typesAfter.map(r => `${r.table_name}.${r.column_name}=${r.data_type}`)));
+
+    const { rows: settings } = await fresh3.query(
+        `select vault_pin_salt, vault_pin_wrapped from public.user_settings where user_id = '${USER}'`,
+    );
+    check('the stored salt comes back as the base64 that was written',
+        settings[0]?.vault_pin_salt === SALT, String(settings[0]?.vault_pin_salt));
+    check('and so does the wrapped key',
+        settings[0]?.vault_pin_wrapped === WRAPPED, String(settings[0]?.vault_pin_wrapped));
+
+    const { rows: note } = await fresh3.query(
+        `select lock_salt, lock_key_pin from public.notes where title = 'Locked page'`,
+    );
+    check('and the page lock\'s salt and key',
+        note[0]?.lock_salt === SALT && note[0]?.lock_key_pin === WRAPPED,
+        JSON.stringify(note[0]));
+
+    // The thing the wrong conversion produces, so the difference is on the record
+    // rather than only implied: `encode(...,'base64')` of the same bytes.
+    const { rows: doubled } = await fresh3.query(`select encode('${SALT}'::bytea, 'base64') as v`);
+    check('encode() would have produced something else entirely',
+        doubled[0].v !== SALT && doubled[0].v !== WRAPPED, doubled[0].v);
+
+    // Untouched rows stay null rather than becoming the empty string, which would
+    // read as "armed with no salt" rather than "never armed".
+    await fresh3.exec(`insert into public.notes (user_id, title) values ('${USER}', 'Plain page')`);
+    const { rows: plain } = await fresh3.query(
+        `select lock_salt, lock_key_pin from public.notes where title = 'Plain page'`,
+    );
+    check('a page that was never locked still reads as null',
+        plain[0]?.lock_salt === null && plain[0]?.lock_key_pin === null,
+        JSON.stringify(plain[0]));
+
+    // The armed-row CHECK has to survive the type change, and still mean what it
+    // meant: a locked page with no PIN wrap is not a lock.
+    let noWrap = '';
+    try {
+        await fresh3.exec(
+            `insert into public.notes (user_id, title, lock_enabled, lock_salt, lock_iterations)
+             values ('${USER}', 'Half armed', true, '${SALT}', 600000)`,
+        );
+    } catch (error) {
+        noWrap = String(error.message ?? error).split('\n')[0];
+    }
+    check('and a locked page with no PIN wrap is still refused', noWrap !== '', noWrap || 'accepted');
+
+    let second3 = '';
+    try {
+        for (const statement of splitStatements(migration3)) await fresh3.exec(statement);
+    } catch (error) {
+        second3 = String(error.message ?? error).split('\n')[0];
+    }
+    check('running 0027 twice is a no-op', second3 === '', second3);
+    const { rows: stillThere } = await fresh3.query(
+        `select vault_pin_salt from public.user_settings where user_id = '${USER}'`,
+    );
+    check('and the salt is not re-encoded on the second pass',
+        stillThere[0]?.vault_pin_salt === SALT, String(stillThere[0]?.vault_pin_salt));
+}
+
+// 0027 was first written as one `DO $$` loop, and it worked here and failed in
+// the dashboard with "relation \"column_type\" does not exist".
+//
+// `splitStatements` -- the helper above, and every migration harness in this repo
+// -- understands dollar-quoted bodies. A SQL dashboard does not necessarily: it
+// splits on `;` alone, cuts the block in half, and the fragment
+// `SELECT format_type(...) INTO column_type ...` is *valid* plain SQL, because
+// `SELECT ... INTO` in SQL means "into this table". So it ran, and failed on a
+// relation nobody has ever heard of.
+//
+// A migration that only works under this repo's splitter is a migration that
+// cannot be applied. These checks run the file the other way round: split on `;`
+// alone, execute each piece on its own, and require the same result.
+console.log('\n== 0027 survives being split on semicolons alone ==');
+if (!existsSync(`${dir}/0027_key_material_text.sql`)) {
+    console.log('  --   no 0027_key_material_text.sql to replay');
+} else {
+    const source = readFileSync(`${dir}/0027_key_material_text.sql`, 'utf8');
+
+    const naive = source
+        .split(';')
+        .map(part => part.replace(/^\s*--.*$/gm, ''))
+        .map(part => part.trim())
+        .filter(Boolean);
+
+    // Checked against the statements, not the file. The header explains at length
+    // why there is no `DO $$` here, and it names `$$` and `DECLARE` while doing
+    // it -- which is prose, and prose is exactly what a `;`-splitter throws away.
+    const sql = naive.join('\n');
+    check('no statement opens a dollar-quoted body',
+        !sql.includes('$$'), 'a DO block cannot survive a client that splits on ;');
+    check('and none carries plpgsql-only syntax',
+        !/\bDO\b/i.test(sql) && !/\bDECLARE\b/i.test(sql) && !/\bRAISE\b/i.test(sql),
+        'plpgsql only parses inside a dollar-quoted body');
+
+    // The precondition underneath all of it. A splitter that cuts on the first
+    // semicolon it finds also cuts a *comment* in half, and the tail no longer
+    // starts with `--`, so it stops looking like prose and becomes the exact
+    // broken fragment the error above describes. Not hypothetical either: this
+    // file's own header did it until it was rewritten, and the check above caught
+    // it by tripping on the word DO in a paragraph explaining DO.
+    const semicolonsInComments = source
+        .split(/\r?\n/)
+        .map((line, i) => (/^\s*--/.test(line) && line.includes(';') ? i + 1 : 0))
+        .filter(Boolean);
+    check('no comment line carries a semicolon',
+        semicolonsInComments.length === 0,
+        semicolonsInComments.map(n => `line ${n}`).join(', '));
+
+    // Applied to a database that already has the columns as bytea, written to
+    // first, because a conversion that quietly does nothing would pass on an
+    // empty table.
+    const naive3 = new PGlite();
+    await bootstrap(naive3);
+    const naiveBase = await applyAllStatements(naive3, runnable);
+    check('the baseline applies', naiveBase === null, naiveBase ?? '');
+    for (const file of ['0024_vault.sql', '0025_note_lock_recovery.sql']) {
+        for (const statement of splitStatements(readFileSync(`${dir}/${file}`, 'utf8'))) {
+            await naive3.exec(statement);
+        }
+    }
+    await naive3.exec(`insert into auth.users (id) values ('${USER}')`);
+    await naive3.exec(
+        `insert into public.user_settings (user_id, vault_pin_salt, vault_pin_iterations)
+         values ('${USER}', '${SALT}', 600000)`,
+    );
+
+    const failures = [];
+    for (const statement of naive) {
+        // `BEGIN;` / `COMMIT;` are transaction control, and PGlite's `exec`
+        // manages its own; running them through the loop adds nothing.
+        if (/^(BEGIN|COMMIT|END)\b/i.test(statement)) continue;
+        try {
+            await naive3.exec(statement);
+        } catch (error) {
+            // Reported as it happens. One failure leaves the session inside an
+            // aborted transaction, so every statement after it fails too and the
+            // list at the end would name forty symptoms of one cause.
+            failures.push(`${String(error.message ?? error).split('\n')[0]} << ${statement.slice(0, 90)}`);
+            console.log(`   piece failed: ${failures[failures.length - 1]}`);
+        }
+    }
+    check('every semicolon-separated piece runs on its own',
+        failures.length === 0, failures.join(' | '));
+
+    // Each piece gets its own session, because a failure aborts the one it was in.
+    const after = new PGlite();
+    await bootstrap(after);
+    const afterBase = await applyAllStatements(after, runnable);
+    check('a second baseline applies', afterBase === null, afterBase ?? '');
+    for (const file of ['0024_vault.sql', '0025_note_lock_recovery.sql']) {
+        for (const statement of splitStatements(readFileSync(`${dir}/${file}`, 'utf8'))) {
+            await after.exec(statement);
+        }
+    }
+    await after.exec(`insert into auth.users (id) values ('${USER}')`);
+    await after.exec(
+        `insert into public.user_settings (user_id, vault_pin_salt, vault_pin_iterations)
+         values ('${USER}', '${SALT}', 600000)`,
+    );
+    for (const statement of naive) {
+        if (/^(BEGIN|COMMIT|END)\b/i.test(statement)) continue;
+        await after.exec(statement);
+    }
+
+    const { rows: naiveType } = await after.query(
+        `select data_type from information_schema.columns
+          where table_schema='public' and table_name='user_settings'
+            and column_name='vault_pin_salt'`,
+    );
+    check('and the conversion still happened', naiveType[0]?.data_type === 'text',
+        String(naiveType[0]?.data_type));
+    const { rows: naiveValue } = await after.query(
+        `select vault_pin_salt from public.user_settings where user_id = '${USER}'`,
+    );
+    check('with the stored base64 intact', naiveValue[0]?.vault_pin_salt === SALT,
+        String(naiveValue[0]?.vault_pin_salt));
 }
 
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, RotateCcw, StickyNote, Trash2 } from 'lucide-react';
 import Title from '../Title';
@@ -12,7 +12,7 @@ import NoteIconBadge from './NoteIconBadge';
 import QuickSwitcher from './QuickSwitcher';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
 import type { Note } from '../../services/noteService';
-import { holdNoteKey } from '../../services/noteService';
+import { holdNoteKey, releaseNoteKey } from '../../services/noteService';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBootHold } from '../../services/bootScreen';
 import {
@@ -196,14 +196,21 @@ const NotesWorkspace: React.FC = () => {
     }, [id, notes]);
 
     /**
-     * The page key for a locked note, once its PIN has been entered.
+     * Which page is open, when it is one that carries its own PIN.
      *
      * Session-only and in memory only. It is not written anywhere, so closing
      * the tab or reloading puts the prompt back -- which is the correct
      * behaviour, and the reason a locked page cannot be left readable by whoever
      * walks up to the device next.
+     *
+     * One id rather than a map of them. It used to be a `Record<string, CryptoKey>`
+     * that only ever grew, so unlocking a second page left the first one open for
+     * the rest of the session: walking back to a page unlocked twenty minutes
+     * earlier found it still readable, with no PIN asked for again. A lock that
+     * survives walking away from it is not a lock, and "at most one" is a property
+     * a single id makes true by construction instead of by remembering to prune.
      */
-    const [noteKeys, setNoteKeys] = useState<Record<string, CryptoKey>>({});
+    const [unlockedNoteId, setUnlockedNoteId] = useState<string | null>(null);
     // Which locked page is mid-recovery, if any. Null means the unlock prompt is
     // showing normally.
     const [recoveringPin, setRecoveringPin] = useState(false);
@@ -221,7 +228,7 @@ const NotesWorkspace: React.FC = () => {
     }, [notesQuery]);
 
     const handleUnlocked = useCallback((noteId: string, key: CryptoKey) => {
-        setNoteKeys(current => ({ ...current, [noteId]: key }));
+        setUnlockedNoteId(noteId);
         // Also held by the service, because saving a page goes through
         // `updateNote` and it needs the key to seal the row under. React state is
         // not something a service function can read, and without this the first
@@ -229,6 +236,47 @@ const NotesWorkspace: React.FC = () => {
         // key -- quietly putting the contents back in reach of anyone who has
         // the app unlocked, which is what the PIN was set to prevent.
         holdNoteKey(noteId, key);
+    }, []);
+
+    /**
+     * Locking the page you just walked away from.
+     *
+     * Both halves are dropped. The React id, so the prompt comes back on the way
+     * in; and the service's copy, which is the one `updateNote` seals the next save
+     * with. Leaving that behind would mean a page whose key is gone from the
+     * session can still be written, and `updateNote` refuses those rather than
+     * falling through to plaintext -- so the page would stop saving as well as
+     * stop being locked.
+     *
+     * Safe to do from an effect, which is not obvious. React runs every passive
+     * cleanup in the tree before any passive setup, so the editor pane that is
+     * unmounting has already dispatched its flush by the time this runs. That
+     * flush reaches `heldNoteKey` synchronously -- `persist` is async but its
+     * first `await` comes after `mutateAsync` has already invoked the mutation
+     * function, and `updateNote` reads the key on its first line -- so the
+     * outgoing save has its key in hand before this releases it. Releasing from
+     * anywhere earlier would fail that save with "its key is not open" and lose
+     * whatever was typed in the last few seconds.
+     *
+     * Leaving the workspace entirely is the same rule, so the unmount release is
+     * here too: an effect body does not run on unmount, and the ordering argument
+     * above still holds because both are passive.
+     */
+    const unlockedIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        const current = activeNote?.id ?? null;
+        const previous = unlockedIdRef.current;
+        unlockedIdRef.current = current;
+        if (previous === null || previous === current) return;
+        releaseNoteKey(previous);
+        setUnlockedNoteId(open => (open === previous ? null : open));
+    }, [activeNote?.id]);
+
+    useEffect(() => {
+        const released = unlockedIdRef.current;
+        return () => {
+            if (released) releaseNoteKey(released);
+        };
     }, []);
 
     /**
@@ -647,7 +695,7 @@ const NotesWorkspace: React.FC = () => {
                             // already have the page's text in the DOM and in the
                             // query cache, and the lock would be hiding rather than
                             // preventing.
-                            activeNote.lock_enabled && activeNote.id && !noteKeys[activeNote.id] ? (
+                            activeNote.lock_enabled && activeNote.id && unlockedNoteId !== activeNote.id ? (
                                 recoveringPin ? (
                                     <NotePinRecovery
                                         noteId={activeNote.id}
@@ -659,9 +707,7 @@ const NotesWorkspace: React.FC = () => {
                                     key={activeNote.id}
                                     note={activeNote}
                                     onUnlocked={key => handleUnlocked(activeNote.id!, key)}
-                                    onUseRecovery={() => setRecoveringPin(true)}
                                     onForgotPin={() => setRecoveringPin(true)}
-                                    onBack={() => navigate('/Notes')}
                                 />
                                 )
                             ) : (

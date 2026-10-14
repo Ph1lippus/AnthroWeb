@@ -4,9 +4,25 @@
  * Everything in the vault crosses the network as base64 in a `text` column.
  * PostgREST returns `bytea` as a `\x`-prefixed hex string, which is a different
  * encoding with a different failure mode -- a key that looks fine and silently
- * unwraps to the wrong bytes -- so `bytea` is avoided on the wire and base64 is
- * used instead. `vault` and the wrapped-key columns are `text`, not `bytea`, and
- * these are the only conversions involved.
+ * unwraps to the wrong bytes -- so `bytea` is to be avoided on the wire and
+ * base64 used instead. These are the only conversions involved.
+ *
+ * THAT RULE WAS FOLLOWED FOR ONE COLUMN OUT OF TWENTY-FIVE
+ *
+ * Migrations 0024 and 0025 declared every *wrapped key* as `bytea` while
+ * documenting, in the same files, why they must not be. So values written before
+ * migration 0027 arrive here in the hex spelling, and `atob` rejects a `\x`
+ * prefix outright. Every unlock -- app PIN, recovery phrase, page PIN, account
+ * recovery -- surfaced the platform's own message for it:
+ *
+ *   Failed to execute 'atob' on 'Window': The string to be decoded is not
+ *   correctly encoded.
+ *
+ * which names neither the column nor the row, and is reached by the most
+ * ordinary thing in the app: opening a locked page. `fromBase64` therefore reads
+ * both spellings, so a value from before the migration still opens. 0027 converts
+ * the columns, after which every one of them is `text` and this becomes the
+ * belt to that migration's braces rather than the only thing standing there.
  */
 
 /** UTF-8 encode. */
@@ -35,10 +51,53 @@ export const toBase64 = (bytes: Uint8Array<ArrayBuffer>): string => {
 };
 
 export const fromBase64 = (value: string): Uint8Array<ArrayBuffer> => {
-    const binary = atob(value);
+    const binary = POSTGRES_HEX.test(value) ? fromPostgresHex(value) : fromStandardBase64(value);
     const bytes = new Uint8Array(new ArrayBuffer(binary.length));
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
+};
+
+/**
+ * PostgREST's spelling of a `bytea` value: `\x` followed by hex, two characters
+ * per byte.
+ *
+ * Only ever produced by the wire, never by this module -- nothing here writes a
+ * `bytea` column -- so there is no encoder to pair it with. It is read and
+ * nothing more.
+ */
+const POSTGRES_HEX = /^\\x[0-9a-fA-F]*$/;
+
+/**
+ * The bytes of a `\x`-prefixed hex string, as a latin1 string.
+ *
+ * Hex is validated by the pattern the caller matched it with before getting
+ * here, so `parseInt` cannot return `NaN`: the length is even by construction
+ * and every character is a hex digit.
+ */
+const fromPostgresHex = (value: string): string => {
+    const hex = value.slice(2);
+    let binary = '';
+    for (let i = 0; i < hex.length; i += 2) {
+        binary += String.fromCharCode(Number.parseInt(hex.slice(i, i + 2), 16));
+    }
+    return binary;
+};
+
+/**
+ * Standard base64, with an error that says what actually went wrong.
+ *
+ * The raw `InvalidCharacterError` from `atob` is not usable: it names a browser
+ * function rather than a value, it arrives at a notice stack with no indication
+ * of which column produced it, and the message a user would read is "Failed to
+ * execute 'atob' on 'Window'". A stored key is never user-supplied, so a failure
+ * here is corruption, and is worth saying in those terms.
+ */
+const fromStandardBase64 = (value: string): string => {
+    try {
+        return atob(value);
+    } catch {
+        throw new Error('Stored key material is not valid base64.');
+    }
 };
 
 /** UTF-8 string to base64, without a round trip through a byte array. */

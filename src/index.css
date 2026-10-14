@@ -14560,73 +14560,25 @@ button.workout-ex__empty:hover {
   text-align: left;
 }
 
-.vault-lock-dots {
-  display: flex;
-  gap: 0.75rem;
-  margin: 0.5rem 0;
-}
-
-.vault-lock-dot {
-  width: 0.875rem;
-  height: 0.875rem;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  opacity: 0.35;
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.vault-lock-dot--filled {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-.vault-lock-pad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  width: 100%;
-}
-
-.vault-lock-key {
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  font-size: 1.5rem;
-  font-weight: 500;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  color: inherit;
-  cursor: pointer;
-  transition: background 120ms ease, transform 80ms ease;
-}
-
-.vault-lock-key:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 12%, transparent);
-}
-
-.vault-lock-key:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.vault-lock-key:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.vault-lock-key--muted {
-  font-size: 1rem;
-  opacity: 0.7;
-}
-
 .vault-lock-input {
   width: 100%;
   padding: 0.625rem 0.75rem;
   font-size: 1rem;
+  text-align: center;
+  letter-spacing: 0.35em;
   border-radius: 0.5rem;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
   background: color-mix(in srgb, currentColor 5%, transparent);
   color: inherit;
+}
+
+.vault-lock-input::placeholder {
+  letter-spacing: normal;
+  opacity: 0.5;
+}
+
+.vault-lock-input:disabled {
+  opacity: 0.5;
 }
 
 .vault-lock-input:focus-visible {
@@ -14634,7 +14586,19 @@ button.workout-ex__empty:hover {
   outline-offset: 1px;
 }
 
-.vault-lock-recovery {
+/* The row of links that sit under a lock field. One class so the two lock
+   screens lay them out the same way rather than each inventing a wrapper. */
+.vault-lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+}
+
+/* A stack of fields inside a lock card: the recovery phrase's textarea, or the
+   PIN's input. Named for what it holds rather than for which of the two it is,
+   because both cards draw both. */
+.vault-lock-fields {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -14868,8 +14832,10 @@ button.workout-ex__empty:hover {
 }
 
 /* --- per-note lock -------------------------------------------------------
-   Reuses the lock screen's pad and dots; only the container is new, because
-   this one sits inside the notes layout rather than over the whole app. */
+   Reuses the lock screen's fields and links; only the container is new,
+   because this one sits inside the notes layout rather than over the whole
+   app. It is a <form> so that Enter submits the PIN -- the same reason the
+   PIN dialog is one. */
 
 .note-unlock {
   display: flex;

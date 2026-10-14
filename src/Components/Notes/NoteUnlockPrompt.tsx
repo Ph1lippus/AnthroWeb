@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Lock, Delete, AlertTriangle, KeyRound } from 'lucide-react';
-import { MIN_PIN_LENGTH, BACKOFF_MS, describeRetry } from '../../services/vault/keyring';
+import { AlertTriangle } from 'lucide-react';
+import { describeRetry } from '../../services/vault/keyring';
 import { isCoolingDown, retryAfterMs, MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
 import type { Note } from '../../services/noteService';
 import { useNotice } from '../Feedback/useNotice';
@@ -23,21 +23,64 @@ const lockColumnsOf = (note: Note) => note as unknown as Parameters<typeof isCoo
  * content into the DOM and into the query cache. The lock has to mean the text
  * was never in memory, not that it was hidden behind something.
  *
- * A six-digit pad rather than a text field, so a PIN typed on a phone gets the
- * numeric keypad and cannot be dictated into a notes search by accident.
+ * A REAL INPUT, NOT A SIX-BUTTON GRID
+ *
+ * This was a `<div className="vault-lock-pad">` of buttons, and the module
+ * comment above it explained why that was deliberate: "a six-digit pad rather
+ * than a text field". It was not a bad idea on a phone. It was the *only* way in,
+ * and it meant the page could not be opened by anyone typing -- a hardware
+ * keyboard, a Bluetooth keyboard, a switch, a screen reader user driving the
+ * caret, or a person who simply expected a PIN field to be a PIN field. Nothing
+ * received the keystrokes because there was nothing to receive them.
+ *
+ * `inputMode="numeric"` keeps the phone keypad, which was the thing the grid was
+ * actually for, and `autoComplete="new-password"` keeps it out of password
+ * managers' suggestions, which was the other thing. What is lost is the ability
+ * to forbid anything but digits by construction; that is a `replace(/\D/g, '')`
+ * on change instead, which is the same rule with one fewer reason to remember it.
+ *
+ * Auto-submits at four digits, which is the app lock's behaviour and the reason
+ * it feels like a lock rather than a form.
+ *
+ * ONE WAY OUT, NOT TWO
+ *
+ * "Back to pages" and the key glyph both went. The glyph opened the same recovery
+ * flow as the link beneath it -- `NotesWorkspace` wired both to the same
+ * `setRecoveringPin(true)` -- so it was a second control for one action, on a
+ * grid whose other cells were digits. And "Back to pages" left a page open that
+ * could not be read, which is not a state worth offering a button for: the rail
+ * is right there.
+ *
+ * NO ICON, NO HEADING, NO EXPLANATION
+ *
+ * All three are gone, and the card is now a field and a link.
+ *
+ * The icon and the heading said "this page is locked", which the prompt itself
+ * already says by being the only thing on screen where the page should be. The
+ * paragraph under them was worse than decoration. It read "Enter the PIN you set
+ * for this page. Use your account password if you do not have it." -- which is
+ * not true, and is untrue in the one way that costs somebody their page. There is
+ * no field here that takes an account password. Recovery is the link underneath,
+ * and it opens a different screen that asks for it; typing a password into the PIN
+ * box can only produce a failed attempt against the page's own PIN, and after
+ * three of those the backoff starts refusing attempts for a minute at a time.
+ *
+ * So the text described a route that does not exist, in a place where the reader
+ * was about to type into a box. What is left says the same thing truthfully by
+ * being the control itself: a field with a PIN placeholder, and a link that
+ * plainly says what it opens. `aria-label` carries the same words for a screen
+ * reader, which is the one reader that does need to be told what this is.
  */
 
 interface NoteUnlockPromptProps {
     note: Note;
     onUnlocked: (key: CryptoKey) => void;
-    onUseRecovery: () => void;
     onForgotPin: () => void;
-    onBack: () => void;
 }
 
 const PIN_LENGTH = MIN_NOTE_PIN_LENGTH;
 
-const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, onUseRecovery, onForgotPin, onBack }) => {
+const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, onForgotPin }) => {
     const [entry, setEntry] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -78,90 +121,70 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
                 setCooldown(retryAfterMs(next));
                 // Persisted so the backoff survives a reload or a tab switch.
                 void updateNoteLockAttempts(note.id!, next);
-                setError(cooldown > 0 ? 'That PIN is not right.' : 'That PIN is not right.');
+                setError('That PIN is not right.');
                 setEntry('');
                 return;
             }
             onUnlocked(key);
         } catch (err) {
-            // A *wrong PIN* keeps its message on the pad, under the digits. That is
-            // feedback on the control being used rather than a failure of the app:
-            // a keypad raises it constantly and by design, and a popup at the top of
-            // the screen on every attempt would cover the page the user is trying to
-            // open.
+            // A *wrong PIN* keeps its message under the field. That is feedback on
+            // the control being used rather than a failure of the app.
             //
             // Anything reaching this catch is something else -- the key could not be
             // derived, the row could not be read -- and that goes to the one place
             // errors go.
             notify('error', err instanceof Error ? err.message : 'Could not unlock this page.');
-        } finally {            setBusy(false);
+        } finally {
+            setBusy(false);
         }
     }, [attempts, busy, cooldown, note, onUnlocked, notify]);
 
-    const press = (digit: string) => {
+    const type = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (busy || cooldown > 0) return;
         setError(null);
-        const next = (entry + digit).slice(0, PIN_LENGTH);
+        // Digits only, and never more than the PIN can be. Doing it on the way in
+        // rather than on submit means a pasted "PIN: 1234" is accepted without
+        // asking the reader to clean it up first.
+        const next = event.target.value.replace(/\D/g, '').slice(0, PIN_LENGTH);
         setEntry(next);
         if (next.length === PIN_LENGTH) void submit(next);
     };
 
+    // The form is what makes Enter work, the same reason the PIN dialog is one.
+    const onSubmit = (event: React.FormEvent) => {
+        event.preventDefault();
+        if (entry.length === PIN_LENGTH) void submit(entry);
+    };
+
     return (
-        <div className="note-unlock" role="dialog" aria-modal="true" aria-labelledby="note-unlock-heading">
-            <div className="note-unlock-card">
-                <div className="vault-lock-icon" aria-hidden="true"><Lock size={24} /></div>
-                <h2 id="note-unlock-heading" className="vault-lock-title">This page is locked</h2>
-                <p className="vault-lock-hint">
-                    Enter the PIN you set for this page. Use your app recovery
-                    words if you do not have it.
-                </p>
-
-                <div className="vault-lock-dots" role="status" aria-label={`${entry.length} of ${PIN_LENGTH} digits entered`}>
-                    {Array.from({ length: PIN_LENGTH }, (_, i) => (
-                        <span key={i} className={`vault-lock-dot${i < entry.length ? ' vault-lock-dot--filled' : ''}`} />
-                    ))}
-                </div>
-
-                <div className="vault-lock-pad">
-                    {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
-                        <button
-                            key={d}
-                            type="button"
-                            className="vault-lock-key"
-                            onClick={() => press(d)}
-                            disabled={busy || cooldown > 0}
-                        >
-                            {d}
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        className="vault-lock-key vault-lock-key--muted"
-                        onClick={onUseRecovery}
+        // `aria-label` rather than `aria-labelledby`: there is no heading left to
+        // point at, and a dialog that names itself is still named.
+        <div
+            className="note-unlock"
+            role="dialog"
+            aria-modal="true"
+            aria-label="This page is locked"
+        >
+            <form className="note-unlock-card" onSubmit={onSubmit}>
+                <div className="vault-lock-fields">
+                    <label htmlFor="note-unlock-pin" className="sr-only">
+                        Page PIN
+                    </label>
+                    <input
+                        id="note-unlock-pin"
+                        className="vault-lock-input"
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        aria-autocomplete="none"
+                        spellCheck={false}
+                        maxLength={PIN_LENGTH}
+                        placeholder={`${PIN_LENGTH}-digit PIN`}
+                        value={entry}
+                        onChange={type}
                         disabled={busy || cooldown > 0}
-                        data-tip="Use your recovery words"
-                    >
-                        <KeyRound size={18} />
-                        <span className="sr-only">Use recovery words</span>
-                    </button>
-                    <button
-                        type="button"
-                        className="vault-lock-key"
-                        onClick={() => press('0')}
-                        disabled={busy || cooldown > 0}
-                    >
-                        0
-                    </button>
-                    <button
-                        type="button"
-                        className="vault-lock-key vault-lock-key--muted"
-                        onClick={() => { setEntry(e => e.slice(0, -1)); setError(null); }}
-                        disabled={busy || cooldown > 0 || entry.length === 0}
-                        data-tip="Delete"
-                    >
-                        <Delete size={18} />
-                        <span className="sr-only">Delete</span>
-                    </button>
+                        autoFocus
+                    />
                 </div>
 
                 {error && (
@@ -171,17 +194,12 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
                     </p>
                 )}
 
-                <button type="button" className="btn-link" onClick={onForgotPin}>
+                <button type="button" className="btn-link" onClick={onForgotPin} disabled={busy}>
                     I forgot this page&rsquo;s PIN
                 </button>
-                <button type="button" className="btn-link" onClick={onBack}>Back to pages</button>
-            </div>
+            </form>
         </div>
     );
 };
 
-export { MIN_PIN_LENGTH, BACKOFF_MS };
 export default NoteUnlockPrompt;
-
-
-

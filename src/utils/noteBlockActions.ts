@@ -226,6 +226,47 @@ export const overTarget = (editor: Editor, target: BlockTarget, run: () => void)
     }
 };
 
+/** Which of the two block-menu entry points opened a menu. */
+export type MenuSource = 'handle' | 'selection';
+
+/**
+ * The range an inline mark should act on.
+ *
+ * `target` is block-aligned, and for everything whole-block that is right: it is
+ * why Delete from a grip three lines into a paragraph takes the paragraph rather
+ * than the three words the pointer happened to be over. It is wrong for a mark,
+ * and it was wrong in the direction people notice immediately -- selecting two
+ * words in a long paragraph, pressing Italic, and watching the entire paragraph
+ * (plus every other paragraph the selection touched) go italic.
+ *
+ * So a menu opened *on a selection* marks the selection: "make this italic"
+ * means the words under the highlight and nothing else.
+ *
+ * A menu opened from the drag handle keeps the block, because the block is what
+ * the grip is on and a selection has nothing to do with it. That distinction is
+ * the reason this takes `source` rather than reading the selection and deciding.
+ * Clicking a button outside the editor does not collapse the selection, so a
+ * handle can perfectly well be clicked while a selection sits elsewhere in the
+ * document -- and marking *that* would be a worse bug than the one being fixed.
+ *
+ * A collapsed caret falls back to the block in both cases, because a mark on a
+ * caret is a *pending* mark -- ProseMirror stores it and the next character
+ * typed comes out styled -- and that is what every other editor does with them.
+ * The block is the right unit there precisely because the block is where the
+ * caret is, which is the one case where the two agree.
+ *
+ * Shaped as a `BlockTarget` so `overTarget` and `isMarkedOver` need no second
+ * version of themselves, and so the selection-direction restore in `overTarget`
+ * keeps working: with a non-empty selection the range it puts in place is the
+ * range it puts back.
+ */
+export const markTarget = (editor: Editor, target: BlockTarget, source: MenuSource): BlockTarget => {
+    if (editor.isDestroyed || source !== 'selection') return target;
+    const { from, to, empty } = editor.state.selection;
+    if (empty || from === to) return target;
+    return { from, to, blocks: target.blocks };
+};
+
 /**
  * Whether a mark covers the target range.
  *

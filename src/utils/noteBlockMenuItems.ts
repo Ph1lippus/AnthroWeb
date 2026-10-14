@@ -1,10 +1,11 @@
 import type { Editor } from '@tiptap/core';
 import type { SlashCommand, SlashIconName } from './noteEditorExtensions';
-import type { BlockTarget } from './noteBlockActions';
+import type { BlockTarget, MenuSource } from './noteBlockActions';
 import {
     deleteBlocks,
     duplicateBlocks,
     isMarkedOver,
+    markTarget,
     moveBlocks,
     overTarget,
     setLinkOnSelection,
@@ -39,15 +40,25 @@ export interface FormatAction {
  * they were in the toolbar this replaced, and the point of replacing it was
  * where that toolbar appeared, not what it looked like.
  *
- * They act on `target`, the same block range every other action in this menu gets,
- * and that is the whole reason they take it. `toggleMark` works off
- * `state.selection`, which is the caret's own position and has nothing to do with
- * the block whose grip was clicked. Left that way, marking from the handle put a
- * *pending* mark on the caret's block -- so the line under the pointer did not
- * change, and the button looked broken rather than mis-aimed. Underline and
- * strikethrough were the ones noticed; every mark here was affected, and the
- * selection menu only worked because there the target and the selection are the
- * same range.
+ * They act on `marks`, which is `target` narrowed to the reader's own selection
+ * when the menu was opened *by* that selection -- see `markTarget`. The block
+ * range is the right unit for Duplicate and Delete and the wrong one for these:
+ * a menu opened on two selected words offers Bold, and Bold that italicises the
+ * whole paragraph is not what anybody means by Bold.
+ *
+ * `toggleMark` works off `state.selection`, which is the caret's own position
+ * and has nothing to do with the block whose grip was clicked. Left that way,
+ * marking from the handle put a *pending* mark on the caret's block -- so the
+ * line under the pointer did not change, and the button looked broken rather than
+ * mis-aimed. `overTarget` is what makes the two agree, and it now agrees on the
+ * selection when there is one. Underline and strikethrough were the ones noticed;
+ * every mark here was affected, and the selection menu was the case that looked
+ * right by accident -- the target and the selection only coincided when the
+ * selection happened to cover whole blocks.
+ *
+ * `source` is taken rather than inferred, because a menu opened from the drag
+ * handle has to keep marking the block even when a selection happens to be lying
+ * around: clicking a button outside the editor does not collapse one.
  *
  * Offered on a collapsed caret too, which is what they do in every other editor:
  * ProseMirror keeps the mark as a pending one, so the text typed next comes out
@@ -55,7 +66,16 @@ export interface FormatAction {
  * nothing, and it worked backwards -- a menu opened from the block handle showed
  * no formatting at all, so the buttons looked absent rather than deferred.
  */
-export const buildFormatActions = (editor: Editor, target: BlockTarget): FormatAction[] => {
+export const buildFormatActions = (
+    editor: Editor,
+    target: BlockTarget,
+    source: MenuSource,
+): FormatAction[] => {
+    // Resolved once, and the same range handed to `isMarkedOver` and to
+    // `overTarget`. Reading the active state from one range and applying the mark
+    // to another is how a button ends up lighting up for text it did not change.
+    const marks = markTarget(editor, target, source);
+
     // Every inline mark in the set is a plain mark, so one command covers all of
     // them. The per-mark shortcuts the old toolbar advertised (toggleCode,
     // toggleSubscript, ...) are all this same call with a different name, and
@@ -64,10 +84,10 @@ export const buildFormatActions = (editor: Editor, target: BlockTarget): FormatA
         id,
         label,
         icon,
-        // Read over the target range rather than the selection, or the button
-        // lights up because of whatever block the caret happens to be in.
-        active: isMarkedOver(editor, target, markName),
-        run: () => overTarget(editor, target, () => editor.chain().focus().toggleMark(markName).run()),
+        // Read over the same range the command acts on, or the button lights up
+        // because of whatever block the caret happens to be in.
+        active: isMarkedOver(editor, marks, markName),
+        run: () => overTarget(editor, marks, () => editor.chain().focus().toggleMark(markName).run()),
     });
 
     const actions: FormatAction[] = [
@@ -83,20 +103,20 @@ export const buildFormatActions = (editor: Editor, target: BlockTarget): FormatA
 
     actions.push({
         id: 'link',
-        label: isMarkedOver(editor, target, 'link') ? 'Edit link' : 'Link',
+        label: isMarkedOver(editor, marks, 'link') ? 'Edit link' : 'Link',
         icon: 'Link',
-        active: isMarkedOver(editor, target, 'link'),
-        run: () => setLinkOnSelection(editor, target),
+        active: isMarkedOver(editor, marks, 'link'),
+        run: () => setLinkOnSelection(editor, marks),
     });
     // Only drawn while the target is already a link, so the second button is the
     // one that undoes what the first did.
-    if (isMarkedOver(editor, target, 'link')) {
+    if (isMarkedOver(editor, marks, 'link')) {
         actions.push({
             id: 'unlink',
             label: 'Remove link',
             icon: 'LinkOff',
             run: () =>
-                overTarget(editor, target, () =>
+                overTarget(editor, marks, () =>
                     editor.chain().focus().extendMarkRange('link').unsetLink().run(),
                 ),
         });

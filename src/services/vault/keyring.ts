@@ -469,12 +469,21 @@ export const provisionVault = async (
     const pinSalt = randomBytes(SALT_BYTES);
     const pinKey = await deriveKey(pin, pinSalt, PBKDF2_ITERATIONS);
     const pinWrapped = await seal(pinKey, toBase64(raw), wrapAadFor('pin'));
+    // Encoded before the wipe, not after. `wipeBytes` fills the buffer with
+    // zeroes, so a `toBase64` further down would encode sixteen zero bytes --
+    // which is valid base64, so nothing fails, and every vault provisioned since
+    // this ordering was written has stored a salt of all zeroes. It is invisible
+    // because both sides of the derivation read the same zeroes, and it is the
+    // difference between a salt and no salt.
+    const pinSaltEncoded = toBase64(pinSalt);
     wipeBytes(pinSalt);
 
     const phrase = normaliseRecoveryPhrase(recoveryPhrase);
     const recoverySalt = randomBytes(SALT_BYTES);
     const recoveryKey = await deriveKey(phrase, recoverySalt, PBKDF2_ITERATIONS);
     const recoveryWrapped = await seal(recoveryKey, toBase64(raw), wrapAadFor('recovery'));
+    // Same ordering, same reason.
+    const recoverySaltEncoded = toBase64(recoverySalt);
     wipeBytes(recoverySalt);
 
     holdMaster(raw);
@@ -484,10 +493,10 @@ export const provisionVault = async (
             vault_enabled: true,
             vault_version: VAULT_FORMAT_VERSION,
             vault_enabled_at: new Date().toISOString(),
-            vault_pin_salt: toBase64(pinSalt),
+            vault_pin_salt: pinSaltEncoded,
             vault_pin_iterations: PBKDF2_ITERATIONS,
             vault_pin_wrapped: pinWrapped,
-            vault_recovery_salt: toBase64(recoverySalt),
+            vault_recovery_salt: recoverySaltEncoded,
             vault_recovery_iterations: PBKDF2_ITERATIONS,
             vault_recovery_wrapped: recoveryWrapped,
         },
@@ -564,10 +573,13 @@ export const rewrapMasterForPin = async (newPin: string): Promise<{
     const pinSalt = randomBytes(SALT_BYTES);
     const pinKey = await deriveKey(newPin, pinSalt, PBKDF2_ITERATIONS);
     const pinWrapped = await seal(pinKey, toBase64(masterRaw), wrapAadFor('pin'));
+    // Before the wipe, for the same reason as `provisionVault`: encoding the
+    // buffer afterwards would store a salt of zeroes.
+    const pinSaltEncoded = toBase64(pinSalt);
     wipeBytes(pinSalt);
 
     return {
-        vault_pin_salt: toBase64(pinSalt),
+        vault_pin_salt: pinSaltEncoded,
         vault_pin_iterations: PBKDF2_ITERATIONS,
         vault_pin_wrapped: pinWrapped,
     };

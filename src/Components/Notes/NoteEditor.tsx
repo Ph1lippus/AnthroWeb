@@ -378,7 +378,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 // Always offered. With a collapsed caret these set the mark for
                 // whatever is typed next, which is what every editor does with them;
                 // hiding them there only taught that the buttons were unreliable.
-                formats: inCodeBlock ? [] : buildFormatActions(instance, target),
+                formats: inCodeBlock ? [] : buildFormatActions(instance, target, source),
                 conversions,
                 currentType: current?.title ?? '',
                 items: [
