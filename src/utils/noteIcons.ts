@@ -141,27 +141,50 @@ export const NOTE_ICON_ALIASES: Record<string, readonly string[]> = {
 export const NOTE_ICON_GROUPS: { group: string; ids: readonly string[] }[] = [
     {
         group: 'Pages',
-        ids: ['FileText', 'NotebookPen', 'File', 'StickyNote', 'Bookmark', 'BookMarked', 'BookOpen', 'Layers', 'PenLine', 'ListChecks', 'ClipboardList'],
+        ids: [
+            'FileText', 'NotebookPen', 'File', 'StickyNote', 'Bookmark', 'BookMarked', 'BookOpen',
+            'Layers', 'PenLine', 'ListChecks', 'ClipboardList', 'Folder', 'FolderOpen', 'FileCode',
+            'Paperclip', 'Archive', 'Save', 'Clipboard', 'Link', 'Share2', 'ExternalLink',
+        ],
     },
     {
         group: 'Study',
-        ids: ['GraduationCap', 'Lightbulb', 'Brain', 'Microscope', 'FlaskConical', 'Calculator', 'Sigma', 'Timer', 'Compass', 'BookOpen', 'LibraryBig'],
+        ids: [
+            'GraduationCap', 'Lightbulb', 'Brain', 'Microscope', 'FlaskConical', 'Calculator',
+            'Sigma', 'Timer', 'Compass', 'BookOpen', 'LibraryBig', 'Pencil', 'Eraser',
+            'Highlighter', 'Ruler', 'BookMarked', 'Glasses', 'Puzzle',
+        ],
     },
     {
         group: 'Work',
-        ids: ['Briefcase', 'Target', 'Zap', 'Rocket', 'Workflow', 'Wrench', 'Settings', 'GitBranch', 'Terminal', 'CodeXml', 'Database', 'Wallet', 'Award', 'ListTodo', 'KanbanSquare'],
+        ids: [
+            'Briefcase', 'Target', 'Zap', 'Rocket', 'Workflow', 'Wrench', 'Settings', 'GitBranch',
+            'Terminal', 'CodeXml', 'Database', 'Wallet', 'Award', 'ListTodo', 'KanbanSquare',
+            'FolderKanban', 'ChartLine', 'Network', 'Boxes', 'Package', 'ClipboardList',
+        ],
     },
     {
         group: 'Health',
-        ids: ['HeartPulse', 'Activity', 'Dumbbell', 'Apple', 'Moon', 'Scale', 'Sprout', 'Bug', 'Heart', 'Stethoscope', 'Pill'],
+        ids: [
+            'HeartPulse', 'Activity', 'Dumbbell', 'Apple', 'Moon', 'Scale', 'Sprout', 'Bug',
+            'Heart', 'Stethoscope', 'Pill', 'Smile', 'Bed', 'Thermometer', 'BicepsFlexed',
+        ],
     },
     {
         group: 'Life',
-        ids: ['House', 'Users', 'Map', 'Plane', 'Car', 'ShoppingBag', 'Music', 'Camera', 'Coffee', 'Anchor', 'Feather', 'Trophy', 'Gift', 'Dog', 'Cat', 'TreePine'],
+        ids: [
+            'House', 'Users', 'Map', 'Plane', 'Car', 'ShoppingBag', 'Music', 'Camera', 'Coffee',
+            'Anchor', 'Feather', 'Trophy', 'Gift', 'Dog', 'Cat', 'TreePine', 'Sun', 'Cloud',
+            'Home', 'Sparkles',
+        ],
     },
     {
         group: 'Symbols',
-        ids: ['Star', 'Flag', 'Bell', 'Calendar', 'Clock', 'Tag', 'Hash', 'Key', 'Lock', 'Search', 'Globe', 'Palette', 'Sparkles', 'CircleCheck', 'TriangleAlert', 'Repeat', 'Bookmark', 'Pin'],
+        ids: [
+            'Star', 'Flag', 'Bell', 'Calendar', 'Clock', 'Tag', 'Hash', 'Key', 'Lock', 'Search',
+            'Globe', 'Palette', 'CircleCheck', 'TriangleAlert', 'Repeat', 'Pin', 'Check', 'X',
+            'Info', 'AlertCircle', 'HelpCircle', 'Plus', 'Minus', 'RefreshCw', 'RotateCcw',
+        ],
     },
 ];
 
