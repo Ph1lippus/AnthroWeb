@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Flag, Play, Plus, RotateCcw, Square, Timer as TimerIcon } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
-import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import DurationPad from '../Components/Timer/DurationPad';
 import TimerDisplay from '../Components/Timer/TimerDisplay';
 import TimeUpOverlay from '../Components/Timer/TimeUpOverlay';
@@ -11,7 +10,6 @@ import SettingsPanel from '../Components/Timer/SettingsPanel';
 import PresetPanel from '../Components/Timer/PresetPanel';
 import IntervalEditor from '../Components/Timer/IntervalEditor';
 import AlarmsPanel, { type AlarmDraft } from '../Components/Timer/AlarmsPanel';
-import WorldClockPanel from '../Components/Timer/WorldClockPanel';
 import { useTimer, useTimerSound, type TimerMode } from '../hooks/useTimerEngine';
 import { useTimerDocumentTitle } from '../hooks/useTimerDocumentTitle';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -44,15 +42,6 @@ import {
     type TimerAlarm,
 } from '../services/timerService';
 
-type PanelId = 'run' | 'alarms' | 'world' | 'settings';
-
-const PANELS: TabDefinition[] = [
-    { id: 'run', label: 'Timer' },
-    { id: 'alarms', label: 'Alarms' },
-    { id: 'world', label: 'World clock' },
-    { id: 'settings', label: 'Settings' },
-];
-
 const MODES: { id: TimerMode; label: string }[] = [
     { id: 'countdown', label: 'Countdown' },
     { id: 'stopwatch', label: 'Stopwatch' },
@@ -81,19 +70,18 @@ const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
 
-    const [panel, setPanel] = useState<PanelId>('run');
     const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
     const [deletePreset, setDeletePreset] = useState<NormalizedPreset | null>(null);
     const [deleteAlarm, setDeleteAlarm] = useState<TimerAlarm | null>(null);
 
     /**
-     * A clock for the panels that need one.
+     * A clock for the things that are not the timer.
      *
-     * The engine's `now` only advances while something runs, so the world clock
-     * and the "in 7h 20m" on each alarm need a tick of their own. It stops when
-     * neither panel is open, because a page repainting every second to display
-     * the same minute is a battery cost with no visible return -- and on a phone
-     * that is the difference between the tab surviving and the OS killing it.
+     * The engine's `now` only advances while something runs, so the header's
+     * wall-clock readout and the "in 7h 20m" on each alarm need a tick of their
+     * own. It is unconditional now that the panels are all on screen at once --
+     * there is no longer a panel switch to key it off, and the header clock is
+     * always visible whether or not anything is running.
      *
      * The initial `setPanelNow` is omitted because the interval fires within a
      * second anyway, and seeding it in an effect would be a render for a value
@@ -101,12 +89,10 @@ const TimerPage: React.FC = () => {
      * and it is what the lazy initialiser used.
      */
     const [panelNow, setPanelNow] = useState(() => Date.now());
-    const panelNeedsTick = panel === 'world' || panel === 'alarms';
     useEffect(() => {
-        if (!panelNeedsTick) return;
         const id = window.setInterval(() => setPanelNow(Date.now()), 1000);
         return () => window.clearInterval(id);
-    }, [panelNeedsTick]);
+    }, []);
 
     // ==================== DATA ====================
 
@@ -401,17 +387,33 @@ const TimerPage: React.FC = () => {
             <div className="books-page-wrapper">
                 <div className="dashboard-section timer-section">
                     <div className="timer-card">
-                        <div className="books-top-bar">
-                            <Tabs
-                                tabs={PANELS}
-                                active={panel}
-                                onChange={id => setPanel(id as PanelId)}
-                                label="Timer"
-                            />
-                            {/* The running readout, mirrored into the header as well
-                                as the nav rail. The rail badge is the point -- this
-                                one is for somebody already on the page who has
-                                scrolled the ring out of view. */}
+                        {/*
+                            The page header. Two things and no more: what time it is
+                            where you are, and -- only while something is running --
+                            the run itself.
+
+                            The world clock used to be a fourth tab holding a dozen
+                            cities. The only part of it anybody used was their own
+                            time, and that was already on the tab bar they had to
+                            click through to reach. So the panel is gone and the one
+                            figure that was wanted sits here, where it is visible
+                            whatever else the page is doing.
+
+                            `Intl` rather than a hand-built string, so it follows
+                            the device's own region and 12/24-hour setting instead
+                            of overriding them.
+                        */}
+                        <div className="timer-header">
+                            <time className="timer-header__now" dateTime={new Date(panelNow).toISOString()}>
+                                {new Date(panelNow).toLocaleTimeString(undefined, {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </time>
+                            {/* The running readout, mirrored here as well as into the
+                                nav rail. The rail badge is the point -- this one is
+                                for somebody already on the page who has scrolled the
+                                ring out of view. */}
                             {engine.running && (
                                 <span className="weight-badge weight-badge--ok">
                                     <TimerIcon size={11} aria-hidden="true" />
@@ -424,12 +426,21 @@ const TimerPage: React.FC = () => {
                             )}
                         </div>
 
+                        {/* No tab bar. The things a timer page holds are not
+                            alternatives between which you choose one -- they are
+                            panels of the same instrument, and hiding three of them
+                            behind a tab meant the page could only ever show a
+                            quarter of itself at a time.
+
+                            The clock and its controls stay in a column of their own
+                            on the left, which is also what makes the rest safe to
+                            show all at once: the running display never scrolls out of
+                            reach and never gets covered by whichever panel you happen
+                            to be reading. */}
                         <div className="timer-body">
-                            {/* The display column, present on every panel rather
-                                than only the timer one. A page whose clock vanishes
-                                the moment you check the world clock is worse than a
-                                page with one panel too many. `order` keeps it above
-                                the panels on a phone. */}
+                            {/* The display column, beside the mosaic rather than
+                                above it. `order` puts it above on a phone, where
+                                there is no room for two columns. */}
                             <div className="timer-stage">
                                 <TimerDisplay
                                     text={digits}
@@ -505,13 +516,27 @@ const TimerPage: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className="timer-panels">
+                            {/* The mosaic. Every panel is mounted and visible, and the
+                                grid decides how they stack -- two-up on a wide
+                                screen, one column on a phone. Nothing here is
+                                conditionally rendered, so no panel can be the reason
+                                a running timer appears to have stopped. */}
+                            <div className="timer-mosaic">
                                 {/* ==================== RUN ==================== */}
-                                <TabPanel id="run" hidden={panel !== 'run'}>
-                                    <div className="timer-block">
+                                <section className="card puzzle-card timer-mosaic__cell">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Timer</h3>
+                                    </div>
+                                    <div className="card-body">
+                                        <div className="timer-block">
                                         {/* Segmented rather than tabs: these three are
                                             one operation with different setup, and they
                                             share the display to the left. */}
+                                        {/* Disabled while running, like the pad and
+                                            the interval editor below it. `setMode`
+                                            refuses mid-run rather than stopping the
+                                            run, and a control that silently ignores
+                                            you is worse than one that looks inert. */}
                                         <div className="timer-chips" style={{ marginBottom: '0.85rem' }}>
                                             {MODES.map(mode => (
                                                 <button
@@ -520,6 +545,8 @@ const TimerPage: React.FC = () => {
                                                     className={`timer-chip${engine.mode === mode.id ? ' timer-chip--on' : ''}`}
                                                     onClick={tap(() => engine.setMode(mode.id))}
                                                     aria-pressed={engine.mode === mode.id}
+                                                    disabled={engine.running}
+                                                    data-tip={engine.running ? 'Pause to change the mode' : undefined}
                                                 >
                                                     {mode.label}
                                                 </button>
@@ -598,7 +625,15 @@ const TimerPage: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
+                                    </div>
+                                </section>
 
+                                {/* ==================== PRESETS ==================== */}
+                                <section className="card puzzle-card timer-mosaic__cell">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Presets</h3>
+                                    </div>
+                                    <div className="card-body">
                                     <PresetPanel
                                         presets={presets}
                                         onCreate={preset => {
@@ -619,10 +654,15 @@ const TimerPage: React.FC = () => {
                                         }}
                                         busy={savePreset.isPending || editPreset.isPending}
                                     />
-                                </TabPanel>
+                                    </div>
+                                </section>
 
                                 {/* ==================== ALARMS ==================== */}
-                                <TabPanel id="alarms" hidden={panel !== 'alarms'}>
+                                <section className="card puzzle-card timer-mosaic__cell">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Alarms</h3>
+                                    </div>
+                                    <div className="card-body">
                                     <AlarmsPanel
                                         alarms={alarms}
                                         onCreate={alarm => {
@@ -636,15 +676,15 @@ const TimerPage: React.FC = () => {
                                         busy={addAlarm.isPending || editAlarm.isPending}
                                         now={panelNow}
                                     />
-                                </TabPanel>
-
-                                {/* ==================== WORLD CLOCK ==================== */}
-                                <TabPanel id="world" hidden={panel !== 'world'}>
-                                    <WorldClockPanel now={panelNow} />
-                                </TabPanel>
+                                    </div>
+                                </section>
 
                                 {/* ==================== SETTINGS ==================== */}
-                                <TabPanel id="settings" hidden={panel !== 'settings'}>
+                                <section className="card puzzle-card timer-mosaic__cell">
+                                    <div className="card-header">
+                                        <h3 className="card-title">Settings</h3>
+                                    </div>
+                                    <div className="card-body">
                                     <SettingsPanel
                                         settings={draftSettings}
                                         onChange={patch => {
@@ -654,7 +694,8 @@ const TimerPage: React.FC = () => {
                                         onPreview={(id: ChimeId) => playChime(id, draftSettings.volume)}
                                         notificationsBlocked={notificationsBlocked}
                                     />
-                                </TabPanel>
+                                    </div>
+                                </section>
 
                                 {anyLoading && (
                                     <p className="timer-empty-hint">Loading your presets and alarms…</p>

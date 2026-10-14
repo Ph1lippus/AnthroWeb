@@ -8390,14 +8390,28 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   gap: 1rem;
   align-items: start;
 }
+/* The Daily Log's split, at the same breakpoint and with the same left column.
+   Reusing the proportions rather than inventing new ones is what makes the two
+   pages read as one instrument, and reusing the *breakpoint* is what makes the
+   narrow layout behave the same way on both: below it the rail is a header
+   above the writing surfaces, which is the only order that works when there is
+   one column to fill. */
 @media (min-width: 1280px) {
   .journal-logs-card {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+    grid-template-areas: "score main";
+  }
+  .journal-score-col { grid-area: score; }
+  .journal-log-form { grid-area: main; }
+}
+/* The rail sticks so the breakdown and the day's controls stay in view while
+   scrolling two full-height editors beside them. Only useful in the split. */
+@media (min-width: 1280px) {
+  .journal-score-col {
+    position: sticky;
+    top: 1rem;
   }
 }
-/* The controls and stats are a full-width header above the writing surfaces.
-   Keeping them in normal flow makes the journal scan like Notes and Daily Log
-   on wide screens, instead of hiding the primary actions in a side rail. */
 .journal-score-col {
   min-width: 0;
   display: flex;
@@ -8408,6 +8422,25 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+/* The wrapper exists only so a pending day can be dimmed as a whole.
+   `journal-log-form` is the grid item; dimming it directly would put opacity on
+   an element that creates no stacking context and does nothing predictable to
+   its grandchildren. Dimming the inner wrapper dims both editors, which is the
+   point: the day is not editable yet, and it should not look editable. */
+.journal-log-form__inner {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: opacity 140ms ease;
+}
+/* Dim rather than hide. A blank area where the writing goes is worse than the
+   previous day's writing held back: it tells you nothing about how long the wait
+   is, and it makes the page jump when the real content arrives. */
+.journal-log-form__inner--pending {
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
 }
 /* The two writing surfaces, two-up, over the daily log's card grid. Below the
    puzzle breakpoint they stack, because two 300px-wide TipTap surfaces side by
@@ -8726,16 +8759,63 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
 .journal-tip-refresh:hover {
   opacity: 1;
 }
+/* The journal's left-rail breakdown card. Sized and spaced like the Daily Log's
+   score card so the two rails read as the same object; the chips inside are the
+   Daily Log's own `.metric-chip` styles, which is why no chip rules are repeated
+   here. */
+.journal-breakdown-card {
+  margin-bottom: 0;
+}
+.journal-breakdown-date {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.journal-breakdown-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+/* Big, but not a ring. A score can be a ring because a score is a single
+   judgement out of a fixed scale; a word count is a measurement that can be any
+   number at all, and drawing it as one would imply a target. */
+.journal-breakdown-total-value {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.journal-breakdown-total-label {
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
+.journal-breakdown-mood-line {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  opacity: 0.8;
+  margin: 0 0 0.5rem;
+}
+.journal-breakdown-mood-line strong {
+  font-weight: 600;
+  opacity: 1;
+}
+/* A topic chip carries no value, so it would render as a label with an empty
+   right-hand column. Tightened rather than given a placeholder, because the chip
+   is a word here and padding it out to match the numbered chips makes it look
+   like a figure that failed to arrive. */
+.journal-breakdown-card .metric-chip:has(.metric-chip-value:empty) {
+  padding-right: 0.5rem;
+}
+
 /* Journal editor section */
 .journal-rich-editor-loading { padding: 2rem; opacity: .6; }
-/* Shown for the moment between picking a day and that day's row landing in the
-   form. The editors are uncontrolled, so leaving them mounted here would mean
-   writing into the previous day's entry. */
-.journal-log-loading {
-  padding: 2rem;
-  opacity: .6;
-  text-align: center;
-}
+/* `.journal-log-loading` is gone. It said "Loading wednesday..." in the space
+   where the writing goes, and that was the wrong use of the space: the day's
+   name was already in the rail beside it, so the message repeated what was on
+   screen and then vanished. The pending state is `.journal-log-form__inner--
+   pending` instead -- the previous day's editors, dimmed and not accepting input,
+   which is both quieter and more informative about what is about to happen. */
 .journal-editor-header {
   display: flex;
   align-items: center;
@@ -10378,15 +10458,25 @@ select.form-control option {
   backdrop-filter: blur(10px);
 }
 
-/* Two rails: the ring on the left, the panels on the right. Sized so the ring
+/* Two columns: the ring on the left, the mosaic on the right. Sized so the ring
    column is content-driven and takes the extra width on a wide screen rather
-   than leaving a hole beside the digits. */
+   than leaving a hole beside the digits.
+
+   On a phone there is no room for two columns, so the ring goes above the mosaic
+   (`order`) instead of beside it. A clock you have to scroll to is not a clock,
+   which is the same reason the mosaic replaced the tabs in the first place. */
 .timer-body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   flex: 1;
   min-height: 0;
+}
+@media (min-width: 900px) {
+  .timer-body {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .timer-mosaic { order: 0; }
 }
 
 .timer-stage {
@@ -10399,22 +10489,68 @@ select.form-control option {
   padding: 0.5rem;
 }
 
-.timer-panels {
+/* The page header: the user's own time, and the run while one is going.
+   The world clock panel it replaces was a dozen cities, of which the one anybody
+   used was their own time -- and that was already visible on the tab bar they
+   had to click through to reach it. */
+.timer-header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+}
+/* Tabular figures, so the minute does not shift the whole string sideways once an
+   hour and make the clock twitch. It is on screen every second. */
+.timer-header__now {
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* The mosaic. Replaces the tab strip: every panel is mounted and visible, and
+   the grid alone decides how they arrange. Nothing here is conditionally
+   rendered, so no panel can be the reason a running timer looks stopped. */
+.timer-mosaic {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 1rem;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.25rem;
+  align-content: start;
 }
-.timer-panels::-webkit-scrollbar { width: 4px; }
-.timer-panels::-webkit-scrollbar-thumb {
+/* Two-up, and only once there is room for two columns that are still worth
+   reading. The panels are forms -- a duration pad, a set of alarm rows -- and
+   halving their width below this makes them worse rather than denser. */
+@media (min-width: 1100px) {
+  .timer-mosaic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Cells are cards in a puzzle grid, like the Daily Log's, so the page reads as
+   the same instrument as every other page in the app rather than as a widget. */
+.timer-mosaic__cell {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.timer-mosaic__cell > .card-header {
+  padding: 0.85rem 1rem 0.35rem;
+}
+.timer-mosaic__cell > .card-body {
+  padding: 0.35rem 1rem 1rem;
+}
+.timer-mosaic__cell .timer-empty-hint { grid-column: 1 / -1; }
+
+.timer-mosaic::-webkit-scrollbar { width: 4px; }
+.timer-mosaic::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 25px;
 }
-.timer-panels::-webkit-scrollbar-thumb:hover {
+.timer-mosaic::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 

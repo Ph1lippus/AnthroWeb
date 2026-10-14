@@ -719,9 +719,24 @@ check('and the same deadline',
 
 // Mode switching abandons the loaded run rather than converting it, because a
 // stopwatch carries no duration and an interval carries a shape.
+//
+// But it is *refused* while a run is going, rather than stopping it. That is the
+// fix: this used to set `running: false`, so touching the mode chips mid-run
+// silently threw the run away -- no alert, no confirmation, the display simply
+// reset. The two controls already in that panel refused instead of stopping, and
+// this was the odd one out.
+act(() => { reloaded.api().setMode('stopwatch'); });
+check('switching mode mid-run is refused', reloaded.api().mode === 'countdown',
+    String(reloaded.api().mode));
+check('and the run is untouched by the attempt', reloaded.api().running === true);
+check('with its deadline intact', reloaded.api().deadline !== null);
+
+// Stopped, the switch goes through and does clear the loaded run.
+act(() => { reloaded.api().pause(); });
 act(() => { reloaded.api().setMode('stopwatch'); });
 check('switching mode clears the deadline', reloaded.api().deadline === null);
 check('and the elapsed time', reloaded.api().elapsed === 0, String(reloaded.api().elapsed));
+check('and lands on the requested mode', reloaded.api().mode === 'stopwatch');
 
 // Laps are stopwatch-only, and a lap at a fixed zero is a split of nothing.
 act(() => { reloaded.api().start(); });

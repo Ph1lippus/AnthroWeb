@@ -636,13 +636,28 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         stopChime();
     }, []);
 
+    /**
+     * Switch between countdown, stopwatch and interval.
+     *
+     * Refused while a run is going, the same as `setDuration` and
+     * `setIntervalConfig` below it, and for the same reason: these are not
+     * independent fields, they replace each other's configuration wholesale.
+     *
+     * This used to stop the run instead of refusing, which read as "the timer
+     * stopped when I touched the buttons". The chips look like a tab strip, so
+     * touching one mid-run was an entirely reasonable thing to do and it silently
+     * threw the run away -- no alert, no confirmation, the display simply reset.
+     * The two controls already in that panel refused rather than stopping, so
+     * this was the odd one out rather than a deliberate choice.
+     */
     const setMode = useCallback((mode: TimerMode) => {
-        setState(prev => (prev.mode === mode
+        setState(prev => (prev.mode === mode || prev.running
             ? prev
-            // Switching modes abandons whatever was loaded, which is the honest
-            // thing to do: a stopwatch carries no duration and an interval
-            // carries a shape, and neither converts into the other.
-            : { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null }));
+            // A stopwatch carries no duration and an interval carries a shape, and
+            // neither converts into the other, so switching abandons the loaded
+            // configuration. That is the honest thing to do -- but it is only
+            // reachable while stopped, where it costs nothing.
+            : { ...prev, mode, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null }));
     }, []);
 
     const setDuration = useCallback((ms: number) => {

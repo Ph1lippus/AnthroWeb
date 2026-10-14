@@ -6,11 +6,12 @@ import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/d
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
-import { Lightbulb, X, RotateCw, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye } from 'lucide-react';
+import { Lightbulb, X, RotateCw, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye, Rows3 } from 'lucide-react';
 import { todayString, addDays, isDateString, formatDayLabel } from '../utils/dates';
 import { journalHabitFor } from '../utils/journalHabit';
 import { useBootHold } from '../services/bootScreen';
 import JournalEditor from '../Components/Journal/JournalEditor';
+import JournalBreakdown from '../Components/Journal/JournalBreakdown';
 import { journalDocumentText, journalTopicSuggestions, parseJournalDocument, serializeJournalDocument } from '../utils/journalContent';
 import type { JournalDocument } from '../utils/journalContent';
 import { queryKeys } from '../utils/queryKeys';
@@ -108,6 +109,18 @@ const JournalPage: React.FC = () => {
 
     const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
     const [randomTip, setRandomTip] = useState(getRandomTip);
+
+    /**
+     * Whether the day's breakdown is expanded.
+     *
+     * A lazy initialiser rather than an effect, so there is no first paint with the
+     * wrong one. Open by default on a wide screen, because the rail is beside the
+     * editors there and there is room for it; closed on a phone, where it would
+     * push both writing surfaces below the fold.
+     */
+    const [breakdownOpen, setBreakdownOpen] = useState(
+        () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
+    );
 
     const refreshTip = () => {
         setRandomTip(getRandomTip());
@@ -437,15 +450,34 @@ const JournalPage: React.FC = () => {
             <Title title="Journal" />
             <div className="journal-page-wrapper">
                 <div className="dashboard-section journal-section">
-                    {/* Same grid as the daily log's: a narrow sticky rail on the
-                        left, the form spanning the other two tracks. Reusing the
-                        proportions rather than inventing new ones is what makes the
-                        two pages read as one app. */}
+                    {/* The Daily Log's grid, unchanged: a narrow sticky rail on the
+                        left carrying "what this day looks like", and the writing
+                        surfaces to its right. The rail is now genuinely useful --
+                        it holds the day's breakdown -- rather than a header row that
+                        happened to be a column. */}
                     <div className="journal-logs-card">
                         <div className="journal-score-col">
+                            {/* The day row and the action buttons, stacked above the
+                                breakdown. Same order as the Daily Log's score
+                                column: the controls pick a day, then the card
+                                describes it. */}
                             <div className={`journal-top-bar${focusMode ? ' journal-top-bar--focus' : ''}`}>
                                 <div className="journal-top-bar__controls">
                                     <div className="daily-log-daynav">
+                                        {/* The breakdown toggle, first because it is the
+                                            one control in this row that does not act
+                                            on the day. Everything after it either
+                                            picks a day or acts on what is written. */}
+                                        <button
+                                            type="button"
+                                            className={`daily-log-daynav-btn${breakdownOpen ? ' daily-log-daynav-btn--on' : ''}`}
+                                            onClick={() => setBreakdownOpen(open => !open)}
+                                            data-tip={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                                            aria-label={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
+                                            aria-pressed={breakdownOpen}
+                                        >
+                                            <Rows3 size={14} aria-hidden="true" />
+                                        </button>
                                         <button
                                             type="button"
                                             className="daily-log-daynav-btn"
@@ -538,6 +570,18 @@ const JournalPage: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* The day's breakdown, under the controls that pick the
+                                day. Reads the same in the same place as the Daily
+                                Log's score card, and is derived entirely from what
+                                is on screen -- it cannot disagree with the editors,
+                                which is the only reason to show it at all. */}
+                            <JournalBreakdown
+                                document={journalDocument}
+                                morningMood={morningMood}
+                                eveningMood={eveningMood}
+                                dateLabel={formatDayLabel(logDate)}
+                                expanded={breakdownOpen}
+                            />
                         </div>
 
                         <div className="journal-log-form">
@@ -551,12 +595,20 @@ const JournalPage: React.FC = () => {
                                 the click. Keying on `logDate` mounted them with
                                 the previous day's prose and left them there --
                                 which then saved that day over the new one.
+
+                                The pending state is a quiet dim rather than the
+                                words "Loading wednesday...". The day's own label is
+                                already in the rail beside it, so a message naming
+                                the day repeats what is on screen and then
+                                disappears -- a flash of motion for information that
+                                was never missing. What it does need to convey is
+                                "not editable yet", and opacity says that without
+                                shouting.
                             */}
-                            {dayIsPending ? (
-                                <div className="journal-log-loading">
-                                    Loading {formatDayLabel(logDate).toLowerCase()}...
-                                </div>
-                            ) : (
+                            <div
+                                className={`journal-log-form__inner${dayIsPending ? ' journal-log-form__inner--pending' : ''}`}
+                                aria-busy={dayIsPending}
+                            >
                                 <JournalEditor
                                     key={appliedDate}
                                     value={journalDocument}
@@ -567,8 +619,7 @@ const JournalPage: React.FC = () => {
                                     onEveningMood={setEveningMood}
                                     focusMode={focusMode}
                                 />
-                            )}
-
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -45,6 +45,7 @@ const read = rel => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const code = rel => read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const page = code('src/Pages/JournalPage.tsx');
+const css = read('src/index.css');
 const editPage = code('src/Pages/JournalEditPage.tsx');
 const editor = code('src/Components/Journal/JournalEditor.tsx');
 const service = code('src/services/dailyLogService.ts');
@@ -66,8 +67,29 @@ console.log('\n== the editors mount on the applied day, not the requested one ==
         /if \(appliedDateRef\.current === logDate\) return;/.test(page)
         && /setAppliedDate\(logDate\)/.test(page));
 
-    check('the editors are held back while the day has not been applied',
-        /dayIsPending/.test(page) && /\{dayIsPending \? \(/.test(page));
+    /**
+     * The editors must not be editable while the day has not been applied.
+     *
+     * Asserted against the mechanism that is there, not the one that was. It
+     * used to be a conditional: a "Loading <day>" message replaced the editors
+     * outright. It is now a dimmed wrapper carrying `pointer-events: none`, with
+     * `aria-busy` alongside it.
+     *
+     * The property under test is unchanged and is what matters -- a pending day is
+     * not writable, so nobody types into the previous day's entry while the new
+     * one is in flight. The message was the least useful way to express it: it
+     * named the day that was already in the rail beside it, and then vanished.
+     */
+    check('a pending day is marked on the form', /dayIsPending/.test(page));
+    check('and the editors stay mounted, keyed on the applied day',
+        /<JournalEditor[\s\S]*?key=\{appliedDate\}/.test(page));
+    check('and a pending day is not editable',
+        /journal-log-form__inner--pending/.test(page));
+    check('the CSS actually blocks input and selection on it',
+        /\.journal-log-form__inner--pending \{[^}]*pointer-events: none[^}]*\}/.test(css)
+        && /\.journal-log-form__inner--pending \{[^}]*user-select: none/.test(css));
+    check('and it is announced as busy',
+        /aria-busy=\{dayIsPending\}/.test(page));
 }
 
 console.log('\n== an autosave cannot fire for a day the form is not showing ==');
