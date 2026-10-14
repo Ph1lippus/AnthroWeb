@@ -46,6 +46,14 @@ export interface SealResult {
     sealed: number;
     skipped: number;
     failed: number;
+    /**
+     * Rows still unsealed when the walk finished. Zero is the only value that
+     * means "done", and the UI says so rather than inferring it from the bar
+     * having reached the end.
+     */
+    remaining: number;
+    /** Per table, for the summary. Anything here above zero can be re-run. */
+    perTable: Record<string, number>;
 }
 
 /**
@@ -54,6 +62,18 @@ export interface SealResult {
  * Notes first: they are the thing most likely to be read by someone else, and
  * they are the smallest of the three. The daily log is by far the largest and
  * goes last so an interruption costs the least.
+ */
+/**
+ * The tables walked.
+ *
+ * Notes first: they are the thing most likely to be read by someone else, and
+ * the smallest of the three. The daily log is by far the largest and goes last,
+ * so an interruption costs the least.
+ *
+ * The sort columns are declared but not used for paging -- the cursor moves on
+ * `id`, which is stable, unique and indexed. They are kept because they describe
+ * what each table is keyed on, and because a future page that wants to present
+ * the walk in date order should not have to rediscover it.
  */
 const TARGETS = [
     { table: 'notes', order: 'created_at', ascending: true },
@@ -68,71 +88,139 @@ const TARGETS = [
  * `select` should return, and an unbounded fetch that fails at the end means
  * redoing all of it.
  */
+/** One page. Small enough that a phone is not holding 40MB of note content. */
+const PAGE_SIZE = 250;
+
+/**
+ * Seal one table, every page of it.
+ *
+ * The paging is the whole function. This used to fetch a single page of 1000 rows
+ * and seal them, with a comment claiming it was paged -- and it was not. A year
+ * of daily logs is 365 rows, so a user a few years in quietly went past it:
+ * everything past row 1000 stayed plaintext, and the summary reported success
+ * anyway. That is the specific shape of failure this feature cannot have, so it
+ * is now verified rather than assumed.
+ *
+ * Paged on `id`, not on the sort column. The walk seals rows as it goes, which
+ * removes them from the `vault IS NULL` set, so an offset would skip rows on the
+ * next page -- it pages forward past rows it has just handled. Cursor paging on a
+ * stable, unique, indexed column has no such problem: the cursor only ever moves
+ * forward through rows that still need work.
+ */
 const sealTable = async (
     table: string,
-    order: string,
-    ascending: boolean,
+    _order: string,
+    _ascending: boolean,
     userId: string,
     onProgress: (done: number, total: number) => void,
-): Promise<{ sealed: number; skipped: number; failed: number }> => {
+): Promise<{ sealed: number; skipped: number; failed: number; remaining: number }> => {
     let sealed = 0;
     let skipped = 0;
     let failed = 0;
+    let processed = 0;
 
-    // Only rows that are actually unsealed. `vault IS NULL` is the whole filter
-    // and it is also what makes a re-run cheap.
-    const { data: pending, error } = await supabase
+    // The true count, fetched once, so the progress bar is a fraction of reality
+    // rather than of the page it happens to be on. Head requests the row count
+    // without the rows.
+    const { count: totalRows, error: countError } = await supabase
         .from(table)
-        .select('*')
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .is('vault', null)
-        .order(order, { ascending })
-        .limit(1000);
+        .is('vault', null);
 
-    if (error) {
-        console.error(`Could not list rows to seal in ${table}:`, error.message);
-        return { sealed, skipped, failed: 1 };
+    if (countError) {
+        console.error(`Could not count rows to seal in ${table}:`, countError.message);
+        return { sealed, skipped, failed: 1, remaining: 0 };
     }
 
-    const rows = (pending ?? []) as Record<string, unknown>[];
-    const total = rows.length;
+    const total = totalRows ?? 0;
+    if (total === 0) {
+        onProgress(0, 0);
+        return { sealed, skipped, failed, remaining: 0 };
+    }
 
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        if (row.vault) { skipped++; continue; }
+    let cursor: string | null = null;
 
-        try {
-            const result = await sealExistingRow(table, row, userId);
-            if (!result.sealed || !result.vault) { skipped++; continue; }
+    // Bounded so a cursor that somehow does not advance fails loudly instead of
+    // looping forever against an unchanged result set.
+    for (let page = 0; page < 1000; page++) {
+        let query = supabase
+            .from(table)
+            .select('*')
+            .eq('user_id', userId)
+            .is('vault', null)
+            .order('id', { ascending: true })
+            .limit(PAGE_SIZE);
+        if (cursor) query = query.gt('id', cursor);
 
-            const { error: writeError } = await supabase
-                .from(table)
-                .update({ vault: result.vault, ...result.blanks })
-                .eq('id', row.id as string);
+        const { data: pending, error } = await query;
 
-            if (writeError) {
-                // The row keeps its plaintext. Reported, never deleted.
-                console.error(`Could not seal a row in ${table}:`, writeError.message);
+        if (error) {
+            console.error(`Could not list rows to seal in ${table}:`, error.message);
+            return { sealed, skipped, failed: failed + 1, remaining: total - processed };
+        }
+
+        const rows = (pending ?? []) as Record<string, unknown>[];
+        if (rows.length === 0) break;
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            // Advance the cursor on every row, sealed or not, so the next page
+            // starts past whatever this one covered.
+            cursor = String(row.id);
+
+            if (row.vault) { skipped++; processed++; continue; }
+
+            try {
+                const result = await sealExistingRow(table, row, userId);
+                if (!result.sealed || !result.vault) { skipped++; processed++; continue; }
+
+                const { error: writeError } = await supabase
+                    .from(table)
+                    .update({ vault: result.vault, ...result.blanks })
+                    .eq('id', row.id as string);
+
+                if (writeError) {
+                    // The row keeps its plaintext. Reported, never deleted.
+                    console.error(`Could not seal a row in ${table}:`, writeError.message);
+                    failed++;
+                } else {
+                    sealed++;
+                }
+            } catch (err) {
+                console.error(`Sealing a row in ${table} threw:`, err);
                 failed++;
-            } else {
-                sealed++;
             }
-        } catch (err) {
-            console.error(`Sealing a row in ${table} threw:`, err);
-            failed++;
+            processed++;
+
+            // Yield to the event loop periodically so the tab stays responsive
+            // and Android does not decide the WebView is unresponsive and kill
+            // it. A long synchronous crypto loop here looks identical to a hang.
+            if (i % 10 === 9) {
+                onProgress(processed, total);
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
         }
 
-        // Yield to the event loop periodically so the tab stays responsive and
-        // Android does not decide the WebView is unresponsive and kill it. A
-        // long synchronous crypto loop here would look identical to a hang.
-        if (i % 10 === 9) {
-            onProgress(i + 1, total);
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
+        onProgress(processed, total);
+
+        if (rows.length < PAGE_SIZE) break;
     }
 
-    onProgress(rows.length, total);
-    return { sealed, skipped, failed };
+    /**
+     * How many are still unsealed afterwards.
+     *
+     * Reported rather than assumed. A user who sees this at zero knows the whole
+     * table is sealed; a user who sees a number has something left to do, and
+     * the walk can simply be run again -- it skips what is already done.
+     */
+    const { count: remainingRows } = await supabase
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('vault', null);
+
+    return { sealed, skipped, failed, remaining: remainingRows ?? 0 };
 };
 
 /**
@@ -150,6 +238,8 @@ export const sealAllExistingRows = async (
     let sealed = 0;
     let skipped = 0;
     let failed = 0;
+    let remaining = 0;
+    const perTable: Record<string, number> = {};
 
     for (const { table, order, ascending } of TARGETS) {
         const result = await sealTable(table, order, ascending, userId, (done, total) => {
@@ -158,7 +248,9 @@ export const sealAllExistingRows = async (
         sealed += result.sealed;
         skipped += result.skipped;
         failed += result.failed;
+        remaining += result.remaining;
+        perTable[table] = result.remaining;
     }
 
-    return { sealed, skipped, failed };
+    return { sealed, skipped, failed, remaining, perTable };
 };

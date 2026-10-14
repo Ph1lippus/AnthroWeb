@@ -1,8 +1,8 @@
 import { supabase } from './supabaseClient';
 import { openRow, openRows, sealExistingRow } from './vault/rows';
-import { getUserSettings } from './profileService';
+import { getUserSettings, updateUserSettings } from './profileService';
 import { armNoteLock, disarmNoteLock, openNoteKeyWithAccount, reWrapNotePin, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
-import { checkAccountPassword, deriveAccountWrapKey, type AccountRecoveryColumns } from './vault/accountRecovery';
+import { buildAccountRecovery, checkAccountPassword, deriveAccountWrapKey, type AccountRecoveryColumns } from './vault/accountRecovery';
 import { getMasterKey, isVaultOpen } from './vault/keyring';
 
 /**
@@ -29,6 +29,42 @@ let sessionAccountKey: CryptoKey | null = null;
 const cachedAccountKey = async (): Promise<CryptoKey | null> => sessionAccountKey;
 
 /**
+ * Note keys, held for the length of the session, by note id.
+ *
+ * This exists because of a bug it now prevents. `updateNote` re-seals on every
+ * save, and it used to re-seal under whatever `getMasterKey()` returned. For a
+ * page locked with its own PIN that is the wrong key twice over:
+ *
+ *  - The app vault **on**: the first autosave after unlocking re-sealed the page
+ *    under the app master key, so from then on the page PIN controlled nothing.
+ *    `lockNote` exists precisely so it does control something.
+ *  - The app vault **off**: `isVaultOpen()` was false, so no sealing happened at
+ *    all and the body was written into the clear `content` column of a row that
+ *    still carried a ciphertext blob. A locked page's text, in plain text, in
+ *    the database.
+ *
+ * The UI already held these keys in React state, but a service function cannot
+ * read React state, and threading the key through every `useUpdateNote` call
+ * would put it in the hands of anything that renders an editor. Held here
+ * instead, in the same place and the same manner as `sessionAccountKey`: memory
+ * only, dropped when the session ends, never serialised.
+ */
+const sessionNoteKeys = new Map<string, CryptoKey>();
+
+/** Hold a page's key so later saves to it seal under the right key. */
+export const holdNoteKey = (noteId: string, key: CryptoKey): void => {
+    sessionNoteKeys.set(noteId, key);
+};
+
+/** The key held for a page, if it has been opened this session. */
+export const heldNoteKey = (noteId: string): CryptoKey | undefined => sessionNoteKeys.get(noteId);
+
+/** Drop a page's key. Called when its PIN is removed and when a session ends. */
+export const releaseNoteKey = (noteId: string): void => {
+    sessionNoteKeys.delete(noteId);
+};
+
+/**
  * Prove the account password and hold the resulting key for this session.
  *
  * Returns false for a wrong password without touching what is already cached, so
@@ -48,6 +84,7 @@ export const establishAccountKey = async (password: string): Promise<boolean> =>
 /** Drop the cached account key. Called whenever the session ends. */
 export const forgetAccountKey = (): void => {
     sessionAccountKey = null;
+    sessionNoteKeys.clear();
 };
 
 /**
@@ -80,7 +117,14 @@ export const resetNotePin = async (id: string, accountPassword: string, newPin: 
     const settings = await getUserSettings();
     const recovery = settings as unknown as AccountRecoveryColumns | null;
     if (!recovery?.account_recovery_verifier) {
-        throw new Error('Set up account recovery in Settings to reset a forgotten page PIN.');
+        // A page locked without the account wrap -- which is what happens if the
+        // account password was skipped at lock time. The message says so
+        // specifically, because "set up recovery in settings" sent people looking
+        // for a setting that no longer exists.
+        throw new Error(
+            'This page was locked without recovery set up, so its PIN cannot be reset. ' +
+            'It can still be opened with the app, or with its original PIN.',
+        );
     }
     if (!(await checkAccountPassword(recovery, accountPassword))) {
         throw new Error('That is not your account password.');
@@ -181,16 +225,14 @@ export interface Note {
 /**
  * Open a list of notes for display, leaving locked pages closed.
  *
- * A locked page must NOT be decrypted here. The sidebar is the reason somebody
- * locks a page in the first place -- it is the one view always on screen, and
- * the one a person glances at on a shared device. Decrypting every row to render
- * a list would make the lock decorative: the title and the first line of every
- * locked page would be sitting in memory and in the persisted cache the whole
- * time the sidebar is open.
+ * A locked page must NOT be decrypted here. The sidebar is the view always on
+ * screen on a shared device, and the one a person glances at. Decrypting every
+ * row to render a list would leave the body of every locked page in memory and in
+ * the persisted cache the whole time it is open.
  *
- * So a locked note comes back as a stub with no title, no body and no tags. It
- * renders as "Locked page", sorts by the `updated_at` that stays in the clear,
- * and prompts for its PIN when opened.
+ * What comes back is therefore a stub with no body and no tags -- and the title
+ * intact, because a sidebar of identically-named rows is not navigable and a
+ * lock you cannot use is a lock you end up switching off.
  */
 const openForDisplay = async <T extends Note>(rows: (Note & T)[], userId: string): Promise<Note[]> => {
     const out: Note[] = [];
@@ -200,7 +242,7 @@ const openForDisplay = async <T extends Note>(rows: (Note & T)[], userId: string
             // into the query cache for a row nobody is allowed to read.
             const stub = { ...row } as Note;
             delete stub.vault;
-            out.push({ ...stub, title: null, content: '', notes_tags: [], notes_cover: null });
+            out.push({ ...stub, content: '', notes_tags: [], notes_cover: null });
             continue;
         }
         const { rows: opened } = await openRows<Note>('notes', [row], userId);
@@ -282,6 +324,30 @@ export const getNoteById = async (id: string, includeTrashed = false): Promise<N
     }
 
     if (!data) return null;
+
+    /**
+     * A locked page opens with its own key, not the app's.
+     *
+     * Without this it opens with the master key, fails, and `openRows` drops it
+     * from the result -- so `getNoteById` returns `null` for a page that very
+     * much exists. Callers then read that as "no such note" and write over it,
+     * which is how a locked page ends up deleted by a save.
+     */
+    const noteKey = heldNoteKey(id);
+    if (noteKey) {
+        const { rows } = await openRows<Note>('notes', [data as Note], user.id, noteKey);
+        if (rows[0]) return rows[0];
+    }
+
+    if (data.lock_enabled) {
+        // Locked and not open here. Same shape `openForDisplay` returns: the
+        // title and the lock columns, which are clear, and nothing else. Not a
+        // row anyone should be able to save back -- it has no body to preserve.
+        const stub = { ...(data as Note) };
+        delete stub.vault;
+        return { ...stub, content: '', notes_tags: [], notes_cover: null };
+    }
+
     const { rows } = await openRows<Note>('notes', [data as Note], user.id);
     return rows[0] ?? null;
 };
@@ -389,11 +455,36 @@ export const updateNote = async (id: string, updates: Partial<Note>) => {
         updated_at: new Date().toISOString(),
     };
 
+    /**
+     * Which key this row's contents are sealed under.
+     *
+     * A page carrying its own PIN is sealed under *its* key, always. Falling back
+     * to the app master key there would quietly move the page out from under the
+     * PIN the user set -- the first autosave after unlocking would do it, which is
+     * to say the lock would stop working a second after it was turned on, with
+     * nothing on screen to say so.
+     *
+     * And when there is no note key at all, the write is refused rather than
+     * falling through to plaintext. A locked row whose key is not held is a row
+     * nobody may write to; writing the body in the clear would be the single
+     * worst outcome available, so it is the one path that is not taken.
+     */
+    const noteKey = heldNoteKey(id);
+    const existing = await getNoteById(id, true);
+
+    if (existing?.lock_enabled) {
+        if (!noteKey) {
+            throw new Error(
+                'This page is locked and its key is not open, so it cannot be saved to.',
+            );
+        }
+        return writeSealedNote(id, payload, existing, user.id, noteKey);
+    }
+
     // Nothing to merge onto when the row is not sealed -- a pin toggle, a colour,
     // a reorder. Those touch only clear columns, so the write goes out as it
     // always did, without paying for a read.
     if (isVaultOpen() && !updates.vault) {
-        const existing = await getNoteById(id, true);
         if (existing) {
             const { vault, blanks, sealed } = await sealExistingRow(
                 'notes',
@@ -427,26 +518,187 @@ export const updateNote = async (id: string, updates: Partial<Note>) => {
     return rows[0] ?? (data as Note);
 };
 
+/**
+ * Write a partial update to a page sealed under its own key.
+ *
+ * Split out of `updateNote` so the rule it enforces -- a locked row is only ever
+ * written through this, and this always passes the note key -- is a single
+ * function rather than a shape the main writer has to be careful about.
+ */
+const writeSealedNote = async (
+    id: string,
+    payload: Record<string, unknown>,
+    existing: Note,
+    userId: string,
+    noteKey: CryptoKey,
+): Promise<Note> => {
+    const merged = { ...existing, ...payload } as unknown as Record<string, unknown>;
+
+    /**
+     * Move clear columns out of the payload, for pages sealed under an older
+     * layout.
+     *
+     * `title` used to be inside the ciphertext. It is a clear column now, so a
+     * page locked before that changed still has its title sealed *and* `null` in
+     * the column the sidebar reads -- and it would read "Untitled" for good,
+     * because nothing else ever writes that column for a locked page.
+     *
+     * Fixed here, on the first save after the page is opened, because that is the
+     * one moment the key is in hand: the value is sitting in `merged`, and it can
+     * be re-sealed in the same round trip with nothing lost and no window where
+     * the row is half-converted.
+     *
+     * Written generally rather than as `title` specifically, because the same
+     * thing happens to any column ever added to the allowlist, and this should
+     * not need re-doing each time that happens.
+     */
+    const promote = await promoteClearColumns(id, userId, merged, payload);
+    if (promote) {
+        for (const [key, value] of Object.entries(promote)) {
+            if (!(key in payload)) payload[key] = value;
+        }
+    }
+
+    const { vault, blanks, sealed } = await sealExistingRow('notes', merged, userId, noteKey);
+    if (!sealed || !vault) {
+        throw new Error('Could not seal this page, so it was not saved.');
+    }
+
+    for (const key of Object.keys(blanks)) {
+        if (key in payload) payload[key] = blanks[key];
+    }
+
+    const { data, error } = await supabase
+        .from('notes')
+        .update({ ...payload, vault })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating a locked note:', error.message);
+        throw error;
+    }
+
+    // Opened with the *note* key, not the master key. Reading it back with the
+    // master key is how this bug hides: the row still opens, it just opens to
+    // the wrong thing.
+    const { rows } = await openRows<Note>('notes', [data as Note], userId, noteKey);
+    return rows[0] ?? (data as Note);
+};
+
+/**
+ * Clear columns that are null in the database but present in the opened row.
+ *
+ * Returns nothing in the normal case -- a page sealed under the current layout
+ * has its title in the column already, so there is one more read and no write.
+ * The read is scoped to the allowlist's own columns rather than `select('*')` so
+ * it cannot drag the ciphertext back over the wire to compare against itself.
+ */
+const promoteClearColumns = async (
+    id: string,
+    userId: string,
+    merged: Record<string, unknown>,
+    payload: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> => {
+    const wanted = NOTE_CLEAR_COLUMNS.filter(key => !(key in payload));
+    if (wanted.length === 0) return null;
+
+    // Nothing to promote if the opened row does not carry a value for it either.
+    const candidates = wanted.filter(key => merged[key] !== undefined && merged[key] !== null);
+    if (candidates.length === 0) return null;
+
+    const { data } = await supabase
+        .from('notes')
+        .select(candidates.join(','))
+        .eq('id', id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    // The column list is built at runtime, so PostgREST's generated types have
+    // nothing to say about the shape. Cast once, here, rather than at each use.
+    const row = data as Record<string, unknown> | null;
+
+    const out: Record<string, unknown> = {};
+    for (const key of candidates) {
+        if (row && row[key] === null) out[key] = merged[key];
+    }
+    return Object.keys(out).length > 0 ? out : null;
+};
+
+/** The notes columns that stay readable, exported for the repair above. */
+const NOTE_CLEAR_COLUMNS = [
+    'title', 'is_pinned', 'notes_position', 'notes_parent_id', 'notes_deleted_at',
+] as const;
+
 /** Toggle pin status. */
 export const togglePinNote = async (id: string, isPinned: boolean) => {
     return updateNote(id, { is_pinned: !isPinned });
 };
 
 /**
+ * The account key for wrapping a note, establishing it if this is the first time.
+ *
+ * The account wrap is what makes a forgotten page PIN recoverable, and it used to
+ * be set up by a toggle buried in Settings that had to be found *before* locking
+ * anything. Miss it, and "Forgot your PIN?" on the lock pad -- the one place
+ * anyone would look -- dead-ended with an error telling them to go and find the
+ * setting they had never been told existed.
+ *
+ * So it is established here instead, as a side effect of locking: the first page
+ * locked in a session asks for the account password once, and the key is held in
+ * memory for the rest of it. Locking a second page in the same session asks for
+ * nothing, because the key is already here and the verifier already exists.
+ *
+ * Returns null only when the caller declined and there is nothing cached, which
+ * `armNoteLock` handles by locking PIN-only. That remains a working state -- it
+ * just means a forgotten PIN is not recoverable for that page, which is what the
+ * confirmation is asking about.
+ */
+const ensureAccountKey = async (accountPassword?: string): Promise<CryptoKey | null> => {
+    const cached = await cachedAccountKey();
+    if (cached) return cached;
+    if (!accountPassword) return null;
+
+    // Verified through Supabase before anything is written, so a typo cannot
+    // leave a verifier on file that nobody will ever be able to satisfy.
+    const columns = await buildAccountRecovery(accountPassword);
+    const settings = await getUserSettings();
+    if (!settings) throw new Error('No settings row.');
+    await updateUserSettings({ ...settings, ...columns });
+
+    const key = await deriveAccountWrapKey(
+        { ...(settings as unknown as AccountRecoveryColumns), ...columns },
+        accountPassword,
+    );
+    sessionAccountKey = key;
+    return key;
+};
+
+/** Whether the account key is already held, so locking will not ask again. */
+export const hasAccountKey = (): boolean => sessionAccountKey !== null;
+
+/**
  * Lock a page behind its own PIN.
  *
  * Two things happen in one write, and they have to happen together: the page's
  * contents are re-sealed under the *note's* key rather than the app's master key,
- * and the note key is wrapped three ways so it survives any one of them being
+ * and the note key is wrapped several ways so it survives any one of them being
  * lost.
  *
  * Re-sealing under the note key is the whole point. If the contents stayed sealed
- * under the master key, the per-note PIN would be decorative -- anyone with the
- * app unlocked could read them. The master wrap still exists, so the app can read
- * a locked page without a prompt; the note PIN is what stops the sidebar and the
+ * under the master key, the per-page PIN would be decorative -- anyone with the
+ * app unlocked could read them, and so could anything that got hold of a backup
+ * of `vault_pin_wrapped`. The master wrap still exists, so the app can read a
+ * locked page without a prompt; the page PIN is what stops the sidebar and the
  * list from showing it.
+ *
+ * The key is held for the session on the way out, because `updateNote` needs it
+ * for every save that follows. Without it the next autosave would re-seal under
+ * the master key and undo the lock silently.
  */
-export const lockNote = async (id: string, pin: string): Promise<Note> => {
+export const lockNote = async (id: string, pin: string, accountPassword?: string): Promise<Note> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -463,12 +715,7 @@ export const lockNote = async (id: string, pin: string): Promise<Note> => {
     const current = await getNoteById(id, true);
     if (!current) throw new Error('That page no longer exists.');
 
-    // The account wrap, when the user has opted into account recovery. Held in
-    // memory only -- it is derived from a password that is not stored, so there
-    // is nothing to read back on the next lock. A user without recovery enabled
-    // gets a PIN-only lock, which works: `armNoteLock` treats the master wrap as
-    // a bonus rather than a precondition.
-    const accountKey = await cachedAccountKey();
+    const accountKey = await ensureAccountKey(accountPassword);
 
     const lockColumns = await armNoteLock(id, pin, undefined, accountKey);
     const noteKey = await unlockNoteWithPin(lockColumns as NoteLockColumns, id, pin);
@@ -490,16 +737,29 @@ export const lockNote = async (id: string, pin: string): Promise<Note> => {
         throw error;
     }
     void fetched;
+
+    // Held for the session so `updateNote` keeps sealing under this key. Without
+    // it the very next autosave would re-seal under the master key, which is the
+    // exact failure `lockNote` is written to prevent.
+    holdNoteKey(id, noteKey);
+
     return { ...data as Note, ...blanks, vault } as Note;
 };
 
 /**
  * Remove a page's PIN.
  *
- * The contents are re-sealed under the master key, because that is what the rest
- * of the app reads them with. Locking and unlocking therefore both rewrite the
- * note's payload -- which is a few kilobytes of AES-GCM on a document, not a
- * re-encryption of a vault.
+ * With the app vault on, the contents are re-sealed under the master key, because
+ * that is what the rest of the app reads them with. Locking and unlocking
+ * therefore both rewrite the note's payload -- which is a few kilobytes of
+ * AES-GCM on a document, not a re-encryption of a vault.
+ *
+ * With the app vault *off* there is no master key to re-seal under, and this used
+ * to throw "Could not unlock this page" and leave the page locked. Which is the
+ * wrong answer twice over: the page was never encrypted at rest to begin with,
+ * and a user who set a page PIN as their only protection could not take it off
+ * again. So the payload is written back to the clear columns and the lock
+ * columns are dropped -- which is what the row already was, minus the PIN.
  */
 export const unlockNote = async (id: string): Promise<Note> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -522,7 +782,34 @@ export const unlockNote = async (id: string): Promise<Note> => {
     if (!current) throw new Error('That page no longer exists.');
 
     const { vault, blanks, sealed } = await sealExistingRow('notes', current as unknown as object, user.id);
-    if (!sealed || !vault) throw new Error('Could not unlock this page.');
+
+    if (!sealed) {
+        // No master key. Put the page's own fields back in the clear and drop the
+        // PIN. `current` came out of the payload, so this is its content restored
+        // to the column it lives in.
+        const restore: Record<string, unknown> = { ...disarmNoteLock() };
+        for (const key of Object.keys(blanks)) {
+            const value = (current as unknown as Record<string, unknown>)[key];
+            if (value !== undefined) restore[key] = value;
+        }
+
+        const { data, error } = await supabase
+            .from('notes')
+            .update(restore)
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Could not unlock note:', error.message);
+            throw error;
+        }
+        releaseNoteKey(id);
+        return data as Note;
+    }
+
+    if (!vault) throw new Error('Could not unlock this page.');
 
     const { data, error } = await supabase
         .from('notes')
@@ -536,6 +823,7 @@ export const unlockNote = async (id: string): Promise<Note> => {
         console.error('Could not unlock note:', error.message);
         throw error;
     }
+    releaseNoteKey(id);
     return { ...data as Note, ...blanks, vault } as Note;
 };
 

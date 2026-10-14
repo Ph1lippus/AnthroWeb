@@ -8,6 +8,7 @@ import {
     Copy,
     CornerDownRight,
     FolderPlus,
+    Lock,
     MoreHorizontal,
     Pin,
     Plus,
@@ -76,16 +77,12 @@ interface NotesSidebarProps {
  */
 
 /**
- * What a locked page is called in the rail.
+ * Whether this row is a page carrying its own PIN.
  *
- * The same for every locked page, on purpose. The service already blanks the
- * title on a locked row, so without this it would render "Untitled" -- which is
- * both wrong and still a title. A row reading "Locked page" next to the real one
- * has leaked the part worth hiding.
+ * Shown as an icon beside the real title rather than as a replacement for it --
+ * see the note on `CLEAR_COLUMNS.notes` in `vault/rows.ts` for why the title
+ * stays readable. A sidebar of twenty rows all reading "Locked" cannot be used.
  */
-const LOCKED_LABEL = 'Locked page';
-
-/** Whether this row is a page carrying its own PIN. */
 const isLockedRow = (note: Note): boolean => Boolean(note.lock_enabled);
 
 const NotesSidebar: React.FC<NotesSidebarProps> = ({
@@ -250,7 +247,7 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                             // deliberately the same for every locked page. A row reading
                             // "Locked page" next to the real title has leaked the part
                             // that is actually worth hiding.
-                            const title = locked ? LOCKED_LABEL : note.title?.trim() || 'Untitled';
+                            const title = note.title?.trim() || 'Untitled';
                             const isActive = note.id === activeId;
                             // A branch starts folded; the set holds the ones that were opened.
                             const isCollapsed = isFolded(row, unfolded);
@@ -405,6 +402,17 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                                                 showTip={false}
                                             />
                                             <span className="notes-rail-item-title">{title}</span>
+                                            {locked && (
+                                                // Before the title, not after: it reads
+                                                // as a property of the page rather than
+                                                // as a trailing decoration, and it is
+                                                // the thing you scan for.
+                                                <Lock
+                                                    size={12}
+                                                    className="notes-rail-item-lock"
+                                                    aria-hidden="true"
+                                                />
+                                            )}
                                             {note.is_pinned && <span className="notes-rail-item-dot" />}
                                         </button>
                                     )}

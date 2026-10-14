@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { describeRetry } from '../../services/vault/keyring';
 import { MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
+import { hasAccountKey } from '../../services/noteService';
 import type { Note } from '../../services/noteService';
 
 /**
@@ -31,7 +32,7 @@ interface NotePinDialogProps {
      * page itself would race that timer and write stale text back over the new
      * key.
      */
-    onSubmit: (pin: string) => Promise<void>;
+    onSubmit: (pin: string, accountPassword?: string) => Promise<void>;
 }
 
 const NotePinDialog: React.FC<NotePinDialogProps> = ({
@@ -39,8 +40,23 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
 }) => {
     const [pin, setPin] = useState('');
     const [confirm, setConfirm] = useState('');
+    const [accountPassword, setAccountPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+
+    /**
+     * Whether this lock needs the account password.
+     *
+     * Asked for once, on the first page locked in a session, and never again
+     * after that -- the derived key is held in memory for the rest of it. There
+     * used to be a toggle for this in Settings that had to be found *before*
+     * locking anything, and missing it meant the "Forgot your PIN?" link on the
+     * lock pad -- the only place anyone would look -- dead-ended.
+     *
+     * Framed as what it is: not a setting to configure, but the thing that makes
+     * this page recoverable if the PIN is forgotten.
+     */
+    const [needsAccountPassword, setNeedsAccountPassword] = useState(!hasAccountKey());
 
     // Read the persisted deadline on mount rather than deriving it from local
     // state, so a reload cannot reset how many attempts have already failed.
@@ -54,7 +70,7 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
         setBusy(true);
         setError(null);
         try {
-            await onSubmit(mode === 'off' ? '' : pin);
+            await onSubmit(mode === 'off' ? '' : pin, needsAccountPassword ? accountPassword : undefined);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Could not update the PIN.');
             setBusy(false);
@@ -140,6 +156,49 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
                                     <p className="t-error-msg">Those do not match.</p>
                                 )}
                             </div>
+
+                            {/*
+                                Asked once per session, on the first page locked,
+                                and only because it is what makes "Forgot your
+                                PIN?" on the lock pad able to do anything. Framed as
+                                part of locking this page rather than as a setting
+                                to go and find, which is where this used to live
+                                and where nobody looked.
+                            */}
+                            {needsAccountPassword && (
+                                <div className="t-field">
+                                    <label className="t-label" htmlFor="note-lock-account-password">
+                                        Your account password
+                                    </label>
+                                    <div className="t-input-wrap">
+                                        <div className="t-input">
+                                            <input
+                                                id="note-lock-account-password"
+                                                type="password"
+                                                value={accountPassword}
+                                                onChange={e => { setAccountPassword(e.target.value); setError(null); }}
+                                                autoComplete="current-password"
+                                                placeholder="So you can recover this page"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="t-hint">
+                                        Only asked the first time you lock a page. It is
+                                        checked by the sign-in server and never stored
+                                        here &mdash; what gets saved only proves a correct
+                                        password without revealing it.
+                                    </p>
+                                    {needsAccountPassword && accountPassword.length === 0 && (
+                                        <button
+                                            type="button"
+                                            className="btn-link"
+                                            onClick={() => setNeedsAccountPassword(false)}
+                                        >
+                                            Skip &mdash; this page cannot be recovered if I forget the PIN
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

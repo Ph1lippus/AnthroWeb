@@ -75,13 +75,19 @@ let sealed;
     // What `lockNote` does: re-seal the note with the NOTE key.
     sealed = await sealRow('notes', makeNote(), USER, noteKey);
     check('the payload was produced', typeof sealed.vault === 'string');
-    check('the title is out of the clear columns', !('title' in sealed.clear));
+    check('the title stays readable, so a locked page is identifiable',
+        sealed.clear.title === 'Something I would rather not see');
     check('the content is out of the clear columns', !('content' in sealed.clear));
     check('the tags are out of the clear columns', !('notes_tags' in sealed.clear));
     check('pin state stays readable', sealed.clear.is_pinned === true);
     check('the tree stays readable', 'notes_position' in sealed.clear);
-    check('no plaintext survives in the write',
-        !JSON.stringify(sealed).includes('rather not'));
+
+    // The body, specifically. Asserting on the title would fail by design now
+    // that it is a clear column, and weakening the assertion to "some field" would
+    // stop it catching the bug it was written for: a content column quietly
+    // becoming readable again.
+    check('no body plaintext survives in the write',
+        !JSON.stringify(sealed).includes('the actual private text'));
 }
 
 console.log('\n== the note PIN opens it, the master key does not ==');

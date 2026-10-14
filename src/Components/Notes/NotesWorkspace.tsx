@@ -12,6 +12,7 @@ import NoteIconBadge from './NoteIconBadge';
 import QuickSwitcher from './QuickSwitcher';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
 import type { Note } from '../../services/noteService';
+import { holdNoteKey } from '../../services/noteService';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBootHold } from '../../services/bootScreen';
 import {
@@ -221,6 +222,13 @@ const NotesWorkspace: React.FC = () => {
 
     const handleUnlocked = useCallback((noteId: string, key: CryptoKey) => {
         setNoteKeys(current => ({ ...current, [noteId]: key }));
+        // Also held by the service, because saving a page goes through
+        // `updateNote` and it needs the key to seal the row under. React state is
+        // not something a service function can read, and without this the first
+        // autosave after unlocking would re-seal the page under the app master
+        // key -- quietly putting the contents back in reach of anyone who has
+        // the app unlocked, which is what the PIN was set to prevent.
+        holdNoteKey(noteId, key);
     }, []);
 
     /**
@@ -651,7 +659,7 @@ const NotesWorkspace: React.FC = () => {
                                     key={activeNote.id}
                                     note={activeNote}
                                     onUnlocked={key => handleUnlocked(activeNote.id!, key)}
-                                    onUseRecovery={() => navigate('/Settings/Security')}
+                                    onUseRecovery={() => setRecoveringPin(true)}
                                     onForgotPin={() => setRecoveringPin(true)}
                                     onBack={() => navigate('/Notes')}
                                 />

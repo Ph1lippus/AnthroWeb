@@ -14665,3 +14665,12 @@ button.workout-ex__empty:hover {
   opacity: 0.6;
   font-style: italic;
 }
+
+/* The lock glyph beside a page title in the notes rail. Dimmed rather than
+   full-strength so it reads as a property of the row rather than as content,
+   and so it does not compete with the page icon, which is chosen deliberately
+   and should stay the more visible of the two. */
+.notes-rail-item-lock {
+  flex-shrink: 0;
+  opacity: 0.55;
+}

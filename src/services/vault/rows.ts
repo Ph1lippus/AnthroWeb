@@ -77,11 +77,28 @@ const CLEAR_COLUMNS: Record<string, readonly string[]> = {
     notes: [
         'id', 'user_id', 'is_pinned', 'notes_position', 'notes_parent_id',
         'notes_deleted_at', 'created_at', 'updated_at', 'vault',
+        // The title stays in the clear, deliberately.
+        //
+        // A sidebar that lists twenty pages all reading "Locked" cannot be used.
+        // You cannot tell which one you are unlocking, which is the whole reason
+        // you locked any of them, and a lock you cannot navigate is a lock that
+        // pushes you to keep everything unlocked instead.
+        //
+        // The cost is real and worth stating once: a database dump now reveals
+        // what your pages are *about* even when it cannot read a word of them.
+        // Titles like "Therapy" or "Boss" say something. That is the trade --
+        // a lock you can navigate in exchange for what the labels are -- and it
+        // is the owner's call to make, not a detail to hide in a comment.
+        //
+        // Tags are NOT on this list. They are a self-authored taxonomy that
+        // tends to say more than the title does, and nothing about being able to
+        // identify a page needs them in the clear.
+        'title',
         // Lock state has to stay clear: it is how the app knows to prompt, and
         // how a locked note renders as locked rather than as blank.
         'lock_enabled', 'lock_salt', 'lock_iterations', 'lock_key_pin',
-        'lock_key_master', 'lock_key_recovery', 'lock_failed_attempts',
-        'lock_retry_after',
+        'lock_key_master', 'lock_key_account', 'lock_key_recovery',
+        'lock_failed_attempts', 'lock_retry_after',
     ],
     user_settings: [
         'id', 'user_id', 'created_at', 'updated_at', 'vault',

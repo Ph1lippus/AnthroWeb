@@ -228,9 +228,17 @@ console.log('\n== notes keep their tree and ordering ==');
     };
     const write = await seal('notes', note, USER);
 
-    check('the title is sealed', !('title' in write.clear));
+    // The title is deliberately NOT sealed. It was, until the owner decided
+    // otherwise: a sidebar listing twenty pages all reading "Locked" cannot be
+    // navigated, and a lock you cannot navigate is one you switch off. The cost
+    // -- a database dump reveals what your pages are about -- is stated at the
+    // allowlist, where the decision actually lives.
+    check('the title stays readable, so the rail can be navigated',
+        write.clear.title === 'Something private');
     check('the content is sealed', !('content' in write.clear));
     check('the tags are sealed', !('notes_tags' in write.clear));
+    check('the colour and icon are sealed',
+        !('notes_color' in write.clear) && !('notes_icon' in write.clear));
     check('is_pinned stays readable for sorting', write.clear.is_pinned === true);
     check('notes_position stays readable for ordering', write.clear.notes_position === 3.5);
     check('notes_parent_id stays readable for the tree', write.clear.notes_parent_id === 'n0');

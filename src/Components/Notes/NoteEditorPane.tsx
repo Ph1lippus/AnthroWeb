@@ -600,7 +600,7 @@ return (
                     mode={lockDialog.mode}
                     failedAttempts={note.lock_failed_attempts ?? 0}
                     onClose={() => setLockDialog(null)}
-                    onSubmit={async pin => {
+                    onSubmit={async (pin, accountPassword) => {
                         const { lockNote, unlockNote } = await import('../../services/noteService');
                         // The pending autosave has to land before the page is
                         // re-sealed, or it would write the old payload back over
@@ -612,7 +612,7 @@ return (
                         pendingRef.current = null;
 
                         const updated = pin
-                            ? await lockNote(note.id!, pin)
+                            ? await lockNote(note.id!, pin, accountPassword)
                             : await unlockNote(note.id!);
 
                         setLockDialog(null);
