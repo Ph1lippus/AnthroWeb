@@ -174,13 +174,19 @@ export const deriveAccountWrapKey = async (
   if (!hasAccountRecovery(row)) return null;
   const salt = row.account_recovery_salt;
   const iterations = row.account_recovery_iterations;
-  if (!salt || !iterations) return null;
+  const verifier = row.account_recovery_verifier;
+  if (!salt || !iterations || !verifier) return null;
 
+  // Derived once and checked here, rather than by calling `checkAccountPassword`
+  // and letting it derive a second time. That would run the full 600k-iteration
+  // derivation again for a boolean this function can answer from the key it
+  // already holds -- doubling the latency of every note unlock for nothing.
+  //
+  // Still verified before it is handed out, so a wrong password yields null here
+  // rather than a key that fails on every note it touches.
   const candidate = await deriveAccountKey(password, fromBase64(salt), iterations);
-  // Re-derived and checked before it is handed out, so a wrong password yields
-  // null here rather than a key that fails on every note it touches.
-  const ok = await checkAccountPassword(row, password);
-  return ok ? candidate : null;
+  const opened = await tryOpen(candidate, verifier, VERIFIER_AAD);
+  return opened === PROBE ? candidate : null;
 };
 
 /** Turn recovery off and forget the verifier. Existing note wraps stop working. */

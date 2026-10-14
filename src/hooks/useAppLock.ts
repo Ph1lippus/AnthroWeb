@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { fetchUserSettings, updateUserSettings } from '../services/profileService';
 import { forgetAccountKey } from '../services/noteService';
+import { supabase } from '../services/supabaseClient';
+import { verifyAccountPassword } from '../services/vault/accountRecovery';
 import type { UserSettings } from '../services/profileService';
 import {
+    FREE_ATTEMPTS,
     appRetryRemainingMs,
     describeRetry,
     generateRecoveryPhrase,
@@ -290,20 +293,102 @@ export const enableVault = async (pin: string): Promise<EnableVaultResult> => {
  * No current-PIN prompt, and that is deliberate rather than a shortcut. Reaching
  * this screen already means the app is unlocked -- `AppLockGate` sits in front of
  * every route -- so the master key is in memory and there is nothing the old PIN
- * would be proving. Someone standing at an unlocked device has already read
- * every sealed row on it; asking them for a PIN they may not know protects
- * nothing and costs the owner a field they did not ask for.
+ * would be proving.
  *
- * What still gates it is the lock itself: `rewrapMasterForPin` reads the master
- * key held in memory, so with the app locked this returns an error rather than
- * re-wrapping anything, and the write below is the only thing that persists.
+ * What gates it is proving the old PIN first. Someone standing at an unlocked
+ * device can reach this screen, and without that check they could set a PIN of
+ * their own and hold the account's contents behind a secret the owner does not
+ * have -- the one attack the whole feature exists to prevent. The recovery words
+ * remain the way back for an owner who has genuinely forgotten it, and on
+ * exhaustion of the PIN attempts the session ends rather than continuing, which
+ * puts the attacker's next problem in front of the account password instead.
  */
-export const changePin = async (nextPin: string): Promise<{ ok: boolean; error?: string }> => {
+export const changePin = async (
+    currentPin: string,
+    nextPin: string,
+): Promise<{ ok: boolean; error?: string; attempts?: number; exhausted?: boolean }> => {
     const settings = await fetchUserSettings();
     if (!settings?.vault_enabled) return { ok: false, error: 'Encryption is not on.' };
     if (!getMasterKey()) {
         return { ok: false, error: 'Unlock the app first, then change the PIN.' };
     }
+
+    const proof = await verifyCurrentPin(currentPin);
+    if (!proof.ok) {
+        return {
+            ok: false,
+            attempts: proof.attempts,
+            exhausted: proof.exhausted,
+            error: proof.error,
+        };
+    }
+
+    return applyNewPin(settings, nextPin);
+};
+
+/**
+ * Prove the current app PIN, counting the attempt server-side.
+ *
+ * The counter is the same `vault_failed_attempts` the lock screen uses, on
+ * purpose. Sharing it means an attacker cannot buy three free guesses on the
+ * change screen and then three more at the lock screen -- it is one ladder over
+ * one account, and a successful unlock anywhere clears it.
+ *
+ * A wrong PIN here leaves the vault exactly as it was. `unlockWithPin` only
+ * replaces the held key on success, so a failed proof is inert: the app stays
+ * unlocked, the master key is untouched, and nothing is written except the two
+ * counter columns.
+ */
+export const verifyCurrentPin = async (
+    pin: string,
+): Promise<{ ok: boolean; attempts: number; exhausted: boolean; error?: string }> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) return { ok: false, attempts: 0, exhausted: false };
+
+    const wait = appRetryRemainingMs(settings as unknown as VaultSettings);
+    if (wait > 0) {
+        return {
+            ok: false,
+            attempts: settings.vault_failed_attempts ?? 0,
+            exhausted: true,
+            error: `Too many attempts. Try again in ${describeRetry(wait)}.`,
+        };
+    }
+
+    if (await unlockWithPin(toVaultSettings(settings), pin)) {
+        if ((settings.vault_failed_attempts ?? 0) > 0) {
+            await updateUserSettings({
+                ...settings,
+                vault_failed_attempts: 0,
+                vault_retry_after: null,
+            } as unknown as UserSettings);
+        }
+        return { ok: true, attempts: 0, exhausted: false };
+    }
+
+    const attempts = (settings.vault_failed_attempts ?? 0) + 1;
+    const backoff = retryAfterMs(attempts);
+    await updateUserSettings({
+        ...settings,
+        vault_failed_attempts: attempts,
+        vault_retry_after: backoff > 0 ? new Date(Date.now() + backoff).toISOString() : null,
+    } as unknown as UserSettings);
+
+    return {
+        ok: false,
+        attempts,
+        exhausted: attempts >= FREE_ATTEMPTS,
+        error: backoff > 0
+            ? `That PIN is not right. Try again in ${describeRetry(backoff)}.`
+            : 'That PIN is not right.',
+    };
+};
+
+/** The rewrap-and-persist half, shared by both verification routes. */
+const applyNewPin = async (
+    settings: UserSettings,
+    nextPin: string,
+): Promise<{ ok: boolean; error?: string }> => {
     try {
         const wrapped = await rewrapMasterForPin(nextPin);
         await updateUserSettings({
@@ -320,6 +405,58 @@ export const changePin = async (nextPin: string): Promise<{ ok: boolean; error?:
     } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : 'Could not change the PIN.' };
     }
+};
+
+/**
+ * Change the PIN after proving the account password instead of the old PIN.
+ *
+ * The second route for someone who has genuinely forgotten it. The password is
+ * checked by Supabase rather than against a local copy, so it is the real
+ * credential and not the recovery verifier standing in for it.
+ *
+ * On failure the session ends. That is deliberate and it is the user's explicit
+ * design: after the PIN attempts are exhausted, the honest thing to do with a
+ * session that may be someone else's is to end it and put the account password
+ * in front of them. It cannot be reset by refreshing -- the attempt counter is
+ * in the settings row -- and it is not something a fumble can trigger on its own,
+ * because the PIN ladder runs first and the password is only ever offered after
+ * it.
+ */
+export const changePinWithAccountPassword = async (
+    password: string,
+    nextPin: string,
+): Promise<{ ok: boolean; error?: string; signedOut?: boolean }> => {
+    const settings = await fetchUserSettings();
+    if (!settings?.vault_enabled) return { ok: false, error: 'Encryption is not on.' };
+    if (!getMasterKey()) {
+        return { ok: false, error: 'Unlock the app first, then change the PIN.' };
+    }
+
+    if (!await verifyAccountPassword(password)) {
+        await endSession();
+        return {
+            ok: false,
+            signedOut: true,
+            error: 'That is not your account password. You have been signed out.',
+        };
+    }
+
+    return applyNewPin(settings, nextPin);
+};
+
+/** End the session. Isolated so the reason it can happen lives in one place. */
+const endSession = async (): Promise<void> => {
+    try {
+        await supabase.auth.signOut();
+    } catch (error) {
+        // A sign-out that fails to reach the server still clears the local
+        // session, and reporting that as a failure would leave the UI claiming
+        // the user is still signed in when they are not.
+        console.warn('Sign-out did not complete cleanly', error);
+    }
+    // `lock` drops the key and empties the cache, which is the whole point: a
+    // session that ends with the key still in memory has not really ended.
+    lock();
 };
 
 /** Turn the vault off. Requires the key in memory, and warns about the payload. */

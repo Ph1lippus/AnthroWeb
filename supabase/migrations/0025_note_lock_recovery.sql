@@ -115,7 +115,13 @@ ALTER TABLE public.user_settings
   ADD COLUMN IF NOT EXISTS account_recovery_iterations integer,
   ADD COLUMN IF NOT EXISTS account_recovery_verifier bytea;
 
+-- The probe string is `anthroweb/account-recovery/v1/probe`, defined as `PROBE`
+-- in `src/services/vault/accountRecovery.ts`. Spelled out here rather than
+-- referred to by name alone: this comment previously named a different string,
+-- which is harmless at runtime -- a COMMENT is documentation, not an input -- and
+-- very expensive for whoever reads this column expecting it to describe what the
+-- code does.
 COMMENT ON COLUMN public.user_settings.account_recovery_verifier IS
-  'AES-256-GCM wrap of the literal string in note-recovery-probe.v1 under PBKDF2(account password). Unwrapping it proves a candidate password is the account password. NULL until the user opts in at Settings -> Security.';
+  'AES-256-GCM wrap of the literal string "anthroweb/account-recovery/v1/probe" under PBKDF2(account password), bound to the AAD "anthroweb/account-recovery/v1/verifier". Unwrapping it proves a candidate password is the account password; the plaintext is a constant defined in PROBE, not the password or anything derived from it. NULL until the user opts in at Settings -> Security.';
 
 COMMIT;

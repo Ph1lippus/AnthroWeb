@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldAlert, Copy, Check, TriangleAlert, Eye, EyeOff } from 'lucide-react';
-import { enableVault, changePin, disableVault, lock } from '../../hooks/useAppLock';
+import { enableVault, changePin, changePinWithAccountPassword, disableVault, lock } from '../../hooks/useAppLock';
 import { MIN_PIN_LENGTH } from '../../services/vault/keyring';
 import { sealAllExistingRows } from '../../services/vault/seal';
 import { buildAccountRecovery, clearAccountRecovery, hasAccountRecovery } from '../../services/vault/accountRecovery';
@@ -35,6 +35,16 @@ const SecuritySettings: React.FC = () => {
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(false);
     const [progress, setProgress] = useState<SealProgress | null>(null);
+
+    // PIN-change flow. Kept apart from the account-recovery section below,
+    // which has its own password field for a different purpose: that one
+    // *establishes* a recovery wrap, this one *proves* an identity in order to
+    // re-wrap the master key. Sharing a field would let a value typed in one
+    // appear in the other.
+    const [currentPin, setCurrentPin] = useState('');
+    const [changePassword, setChangePassword] = useState('');
+    const [usePassword, setUsePassword] = useState(false);
+    const [pinAttempts, setPinAttempts] = useState(0);
 
     // Page recovery is deliberately its own section rather than part of the
     // encryption wizard: it is what makes a forgotten page PIN recoverable, and
@@ -83,7 +93,8 @@ const SecuritySettings: React.FC = () => {
     };
 
     const reset = () => {
-        setPin(''); setConfirmPin('');
+        setPin(''); setConfirmPin(''); setCurrentPin(''); setChangePassword('');
+        setUsePassword(false); setPinAttempts(0);
         setError(null); setPhrase(''); setProgress(null); setCopied(false);
     };
 
@@ -124,14 +135,52 @@ const SecuritySettings: React.FC = () => {
         }
     };
 
+    /**
+     * Change the PIN, proving the current one first.
+     *
+     * A wrong current PIN counts against the same server-side ladder the lock
+     * screen uses, and once those attempts are spent the form switches to the
+     * account password rather than letting someone keep guessing here.
+     */
     const runChangePin = async () => {
         setBusy(true);
         setError(null);
         try {
-            const result = await changePin(pin);
-            if (!result.ok) { setError(result.error ?? 'Could not change the PIN.'); return; }
-            setStage('on');
-            reset();
+            const result = await changePin(currentPin, pin);
+            if (result.ok) {
+                setStage('on');
+                reset();
+                return;
+            }
+            setPinAttempts(result.attempts ?? 0);
+            // Once the PIN attempts are spent, stop offering them. Leaving the
+            // field up invites more guesses against a counter that is already
+            // refusing them.
+            if (result.exhausted) setUsePassword(true);
+            setError(result.error ?? 'Could not change the PIN.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    /**
+     * Change the PIN by proving the account password instead.
+     *
+     * A wrong password ends the session, which the service does before this
+     * promise settles. Nothing to undo here beyond not claiming otherwise: the
+     * screen is being torn down by the sign-out anyway.
+     */
+    const runChangePinWithPassword = async () => {
+        setBusy(true);
+        setError(null);
+        try {
+            const result = await changePinWithAccountPassword(changePassword, pin);
+            if (result.ok) {
+                setStage('on');
+                reset();
+                return;
+            }
+            setError(result.error ?? 'Could not change the PIN.');
         } finally {
             setBusy(false);
         }
@@ -299,47 +348,117 @@ const SecuritySettings: React.FC = () => {
 
                 {stage === 'changing' && (
                     <div className="vault-setup">
-                        <label className="form-label" htmlFor="vault-newer-pin">New PIN</label>
-                        <input
-                            id="vault-newer-pin"
-                            type="password"
-                            className="form-control"
-                            value={pin}
-                            onChange={e => setPin(e.target.value)}
-                            autoComplete="new-password"
-                            inputMode="numeric"
-                        />
-                        <label className="form-label" htmlFor="vault-confirm-newer-pin">Type it again</label>
-                        <input
-                            id="vault-confirm-newer-pin"
-                            type="password"
-                            className="form-control"
-                            value={confirmPin}
-                            onChange={e => setConfirmPin(e.target.value)}
-                            autoComplete="new-password"
-                            inputMode="numeric"
-                        />
-                        {confirmPin && pin !== confirmPin && (
-                            <p className="t-error-msg" role="alert">Those do not match.</p>
+                        {/*
+                            Two routes, in order. The current PIN first, because
+                            that is what proves the person at this keyboard is the
+                            owner. The account password only appears once those
+                            attempts are spent, and failing it ends the session --
+                            which is the whole point, because a session at an
+                            unlocked device is exactly what an attacker has, and
+                            ending it puts the account password in front of them.
+                        */}
+                        {usePassword ? (
+                            <>
+                                <p className="t-error-msg" role="alert">
+                                    Too many wrong PINs. Enter your account password
+                                    to confirm it is you.
+                                </p>
+                                <label className="form-label" htmlFor="vault-account-password">
+                                    Account password
+                                </label>
+                                <input
+                                    id="vault-account-password"
+                                    type="password"
+                                    className="form-control"
+                                    value={changePassword}
+                                    onChange={e => { setChangePassword(e.target.value); setError(null); }}
+                                    autoComplete="current-password"
+                                    onKeyDown={e => { if (e.key === 'Enter') void runChangePinWithPassword(); }}
+                                />
+                                <p className="vault-lock-hint">
+                                    If this is not right, you will be signed out and
+                                    will need your password to sign back in.
+                                </p>
+                                <div className="vault-setup-actions">
+                                    <button
+                                        type="button"
+                                        className="btn-primary"
+                                        disabled={busy || accountPassword.length === 0}
+                                        onClick={() => void runChangePinWithPassword()}
+                                    >
+                                        {busy ? 'Checking...' : 'Confirm and change PIN'}
+                                    </button>
+                                    <button type="button" className="btn-link" onClick={() => { reset(); setStage('on'); }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <label className="form-label" htmlFor="vault-current-pin">
+                                    Current PIN
+                                </label>
+                                <input
+                                    id="vault-current-pin"
+                                    type="password"
+                                    className="form-control"
+                                    value={currentPin}
+                                    onChange={e => { setCurrentPin(e.target.value); setError(null); }}
+                                    autoComplete="current-password"
+                                    inputMode="numeric"
+                                />
+                                <label className="form-label" htmlFor="vault-newer-pin">New PIN</label>
+                                <input
+                                    id="vault-newer-pin"
+                                    type="password"
+                                    className="form-control"
+                                    value={pin}
+                                    onChange={e => setPin(e.target.value)}
+                                    autoComplete="new-password"
+                                    inputMode="numeric"
+                                />
+                                <label className="form-label" htmlFor="vault-confirm-newer-pin">Type it again</label>
+                                <input
+                                    id="vault-confirm-newer-pin"
+                                    type="password"
+                                    className="form-control"
+                                    value={confirmPin}
+                                    onChange={e => setConfirmPin(e.target.value)}
+                                    autoComplete="new-password"
+                                    inputMode="numeric"
+                                />
+                                {confirmPin && pin !== confirmPin && (
+                                    <p className="t-error-msg" role="alert">Those do not match.</p>
+                                )}
+                                {pinAttempts > 0 && (
+                                    <button
+                                        type="button"
+                                        className="btn-link"
+                                        onClick={() => setUsePassword(true)}
+                                    >
+                                        I have forgotten my PIN
+                                    </button>
+                                )}
+                                <p className="vault-lock-hint">
+                                    Changing the PIN re-wraps the key. Your data is not
+                                    re-encrypted, so this is instant and nothing can be
+                                    lost.
+                                </p>
+                                <div className="vault-setup-actions">
+                                    <button
+                                        type="button"
+                                        className="btn-primary"
+                                        disabled={busy || !currentPin || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
+                                        onClick={() => void runChangePin()}
+                                    >
+                                        {busy ? 'Changing...' : 'Change PIN'}
+                                    </button>
+                                    <button type="button" className="btn-link" onClick={() => { reset(); setStage('on'); }}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
                         )}
-                        <p className="vault-lock-hint">
-                            Changing the PIN re-wraps the key. Your data is not re-encrypted,
-                            so this is instant and nothing can be lost. If you have forgotten
-                            the current PIN, use your recovery words on the lock screen.
-                        </p>
-                        <div className="vault-setup-actions">
-                            <button
-                                type="button"
-                                className="btn-primary"
-                                disabled={busy || pin.length < MIN_PIN_LENGTH || pin !== confirmPin}
-                                onClick={() => void runChangePin()}
-                            >
-                                {busy ? 'Changing...' : 'Change PIN'}
-                            </button>
-                            <button type="button" className="btn-link" onClick={() => { reset(); setStage('on'); }}>
-                                Cancel
-                            </button>
-                        </div>
                     </div>
                 )}
 
