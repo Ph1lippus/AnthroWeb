@@ -28,7 +28,7 @@ import type { Note } from '../../services/noteService';
 import type { NoteEditorHandle } from './NoteEditor';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
 import { useNotice } from '../Feedback/useNotice';
-import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
+import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote, useUpdateNoteAppearance } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
 import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
 import { resolveNoteColor } from '../../utils/noteColors';
@@ -117,6 +117,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     onToggleRail,
 }) => {
     const updateNote = useUpdateNote(note.id);
+    const updateAppearance = useUpdateNoteAppearance(note.id);
     const trashNoteMutation = useTrashNote();
     const duplicateNoteMutation = useDuplicateNote();
     const togglePin = useToggleNotePin();
@@ -128,6 +129,8 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
     const [title, setTitle] = useState(note.title ?? '');
     const [content, setContent] = useState(note.content ?? '');
+    const [localColor, setLocalColor] = useState(note.notes_color ?? '');
+    const [localIcon, setLocalIcon] = useState(note.notes_icon ?? null);
     const { notify } = useNotice();
     const [confirmDelete, setConfirmDelete] = useState(false);
     /** Which way round the lock dialog is going, or null when it is closed. */
@@ -271,29 +274,18 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     };
 
     const handleColor = (color: string) => {
-        updateNote.mutate(
-            // An empty id is the removal, written as null. Sent as an empty string
-            // instead, Postgres stores it and `resolveNoteColor` treats it as
-            // Default anyway -- so the page *looked* uncoloured while still
-            // carrying a value, and re-picking the same colour afterwards was not
-            // distinguishable from a no-op.
+        if (color !== localColor) setLocalColor(color);
+        updateAppearance.mutate(
             { notes_color: color || null },
-            {
-                // Surfaced rather than swallowed. This mutation writes a column
-                // added by migration 0006, so against a database that has not had
-                // it applied every write 4xx's -- and an unhandled mutation error
-                // meant nothing at all appeared to happen.
-                onError: error => {
-                    void notify('error', `Could not save colour: ${error.message}`);
-                },
-            },
+            { onError: error => void notify('error', `Could not save colour: ${error.message}`) },
         );
     };
 
     const handleIcon = (icon: string | null) => {
-        updateNote.mutate(
+        if (icon !== localIcon) setLocalIcon(icon);
+        updateAppearance.mutate(
             { notes_icon: icon },
-            { onError: error => void notify('error', `Could not save icon: ${error.message}`) },
+            { onError: error => notify('error', `Could not save icon: ${error.message}`) },
         );
     };
 
@@ -360,12 +352,10 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         return () => window.removeEventListener('keydown', onKey);
     }, [note, allNotes]);
 
-    const currentColor = note.notes_color ?? '';
-    // Resolved once here rather than at each of the six places that draw the
-    // colour, so the tint on the page, the rail dot, the accent rule and the icon
-    // cannot disagree about what colour this page is.
+    const currentColor = localColor;
+    // Resolved once here ...
     const tone = resolveNoteColor(currentColor);
-    const icon = resolveNoteIcon(note.notes_icon);
+    const icon = resolveNoteIcon(localIcon);
     const words = wordCount(content);
     // Ancestors resolve against the live list. A parent that is missing -- trashed,
     // or filtered out by a search -- simply drops out of the trail rather than
@@ -658,7 +648,7 @@ return (
                 <NoteIconPicker
                     anchor={pickerAnchor}
                     onClose={closePicker}
-                    value={note.notes_icon ?? ''}
+                    value={localIcon ?? ''}
                     onChange={handleIcon}
                 />
             )}
@@ -718,8 +708,8 @@ return (
                             finding the toolbar.
                         */}
                             <NoteIconBadge
-                                value={note.notes_icon}
-                                color={currentColor}
+                                value={localIcon}
+                                color={localColor}
                                 size="page"
                                 fallback={<Plus size={15} />}
                             />

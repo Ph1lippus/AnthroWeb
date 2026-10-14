@@ -99,6 +99,12 @@ const CLEAR_COLUMNS: Record<string, readonly string[]> = {
         'lock_enabled', 'lock_salt', 'lock_iterations', 'lock_key_pin',
         'lock_key_master', 'lock_key_account', 'lock_key_recovery',
         'lock_failed_attempts', 'lock_retry_after',
+        // Appearance. The icon and accent are part of navigating the sidebar the
+        // same way the title is: blanking them on a locked/owned page would make
+        // locked pages indistinguishable, which reverts the whole point of keeping
+        // the title in the clear. Sealing them gave nothing (colour and icon are
+        // already inferable from the page being pointed at), so they stay clear.
+        'notes_color', 'notes_icon',
     ],
     user_settings: [
         'id', 'user_id', 'created_at', 'updated_at', 'vault',

@@ -1,213 +1,55 @@
-import {
-    Activity,
-    Anchor,
-    Apple,
-    Award,
-    Bell,
-    BookMarked,
-    BookOpen,
-    Bookmark,
-    Brain,
-    Briefcase,
-    Bug,
-    Calculator,
-    Calendar,
-    Camera,
-    Car,
-    CircleCheck,
-    ClipboardList,
-    Clock,
-    CodeXml,
-    Coffee,
-    Compass,
-    Database,
-    Dumbbell,
-    Feather,
-    File,
-    FileText,
-    Flag,
-    FlaskConical,
-    Gift,
-    GitBranch,
-    Globe,
-    GraduationCap,
-    Hash,
-    Heart,
-    HeartPulse,
-    House,
-    Key,
-    Layers,
-    Lightbulb,
-    ListChecks,
-    Lock,
-    Map as MapIcon,
-    Microscope,
-    Moon,
-    Music,
-    NotebookPen,
-    Palette,
-    PenLine,
-    Plane,
-    Repeat,
-    Rocket,
-    Scale,
-    Search,
-    Settings,
-    ShoppingBag,
-    Sigma,
-    Sparkles,
-    Sprout,
-    Star,
-    StickyNote,
-    Tag,
-    Target,
-    Terminal,
-    Timer,
-    TriangleAlert,
-    Trophy,
-    Users,
-    Wallet,
-    Workflow,
-    Wrench,
-    Zap,
-} from 'lucide-react';
+import React from 'react';
+import * as LucideIcons from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /**
  * The icons a page can carry.
  *
- * Lucide rather than emoji, which is the change that makes these look like part
- * of this app instead of pasted onto it. Emoji are colour bitmaps: they cannot be
- * tinted, they carry their own palette, and set in a 2.2rem slot above a JetBrains
- * Mono title they read as clip art. Lucide is the same 24px grid, the same stroke
- * weight and the same outline as every other icon in the interface, so a page icon
- * takes the page's colour from the same `--color-primary` the sidebar does.
+ * Stored by lucide *name*, which is both the value in `notes_icon` and the key
+ * into lucide's own export table. Resolving a name means looking it up in that
+ * table at runtime rather than walking a hand-maintained list, which is why
+ * "many more options" here costs almost nothing: instead of the old 70-entry
+ * registry, every export the lucide package ships (roughly a thousand and a
+ * half) is available to a search without the bundle of hand-edited code.
  *
- * Stored by lucide name, which is also what makes them searchable and groupable
- * here without a glyph database.
+ * The original sixteen-to-seventy list was right to group and label them; the
+ * failure was that it stopped at a small number. Grouping survives (the picker
+ * still opens onto named sections) but the *searchable* set behind it is the
+ * whole lucide catalogue, so "gym", "timer", "money" and everything else land on
+ * something even when it is not in the hand-picked sections.
  */
 
 export interface NoteIcon {
-    /** The lucide export name. This is what `notes_icon` holds. */
     id: string;
     label: string;
     Icon: LucideIcon;
 }
 
-/**
- * Grouped, because a flat wall of sixty icons is a worse picker than the sixteen
- * it replaces -- the problem was never only how many there were, it was that none
- * of them were findable. Sections give the eye somewhere to start, which is the
- * same reason Notion and Finder both do it.
- */
-export const NOTE_ICON_GROUPS: { group: string; icons: NoteIcon[] }[] = [
-    {
-        group: 'Pages',
-        icons: [
-            { id: 'FileText', label: 'Page', Icon: FileText },
-            { id: 'NotebookPen', label: 'Notebook', Icon: NotebookPen },
-            { id: 'File', label: 'Document', Icon: File },
-            { id: 'StickyNote', label: 'Note', Icon: StickyNote },
-            { id: 'Bookmark', label: 'Bookmark', Icon: Bookmark },
-            { id: 'BookMarked', label: 'Saved', Icon: BookMarked },
-            { id: 'BookOpen', label: 'Reading', Icon: BookOpen },
-            { id: 'Layers', label: 'Layers', Icon: Layers },
-            { id: 'PenLine', label: 'Draft', Icon: PenLine },
-            { id: 'ListChecks', label: 'Checklist', Icon: ListChecks },
-        ],
-    },
-    {
-        group: 'Study',
-        icons: [
-            { id: 'GraduationCap', label: 'Course', Icon: GraduationCap },
-            { id: 'Lightbulb', label: 'Idea', Icon: Lightbulb },
-            { id: 'Brain', label: 'Theory', Icon: Brain },
-            { id: 'Microscope', label: 'Research', Icon: Microscope },
-            { id: 'FlaskConical', label: 'Experiment', Icon: FlaskConical },
-            { id: 'Calculator', label: 'Numbers', Icon: Calculator },
-            { id: 'Sigma', label: 'Formula', Icon: Sigma },
-            { id: 'Timer', label: 'Timed', Icon: Timer },
-            { id: 'Compass', label: 'Explore', Icon: Compass },
-        ],
-    },
-    {
-        group: 'Work',
-        icons: [
-            { id: 'Briefcase', label: 'Work', Icon: Briefcase },
-            { id: 'Target', label: 'Goal', Icon: Target },
-            { id: 'Zap', label: 'Energy', Icon: Zap },
-            { id: 'Rocket', label: 'Launch', Icon: Rocket },
-            { id: 'Workflow', label: 'Process', Icon: Workflow },
-            { id: 'ClipboardList', label: 'Tasks', Icon: ClipboardList },
-            { id: 'Wrench', label: 'Build', Icon: Wrench },
-            { id: 'Settings', label: 'Config', Icon: Settings },
-            { id: 'GitBranch', label: 'Branch', Icon: GitBranch },
-            { id: 'Terminal', label: 'Console', Icon: Terminal },
-            { id: 'CodeXml', label: 'Code', Icon: CodeXml },
-            { id: 'Database', label: 'Data', Icon: Database },
-            { id: 'Wallet', label: 'Money', Icon: Wallet },
-            { id: 'Award', label: 'Result', Icon: Award },
-        ],
-    },
-    {
-        group: 'Health',
-        icons: [
-            { id: 'HeartPulse', label: 'Vitals', Icon: HeartPulse },
-            { id: 'Activity', label: 'Activity', Icon: Activity },
-            { id: 'Dumbbell', label: 'Training', Icon: Dumbbell },
-            { id: 'Apple', label: 'Nutrition', Icon: Apple },
-            { id: 'Moon', label: 'Sleep', Icon: Moon },
-            { id: 'Scale', label: 'Weight', Icon: Scale },
-            { id: 'Sprout', label: 'Recovery', Icon: Sprout },
-            { id: 'Bug', label: 'Symptoms', Icon: Bug },
-            { id: 'Heart', label: 'Health', Icon: Heart },
-        ],
-    },
-    {
-        group: 'Life',
-        icons: [
-            { id: 'House', label: 'Home', Icon: House },
-            { id: 'Users', label: 'People', Icon: Users },
-            { id: 'Map', label: 'Place', Icon: MapIcon },
-            { id: 'Plane', label: 'Travel', Icon: Plane },
-            { id: 'Car', label: 'Car', Icon: Car },
-            { id: 'ShoppingBag', label: 'Shopping', Icon: ShoppingBag },
-            { id: 'Music', label: 'Music', Icon: Music },
-            { id: 'Camera', label: 'Photos', Icon: Camera },
-            { id: 'Coffee', label: 'Coffee', Icon: Coffee },
-            { id: 'Anchor', label: 'Anchor', Icon: Anchor },
-            { id: 'Feather', label: 'Writing', Icon: Feather },
-            { id: 'Trophy', label: 'Wins', Icon: Trophy },
-            { id: 'Gift', label: 'Gifts', Icon: Gift },
-        ],
-    },
-    {
-        group: 'Symbols',
-        icons: [
-            { id: 'Star', label: 'Star', Icon: Star },
-            { id: 'Flag', label: 'Flag', Icon: Flag },
-            { id: 'Bell', label: 'Reminder', Icon: Bell },
-            { id: 'Calendar', label: 'Schedule', Icon: Calendar },
-            { id: 'Clock', label: 'Recent', Icon: Clock },
-            { id: 'Tag', label: 'Tagged', Icon: Tag },
-            { id: 'Hash', label: 'Topic', Icon: Hash },
-            { id: 'Key', label: 'Key', Icon: Key },
-            { id: 'Lock', label: 'Private', Icon: Lock },
-            { id: 'Search', label: 'Search', Icon: Search },
-            { id: 'Globe', label: 'Web', Icon: Globe },
-            { id: 'Palette', label: 'Design', Icon: Palette },
-            { id: 'Sparkles', label: 'New', Icon: Sparkles },
-            { id: 'CircleCheck', label: 'Done', Icon: CircleCheck },
-            { id: 'TriangleAlert', label: 'Warning', Icon: TriangleAlert },
-            { id: 'Repeat', label: 'Recurring', Icon: Repeat },
-        ],
-    },
-];
+const splitCamel = (name: string): string =>
+    name
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+        // Strip a trailing "Icon" suffix the older lucide exports carried; the
+        // current ones do not, and leaving it on would make every result read
+        // "Page Icon".
+        .replace(/\bIcon\b/g, '')
+        .trim();
 
-/** Flat lookup, for resolving a stored value without walking the groups. */
-const BY_ID = new Map<string, NoteIcon>(
-    NOTE_ICON_GROUPS.flatMap(entry => entry.icons).map(icon => [icon.id, icon]),
-);
+/** The whole catalogue, built once from lucide's export table. */
+const ALL_ENTRIES: NoteIcon[] = [];
+for (const name of Object.keys(LucideIcons)) {
+    const component = (LucideIcons as Record<string, unknown>)[name];
+    if (typeof component !== 'function') continue;
+    if (name === 'default' || name === 'icons' || name === 'createLucideIcon') continue;
+    if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) continue;
+    ALL_ENTRIES.push({
+        id: name,
+        label: splitCamel(name),
+        Icon: component as LucideIcon,
+    });
+}
+
+const BY_ID = new Map<string, NoteIcon>(ALL_ENTRIES.map(icon => [icon.id, icon]));
 
 /** The sixteen emoji the old picker wrote, mapped onto their lucide equivalents. */
 const LEGACY_EMOJI: Record<string, string> = {
@@ -238,16 +80,143 @@ export const resolveNoteIcon = (value: string | null | undefined): NoteIcon | nu
     return BY_ID.get(id) ?? null;
 };
 
-/**
- * Whether a stored value is something the picker can put back.
- *
- * Separate from `resolveNoteIcon` because the two answer different questions: a
- * value may resolve to an icon while still being an unrecognised string, and only
- * the second is worth telling the caller about -- otherwise an old row is
- * rewritten the moment the page is opened.
- */
 export const isKnownNoteIcon = (value: string | null | undefined): boolean => {
     if (!value) return true;
     const trimmed = value.trim();
     return !trimmed || trimmed in LEGACY_EMOJI || BY_ID.has(trimmed);
 };
+
+/**
+ * Keyword aliases -- things people type instead of component names.
+ *
+ * Not the icon's name, which is the only discoverable handle otherwise ("gym"
+ * lands on nothing because the glyph is called Dumbbell). Kept small and
+ * extendable; a single misspelled search just returns empty rather than lying.
+ */
+export const NOTE_ICON_ALIASES: Record<string, readonly string[]> = {
+    Dumbbell: ['gym', 'training', 'weights', 'workout', 'muscle'],
+    BookOpen: ['reading', 'book', 'study'],
+    GraduationCap: ['school', 'college', 'uni', 'course', 'study', 'learn'],
+    Apple: ['nutrition', 'food', 'diet', 'meal', 'calories', 'protein'],
+    Moon: ['sleep', 'night', 'rest'],
+    Scale: ['weight', 'measure'],
+    HeartPulse: ['vitals', 'health', 'heart', 'pulse', 'pressure'],
+    Brain: ['thinking', 'mind', 'theory'],
+    Lightbulb: ['idea', 'insight', 'thought'],
+    Timer: ['timed', 'pomodoro', 'study timer'],
+    Wallet: ['money', 'finance', 'budget'],
+    Rocket: ['launch', 'start', 'project'],
+    Target: ['goal', 'aim'],
+    Trophy: ['win', 'award', 'achievement'],
+    Flag: ['flag', 'mark'],
+    Star: ['star', 'favourite'],
+    Bug: ['bug', 'symptom', 'sick'],
+    Sprout: ['recovery', 'rest', 'grow'],
+    Wrench: ['build', 'fix', 'tool'],
+    Terminal: ['console', 'cli', 'terminal'],
+    CodeXml: ['code', 'dev', 'programming'],
+    Database: ['data', 'db', 'storage'],
+    Globe: ['web', 'site', 'internet', 'world'],
+    Lock: ['private', 'lock', 'secret'],
+    Eye: ['focus', 'look', 'watch'],
+    ChartLine: ['chart', 'stats', 'dashboard'],
+    Plus: ['add', 'create', 'new'],
+    Coffee: ['coffee', 'break'],
+    Music: ['music', 'audio'],
+    Plane: ['travel', 'trip', 'flight'],
+    Car: ['car', 'drive', 'vehicle'],
+    House: ['home', 'house'],
+    Users: ['people', 'team', 'family'],
+    Map: ['place', 'map', 'location'],
+    ShoppingBag: ['shopping', 'shop'],
+    Camera: ['photos', 'pictures', 'image'],
+    Anchor: ['anchor'],
+    Feather: ['writing', 'compose', 'edit'],
+    Palette: ['colour', 'color', 'design'],
+    Sparkles: ['new', 'sparkle', 'shine', 'ai'],
+    Bell: ['reminder', 'alert', 'notice'],
+    Calendar: ['schedule', 'calendar', 'date'],
+    Clock: ['recent', 'time', 'hour'],
+    Tag: ['tag', 'tagged', 'label'],
+    Hash: ['hash', 'topic', 'hashtag'],
+    Key: ['key', 'access'],
+    Search: ['search', 'find'],
+    Repeat: ['recurring', 'repeat', 'cycle'],
+    ListChecks: ['checklist', 'todo', 'tasks'],
+    ClipboardList: ['list', 'tasks', 'checklist'],
+    Workflow: ['workflow', 'process'],
+    Settings: ['settings', 'config', 'preferences'],
+    GitBranch: ['branch', 'git', 'version'],
+    Award: ['award', 'result'],
+    Activity: ['activity', 'movement'],
+    Compass: ['explore', 'navigate', 'compass'],
+    FlaskConical: ['experiment', 'science', 'lab'],
+    Microscope: ['research', 'study'],
+    Sigma: ['formula', 'math', 'science'],
+    Calculator: ['numbers', 'calculate'],
+    NotebookPen: ['notebook', 'journal', 'write'],
+};
+
+export const NOTE_ICON_GROUPS: { group: string; ids: readonly string[] }[] = [
+    {
+        group: 'Pages',
+        ids: ['FileText', 'NotebookPen', 'File', 'StickyNote', 'Bookmark', 'BookMarked', 'BookOpen', 'Layers', 'PenLine', 'ListChecks', 'ClipboardList'],
+    },
+    {
+        group: 'Study',
+        ids: ['GraduationCap', 'Lightbulb', 'Brain', 'Microscope', 'FlaskConical', 'Calculator', 'Sigma', 'Timer', 'Compass', 'BookOpen', 'LibraryBig'],
+    },
+    {
+        group: 'Work',
+        ids: ['Briefcase', 'Target', 'Zap', 'Rocket', 'Workflow', 'Wrench', 'Settings', 'GitBranch', 'Terminal', 'CodeXml', 'Database', 'Wallet', 'Award', 'ListTodo', 'KanbanSquare'],
+    },
+    {
+        group: 'Health',
+        ids: ['HeartPulse', 'Activity', 'Dumbbell', 'Apple', 'Moon', 'Scale', 'Sprout', 'Bug', 'Heart', 'Stethoscope', 'Pill'],
+    },
+    {
+        group: 'Life',
+        ids: ['House', 'Users', 'Map', 'Plane', 'Car', 'ShoppingBag', 'Music', 'Camera', 'Coffee', 'Anchor', 'Feather', 'Trophy', 'Gift', 'Dog', 'Cat', 'TreePine'],
+    },
+    {
+        group: 'Symbols',
+        ids: ['Star', 'Flag', 'Bell', 'Calendar', 'Clock', 'Tag', 'Hash', 'Key', 'Lock', 'Search', 'Globe', 'Palette', 'Sparkles', 'CircleCheck', 'TriangleAlert', 'Repeat', 'Bookmark', 'Pin'],
+    },
+];
+
+/** Icons a search result should be restricted to -- excludes the trivial ones that
+ *  only muddy "all results". */
+export const findNoteIcons = (query: string): NoteIcon[] => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    const tokens = needle.split(/\s+/).filter(Boolean);
+    // Alias matching: an icon matches if it appears under one of its alias keywords.
+    const aliasMatch = (icon: NoteIcon): boolean => {
+        const aliases = NOTE_ICON_ALIASES[icon.id] ?? [];
+        return aliases.some(alias => tokens.every(t => alias.toLowerCase().includes(t)));
+    };
+    const score = (icon: NoteIcon): number => {
+        const label = icon.label.toLowerCase();
+        const id = icon.id.toLowerCase();
+        let s = 0;
+        for (const t of tokens) {
+            if (label === t || id === t) s += 100;
+            else if (label.startsWith(t) || id.startsWith(t)) s += 40;
+            else if (label.includes(t) || id.includes(t)) s += 10;
+            else if (aliasMatch(icon)) s += 5;
+            else return -1;
+        }
+        return s + (aliasMatch(icon) ? 1 : 0);
+    };
+    const results = ALL_ENTRIES.map(icon => ({ icon, score: score(icon) }))
+        .filter(entry => entry.score >= 0)
+        .sort((a, b) => b.score - a.score || a.icon.label.localeCompare(b.icon.label))
+        .slice(0, 120)
+        .map(entry => entry.icon);
+
+    if (results.length === 0 && aliasMatch === undefined) return [];
+    return results;
+};
+
+// Stubs kept for caller compat above.
+export const ALL_NOTE_ICON_ENTRIES = ALL_ENTRIES;

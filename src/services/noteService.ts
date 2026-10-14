@@ -679,6 +679,7 @@ const promoteClearColumns = async (
 /** The notes columns that stay readable, exported for the repair above. */
 const NOTE_CLEAR_COLUMNS = [
     'title', 'is_pinned', 'notes_position', 'notes_parent_id', 'notes_deleted_at',
+    'notes_color', 'notes_icon',
 ] as const;
 
 /** Toggle pin status. */

@@ -1365,6 +1365,58 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         },
     });
 
+    const formatTimeToken = (token: string): string => {
+        const v = token.replace(/\D/g, '');
+        if (v.length >= 4) return v.slice(0, 2) + ':' + v.slice(2, 4);
+        if (v.length >= 3) return v.slice(0, 2) + ':' + v.slice(2);
+        return v;
+    };
+
+    // Pasting a row like "2148 108.2 232.6 81.6 350" into the first input of a
+    // card fills every later input in that card from the tokens, so a block of
+    // numbers can be dropped in and applied in one go instead of being typed one
+    // field at a time. Enter / Space moves the caret to the next input of the
+    // same card, so navigating a whole row takes one keystroke.
+    const advanceToNextInput = (current: HTMLInputElement): boolean => {
+        const card = current.closest('.puzzle-card') ?? current.closest('.card');
+        if (!card) return false;
+        const candidates = Array.from(card.querySelectorAll('input')).filter(
+            (el): el is HTMLInputElement => (el as HTMLInputElement).type !== 'checkbox',
+        );
+        const index = candidates.indexOf(current);
+        if (index === -1 || index >= candidates.length - 1) return false;
+        candidates[index + 1].focus();
+        try { candidates[index + 1].select(); } catch { /* inputs in number mode may not select */ }
+        return true;
+    };
+
+    const seriesHandlers = (
+        setters: Array<(v: string) => void>,
+        index: number,
+        format?: (token: string) => string,
+    ) => ({
+        onPaste: (e: React.ClipboardEvent<HTMLInputElement>) => {
+            const text = e.clipboardData?.getData('text') ?? '';
+            const parts = text.trim().split(/\s+/).filter(Boolean);
+            if (parts.length < 2) return; // single value: default paste
+            e.preventDefault();
+            parts.forEach((part, k) => {
+                const target = index + k;
+                if (target < setters.length) {
+                    setters[target](format ? format(part) : part);
+                }
+            });
+        },
+        onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                // A non-empty space inside a number input is invalid anyway, so
+                // turning it into navigation cannot eat a character.
+                advanceToNextInput(e.currentTarget);
+            }
+        },
+    });
+
     // Takes the column and the setter rather than a finished handler, so the write
     // is wired up where the checkbox is drawn and every call site names the habit it
     // writes.
@@ -1486,6 +1538,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             type="text"
                                             value={wakeTime || ''}
                                             {...timeInputHandlers(setWakeTime)}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 0, formatTimeToken)}
                                             disabled={noSleep}
                                             className={"scored-input font-mono" + (wakeTime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
@@ -1499,6 +1552,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             type="text"
                                             value={bedtime || ''}
                                             {...timeInputHandlers(setBedtime)}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 1, formatTimeToken)}
                                             disabled={noSleep}
                                             className={"scored-input font-mono" + (bedtime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
@@ -1520,6 +1574,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                                 if (!isNaN(val) && val >= 0 && val <= 10) setSleepQuality(e.target.value);
                                                 else if (e.target.value === '') setSleepQuality('');
                                             }}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 2)}
                                             className={"scored-input" + (sleepQuality ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
                                             style={sleepQuality && !noSleep ? { borderColor: getScoreColor(scoreOf('sleepQuality')! ?? 0) } : undefined}
@@ -1537,17 +1592,21 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                 </div>
                                 <div className="card-body">
                                     <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={weightValue} onChange={(e) => {
-                                            setWeightTouched(true);
-                                            setWeight(e.target.value);
-                                        }} onBlur={onWeightBlur} className={"scored-input" + (weightValue ? '' : ' scored-input--empty')} placeholder=" " style={weightValue ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
+                                        <input type="number" step="0.1" value={weightValue}
+                                            {...seriesHandlers([v => { setWeightTouched(true); setWeight(v); }, (v) => { setBodyFatTouched(true); setBodyFat(v); }], 0)}
+                                            onChange={(e) => {
+                                                setWeightTouched(true);
+                                                setWeight(e.target.value);
+                                            }} onBlur={onWeightBlur} className={"scored-input" + (weightValue ? '' : ' scored-input--empty')} placeholder=" " style={weightValue ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Weight (kg) <span className="scored-input-goal-inline">{settings?.target_weight || '--'}kg</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={bodyFatValue} onChange={(e) => {
-                                            setBodyFatTouched(true);
-                                            setBodyFat(e.target.value);
-                                        }} onBlur={onBodyFatBlur} className={"scored-input" + (bodyFatValue ? '' : ' scored-input--empty')} placeholder=" " style={bodyFatValue ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
+                                        <input type="number" step="0.1" value={bodyFatValue}
+                                            {...seriesHandlers([(v) => { setWeightTouched(true); setWeight(v); }, (v) => { setBodyFatTouched(true); setBodyFat(v); }], 1)}
+                                            onChange={(e) => {
+                                                setBodyFatTouched(true);
+                                                setBodyFat(e.target.value);
+                                            }} onBlur={onBodyFatBlur} className={"scored-input" + (bodyFatValue ? '' : ' scored-input--empty')} placeholder=" " style={bodyFatValue ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
                                     </div>
                                 </div>
@@ -1583,7 +1642,13 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         </span>
                                     </label>
                                     <div className="scored-input-wrap">
-                                        <input type="number" value={calories} onChange={(e) => {
+                                        <input type="number" value={calories}
+                                            {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 0)}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                if (!isNaN(val) && val >= 0) setCalories(e.target.value);
+                                                else if (e.target.value === '') setCalories('');
+                                            }}<rfl:parameter name="
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCalories(e.target.value);
                                             else if (e.target.value === '') setCalories('');
@@ -1591,7 +1656,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <label className="scored-input-label">Calories <span className="scored-input-goal-inline">{nutritionGoals?.calories || 2000}</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" value={protein} onChange={(e) => {
+                                        <input type="number" value={protein}
+                                            {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 1)}
+                                            onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setProtein(e.target.value);
                                             else if (e.target.value === '') setProtein('');
@@ -1599,7 +1666,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <label className="scored-input-label">Protein <span className="scored-input-goal-inline">{nutritionGoals?.protein || 150}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" value={carbs} onChange={(e) => {
+                                        <input type="number" value={carbs}
+                                            {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 2)}
+                                            onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setCarbs(e.target.value);
                                             else if (e.target.value === '') setCarbs('');
@@ -1607,7 +1676,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <label className="scored-input-label">Carbs <span className="scored-input-goal-inline">{nutritionGoals?.carbs || 200}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" value={fat} onChange={(e) => {
+                                        <input type="number" value={fat}
+                                            {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 3)}
+                                            onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setFat(e.target.value);
                                             else if (e.target.value === '') setFat('');
@@ -1615,7 +1686,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <label className="scored-input-label">Fat <span className="scored-input-goal-inline">{nutritionGoals?.fat || 65}g</span></label>
                                     </div>
                                     <div className="scored-input-wrap">
-                                        <input type="number" value={water} onChange={(e) => {
+                                        <input type="number" value={water}
+                                            {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 4)}
+                                            onChange={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val >= 0) setWater(e.target.value);
                                             else if (e.target.value === '') setWater('');
@@ -1661,29 +1734,41 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                     <div className="grid grid-cols-2">
                                         <div className="flex flex-col">
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={morningSystolic} onChange={(e) => setMorningSystolic(e.target.value)} className={"scored-input" + (morningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={morningSystolic ? { borderColor: getScoreColor(scoreOf('morningSystolic')! ?? 0) } : undefined} />
+                                                <input type="number" value={morningSystolic}
+                                                {...seriesHandlers([setMorningSystolic, setMorningDiastolic, setMorningBpm], 0)}
+                                                onChange={(e) => setMorningSystolic(e.target.value)} className={"scored-input" + (morningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={morningSystolic ? { borderColor: getScoreColor(scoreOf('morningSystolic')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Morning Systolic <span className="scored-input-goal-inline">120</span></label>
                                             </div>
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={morningDiastolic} onChange={(e) => setMorningDiastolic(e.target.value)} className={"scored-input" + (morningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={morningDiastolic ? { borderColor: getScoreColor(scoreOf('morningDiastolic')! ?? 0) } : undefined} />
+                                                <input type="number" value={morningDiastolic}
+                                                {...seriesHandlers([setMorningSystolic, setMorningDiastolic, setMorningBpm], 1)}
+                                                onChange={(e) => setMorningDiastolic(e.target.value)} className={"scored-input" + (morningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={morningDiastolic ? { borderColor: getScoreColor(scoreOf('morningDiastolic')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Morning Diastolic <span className="scored-input-goal-inline">80</span></label>
                                             </div>
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={morningBpm} onChange={(e) => setMorningBpm(e.target.value)} className={"scored-input" + (morningBpm ? '' : ' scored-input--empty')} placeholder=" " style={morningBpm ? { borderColor: getScoreColor(scoreOf('morningBpm')! ?? 0) } : undefined} />
+                                                <input type="number" value={morningBpm}
+                                                {...seriesHandlers([setMorningSystolic, setMorningDiastolic, setMorningBpm], 2)}
+                                                onChange={(e) => setMorningBpm(e.target.value)} className={"scored-input" + (morningBpm ? '' : ' scored-input--empty')} placeholder=" " style={morningBpm ? { borderColor: getScoreColor(scoreOf('morningBpm')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Morning BPM <span className="scored-input-goal-inline">60-100</span></label>
                                             </div>
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={eveningSystolic} onChange={(e) => setEveningSystolic(e.target.value)} className={"scored-input" + (eveningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningSystolic ? { borderColor: getScoreColor(scoreOf('eveningSystolic')! ?? 0) } : undefined} />
+                                                <input type="number" value={eveningSystolic}
+                                                {...seriesHandlers([setEveningSystolic, setEveningDiastolic, setEveningBpm], 0)}
+                                                onChange={(e) => setEveningSystolic(e.target.value)} className={"scored-input" + (eveningSystolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningSystolic ? { borderColor: getScoreColor(scoreOf('eveningSystolic')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Evening Systolic <span className="scored-input-goal-inline">120</span></label>
                                             </div>
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={eveningDiastolic} onChange={(e) => setEveningDiastolic(e.target.value)} className={"scored-input" + (eveningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningDiastolic ? { borderColor: getScoreColor(scoreOf('eveningDiastolic')! ?? 0) } : undefined} />
+                                                <input type="number" value={eveningDiastolic}
+                                                {...seriesHandlers([setEveningSystolic, setEveningDiastolic, setEveningBpm], 1)}
+                                                onChange={(e) => setEveningDiastolic(e.target.value)} className={"scored-input" + (eveningDiastolic ? '' : ' scored-input--empty')} placeholder=" " style={eveningDiastolic ? { borderColor: getScoreColor(scoreOf('eveningDiastolic')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Evening Diastolic <span className="scored-input-goal-inline">80</span></label>
                                             </div>
                                             <div className="scored-input-wrap">
-                                                <input type="number" value={eveningBpm} onChange={(e) => setEveningBpm(e.target.value)} className={"scored-input" + (eveningBpm ? '' : ' scored-input--empty')} placeholder=" " style={eveningBpm ? { borderColor: getScoreColor(scoreOf('eveningBpm')! ?? 0) } : undefined} />
+                                                <input type="number" value={eveningBpm}
+                                                {...seriesHandlers([setEveningSystolic, setEveningDiastolic, setEveningBpm], 2)}
+                                                onChange={(e) => setEveningBpm(e.target.value)} className={"scored-input" + (eveningBpm ? '' : ' scored-input--empty')} placeholder=" " style={eveningBpm ? { borderColor: getScoreColor(scoreOf('eveningBpm')! ?? 0) } : undefined} />
                                                 <label className="scored-input-label">Evening BPM <span className="scored-input-goal-inline">60-100</span></label>
                                             </div>
                                         </div>
@@ -1693,6 +1778,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             type="number"
                                             step="0.1"
                                             value={bodyTemperature}
+                                            {...seriesHandlers([setBodyTemperature], 0)}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value);
                                                 if (!isNaN(val) && val >= 0) setBodyTemperature(e.target.value);

@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+    ...
+} from '../services/noteService';
+import {
     createNote,
     deleteNoteForever,
     duplicateNote,
@@ -245,6 +248,52 @@ export const useToggleNotePin = () => {
         onSuccess: (updated) => {
             qc.setQueryData(queryKeys.note(updated.id ?? ''), updated);
             qc.invalidateQueries({ queryKey: queryKeys.notes });
+        },
+    });
+};
+
+/**
+ * Appearance writes -- icon and colour.
+ *
+ * A separate mutation from `useUpdateNote` on purpose: `useUpdateNote` is the
+ * autosave path's brother, and the autosave writes the whole title/content row.
+ * Icon and colour must take the apistence route so that they land first in the
+ * caches and so that two rapid appearance picks cannot interleave with an
+ * autosave and clobber each other.
+ *
+ * Optimistic on both caches (single note + list): the sidebar reflects the pick
+ * before the round trip returns, because the server side needs a read + seal +
+ * write and that is slower than the eye. Rollback + toast on failure.
+ */
+export const useUpdateNoteAppearance = (id: string | undefined) => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (updates: Partial<import('../services/noteService').Note>) =>
+            updateNote(id!, updates),
+        onMutate: async (updates) => {
+            await qc.cancelQueries({ queryKey: queryKeys.notes });
+            await qc.cancelQueries({ queryKey: queryKeys.note(id ?? '') });
+            const previousNote = qc.getQueryData<import('../services/noteService').Note>(queryKeys.note(id ?? ''));
+            const previousNotes = qc.getQueryData<import('../services/noteService').Note[]>(queryKeys.notes);
+            qc.setQueryData(queryKeys.note(id ?? ''), (current: import('../services/noteService').Note | undefined) =>
+                current ? { ...current, ...updates } : current,
+            );
+            qc.setQueryData<import('../services/noteService').Note[]>(queryKeys.notes, existing =>
+                existing ? existing.map(entry => entry.id === id ? { ...entry, ...updates } : entry) : existing,
+            );
+            return { previousNote, previousNotes };
+        },
+        onError: (_error, _updates, context) => {
+            if (context?.previousNote !== undefined) {
+                qc.setQueryData(queryKeys.note(id ?? ''), context.previousNote);
+            }
+            if (context?.previousNotes !== undefined) {
+                qc.setQueryData(queryKeys.notes, context.previousNotes);
+            }
+        },
+        onSettled: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.notes });
+            qc.invalidateQueries({ queryKey: queryKeys.note(id ?? '') });
         },
     });
 };

@@ -237,8 +237,8 @@ console.log('\n== notes keep their tree and ordering ==');
         write.clear.title === 'Something private');
     check('the content is sealed', !('content' in write.clear));
     check('the tags are sealed', !('notes_tags' in write.clear));
-    check('the colour and icon are sealed',
-        !('notes_color' in write.clear) && !('notes_icon' in write.clear));
+    check('the colour and icon stay clear, so the sidebar can navigate',
+        'notes_color' in write.clear && 'notes_icon' in write.clear);
     check('is_pinned stays readable for sorting', write.clear.is_pinned === true);
     check('notes_position stays readable for ordering', write.clear.notes_position === 3.5);
     check('notes_parent_id stays readable for the tree', write.clear.notes_parent_id === 'n0');
