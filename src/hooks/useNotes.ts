@@ -1,8 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    ...
-} from '../services/noteService';
-import {
     createNote,
     deleteNoteForever,
     duplicateNote,

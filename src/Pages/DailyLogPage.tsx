@@ -1646,12 +1646,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             {...seriesHandlers([setCalories, setProtein, setCarbs, setFat, setWater], 0)}
                                             onChange={(e) => {
                                                 const val = parseInt(e.target.value);
-                                                if (!isNaN(val) && val >= 0) setCalories(e.target.value);
-                                                else if (e.target.value === '') setCalories('');
-                                            }}<rfl:parameter name="
-                                            const val = parseInt(e.target.value);
-                                            if (!isNaN(val) && val >= 0) setCalories(e.target.value);
-                                            else if (e.target.value === '') setCalories('');
+                                                if (!isNaN(val) && val >= 0) { setCalories(e.target.value); } else if (e.target.value === '') { setCalories(''); }
+                                                // else if (e.target.value === '') setCalories('');<rfl:parameter name="
                                         }} className={"scored-input" + (calories ? '' : ' scored-input--empty')} placeholder=" " style={calories ? { borderColor: getScoreColor(scoreOf('calories')! ?? 0) } : undefined} />
                                         <label className="scored-input-label">Calories <span className="scored-input-goal-inline">{nutritionGoals?.calories || 2000}</span></label>
                                     </div>
