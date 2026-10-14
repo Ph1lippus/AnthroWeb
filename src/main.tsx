@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { startAuthSession } from './services/authSession'
+import { NoticeProvider } from './Components/Feedback/NoticeProvider'
 import { initializeQueryPersistence, setVaultOpenCheck } from './services/queryPersistence'
 import { isVaultOpen, registerCacheClear } from './hooks/useAppLock'
 
@@ -56,7 +57,16 @@ const bootstrap = async (): Promise<void> => {
     createRoot(document.getElementById('root')!).render(
         <StrictMode>
             <QueryClientProvider client={queryClient}>
-                <App />
+                {/* Outside the router and outside the app lock, deliberately.
+                    A message raised by a page that is unmounting still has to land
+                    somewhere, and the one place it can land is a container that
+                    outlives the page. Putting it inside either would mean a form
+                    that fails during teardown reports into a tree that is on its
+                    way out -- which is the React "setState on an unmounted
+                    component" warning, just relocated. */}
+                <NoticeProvider>
+                    <App />
+                </NoticeProvider>
             </QueryClientProvider>
         </StrictMode>,
     )

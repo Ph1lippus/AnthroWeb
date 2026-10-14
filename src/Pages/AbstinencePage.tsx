@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import {
@@ -18,6 +18,7 @@ import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { queryKeys } from '../utils/queryKeys';
 import { todayString } from '../utils/dates';
+import { useInlineError, useNotice } from '../Components/Feedback/useNotice';
 
 const AbstinencePage: React.FC = () => {
     const [localGoals, setLocalGoals] = useState<AbstinenceGoal[]>();
@@ -76,16 +77,13 @@ const AbstinencePage: React.FC = () => {
 
     // Import modal state
     const [showImportModal, setShowImportModal] = useState(false);
-    const [importError, setImportError] = useState<string | null>(null);
+    const [, raiseImportError, clearImportError] = useInlineError();
 
     // Toast notification state
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { notify } = useNotice();
 
     const showToast = (type: 'success' | 'error' | 'info', message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ type, message });
-        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+        notify(type, message);
     };
 
 
@@ -229,7 +227,7 @@ const AbstinencePage: React.FC = () => {
             const content = event.target?.result as string;
             try {
                 await importAbstinenceFromCSV(content);
-                setImportError(null);
+                clearImportError();
                 setShowImportModal(false);
                 const [refreshedGoals, refreshedHistory] = await Promise.all([
                     getUserAbstinenceGoals(),
@@ -239,7 +237,7 @@ const AbstinencePage: React.FC = () => {
                 setLocalHistory(refreshedHistory);
                 showToast('success', 'Abstinence goals imported successfully');
             } catch {
-                setImportError('Failed to import abstinence goals. Please check your CSV format.');
+                raiseImportError('Failed to import abstinence goals. Please check your CSV format.');
             }
         };
         reader.readAsText(file);
@@ -916,21 +914,10 @@ const AbstinencePage: React.FC = () => {
                             • Date format: YYYY-MM-DD<br />
                             • If target_days is empty, it will be null (no target)
                         </p>
-                        {importError && (<div className="auth-error mb-3">{importError}</div>)}
                         <input type="file" accept=".csv,text/csv" onChange={handleImport} className="form-control mb-4" />
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Toast Notification */}
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
-                        <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>
             )}
@@ -939,3 +926,7 @@ const AbstinencePage: React.FC = () => {
 };
 
 export default AbstinencePage;
+
+
+
+

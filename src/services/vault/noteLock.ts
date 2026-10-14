@@ -247,6 +247,28 @@ export const openNoteKeyWithAccount = async (
     return tryOpen(accountKey, lock.lock_key_account, `${AAD(noteId)}|account`);
 };
 
+/**
+ * The same thing with the app master key, and likewise still encoded.
+ *
+ * Added because recovery now has two routes -- the account wrap and the master
+ * wrap -- and `unlockNoteWithMaster` returns an imported `CryptoKey` while
+ * `openNoteKeyWithAccount` returns the encoded string that `reWrapNotePin`
+ * wants. Making the caller reconcile the two shapes would mean importing a key
+ * and exporting it straight back out again, which is a round trip through
+ * WebCrypto that exists only to satisfy a type and is exactly what the encoded
+ * form is there to avoid.
+ */
+export const openNoteKeyWithMasterEncoded = async (
+    lock: NoteLockColumns,
+    noteId: string,
+    masterKeyOverride?: CryptoKey | null,
+): Promise<string | null> => {
+    if (!lock.lock_key_master) return null;
+    const masterKey = masterKeyOverride !== undefined ? masterKeyOverride : getMasterKey();
+    if (!masterKey) return null;
+    return tryOpen(masterKey, lock.lock_key_master, `${AAD(noteId)}|master`);
+};
+
 /** Open a locked note's key envelope with its own PIN, still encoded. */
 export const openNoteKeyWithPin = async (
     lock: NoteLockColumns,
@@ -269,17 +291,26 @@ export const openNoteKeyWithPin = async (
  * and re-encrypting it from scratch. Here the content is untouched -- the same
  * ciphertext stays in the row, and only the wrap around its key changes.
  *
- * The account wrap is deliberately dropped. The caller has just proved ownership
- * with the account password; keeping a wrap keyed to a password they may change
- * next month would leave the page silently unrecoverable later, which is the
- * exact failure this function exists to undo. What survives is the PIN wrap, plus
- * the master wrap if the app vault is open.
+ * The account wrap is *carried forward* when the caller supplies the key derived
+ * from the current password, rather than being dropped as it used to be.
+ *
+ * Dropping it was right when the account wrap was established once in Settings:
+ * keeping a wrap keyed to a password the user may change next month would leave
+ * the page silently unrecoverable later, and the master wrap was a usable
+ * fallback. That fallback is not unconditional, though -- it needs the app lock
+ * open. A page whose only route back is a vault the user may have turned off is
+ * not recoverable, which is the exact failure this function exists to undo.
+ *
+ * So the wrap is re-derived from whatever password is in hand at the moment of
+ * recovery. A password changed afterwards leaves this one stale, and the
+ * master-key fallback still covers that -- but the common case, a forgotten PIN
+ * with the account password unchanged, no longer depends on the app lock at all.
  */
 export const reWrapNotePin = async (
     encodedKey: string,
     noteId: string,
     newPin: string,
-    options: { masterKey?: CryptoKey | null } = {},
+    options: { masterKey?: CryptoKey | null; accountKey?: CryptoKey | null } = {},
 ): Promise<Partial<NoteLockColumns>> => {
     assertNotePin(newPin);
     const aad = AAD(noteId);
@@ -293,6 +324,9 @@ export const reWrapNotePin = async (
     const keyMaster = options.masterKey
         ? await seal(options.masterKey, encodedKey, `${aad}|master`)
         : null;
+    const keyAccount = options.accountKey
+        ? await seal(options.accountKey, encodedKey, `${aad}|account`)
+        : null;
 
     return {
         lock_enabled: true,
@@ -300,7 +334,7 @@ export const reWrapNotePin = async (
         lock_iterations: PBKDF2_ITERATIONS,
         lock_key_pin: keyPin,
         lock_key_master: keyMaster,
-        lock_key_account: null,
+        lock_key_account: keyAccount,
         lock_key_recovery: null,
         lock_failed_attempts: 0,
         lock_retry_after: null,

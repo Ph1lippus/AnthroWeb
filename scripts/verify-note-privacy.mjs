@@ -68,19 +68,44 @@ console.log('\n== the sidebar marks a locked page ==');
     check('and has a style', /notes-rail-item-lock/.test(read('src/index.css')));
 }
 
-console.log('\n== locking sets up its own recovery ==');
+console.log('\n== locking a page asks for nothing but the PIN ==');
 {
-    check('the lock dialog asks for the account password',
-        /note-lock-account-password/.test(dialog));
-    check('only when there is no key held', /!hasAccountKey\(\)/.test(dialog));
-    check('and it can be skipped', /setNeedsAccountPassword\(false\)/.test(dialog));
+    // This was the opposite design a moment ago: the lock dialog carried an
+    // "Your account password" field, shown on the first lock of a session, so
+    // that a forgotten PIN could be reset later.
+    //
+    // It was wrong. It made a dialog asking for four digits into one asking for
+    // a long account password too, to set up something that has nothing to do
+    // with locking -- and the password has no business being typed into that
+    // particular box. The account wrap is created during recovery instead, where
+    // the password is in hand and the user has already decided they need it.
+    check('the dialog has no account password field',
+        !/accountPassword/.test(dialog) && !/note-lock-account-password/.test(dialog));
+    check('and no copy explaining one',
+        !/recover this page|Only asked the first time/.test(dialog));
+    check('lockNote takes a PIN and nothing else',
+        /export const lockNote = async \(id: string, pin: string\)/.test(notes),
+        'an optional password parameter would invite it back');
+    check('the establishment helper is gone',
+        !/ensureAccountKey/.test(notes));
 
-    check('lockNote takes the password',
-        /export const lockNote = async \(id: string, pin: string, accountPassword\?: string\)/.test(notes));
-    check('and establishes the key with it', /ensureAccountKey\(accountPassword\)/.test(notes));
-    check('which builds the verifier first',
-        /const ensureAccountKey[\s\S]*?buildAccountRecovery\(accountPassword\)/.test(notes));
-    check('and caches it for the session', /sessionAccountKey = key/.test(notes));
+    // Recovery is where the password belongs, so that is where the wrap is made.
+    check('recovery creates the verifier',
+        /resetNotePin[\s\S]*?buildAccountRecovery\(accountPassword\)/.test(notes));
+    check('and caches the key for the rest of the session',
+        /resetNotePin[\s\S]*?sessionAccountKey = accountKey/.test(notes));
+
+    check('recovery falls back to the app master key',
+        /openNoteKeyWithMasterEncoded/.test(notes),
+        'a page locked inside an unlocked app always has a master wrap');
+    check('and says so plainly when there is no route at all',
+        /only be reset while the app lock is on/.test(notes),
+        'a vague failure here reads as "the app is broken", not "unlock the app"');
+
+    check('the account wrap survives a PIN change',
+        /reWrapNotePin[\s\S]*?lock_key_account: keyAccount/.test(
+            read('src/services/vault/noteLock.ts')),
+        'otherwise the second forgotten PIN needs the app lock on, which is the one time it will not be');
 
     check('the error no longer points at a setting',
         !/Set up account recovery in Settings/.test(notes),
@@ -94,6 +119,28 @@ console.log('\n== locking sets up its own recovery ==');
         /onForgotPin=\{\(\) => setRecoveringPin\(true\)\}/.test(workspace)
         && !/onUseRecovery=\{\(\) => navigate/.test(workspace),
         'the key glyph used to navigate to Settings, which is the wrong place entirely');
+}
+
+console.log('\n== the PIN dialog is a real form, and says nothing unstyled ==');
+{
+    // The browser was logging "Password field is not contained in a form" for
+    // every input here, and Enter did nothing -- there was no form to submit.
+    check('it is a <form>', /<form className="auth-card/.test(dialog));
+    check('submitted by Enter', /onSubmit=\{submit\}/.test(dialog));
+    check('and submit prevents the default navigation', /event\.preventDefault\(\)/.test(dialog));
+    check('the button is a submit, not a click handler',
+        /<button type="submit"/.test(dialog) && !/onClick=\{\(\) => void submit\(\)\}/.test(dialog));
+
+    // `t-field` / `t-label` / `t-input` / `t-hint` are not classes that exist
+    // anywhere in the stylesheet, which is why the field added for the password
+    // rendered with no styling at all. The app's vocabulary is `form-control` and
+    // `form-label`.
+    for (const dead of ['t-field', 't-label', 't-input-wrap', 't-hint']) {
+        check(`${dead} is not used`, !new RegExp(`className="[^"]*${dead}`).test(dialog),
+            'no such class exists in index.css, so it renders unstyled');
+    }
+    check('the inputs use the app\'s own form classes',
+        /className="form-control"/.test(dialog) && /className="form-label"/.test(dialog));
 }
 
 console.log('\n== the seal walk covers everything ==');

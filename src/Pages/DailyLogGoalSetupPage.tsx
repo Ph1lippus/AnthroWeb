@@ -10,6 +10,7 @@ import { goalsForDate, latestGoals, parseGoalHistory, withVersion } from '../uti
 import { todayString } from '../utils/dates';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { useBootHold } from '../services/bootScreen';
+import { useNotice } from '../Components/Feedback/useNotice';
 
 const DailyLogGoalSetupPage: React.FC = () => {
     const navigate = useNavigate();
@@ -17,7 +18,34 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+    /**
+     * One message surface, not two.
+     *
+     * This page held both a `{ text, type }` state rendered inline above the
+     * form and a `toast` state with its own timer rendered at the bottom -- two
+     * mechanisms for the same job, in two places, on one page. Both now go
+     * through the notice stack at the top of the screen, so a failed save here
+     * is reported exactly the way a failed save is reported everywhere else.
+     *
+     * The id is kept so `clearNotice` can withdraw it: a validation error that
+     * has just been fixed should not sit on screen describing a mistake the
+     * user has already corrected.
+     */
+    const { notify: notifyRaw, dismiss } = useNotice();
+    const noticeIdRef = useRef<number | null>(null);
+
+    const clearNotice = () => {
+        if (noticeIdRef.current !== null) {
+            dismiss(noticeIdRef.current);
+            noticeIdRef.current = null;
+        }
+    };
+
+    /** Raise, replacing any message this page already has up. */
+    const notify = (kind: 'success' | 'error' | 'info', message: string) => {
+        clearNotice();
+        noticeIdRef.current = notifyRaw(kind, message);
+    };
 
     const [calories, setCalories] = useState('');
     const [protein, setProtein] = useState('');
@@ -100,16 +128,6 @@ const DailyLogGoalSetupPage: React.FC = () => {
         load();
     }, [navigate]);
 
-    // Toast notification state
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const showToast = (type: 'success' | 'error' | 'info', message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ type, message });
-        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!settings) return;
@@ -117,21 +135,21 @@ const DailyLogGoalSetupPage: React.FC = () => {
         const hasAnyGoal = [calories, protein, carbs, fat, water, wakeTime, bedtime]
             .some(v => v.trim() !== '');
         if (!hasAnyGoal) {
-            setMessage({ text: 'Set at least one goal before saving.', type: 'error' });
-            showToast('error', 'Set at least one goal');
+            notify('error', 'Set at least one goal before saving.');
+            notify('error', 'Set at least one goal');
             return;
         }
 
         // Empty means unlimited, so only a filled box has to be a real count.
         const cheatAllowedValue = cheatAllowed.trim() === '' ? null : parseInt(cheatAllowed, 10);
         if (cheatAllowedValue !== null && (Number.isNaN(cheatAllowedValue) || cheatAllowedValue < 0)) {
-            setMessage({ text: 'Cheat days must be a whole number of 0 or more, or left blank for no limit.', type: 'error' });
-            showToast('error', 'Enter a valid cheat-day allowance');
+            notify('error', 'Cheat days must be a whole number of 0 or more, or left blank for no limit.');
+            notify('error', 'Enter a valid cheat-day allowance');
             return;
         }
 
         setSaving(true);
-        setMessage(null);
+        clearNotice();
         try {
             const goals: ActiveGoals = {
                 nutrition: {
@@ -173,13 +191,13 @@ const DailyLogGoalSetupPage: React.FC = () => {
             // this cache key; without this they keep scoring against the old
             // goals until a reload.
             queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
-            setMessage({ text: 'Goals saved successfully! Redirecting...', type: 'success' });
-            showToast('success', 'Goals saved successfully!');
+            notify('success', 'Goals saved successfully! Redirecting...');
+            notify('success', 'Goals saved successfully!');
             setTimeout(() => navigate('/Daily-Log'), 1200);
         } catch (err) {
             console.error('Error saving goals:', err);
-            setMessage({ text: 'Failed to save goals.', type: 'error' });
-            showToast('error', 'Failed to save goals');
+            notify('error', 'Failed to save goals.');
+            notify('error', 'Failed to save goals');
         } finally {
             setSaving(false);
         }
@@ -262,13 +280,6 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
                         Set your daily targets. These will be saved to your profile and used in your daily logs.
                     </p>
-                    
-                    {message && (
-                        <div className={`auth-error ${message.type === 'success' ? 'auth-success' : ''}`} style={{ marginBottom: '1rem' }}>
-                            {message.text}
-                        </div>
-                    )}
-
                     <form onSubmit={handleSubmit} noValidate>
                         {/* Nutrition Goals */}
                         <div className="form-grid">
@@ -327,16 +338,10 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Toast Notification */}
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <span className="toast-text">{toast.message}</span>
-                    </div>
-                </div>
-            )}
         </>
     );
 };
 
 export default DailyLogGoalSetupPage;
+
+

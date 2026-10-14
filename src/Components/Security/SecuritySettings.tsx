@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useNotice } from '../Feedback/useNotice';
 import { ShieldAlert, Copy, Check, TriangleAlert } from 'lucide-react';
 import { enableVault, changePin, changePinWithAccountPassword, disableVault, lock } from '../../hooks/useAppLock';
 import { MIN_PIN_LENGTH } from '../../services/vault/keyring';
@@ -29,7 +30,6 @@ const SecuritySettings: React.FC = () => {
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
     const [phrase, setPhrase] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(false);
     const [progress, setProgress] = useState<SealProgress | null>(null);
@@ -44,19 +44,53 @@ const SecuritySettings: React.FC = () => {
     const [usePassword, setUsePassword] = useState(false);
     const [pinAttempts, setPinAttempts] = useState(0);
 
+    /**
+     * Errors go to the notice stack at the top of the screen, not to a block
+     * inside this page.
+     *
+     * This is the page where it matters most. An error here is a failed PIN
+     * change or a failed encryption enable -- the two things a person is most
+     * likely to be staring at, waiting to find out whether it worked. Inline, it
+     * renders below a button that has just been pressed, where it is easy to miss
+     * and easy to scroll past.
+     */
+    const { notify, dismiss } = useNotice();
+    const noticeId = useRef<number | null>(null);
+
+    /**
+     * Raise an error, remembering its id.
+     *
+     * Withdrawing on the next stage change matters because this page walks through
+     * stages -- set PIN, show the recovery phrase, seal, done. A failure on one
+     * stage is answered by moving to the next, and a message left on screen from a
+     * stage the user has already left describes something they are no longer doing.
+     */
+    const raiseError = (message: string) => {
+        // Withdraw the previous one first. Two errors stacked at the top of the
+        // screen puts the newest below the older, and the newest is the one the
+        // user just caused.
+        clearError();
+        noticeId.current = notify('error', message);
+    };
+
+    /** Withdraw our own message when the form is reset or the stage changes. */
+    const clearError = () => {
+        if (noticeId.current !== null) { dismiss(noticeId.current); noticeId.current = null; }
+    };
+
     const reset = () => {
         setPin(''); setConfirmPin(''); setCurrentPin(''); setChangePassword('');
         setUsePassword(false); setPinAttempts(0);
-        setError(null); setPhrase(''); setProgress(null); setCopied(false);
+        clearError(); setPhrase(''); setProgress(null); setCopied(false);
     };
 
     const runEnable = async () => {
         setBusy(true);
-        setError(null);
+        clearError();
         try {
             const result = await enableVault(pin);
             if (!result.ok || !result.recoveryPhrase) {
-                setError(result.error ?? 'Could not turn on encryption.');
+                raiseError(result.error ?? 'Could not turn on encryption.');
                 return;
             }
             // The vault is armed but nothing is sealed yet. Show the phrase
@@ -79,14 +113,14 @@ const SecuritySettings: React.FC = () => {
                 // Said plainly, because the alternative is a progress bar that
                 // reaches 100% and a user who believes everything is encrypted
                 // when some of it is not.
-                setError(
+                raiseError(
                     `${done.remaining} row(s) are still not encrypted. ` +
                     `Run this again in a moment -- it skips what is already done.`,
                 );
             }
             setStage('on');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not seal your existing data.');
+            raiseError(err instanceof Error ? err.message : 'Could not seal your existing data.');
             setStage('phrase');
         } finally {
             setBusy(false);
@@ -102,7 +136,7 @@ const SecuritySettings: React.FC = () => {
      */
     const runChangePin = async () => {
         setBusy(true);
-        setError(null);
+        clearError();
         try {
             const result = await changePin(currentPin, pin);
             if (result.ok) {
@@ -115,7 +149,7 @@ const SecuritySettings: React.FC = () => {
             // field up invites more guesses against a counter that is already
             // refusing them.
             if (result.exhausted) setUsePassword(true);
-            setError(result.error ?? 'Could not change the PIN.');
+            raiseError(result.error ?? 'Could not change the PIN.');
         } finally {
             setBusy(false);
         }
@@ -130,7 +164,7 @@ const SecuritySettings: React.FC = () => {
      */
     const runChangePinWithPassword = async () => {
         setBusy(true);
-        setError(null);
+        clearError();
         try {
             const result = await changePinWithAccountPassword(changePassword, pin);
             if (result.ok) {
@@ -138,7 +172,7 @@ const SecuritySettings: React.FC = () => {
                 reset();
                 return;
             }
-            setError(result.error ?? 'Could not change the PIN.');
+            raiseError(result.error ?? 'Could not change the PIN.');
         } finally {
             setBusy(false);
         }
@@ -147,10 +181,10 @@ const SecuritySettings: React.FC = () => {
     const runDisable = async () => {
         if (!confirm('Turning encryption off writes your notes and journal back to the database in plain text. Continue?')) return;
         setBusy(true);
-        setError(null);
+        clearError();
         try {
             const result = await disableVault();
-            if (!result.ok) { setError(result.error ?? 'Could not turn encryption off.'); return; }
+            if (!result.ok) { raiseError(result.error ?? 'Could not turn encryption off.'); return; }
             setStage('off');
             reset();
         } finally {
@@ -164,7 +198,7 @@ const SecuritySettings: React.FC = () => {
             setCopied(true);
             setTimeout(() => setCopied(false), 2500);
         } catch {
-            setError('Could not copy. Write the words down by hand instead.');
+            raiseError('Could not copy. Write the words down by hand instead.');
         }
     };
 
@@ -329,7 +363,7 @@ const SecuritySettings: React.FC = () => {
                                     type="password"
                                     className="form-control"
                                     value={changePassword}
-                                    onChange={e => { setChangePassword(e.target.value); setError(null); }}
+                                    onChange={e => { setChangePassword(e.target.value); clearError(); }}
                                     autoComplete="current-password"
                                     onKeyDown={e => { if (e.key === 'Enter') void runChangePinWithPassword(); }}
                                 />
@@ -361,7 +395,7 @@ const SecuritySettings: React.FC = () => {
                                     type="password"
                                     className="form-control"
                                     value={currentPin}
-                                    onChange={e => { setCurrentPin(e.target.value); setError(null); }}
+                                    onChange={e => { setCurrentPin(e.target.value); clearError(); }}
                                     autoComplete="current-password"
                                     inputMode="numeric"
                                 />
@@ -419,11 +453,15 @@ const SecuritySettings: React.FC = () => {
                         )}
                     </div>
                 )}
-
-                {error && <p className="t-error-msg" role="alert">{error}</p>}
             </section>
         </div>
     );
 };
 
 export default SecuritySettings;
+
+
+
+
+
+

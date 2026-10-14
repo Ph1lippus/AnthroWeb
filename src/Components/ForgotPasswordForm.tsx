@@ -1,3 +1,4 @@
+import { useInlineError, useNotice } from './Feedback/useNotice';
 import React, { useState, useCallback } from 'react';
 import { resetPassword } from '../services/profileService';
 
@@ -5,8 +6,8 @@ import { resetPassword } from '../services/profileService';
 const ForgotPasswordForm: React.FC<{ idPrefix?: string }> = ({ idPrefix = 'forgot' }) => {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
+    const [, raiseError, clearError] = useInlineError();
+    const { notify: notifyRaw } = useNotice();
     const [fieldError, setFieldError] = useState<string | null>(null);
     const [shakingField, setShakingField] = useState<string | null>(null);
 
@@ -19,8 +20,8 @@ const ForgotPasswordForm: React.FC<{ idPrefix?: string }> = ({ idPrefix = 'forgo
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
-        setMessage(null);
+        clearError();
+        clearError();
         setFieldError(null);
         if (!email.trim()) {
             setFieldError('Please enter your email.');
@@ -30,10 +31,10 @@ const ForgotPasswordForm: React.FC<{ idPrefix?: string }> = ({ idPrefix = 'forgo
         setLoading(true);
         try {
             await resetPassword(email);
-            setMessage('Password reset email sent! Please check your inbox.');
+            notifyRaw('success', 'Password reset email sent! Please check your inbox.');
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Failed to send reset email. Please try again.';
-            setError(msg);
+            raiseError(msg);
             triggerShake('email');
         } finally {
             setLoading(false);
@@ -44,10 +45,6 @@ const ForgotPasswordForm: React.FC<{ idPrefix?: string }> = ({ idPrefix = 'forgo
 
     return (
         <form onSubmit={handleSubmit} noValidate>
-            {error && <div className="auth-error">{error}</div>}
-            {message && (
-                <div className="auth-error auth-success">{message}</div>
-            )}
             <div className="mb-3 text-start">
                 <label htmlFor={emailId} className="form-label">Email</label>
                 <div className="t-input-wrap">

@@ -1,3 +1,4 @@
+import { useInlineError } from './Feedback/useNotice';
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmail, getUserSettings } from '../services/profileService';
@@ -15,7 +16,7 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, raiseError, clearError] = useInlineError();
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
     const [shakingField, setShakingField] = useState<string | null>(null);
 
@@ -28,7 +29,7 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
+        clearError();
         const errors: { email?: string; password?: string } = {};
         if (!email.trim()) errors.email = 'Please enter your email.';
         if (!password) errors.password = 'Please enter your password.';
@@ -54,7 +55,7 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
             // must take it back down or the app is stuck behind it.
             dismissBootScreenImmediate();
             const message = err instanceof Error ? err.message : 'Failed to login. Please try again.';
-            setError(message);
+            raiseError(message);
             setFieldErrors({ email: message, password: message });
             triggerShake('email');
         } finally {
@@ -76,7 +77,6 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
     return (
         <>
             <form onSubmit={handleSubmit} noValidate>
-                {error && <div className="auth-error">{error}</div>}
 
                 <div className="mb-3 text-start">
                     <label htmlFor={emailId} className="form-label">Email</label>

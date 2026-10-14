@@ -1645,8 +1645,6 @@ input[type='number']::-webkit-inner-spin-button {
    starfield. */
 .auth-card {
   background: linear-gradient(160deg, #ffffff0d, #ffffff05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
   border-radius: 25px;
   width: 100%;
   max-width: 640px;
@@ -1690,17 +1688,13 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 0.7rem 0.9rem;
   font-family: var(--font-mono);
   font-size: 0.82rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
   outline: none;
   transition: background 0.15s ease, border-color 0.15s ease;
   width: 100%;
 }
-.auth-card .form-control:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-}
+
 .auth-card .form-control:focus {
   background: #ffffff12;
-  border-color: var(--color-primary);
   color: var(--color-light);
 }
 .auth-card .form-select {
@@ -9048,6 +9042,108 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   background: rgba(255, 255, 255, 0.3);
 }
 /* ============================================
+   NOTICES - one place for every message
+   ============================================ */
+/* Top of the screen, centred, 20px radius.
+
+   The position is the decision, not the decoration. An error inside a form has
+   to be looked for: it sits under a field, below the fold on a phone, possibly
+   off-screen on a long form -- so the failure mode is a button that silently
+   does nothing. One fixed place is learnable, and once it is known, every
+   failure in the app is reported the same way.
+
+   `pointer-events: none` on the stack so a message drifting over a control never
+   swallows the click underneath it. The messages take it back, because the
+   close button has to be pressable. */
+.notice-stack {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  pointer-events: none;
+  /* Bounded so a stack of long messages cannot run off the side of a phone. */
+  width: min(28rem, calc(100vw - 2rem));
+}
+.notice-stack__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notice {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.75rem 0.85rem 0.75rem 1rem;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  animation: notice-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes notice-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.notice--error {
+  background: color-mix(in srgb, var(--color-danger-dark) 88%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 42%, transparent);
+  color: #ffb4b6;
+}
+.notice--success {
+  background: var(--accent-bg);
+  border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
+  color: var(--color-primary);
+}
+.notice--info {
+  background: rgba(20, 20, 24, 0.92);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-light);
+}
+.notice-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  margin-top: 1px;
+}
+/* Wraps rather than truncating. An error cut off mid-sentence is the one thing
+   that must never happen: the missing half is usually the part that says what to
+   do about it. */
+.notice-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notice-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.notice-close:hover,
+.notice-close:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
    TOAST NOTIFICATIONS - Action Affirmations
    ============================================ */
 .toast-container {
@@ -14810,3 +14906,4 @@ button.workout-ex__empty:hover {
   flex-shrink: 0;
   opacity: 0.55;
 }
+

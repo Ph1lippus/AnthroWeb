@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 import type { UserSettings } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
+import { useInlineError, useNotice } from '../Components/Feedback/useNotice';
 
 type GenderType = 'male' | 'female' | 'other' | 'prefer_not_to_say' | '';
 type GoalType = 'maintain' | 'lose' | 'gain' | '';
@@ -46,7 +47,7 @@ const convertToDisplayFormat = (value: string): string => {
 const EditProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, raiseError, clearError] = useInlineError();
     const [isNewUser, setIsNewUser] = useState(true);
     // The form is hidden until the existing settings have been fetched. Without
     // this the page paints an empty form, then repaints it a moment later with
@@ -56,13 +57,10 @@ const EditProfilePage: React.FC = () => {
     const [isLoadingSettings, setIsLoadingSettings] = useState(true);
     
     // Toast notification state
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { notify } = useNotice();
 
     const showToast = (type: 'success' | 'error' | 'info', message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ type, message });
-        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+        notify(type, message);
     };
 
     // Form states
@@ -179,7 +177,7 @@ const validateForm = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
+        clearError();
 
         if (!validateForm()) {
             return;
@@ -216,7 +214,7 @@ const validateForm = () => {
             setTimeout(() => navigate('/profile'), 800);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
-            setError(message);
+            raiseError(message);
             showToast('error', 'Failed to save profile');
         } finally {
             setLoading(false);
@@ -321,7 +319,6 @@ const validateForm = () => {
                         {isNewUser ? "Let's set up your fitness profile to get started." : "Update your fitness profile information."}
                     </p>
                     <form onSubmit={handleSubmit} noValidate>
-                        {error && <div className="auth-error">{error}</div>}
                         
                         {/* Personal Info Section */}
                         <div className="form-grid">
@@ -377,18 +374,13 @@ const validateForm = () => {
                     )}
                 </div>
             </div>
-
-            {/* Toast Notification */}
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
-                        <span className="toast-text">{toast.message}</span>
-                    </div>
-                </div>
-            )}
         </>
     );
 };
 
 export default EditProfilePage;
+
+
+
+
+

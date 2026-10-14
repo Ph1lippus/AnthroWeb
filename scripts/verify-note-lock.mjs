@@ -234,21 +234,41 @@ check('a wrong account key does not', (await openNoteKeyWithAccount(armed, NOTE,
 const originalKey = await openNoteKeyWithPin(armed, NOTE, '1234');
 check('the old PIN opens it before the reset', typeof originalKey === 'string');
 
-const rewrapped = await reWrapNotePin(viaAccount, NOTE, '9999', { masterKey });
-check('re-wrap produces a new PIN wrap', typeof rewrapped.lock_key_pin === 'string' && rewrapped.lock_key_pin !== armed.lock_key_pin);
-check('re-wrap uses a fresh salt', rewrapped.lock_salt !== armed.lock_salt);
-check('re-wrap drops the account wrap', rewrapped.lock_key_account === null);
-check('re-wrap carries the master wrap when one is offered', typeof rewrapped.lock_key_master === 'string');
-check('re-wrap clears the failed-attempt counter', rewrapped.lock_failed_attempts === 0);
+// Re-wrap WITHOUT an account key, which is what a caller that cannot reach one
+// does. The wrap is dropped rather than carried: keeping a wrap keyed to a
+// password the caller may change next month would leave the page silently
+// unrecoverable later, and the master-key fallback still covers that case.
+const dropped = await reWrapNotePin(viaAccount, NOTE, '9999', { masterKey });
+check('re-wrap produces a new PIN wrap', typeof dropped.lock_key_pin === 'string' && dropped.lock_key_pin !== armed.lock_key_pin);
+check('re-wrap uses a fresh salt', dropped.lock_salt !== armed.lock_salt);
+check('with no account key offered, the account wrap is dropped', dropped.lock_key_account === null);
+check('re-wrap carries the master wrap when one is offered', typeof dropped.lock_key_master === 'string');
+check('re-wrap clears the failed-attempt counter', dropped.lock_failed_attempts === 0);
 
-const merged = { ...armed, ...rewrapped };
+const merged = { ...armed, ...dropped };
 const afterReset = await unlockNoteWithPin(merged, NOTE, '9999');
 check('the new PIN opens the page', afterReset !== null);
 check('the old PIN no longer does', (await unlockNoteWithPin(merged, NOTE, '1234')) === null);
 check('the master key still opens it', (await unlockNoteWithMaster(merged, NOTE, masterKey)) !== null);
 
 const viaAccountAfter = await openNoteKeyWithAccount(merged, NOTE, accountKey);
-check('the account wrap is genuinely gone, not merely unused', viaAccountAfter === null);
+check('the dropped wrap is genuinely gone, not merely unused', viaAccountAfter === null);
+
+// Re-wrap WITH the account key, which is what recovery now does -- it has the
+// password in hand, so it can put the wrap straight back.
+//
+// This is the change from "always dropped". Locking no longer asks for the
+// account password, so the wrap is established during recovery rather than
+// before it, and the only alternative to writing it here is that every future
+// recovery of this page depends on the app lock being open.
+const carried = await reWrapNotePin(viaAccount, NOTE, '4321', { masterKey, accountKey });
+check('with an account key offered, the wrap is carried forward', typeof carried.lock_key_account === 'string');
+const carriedMerged = { ...armed, ...carried };
+const carriedViaAccount = await openNoteKeyWithAccount(carriedMerged, NOTE, accountKey);
+check('and the carried wrap opens to the same note key', carriedViaAccount === viaAccount,
+    'a carried wrap that opens to something else is worse than none');
+check('the carried wrap does not open the page under the old PIN',
+    (await unlockNoteWithPin(carriedMerged, NOTE, '1234')) === null);
 
 // Re-wrap with no vault available: the whole point of the change.
 const bare = { ...armed, ...(await reWrapNotePin(viaAccount, NOTE, '5555', {})) };

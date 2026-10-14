@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Title from '../Components/Title';
 import { getUserProjects, createProject, updateProject, deleteProject, exportProjectsToCSV, importProjectsFromCSV, getProjectPlanItems, createProjectPlanItem, deleteProjectPlanItem, toggleProjectPlanItemComplete, PROJECT_STATUSES, isFinishedStatus } from '../services/projectService';
 import type { Project, ProjectPlanItem, ProjectStatus } from '../services/projectService';
@@ -6,6 +6,7 @@ import { SquarePen, Trash2, Check, Search, X, Plus } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { todayString } from '../utils/dates';
+import { useInlineError, useNotice } from '../Components/Feedback/useNotice';
 
 const priorityColors: Record<string, string> = {
     low: '#43b67d',
@@ -52,19 +53,16 @@ const ProjectsPage: React.FC = () => {
 
     // Import modal state
     const [showImportModal, setShowImportModal] = useState(false);
-    const [importError, setImportError] = useState<string | null>(null);
+    const [, raiseImportError, clearImportError] = useInlineError();
 
     // Delete confirmation modal
     const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
     // Toast notification state
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { notify } = useNotice();
 
     const showToast = (type: 'success' | 'error' | 'info', message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ type, message });
-        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+        notify(type, message);
     };
 
     // Edit modal state
@@ -89,7 +87,7 @@ const ProjectsPage: React.FC = () => {
     const [notesText, setNotesText] = useState('');
     const [notesSaving, setNotesSaving] = useState(false);
     const [notesSaved, setNotesSaved] = useState(false);
-    const [planError, setPlanError] = useState<string | null>(null);
+    const [, raisePlanError, clearPlanError] = useInlineError();
 
     // Fetch all projects at once
     useEffect(() => {
@@ -220,7 +218,7 @@ const ProjectsPage: React.FC = () => {
             const content = event.target?.result as string;
             try {
                 const { projects: imported, rejected } = await importProjectsFromCSV(content);
-                setImportError(null);
+                clearImportError();
                 setShowImportModal(false);
                 const refreshedProjects = await getUserProjects();
                 setProjects(refreshedProjects);
@@ -236,7 +234,7 @@ const ProjectsPage: React.FC = () => {
                     showToast('success', `Imported ${imported.length} project${imported.length === 1 ? '' : 's'}.`);
                 }
             } catch {
-                setImportError('Failed to import projects. Please check your CSV format.');
+                raiseImportError('Failed to import projects. Please check your CSV format.');
             }
         };
         reader.readAsText(file);
@@ -351,7 +349,7 @@ const ProjectsPage: React.FC = () => {
         setViewProject(project);
         setNotesText(project.notes || '');
         setNewPlanTitle('');
-        setPlanError(null);
+        clearPlanError();
         const items = await getProjectPlanItems(project.id!);
         setPlanItems(items);
     };
@@ -380,9 +378,9 @@ const ProjectsPage: React.FC = () => {
         try {
             const items = await getProjectPlanItems(viewProject.id!);
             setPlanItems(items);
-            setPlanError(null);
+            clearPlanError();
         } catch (err) {
-            setPlanError('Failed to load plan items. Please try again.');
+            raisePlanError('Failed to load plan items. Please try again.');
             console.error('Error refreshing plan items:', err);
         }
     };
@@ -803,7 +801,7 @@ const ProjectsPage: React.FC = () => {
                                                     await refreshPlanItems();
                                                     setNewPlanTitle('');
                                                 } catch (err) {
-                                                    setPlanError('Failed to add plan item. Please try again.');
+                                                    raisePlanError('Failed to add plan item. Please try again.');
                                                     console.error('Error creating plan item:', err);
                                                 }
                                             }
@@ -822,7 +820,7 @@ const ProjectsPage: React.FC = () => {
                                                     await refreshPlanItems();
                                                     setNewPlanTitle('');
                                                 } catch (err) {
-                                                    setPlanError('Failed to add plan item. Please try again.');
+                                                    raisePlanError('Failed to add plan item. Please try again.');
                                                     console.error('Error creating plan item:', err);
                                                 }
                                             }
@@ -834,11 +832,6 @@ const ProjectsPage: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {planError && (
-                                    <div className="auth-error mt-2" style={{ fontSize: '12px' }}>
-                                        {planError}
-                                    </div>
-                                )}
 
                                 <div className="project-plan-list">
                                     {planItems.length === 0 ? (
@@ -855,7 +848,7 @@ const ProjectsPage: React.FC = () => {
                                                                 await toggleProjectPlanItemComplete(item.id!, item.is_completed);
                                                                 await refreshPlanItems();
                                                             } catch (err) {
-                                                                setPlanError('Failed to update plan item. Please try again.');
+                                                                raisePlanError('Failed to update plan item. Please try again.');
                                                                 console.error('Error toggling plan item:', err);
                                                             }
                                                         }}
@@ -873,7 +866,7 @@ const ProjectsPage: React.FC = () => {
                                                                 await deleteProjectPlanItem(item.id!);
                                                                 await refreshPlanItems();
                                                             } catch (err) {
-                                                                setPlanError('Failed to delete plan item. Please try again.');
+                                                                raisePlanError('Failed to delete plan item. Please try again.');
                                                                 console.error('Error deleting plan item:', err);
                                                             }
                                                         }}
@@ -920,16 +913,6 @@ const ProjectsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Toast Notification */}
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
-                        <span className="toast-text">{toast.message}</span>
-                    </div>
-                </div>
-            )}
-
             {/* Import Modal */}
             {showImportModal && (
                 <div className="import-modal-overlay">
@@ -946,7 +929,6 @@ const ProjectsPage: React.FC = () => {
                             • Priority options: low, medium, high<br />
                             • Deadline format: YYYY-MM-DD
                         </p>
-                        {importError && (<div className="auth-error mb-3">{importError}</div>)}
                         <input type="file" accept=".csv,text/csv" onChange={handleImport} className="form-control mb-4" />
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
@@ -959,3 +941,8 @@ const ProjectsPage: React.FC = () => {
 };
 
 export default ProjectsPage;
+
+
+
+
+

@@ -7,6 +7,7 @@ import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, 
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { queryKeys } from '../utils/queryKeys';
+import { useInlineError, useNotice } from '../Components/Feedback/useNotice';
 
 interface DuplicateGroup {
     title: string;
@@ -79,7 +80,7 @@ const BooksPage: React.FC = () => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
-    const [importError, setImportError] = useState<string | null>(null);
+    const [, raiseImportError, clearImportError] = useInlineError();
     const [searchQuery, setSearchQuery] = useState('');
     const [submittedSearch, setSubmittedSearch] = useState('');
 
@@ -122,13 +123,10 @@ const BooksPage: React.FC = () => {
     const [duplicatesDeleting, setDuplicatesDeleting] = useState(false);
     
     // Toast notification state
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { notify } = useNotice();
 
     const showToast = (type: 'success' | 'error' | 'info', message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setToast({ type, message });
-        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+        notify(type, message);
     };
 
     /**
@@ -305,11 +303,11 @@ const BooksPage: React.FC = () => {
             const content = event.target?.result as string;
             try {
                 await importBooksFromCSV(content);
-                setImportError(null);
+                clearImportError();
                 setShowImportModal(false);
                 await refreshBooks();
             } catch {
-                setImportError('Failed to import books. Please check your CSV format.');
+                raiseImportError('Failed to import books. Please check your CSV format.');
             }
         };
         reader.readAsText(file);
@@ -1021,21 +1019,10 @@ const BooksPage: React.FC = () => {
                             • If total_pages is empty, it will be set to 0 (Unknown)<br />
                             • If current_page is empty, it will be set to 0
                         </p>
-                        {importError && (<div className="auth-error mb-3">{importError}</div>)}
                         <input type="file" accept=".csv,text/csv" onChange={handleImport} className="form-control mb-4" />
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setShowImportModal(false)} className="btn-form-cancel">Cancel</button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Toast Notification */}
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <i className={`toast-icon ${toast.type === 'success' ? 'i-lucide-check-circle' : toast.type === 'error' ? 'i-lucide-x-circle' : 'i-lucide-info'}`}></i>
-                        <span className="toast-text">{toast.message}</span>
                     </div>
                 </div>
             )}
@@ -1145,3 +1132,6 @@ const BooksPage: React.FC = () => {
 };
 
 export default BooksPage;
+
+
+

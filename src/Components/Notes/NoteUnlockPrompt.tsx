@@ -3,6 +3,7 @@ import { Lock, Delete, AlertTriangle, KeyRound } from 'lucide-react';
 import { MIN_PIN_LENGTH, BACKOFF_MS, describeRetry } from '../../services/vault/keyring';
 import { isCoolingDown, retryAfterMs, MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
 import type { Note } from '../../services/noteService';
+import { useNotice } from '../Feedback/useNotice';
 
 /**
  * The lock columns, read off a `Note`.
@@ -40,6 +41,7 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
     const [entry, setEntry] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const { notify } = useNotice();
     /**
      * Recovered from the row on mount, not synced from it.
      *
@@ -82,11 +84,19 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
             }
             onUnlocked(key);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not unlock this page.');
-        } finally {
-            setBusy(false);
+            // A *wrong PIN* keeps its message on the pad, under the digits. That is
+            // feedback on the control being used rather than a failure of the app:
+            // a keypad raises it constantly and by design, and a popup at the top of
+            // the screen on every attempt would cover the page the user is trying to
+            // open.
+            //
+            // Anything reaching this catch is something else -- the key could not be
+            // derived, the row could not be read -- and that goes to the one place
+            // errors go.
+            notify('error', err instanceof Error ? err.message : 'Could not unlock this page.');
+        } finally {            setBusy(false);
         }
-    }, [attempts, busy, cooldown, note, onUnlocked]);
+    }, [attempts, busy, cooldown, note, onUnlocked, notify]);
 
     const press = (digit: string) => {
         if (busy || cooldown > 0) return;
@@ -172,4 +182,6 @@ const NoteUnlockPrompt: React.FC<NoteUnlockPromptProps> = ({ note, onUnlocked, o
 
 export { MIN_PIN_LENGTH, BACKOFF_MS };
 export default NoteUnlockPrompt;
+
+
 

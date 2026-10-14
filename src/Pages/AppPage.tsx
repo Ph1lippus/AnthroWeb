@@ -4,6 +4,7 @@ import SettingsShell from '../Components/Settings/SettingsShell';
 import { Package, RotateCw, Download, Info, ChevronRight } from 'lucide-react';
 import { checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp } from '../services/updateService';
 import type { UpdateInfo } from '../services/updateService';
+import { useInlineError } from '../Components/Feedback/useNotice';
 
 type CheckStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'unavailable';
 
@@ -14,7 +15,7 @@ const AppPage: React.FC = () => {
     const [checkStatus, setCheckStatus] = useState<CheckStatus>('idle');
     const [checkedUpdate, setCheckedUpdate] = useState<UpdateInfo | null>(null);
     const [installing, setInstalling] = useState(false);
-    const [installError, setInstallError] = useState<string | null>(null);
+    const [, raiseInstallError, clearInstallError] = useInlineError();
 
     useEffect(() => {
         let cancelled = false;
@@ -35,7 +36,7 @@ const AppPage: React.FC = () => {
 
     const handleCheck = async () => {
         setCheckStatus('checking');
-        setInstallError(null);
+        clearInstallError();
         const latest = await fetchLatestUpdate();
         if (!latest) {
             setLatestUpdate(null);
@@ -67,11 +68,11 @@ const AppPage: React.FC = () => {
             return;
         }
         setInstalling(true);
-        setInstallError(null);
+        clearInstallError();
         try {
             await downloadAndInstall(target.url);
         } catch (err) {
-            setInstallError(err instanceof Error ? err.message : 'Update failed. Please try again.');
+            raiseInstallError(err instanceof Error ? err.message : 'Update failed. Please try again.');
         } finally {
             setInstalling(false);
         }
@@ -141,7 +142,6 @@ const AppPage: React.FC = () => {
                                 <Download />
                                 {installing ? 'Downloading...' : isCapacitorApp() ? 'Update & Install' : 'Download APK'}
                             </button>
-                            {installError && <p className="settings-update-error">{installError}</p>}
                         </div>
                     )}
 

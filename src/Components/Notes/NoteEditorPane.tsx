@@ -27,6 +27,7 @@ import type { TableOfContentData } from '@tiptap/extension-table-of-contents';
 import type { Note } from '../../services/noteService';
 import type { NoteEditorHandle } from './NoteEditor';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
+import { useNotice } from '../Feedback/useNotice';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
 import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
@@ -127,7 +128,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
     const [title, setTitle] = useState(note.title ?? '');
     const [content, setContent] = useState(note.content ?? '');
-    const [actionError, setActionError] = useState<string | null>(null);
+    const { notify } = useNotice();
     const [confirmDelete, setConfirmDelete] = useState(false);
     /** Which way round the lock dialog is going, or null when it is closed. */
     const [lockDialog, setLockDialog] = useState<{ mode: NoteLockMode } | null>(null);
@@ -175,6 +176,22 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     }, []);
 
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /**
+     * Whether this pane is still on screen.
+     *
+     * Read by every async continuation that wants to touch state. Locking a page
+     * is a multi-step round trip -- flush the pending autosave, re-seal the row,
+     * re-wrap the key -- and the user can leave mid-way through any of it. A
+     * `setState` after that lands on a component React has already discarded,
+     * which is the "Can't perform a React state update on a component that hasn't
+     * mounted yet" warning this pane was producing.
+     *
+     * A ref rather than state, for the same reason as the others below: reading
+     * it must not schedule a render, and it is only ever consulted from a
+     * continuation outside the render cycle.
+     */
+    const mountedRef = useRef(true);
+    React.useEffect(() => () => { mountedRef.current = false; }, []);
     // The newest values still owed to the database. A ref rather than state
     // because the unmount flush runs outside the render cycle and must not close
     // over a stale snapshot.
@@ -198,17 +215,18 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                 // Only clear if nothing new was typed while this was in flight.
                 if (pendingRef.current === pending) {
                     pendingRef.current = null;
-                    setActionError(null);
                 }
             } catch (error) {
                 // The payload stays in pendingRef so the next keystroke retries it
-                // instead of silently dropping the edit, and the failure is reported
-                // through the same line as every other action error rather than
-                // through a save indicator in the header. With nothing in the header
-                // at all, a failure that never resolves on its own -- signed out, a
-                // row-level rejection -- would otherwise be completely silent, and
-                // the retry only ever comes from the next keystroke.
-                setActionError(
+                // instead of silently dropping the edit.
+                //
+                // Reported on the notice stack rather than through a save indicator
+                // in the header. A failure that never resolves on its own -- signed
+                // out, a row-level rejection -- would otherwise be completely silent,
+                // and the retry only ever comes from the next keystroke, so nothing
+                // would ever prompt the user to try that again.
+                notify(
+                    'error',
                     `Could not save: ${error instanceof Error ? error.message : 'unknown error'}`,
                 );
             } finally {
@@ -216,7 +234,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             }
         };
         persistRef.current = persist;
-    }, [updateNote]);
+    }, [updateNote, notify]);
 
     const scheduleSave = (nextTitle: string, nextContent: string) => {
         pendingRef.current = { title: nextTitle, content: nextContent };
@@ -253,7 +271,6 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     };
 
     const handleColor = (color: string) => {
-        setActionError(null);
         updateNote.mutate(
             // An empty id is the removal, written as null. Sent as an empty string
             // instead, Postgres stores it and `resolveNoteColor` treats it as
@@ -267,17 +284,16 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                 // it applied every write 4xx's -- and an unhandled mutation error
                 // meant nothing at all appeared to happen.
                 onError: error => {
-                    setActionError(`Could not save colour: ${error.message}`);
+                    void notify('error', `Could not save colour: ${error.message}`);
                 },
             },
         );
     };
 
     const handleIcon = (icon: string | null) => {
-        setActionError(null);
         updateNote.mutate(
             { notes_icon: icon },
-            { onError: error => setActionError(`Could not save icon: ${error.message}`) },
+            { onError: error => void notify('error', `Could not save icon: ${error.message}`) },
         );
     };
 
@@ -294,7 +310,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         trashNoteMutation.mutate(note.id!, {
             onSuccess: () => onDeleted(),
             onError: (error: Error) => {
-                setActionError(`Could not move to trash: ${error.message}`);
+                void notify('error', `Could not move to trash: ${error.message}`);
             },
         });
     };
@@ -406,12 +422,6 @@ return (
                         >
                             <PanelLeft size={14} />
                         </button>
-                    )}
-
-                    {actionError && (
-                        <span className="note-inline-error" role="alert">
-                            {actionError}
-                        </span>
                     )}
 
                     <button
@@ -600,7 +610,7 @@ return (
                     mode={lockDialog.mode}
                     failedAttempts={note.lock_failed_attempts ?? 0}
                     onClose={() => setLockDialog(null)}
-                    onSubmit={async (pin, accountPassword) => {
+                    onSubmit={async pin => {
                         const { lockNote, unlockNote } = await import('../../services/noteService');
                         // The pending autosave has to land before the page is
                         // re-sealed, or it would write the old payload back over
@@ -612,10 +622,16 @@ return (
                         pendingRef.current = null;
 
                         const updated = pin
-                            ? await lockNote(note.id!, pin, accountPassword)
+                            ? await lockNote(note.id!, pin)
                             : await unlockNote(note.id!);
 
+                        if (!mountedRef.current) return;
                         setLockDialog(null);
+                        notify(
+                            'success',
+                            pin ? `Locked with a ${pin.length}-digit PIN.`
+                                 : 'PIN removed. This page is readable again.',
+                        );
                         // Handed the row back so the editor keeps showing what is
                         // stored, rather than the pre-lock copy in state -- which
                         // after locking is the text that is no longer readable.
@@ -814,3 +830,8 @@ return (
 };
 
 export default NoteEditorPane;
+
+
+
+
+

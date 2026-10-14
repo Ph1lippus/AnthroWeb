@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 import { openRow, openRows, sealExistingRow } from './vault/rows';
 import { getUserSettings, updateUserSettings } from './profileService';
-import { armNoteLock, disarmNoteLock, openNoteKeyWithAccount, reWrapNotePin, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
+import { armNoteLock, disarmNoteLock, openNoteKeyWithAccount, openNoteKeyWithMasterEncoded, reWrapNotePin, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
 import { buildAccountRecovery, checkAccountPassword, deriveAccountWrapKey, type AccountRecoveryColumns } from './vault/accountRecovery';
 import { getMasterKey, isVaultOpen } from './vault/keyring';
 
@@ -116,33 +116,61 @@ export const resetNotePin = async (id: string, accountPassword: string, newPin: 
 
     const settings = await getUserSettings();
     const recovery = settings as unknown as AccountRecoveryColumns | null;
-    if (!recovery?.account_recovery_verifier) {
-        // A page locked without the account wrap -- which is what happens if the
-        // account password was skipped at lock time. The message says so
-        // specifically, because "set up recovery in settings" sent people looking
-        // for a setting that no longer exists.
-        throw new Error(
-            'This page was locked without recovery set up, so its PIN cannot be reset. ' +
-            'It can still be opened with the app, or with its original PIN.',
-        );
-    }
-    if (!(await checkAccountPassword(recovery, accountPassword))) {
+
+    // Proved through the sign-in server. This is the step that decides whether
+    // the person at the keyboard owns the account, and only the server can answer
+    // that with certainty.
+    if (!recovery || !(await checkAccountPassword(recovery, accountPassword))) {
         throw new Error('That is not your account password.');
     }
 
-    const accountKey = await deriveAccountWrapKey(recovery, accountPassword);
-    if (!accountKey) throw new Error('Could not verify your account password.');
+    /**
+     * Where the note key comes from.
+     *
+     * Locking a page no longer asks for the account password. It is a long
+     * secret nobody should be typing into a dialog asking for a four-digit code,
+     * and asking for it there turned a two-field form into a five-field one to
+     * do something that has nothing to do with locking.
+     *
+     * The consequence is that the account wrap cannot be created at lock time,
+     * because creating it needs a password nobody has been asked for yet. So it
+     * is created *here* -- the one moment the password is in hand and the note
+     * key has just come out. From the first recovery onward the page can always
+     * be recovered with the account password alone.
+     */
+    let encodedKey: string | null = null;
+    let accountKey: CryptoKey | null = null;
 
-    const encodedKey = await openNoteKeyWithAccount(note as NoteLockColumns, id, accountKey);
-    if (!encodedKey) {
-        throw new Error(
-            'This page was locked before account recovery was set up, so its PIN cannot be reset. ' +
-            'Its other unlock routes still work.',
-        );
+    if (recovery?.account_recovery_verifier) {
+        accountKey = await deriveAccountWrapKey(recovery, accountPassword);
+        if (accountKey) {
+            encodedKey = await openNoteKeyWithAccount(note as NoteLockColumns, id, accountKey);
+        }
     }
 
-    const masterKey = getMasterKey();
-    const columns = await reWrapNotePin(encodedKey, id, newPin, { masterKey });
+    /**
+     * The route that does not need any of the above.
+     *
+     * A page locked inside an unlocked app has its key wrapped under the app
+     * master key, so recovery works with the app lock on -- which is the case
+     * that matters, since locking a page without the app lock is the rare one.
+     */
+    if (!encodedKey) {
+        if (!getMasterKey()) {
+            throw new Error(
+                'This page can only be reset while the app lock is on, or with its PIN. ' +
+                'Unlock the app and try again.',
+            );
+        }
+        encodedKey = await openNoteKeyWithMasterEncoded(note as NoteLockColumns, id);
+    }
+
+    if (!encodedKey) throw new Error('Could not open this page to change its PIN.');
+
+    const columns = await reWrapNotePin(encodedKey, id, newPin, {
+        masterKey: getMasterKey(),
+        accountKey,
+    });
 
     const { error: updateError } = await supabase
         .from('notes')
@@ -150,6 +178,27 @@ export const resetNotePin = async (id: string, accountPassword: string, newPin: 
         .eq('id', id)
         .eq('user_id', user.id);
     if (updateError) throw updateError;
+
+    /**
+     * Store the account wrap for next time.
+     *
+     * Without this, recovery only ever works while the app lock is open -- and
+     * the second forgotten PIN, the one that actually hurts, is the one most
+     * likely to arrive after the app lock has been turned off too.
+     *
+     * Best-effort on purpose: the PIN has already been changed by this point, so
+     * failing to store the extra wrap costs a convenience rather than the
+     * recovery the user just asked for.
+     */
+    if (accountKey && !recovery?.account_recovery_verifier && settings) {
+        try {
+            const verifier = await buildAccountRecovery(accountPassword);
+            await updateUserSettings({ ...settings, ...verifier });
+            sessionAccountKey = accountKey;
+        } catch (err) {
+            console.warn('Could not store the account wrap for future recovery:', err);
+        }
+    }
 };
 
 /**
@@ -637,68 +686,36 @@ export const togglePinNote = async (id: string, isPinned: boolean) => {
     return updateNote(id, { is_pinned: !isPinned });
 };
 
-/**
- * The account key for wrapping a note, establishing it if this is the first time.
- *
- * The account wrap is what makes a forgotten page PIN recoverable, and it used to
- * be set up by a toggle buried in Settings that had to be found *before* locking
- * anything. Miss it, and "Forgot your PIN?" on the lock pad -- the one place
- * anyone would look -- dead-ended with an error telling them to go and find the
- * setting they had never been told existed.
- *
- * So it is established here instead, as a side effect of locking: the first page
- * locked in a session asks for the account password once, and the key is held in
- * memory for the rest of it. Locking a second page in the same session asks for
- * nothing, because the key is already here and the verifier already exists.
- *
- * Returns null only when the caller declined and there is nothing cached, which
- * `armNoteLock` handles by locking PIN-only. That remains a working state -- it
- * just means a forgotten PIN is not recoverable for that page, which is what the
- * confirmation is asking about.
- */
-const ensureAccountKey = async (accountPassword?: string): Promise<CryptoKey | null> => {
-    const cached = await cachedAccountKey();
-    if (cached) return cached;
-    if (!accountPassword) return null;
-
-    // Verified through Supabase before anything is written, so a typo cannot
-    // leave a verifier on file that nobody will ever be able to satisfy.
-    const columns = await buildAccountRecovery(accountPassword);
-    const settings = await getUserSettings();
-    if (!settings) throw new Error('No settings row.');
-    await updateUserSettings({ ...settings, ...columns });
-
-    const key = await deriveAccountWrapKey(
-        { ...(settings as unknown as AccountRecoveryColumns), ...columns },
-        accountPassword,
-    );
-    sessionAccountKey = key;
-    return key;
-};
-
-/** Whether the account key is already held, so locking will not ask again. */
-export const hasAccountKey = (): boolean => sessionAccountKey !== null;
 
 /**
  * Lock a page behind its own PIN.
  *
  * Two things happen in one write, and they have to happen together: the page's
  * contents are re-sealed under the *note's* key rather than the app's master key,
- * and the note key is wrapped several ways so it survives any one of them being
- * lost.
+ * and the note key is wrapped so it survives any one of them being lost.
  *
  * Re-sealing under the note key is the whole point. If the contents stayed sealed
- * under the master key, the per-page PIN would be decorative -- anyone with the
- * app unlocked could read them, and so could anything that got hold of a backup
- * of `vault_pin_wrapped`. The master wrap still exists, so the app can read a
+ * under the master key, the page PIN would be decorative -- anyone with the app
+ * unlocked could read them. The master wrap still exists, so the app can read a
  * locked page without a prompt; the page PIN is what stops the sidebar and the
  * list from showing it.
+ *
+ * No account password is asked for here, and that is deliberate. It used to be:
+ * an extra field in this dialog, on first use per session, so a forgotten page
+ * PIN could be reset. But it turned a dialog asking for four digits into one
+ * asking for a password too, to set up something that has nothing to do with
+ * locking -- and a long account password has no business being typed into that
+ * particular box.
+ *
+ * The account wrap is created at the other end instead, during recovery, which
+ * is the one moment the password is in hand and the note key has just come out.
+ * See `resetNotePin`.
  *
  * The key is held for the session on the way out, because `updateNote` needs it
  * for every save that follows. Without it the next autosave would re-seal under
  * the master key and undo the lock silently.
  */
-export const lockNote = async (id: string, pin: string, accountPassword?: string): Promise<Note> => {
+export const lockNote = async (id: string, pin: string): Promise<Note> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
@@ -715,7 +732,7 @@ export const lockNote = async (id: string, pin: string, accountPassword?: string
     const current = await getNoteById(id, true);
     if (!current) throw new Error('That page no longer exists.');
 
-    const accountKey = await ensureAccountKey(accountPassword);
+    const accountKey = await cachedAccountKey();
 
     const lockColumns = await armNoteLock(id, pin, undefined, accountKey);
     const noteKey = await unlockNoteWithPin(lockColumns as NoteLockColumns, id, pin);
@@ -946,3 +963,5 @@ export const duplicateNote = async (note: Note): Promise<Note> => {
         notes_tags: note.notes_tags ?? [],
     });
 };
+
+

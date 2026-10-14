@@ -13,6 +13,7 @@ import AlarmsPanel, { type AlarmDraft } from '../Components/Timer/AlarmsPanel';
 import { useTimer, useTimerSound, type TimerMode } from '../hooks/useTimerEngine';
 import { useTimerDocumentTitle } from '../hooks/useTimerDocumentTitle';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
 import {
@@ -70,7 +71,6 @@ const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
 
-    const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
     const [deletePreset, setDeletePreset] = useState<NormalizedPreset | null>(null);
     const [deleteAlarm, setDeleteAlarm] = useState<TimerAlarm | null>(null);
 
@@ -219,22 +219,32 @@ const TimerPage: React.FC = () => {
     const anyError = savePreset.error ?? editPreset.error ?? removePreset.error
         ?? addAlarm.error ?? editAlarm.error ?? removeAlarm.error
         ?? settingsQuery.error ?? presetsQuery.error ?? alarmsQuery.error;
-    const [shownError, setShownError] = useState<string | null>(null);
-    const errorMessage = anyError ? (anyError as Error).message || 'Something went wrong' : null;
-    if (errorMessage && errorMessage !== shownError) {
-        setShownError(errorMessage);
-        setToast({ type: 'error', message: errorMessage });
-    }
+    /**
+     * A query failure becomes a message, once per distinct message.
+     *
+     * This was `setShownError` + `setToast` called *during render*, guarded by
+     * comparing against the last one shown. React permits adjusting a component's
+     * own state during render, but this is what produces the "state update on a
+     * component that hasn't mounted yet" warning, and a toast raised from a render
+     * is raised whether or not anybody is looking -- including on the render React
+     * throws away.
+     *
+     * In an effect it is raised exactly once per message, on a committed tree,
+     * where it can be dismissed and has somewhere to land.
+     */
+    const errorMessage = anyError
+        ? (anyError as Error).message || 'Something went wrong'
+        : null;
+    const { notify } = useNotice();
+    useEffect(() => {
+        if (errorMessage) notify('error', errorMessage);
+        // Keyed on the message alone, which is what makes it one message per
+        // failure rather than one per render.
+    }, [errorMessage, notify]);
 
     const showToast = useCallback((type: 'success' | 'error' | 'info', message: string) => {
-        setToast({ type, message });
-    }, []);
-
-    useEffect(() => {
-        if (!toast) return;
-        const id = window.setTimeout(() => setToast(null), 3200);
-        return () => window.clearTimeout(id);
-    }, [toast]);
+        notify(type, message);
+    }, [notify]);
 
     // ==================== ALARMS + WAKE LOCK ====================
 
@@ -759,14 +769,6 @@ const TimerPage: React.FC = () => {
                 }}
                 onCancel={() => setDeleteAlarm(null)}
             />
-
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <span className="toast-text">{toast.message}</span>
-                    </div>
-                </div>
-            )}
         </>
     );
 };
@@ -779,3 +781,8 @@ const TimerPage: React.FC = () => {
  * which would show up as a setting that silently stops syncing.
  */
 export default TimerPage;
+
+
+
+
+

@@ -1,37 +1,8 @@
-import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import React, { useRef, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import { establishAccountKey, forgetAccountKey, resetNotePin } from '../../services/noteService';
-import { hasAccountRecovery } from '../../services/vault/accountRecovery';
-import { fetchUserSettings } from '../../services/profileService';
 import { MIN_NOTE_PIN_LENGTH } from '../../services/vault/noteLock';
-
-/**
- * Replace a page PIN that has been forgotten.
- *
- * The point of this dialog is that a forgotten PIN is an inconvenience rather
- * than a loss. That only works because the note's key is wrapped under the
- * account password as well as the PIN, so recovery is a re-wrap: the account
- * password unwraps the key, the key is wrapped under a new PIN, and the page's
- * ciphertext is never opened. There is no point at which the text exists
- * unprotected, and nothing has to be re-encrypted.
- *
- * WHY A WRONG PASSWORD ENDS THE SESSION
- *
- * A wrong account password means either a typo or a different person at the
- * keyboard. The app cannot tell those apart, so it does not guess: it signs out.
- * Continuing to leave somebody else's hands on a page whose contents they cannot
- * read is the failure this is guarding against -- an unattended session that
- * looks like it is still being used by its owner.
- *
- * THAT ENDS UP BEING A RECOVERY ROUTE TOO
- *
- * Signing out and back in re-establishes the session, and the next sign-in is a
- * successful `signInWithPassword`. So the honest way back after a lockout is to
- * sign out and sign in with the real password -- which is what a user who has
- * genuinely forgotten their account password needs anyway, and is why this does
- * not attempt to be a softer alternative.
- */
+import { forgetAccountKey, resetNotePin } from '../../services/noteService';
+import { useNotice } from '../Feedback/useNotice';
 
 interface NotePinRecoveryProps {
     noteId: string;
@@ -39,166 +10,161 @@ interface NotePinRecoveryProps {
     onBack: () => void;
 }
 
-type Stage = 'password' | 'pin' | 'confirm';
-
+/**
+ * "Forgot your PIN?" on the lock pad.
+ *
+ * A forgotten page PIN is answered here and nowhere else -- no Settings toggle,
+ * no hidden section, nothing to have found beforehand. Locking a page no longer
+ * asks for the account password, precisely so that this is the only moment
+ * anybody types it, and the only moment they are asked for it is when they have
+ * already said they cannot get in.
+ *
+ * ONE STEP, NOT TWO
+ *
+ * It used to confirm the password first and then ask for the new PIN. That put
+ * a correctly-typed password behind a step where the only outcome was "now do
+ * the same thing again", and it needed the account key to be *already*
+ * established -- which it was not, because locking had never asked for the
+ * password. `establishAccountKey` therefore returned false for a perfectly good
+ * password, and this screen treated that as a wrong one and signed the user out.
+ *
+ * Both fields are now collected together and handed to `resetNotePin`, which
+ * verifies the password against the sign-in server itself and reports the
+ * difference between "wrong" and "no way to reach this page" honestly.
+ *
+ * A wrong password still signs out. That is not a punishment for mistyping: the
+ * app cannot tell a typo from somebody else at the keyboard, and the counter
+ * backing the decision lives on the server, so there is nothing on the client
+ * that a reload would not reset.
+ */
 const NotePinRecovery: React.FC<NotePinRecoveryProps> = ({ noteId, onDone, onBack }) => {
-    const [stage, setStage] = useState<Stage>('password');
     const [password, setPassword] = useState('');
     const [pin, setPin] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
-    const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
-    const [recoveryOff, setRecoveryOff] = useState(false);
+    const { notify } = useNotice();
 
-    React.useEffect(() => {
-        void fetchUserSettings()
-            .then(settings => setRecoveryOff(!hasAccountRecovery(settings)))
-            .catch(() => setRecoveryOff(true));
-    }, []);
+    /**
+     * Whether this dialog is still on screen.
+     *
+     * `resetNotePin` is a network round trip that can be followed by a sign-out
+     * and a navigation. Without this the `finally` below calls `setBusy` on a
+     * component React has already discarded -- the "state update on a component
+     * that hasn't mounted yet" warning, raised by the very screen that exists to
+     * get a locked page back open.
+     */
+    const mounted = useRef(true);
+    React.useEffect(() => () => { mounted.current = false; }, []);
 
-    const verify = async () => {
-        setBusy(true);
-        setError(null);
-        try {
-            // Establishes the session key first, so a correct password is
-            // proven once here rather than twice in resetNotePin.
-            const ok = await establishAccountKey(password);
-            if (!ok) {
-                // Not a typo we should shrug off: sign out and let the session be
-                // re-established with the real credentials.
-                forgetAccountKey();
-                await supabase.auth.signOut();
-                setError('That is not your account password, so you have been signed out. Sign in again to continue.');
-                setStage('password');
-                return;
-            }
-            setPassword('');
-            setStage('pin');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not verify your account password.');
-        } finally {
-            setBusy(false);
+    const reset = async (event: React.FormEvent) => {
+        event.preventDefault();
+
+        if (pin !== confirmPin) {
+            notify('error', 'Those PINs do not match.');
+            return;
         }
-    };
+        if (pin.length < MIN_NOTE_PIN_LENGTH) {
+            notify('error', `A page PIN needs at least ${MIN_NOTE_PIN_LENGTH} digits.`);
+            return;
+        }
 
-    const reset = async () => {
-        setBusy(true);
-        setError(null);
+        if (mounted.current) setBusy(true);
         try {
             await resetNotePin(noteId, password, pin);
             forgetAccountKey();
+            // The password has done its job. Held in component state it would
+            // outlive the dialog in any snapshot of the tree, and in a
+            // password field it is one autofill away from being put back.
+            setPassword('');
+            notify('success', 'PIN reset. This page has a new PIN.');
             onDone();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not reset that PIN.');
+            const message = err instanceof Error ? err.message : 'Could not reset that PIN.';
+
+            if (/not your account password/i.test(message)) {
+                notify('error', message);
+                forgetAccountKey();
+                await supabase.auth.signOut();
+                return;
+            }
+            notify('error', message);
         } finally {
-            setBusy(false);
+            if (mounted.current) setBusy(false);
         }
     };
 
+    const disabled = busy || password.length === 0
+        || pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirmPin;
+
     return (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-pin-recovery-title">
-            <div className="auth-card auth-card-narrow">
+            <form className="auth-card auth-card-narrow" onSubmit={reset}>
                 <h2 id="note-pin-recovery-title" className="auth-title">Reset this page&rsquo;s PIN</h2>
 
-                {recoveryOff ? (
-                    <div className="vault-warning">
-                        <AlertTriangle size={18} aria-hidden="true" />
-                        <div>
-                            <strong>Page recovery is not set up.</strong>
-                            <p className="vault-lock-hint">
-                                Turning it on in Settings lets a forgotten page PIN be replaced
-                                with your account password. Without it, a forgotten PIN means
-                                the page cannot be opened again.
-                            </p>
-                        </div>
-                    </div>
-                ) : stage === 'password' ? (
-                    <>
-                        <p className="auth-text auth-text-muted mb-3">
-                            Confirm your account password. The page is never decrypted
-                            &mdash; only the key protecting it moves.
-                        </p>
-                        <div className="mb-3 text-start">
-                        <label className="form-label" htmlFor="note-recovery-password">
-                            Account password
-                        </label>
-                        <div className="t-input-wrap">
-                            <div className="t-input">
-                                <input
-                                    id="note-recovery-password"
-                                    className="form-control"
-                                    type="password"
-                                    value={password}
-                                    onChange={e => setPassword(e.target.value)}
-                                    autoComplete="current-password"
-                                />
-                            </div>
-                        </div>
-                        <p className="auth-text auth-text-muted">
-                            A wrong password signs you out. That is deliberate: the app
-                            cannot tell a typo from somebody else at the keyboard.
-                        </p>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <p className="auth-text auth-text-muted mb-3">
-                            Password confirmed. Choose a new PIN for this page.
-                        </p>
-                        <div className="mb-3 text-start">
-                        <label className="form-label" htmlFor="note-recovery-pin">New PIN</label>
-                        <div className="t-input-wrap">
-                            <div className="t-input">
-                                <input
-                                    id="note-recovery-pin"
-                                    className="form-control"
-                                    type="password"
-                                    value={pin}
-                                    onChange={e => setPin(e.target.value)}
-                                    inputMode="numeric"
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                        </div>
-                        </div>
-                        <div className="mb-3 text-start">
-                        <label className="form-label" htmlFor="note-recovery-confirm">Confirm PIN</label>
-                        <div className="t-input-wrap">
-                            <div className="t-input">
-                                <input
-                                    id="note-recovery-confirm"
-                                    className="form-control"
-                                    type="password"
-                                    value={confirmPin}
-                                    onChange={e => setConfirmPin(e.target.value)}
-                                    inputMode="numeric"
-                                    autoComplete="new-password"
-                                />
-                            </div>
-                        </div>
-                        </div>
-                        {pin && confirmPin && pin !== confirmPin && (
-                            <p className="t-error-msg" role="alert">Those do not match.</p>
-                        )}
-                    </>
-                )}
+                <p className="auth-text auth-text-muted mb-3">
+                    Confirm your account password and choose a new PIN. The page is
+                    never decrypted &mdash; only the key protecting it moves.
+                </p>
 
-                {error && <div className="auth-error">{error}</div>}
+                <div className="mb-3 text-start">
+                    <label className="form-label" htmlFor="note-recovery-password">
+                        Account password
+                    </label>
+                    <input
+                        id="note-recovery-password"
+                        className="form-control"
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        autoFocus
+                    />
+                    <p className="auth-text auth-text-muted">
+                        A wrong password signs you out. The app cannot tell a typo from
+                        somebody else at the keyboard.
+                    </p>
+                </div>
+
+                <div className="mb-3 text-start">
+                    <label className="form-label" htmlFor="note-recovery-pin">New PIN</label>
+                    <input
+                        id="note-recovery-pin"
+                        className={`form-control${pin && confirmPin && pin !== confirmPin ? ' is-invalid' : ''}`}
+                        type="password"
+                        value={pin}
+                        onChange={e => setPin(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        aria-autocomplete="none"
+                        aria-invalid={Boolean(pin && confirmPin && pin !== confirmPin)}
+                        placeholder={`At least ${MIN_NOTE_PIN_LENGTH} digits`}
+                    />
+                </div>
+
+                <div className="mb-3 text-start">
+                    <label className="form-label" htmlFor="note-recovery-confirm">Confirm PIN</label>
+                    <input
+                        id="note-recovery-confirm"
+                        className="form-control"
+                        type="password"
+                        value={confirmPin}
+                        onChange={e => setConfirmPin(e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        aria-autocomplete="none"
+                    />
+                    {pin && confirmPin && pin !== confirmPin && (
+                        <p className="t-error-msg">Those do not match.</p>
+                    )}
+                </div>
 
                 <div className="vault-setup-actions">
-                    {!recoveryOff && (
-                        <button
-                            type="button"
-                            className="btn-primary w-100"
-                            disabled={busy || (stage === 'password' ? !password : pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirmPin)}
-                            onClick={() => void (stage === 'password' ? verify() : reset())}
-                        >
-                            {busy ? 'Working...' : stage === 'password' ? 'Confirm' : 'Reset PIN'}
-                        </button>
-                    )}
+                    <button type="submit" className="btn-primary w-100" disabled={disabled}>
+                        {busy ? 'Working...' : 'Reset PIN'}
+                    </button>
                     <button type="button" className="btn-link w-100" onClick={onBack}>Back</button>
                 </div>
-            </div>
+            </form>
         </div>
     );
 };

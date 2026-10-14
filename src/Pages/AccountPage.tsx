@@ -7,6 +7,7 @@ import { getCurrentUser, signOutUser } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { LogOut, ChevronRight } from 'lucide-react';
 import { useBootHold } from '../services/bootScreen';
+import { useInlineError } from '../Components/Feedback/useNotice';
 
 const AccountPage: React.FC = () => {
     const navigate = useNavigate();
@@ -14,7 +15,7 @@ const AccountPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [, raiseError, clearError] = useInlineError();
 
     useEffect(() => {
         let cancelled = false;
@@ -42,12 +43,12 @@ const AccountPage: React.FC = () => {
 
     const handleSignOut = async () => {
         setSigningOut(true);
-        setError(null);
+        clearError();
         try {
             await signOutUser();
             navigate('/');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Sign out failed. Please try again.');
+            raiseError(err instanceof Error ? err.message : 'Sign out failed. Please try again.');
             setSigningOut(false);
         }
     };
@@ -79,8 +80,6 @@ const AccountPage: React.FC = () => {
                             </div>
                         </button>
                     </div>
-
-                    {error && <p className="settings-update-error">{error}</p>}
                 </div>
             </SettingsShell>
 
@@ -98,3 +97,5 @@ const AccountPage: React.FC = () => {
 };
 
 export default AccountPage;
+
+

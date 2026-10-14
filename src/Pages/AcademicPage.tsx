@@ -25,6 +25,7 @@ import type {
 } from '../utils/academicGpa';
 import { resolveSemesterName } from '../utils/semester';
 import type { AcademicSemester } from '../services/academicService';
+import { useNotice } from '../Components/Feedback/useNotice';
 import {
     useAcademicSemesters,
     useSaveSemester,
@@ -76,8 +77,7 @@ const AcademicPage: React.FC = () => {
         () => window.localStorage.getItem(SCALE_STORAGE_KEY),
     );
 
-    const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
-    const [shownError, setShownError] = useState<string | null>(null);
+    const { notify } = useNotice();
 
     const [semesterForm, setSemesterForm] = useState<AcademicSemester | null>(null);
     const [showSemesterForm, setShowSemesterForm] = useState(false);
@@ -156,20 +156,22 @@ const AcademicPage: React.FC = () => {
         semestersQuery.error ?? coursesQuery.error ?? itemsQuery.error ?? scalesQuery.error;
 
     const errorMessage = anyError ? (anyError as Error).message || 'Something went wrong' : null;
-
-    // Surface a newly arrived failure. Raised during render rather than from an
-    // effect so an error cannot appear and expire before it is ever read.
-    if (errorMessage && errorMessage !== shownError) {
-        setShownError(errorMessage);
-        setToast({ type: 'error', message: errorMessage });
-    }
-
-    // Let the toast expire on its own.
+    /**
+     * A newly arrived failure becomes a message, once.
+     *
+     * Raised from an effect rather than during render. The render version was
+     * deliberate at the time -- the comment above it claimed an error must not
+     * "appear and expire before it is ever read" -- but a toast raised from a
+     * render is raised whether or not anybody is looking, including on the render
+     * React throws away, and it is what produces the "state update on a component
+     * that hasn't mounted yet" warning. The expiry it was avoiding belongs to
+     * the notice stack now, which is mounted above the router and outlives every
+     * page.
+     */
     useEffect(() => {
-        if (!toast) return;
-        const timer = setTimeout(() => setToast(null), 3500);
-        return () => clearTimeout(timer);
-    }, [toast]);
+        if (errorMessage) notify('error', errorMessage);
+    }, [errorMessage, notify]);
+
 
     // ==================== HANDLERS ====================
 
@@ -392,7 +394,7 @@ const AcademicPage: React.FC = () => {
                     deleteSemester.mutate(target.id, {
                         onSuccess: () => {
                             setSemesterDelete(null);
-                            setToast({ type: 'success', message: `Deleted "${target.name || 'semester'}"` });
+                            notify('success', `Deleted "${target.name || 'semester'}"` );
                         },
                     });
                 }}
@@ -411,7 +413,7 @@ const AcademicPage: React.FC = () => {
                     deleteCourse.mutate(target.id, {
                         onSuccess: () => {
                             setCourseDelete(null);
-                            setToast({ type: 'success', message: `Deleted "${target.name}"` });
+                            notify('success', `Deleted "${target.name}"` );
                         },
                     });
                 }}
@@ -430,22 +432,15 @@ const AcademicPage: React.FC = () => {
                     deleteItem.mutate(target.id, {
                         onSuccess: () => {
                             setItemDelete(null);
-                            setToast({ type: 'success', message: `Deleted "${target.name}"` });
+                            notify('success', `Deleted "${target.name}"` );
                         },
                     });
                 }}
                 onCancel={() => setItemDelete(null)}
             />
-
-            {toast && (
-                <div className="toast-container">
-                    <div className={`toast toast--${toast.type}`}>
-                        <span className="toast-text">{toast.message}</span>
-                    </div>
-                </div>
-            )}
         </>
     );
 };
 
 export default AcademicPage;
+
