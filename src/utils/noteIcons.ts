@@ -38,7 +38,10 @@ const splitCamel = (name: string): string =>
 const ALL_ENTRIES: NoteIcon[] = [];
 for (const name of Object.keys(LucideIcons)) {
     const component = (LucideIcons as Record<string, unknown>)[name];
-    if (typeof component !== 'function') continue;
+    // Lucide exports these as `forwardRef` objects in some React versions,
+    // so a bare `typeof === 'function'` check rejects every icon and the
+    // picker ends up empty. Accept both shapes.
+    if (typeof component !== 'function' && !(typeof component === 'object' && component !== null && '$$typeof' in component)) continue;
     if (name === 'default' || name === 'icons' || name === 'createLucideIcon') continue;
     if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) continue;
     ALL_ENTRIES.push({
@@ -50,39 +53,18 @@ for (const name of Object.keys(LucideIcons)) {
 
 const BY_ID = new Map<string, NoteIcon>(ALL_ENTRIES.map(icon => [icon.id, icon]));
 
-/** The sixteen emoji the old picker wrote, mapped onto their lucide equivalents. */
-const LEGACY_EMOJI: Record<string, string> = {
-    '📄': 'FileText',
-    '📝': 'NotebookPen',
-    '📌': 'Bookmark',
-    '⭐': 'Star',
-    '💡': 'Lightbulb',
-    '🔥': 'Zap',
-    '📚': 'BookOpen',
-    '🎯': 'Target',
-    '🧠': 'Brain',
-    '⚙️': 'Settings',
-    '🧪': 'FlaskConical',
-    '💻': 'CodeXml',
-    '🌱': 'Sprout',
-    '✅': 'CircleCheck',
-    '❗': 'TriangleAlert',
-    '🎓': 'GraduationCap',
-};
-
 /** What a page with no icon gets. `null` means "draw nothing". */
 export const resolveNoteIcon = (value: string | null | undefined): NoteIcon | null => {
     if (!value) return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
-    const id = LEGACY_EMOJI[trimmed] ?? trimmed;
-    return BY_ID.get(id) ?? null;
+    return BY_ID.get(trimmed) ?? null;
 };
 
 export const isKnownNoteIcon = (value: string | null | undefined): boolean => {
     if (!value) return true;
     const trimmed = value.trim();
-    return !trimmed || trimmed in LEGACY_EMOJI || BY_ID.has(trimmed);
+    return !trimmed || BY_ID.has(trimmed);
 };
 
 /**
