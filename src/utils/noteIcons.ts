@@ -42,7 +42,7 @@ for (const name of Object.keys(LucideIcons)) {
     // so a bare `typeof === 'function'` check rejects every icon and the
     // picker ends up empty. Accept both shapes.
     if (typeof component !== 'function' && !(typeof component === 'object' && component !== null && '$$typeof' in component)) continue;
-    if (name === 'default' || name === 'icons' || name === 'createLucideIcon') continue;
+    if (name === 'default' || name === 'icons' || name === 'createLucideIcon' || name === 'Icon') continue;
     if (!/^[A-Z][A-Za-z0-9]*$/.test(name)) continue;
     ALL_ENTRIES.push({
         id: name,
