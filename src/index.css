@@ -10534,6 +10534,11 @@ select.form-control option {
    the arc is driven by `stroke-dashoffset`.
    ============================================ */
 
+.timer-page-wrapper {
+  min-height: 100svh;
+  padding: 1rem 1.25rem;
+}
+
 .dashboard-section.timer-section {
   max-width: 100%;
   width: 100%;
@@ -10551,7 +10556,9 @@ select.form-control option {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  backdrop-filter: blur(10px);
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
 }
 
 /* Two columns: the ring on the left, the mosaic on the right. Sized so the ring
@@ -10564,15 +10571,22 @@ select.form-control option {
 .timer-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  gap: 1.25rem;
   flex: 1;
   min-height: 0;
 }
 @media (min-width: 900px) {
   .timer-body {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(22rem, 26rem) minmax(0, 1fr);
+    align-items: start;
   }
   .timer-mosaic { order: 0; }
+  .timer-col--clock,
+  .timer-stage {
+    position: sticky;
+    top: 0.5rem;
+    align-self: start;
+  }
 }
 
 .timer-stage {
@@ -10580,9 +10594,25 @@ select.form-control option {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 1.4rem;
   min-width: 0;
-  padding: 0.5rem;
+  min-height: calc(100svh - 6rem);
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.timer-clock__now {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--color-light);
+  opacity: 0.85;
+}
+
+.timer-controls {
+  margin-top: 0.75rem;
+  gap: 0.6rem;
 }
 
 /* The page header: the user's own time, and the run while one is going.
@@ -10608,23 +10638,22 @@ select.form-control option {
 /* The mosaic. Replaces the tab strip: every panel is mounted and visible, and
    the grid alone decides how they arrange. Nothing here is conditionally
    rendered, so no panel can be the reason a running timer looks stopped. */
-.timer-mosaic {
+.timer-mosaic,
+.timer-panel-stack {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.25rem;
-  align-content: start;
+  align-items: start;
 }
-/* Two-up, and only once there is room for two columns that are still worth
-   reading. The panels are forms -- a duration pad, a set of alarm rows -- and
-   halving their width below this makes them worse rather than denser. */
-@media (min-width: 1100px) {
-  .timer-mosaic {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 768px) {
+  .timer-mosaic,
+  .timer-panel-stack {
+    grid-template-columns: 1fr;
   }
 }
 /* Cells are cards in a puzzle grid, like the Daily Log's, so the page reads as
@@ -10637,7 +10666,7 @@ select.form-control option {
   padding: 0.85rem 1rem 0.35rem;
 }
 .timer-mosaic__cell > .card-body {
-  padding: 0.35rem 1rem 1rem;
+  padding: 1rem;
 }
 .timer-mosaic__cell .timer-empty-hint { grid-column: 1 / -1; }
 
@@ -10657,7 +10686,13 @@ select.form-control option {
   flex-shrink: 0;
   display: grid;
   place-items: center;
+  width: clamp(240px, 34vw, 360px);
+  aspect-ratio: 1;
+  margin: 0 auto;
 }
+
+.timer-ticks line { transition: stroke 0.3s ease; }
+.timer-ticks { transform-origin: center; }
 
 .timer-display__inner {
   position: absolute;
@@ -10679,6 +10714,7 @@ select.form-control option {
    what makes it read as a screen and not as a font. */
 .timer-digits {
   font-family: var(--font-display);
+  font-size: clamp(2.4rem, 9vw, 4rem);
   color: var(--color-primary);
   line-height: 0.9;
   font-variant-numeric: tabular-nums;
@@ -10721,6 +10757,9 @@ select.form-control option {
   opacity: 0.4;
   letter-spacing: 0.08em;
 }
+
+.timer-lap--best .score-block__value { color: var(--color-primary); }
+.timer-lap--slow .score-block__value { color: #ff5a60; }
 
 /* A slow sweep around the ring while it runs. Reads as "live" from across the
    room, which a static arc does not. */
@@ -11310,7 +11349,7 @@ select.form-control option {
   .timer-panels { padding-right: 0; }
   /* One column, display first. */
   .timer-body { grid-template-columns: minmax(0, 1fr); }
-  .timer-stage { order: -1; }
+  .timer-stage { order: -1; min-height: auto; }
 }
 
 /* The ring's SVG is sized in em off a font-size the page sets, so the only thing

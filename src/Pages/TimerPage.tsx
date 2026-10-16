@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Flag, Play, Plus, RotateCcw, Square, Timer as TimerIcon } from 'lucide-react';
+import { Flag, Play, RotateCcw, Square, Timer as TimerIcon } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import DurationPad from '../Components/Timer/DurationPad';
@@ -49,9 +49,6 @@ const MODES: { id: TimerMode; label: string }[] = [
     { id: 'interval', label: 'Intervals' },
 ];
 
-/** Quick adds on a running countdown -- the ones people actually reach for. */
-const QUICK_ADDS = [1, 5, 10, 25];
-
 /**
  * The keys two settings objects have to agree on.
  *
@@ -94,6 +91,25 @@ const TimerPage: React.FC = () => {
         return () => window.clearInterval(id);
     }, []);
 
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+            if (event.code === 'Space') {
+                event.preventDefault();
+                unlockAudio();
+                if (engine.running) engine.pause();
+                else engine.start();
+            } else if (event.key === 'r' || event.key === 'R') {
+                if (!engine.running) engine.reset();
+            } else if (event.key === 'l' || event.key === 'L') {
+                if (engine.mode === 'stopwatch' && engine.running) engine.addLap();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [engine]);
+
     // ==================== DATA ====================
 
     const presetsQuery = useQuery({ queryKey: queryKeys.timerPresets, queryFn: getTimerPresets });
@@ -126,11 +142,19 @@ const TimerPage: React.FC = () => {
      * The comparison is by value, not identity, so a background refetch cannot
      * yank the volume back while somebody is dragging it.
      */
+    /**
+     * The live settings, and the reason they are not just `savedSettings`.
+     *
+     * Held separately so a toggle moves under the finger immediately instead of
+     * after a round trip. Adopting the server value only happens when it changed
+     * on its own (another device, or the first load) -- not every time the local
+     * draft differs from it, which is the normal state while the user is editing
+     * and would otherwise yank the toggle back to its previous value.
+     */
+    const savedSettingsRef = useRef<TimerSettings>(savedSettings);
     const [draftSettings, setDraftSettings] = useState<TimerSettings>(savedSettings);
-    if (!sameSettings(draftSettings, savedSettings) && settingsQuery.isFetched) {
-        // Only once the query has actually answered. Adopting the default before
-        // then would overwrite a live draft with `DEFAULT_SETTINGS` during the
-        // very first render, before the user's own settings had loaded.
+    if (!sameSettings(savedSettings, savedSettingsRef.current)) {
+        savedSettingsRef.current = savedSettings;
         setDraftSettings(savedSettings);
     }
 
@@ -201,6 +225,9 @@ const TimerPage: React.FC = () => {
     const saveSettings = useMutation({
         mutationFn: saveTimerSettings,
         onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerSettings }); },
+        onError: (error: unknown) => {
+            notify('error', (error as Error)?.message || 'Could not save settings');
+        },
     });
     useEffect(() => {
         if (sameSettings(draftSettings, savedSettings)) return;
@@ -354,6 +381,8 @@ const TimerPage: React.FC = () => {
 
     /** Laps, newest first -- the order they are read in. */
     const laps = useMemo(() => buildLaps(engine.laps).reverse(), [engine.laps]);
+    const bestSplit = laps.length > 1 ? Math.min(...laps.map(lap => lap.splitMs)) : null;
+    const slowestSplit = laps.length > 1 ? Math.max(...laps.map(lap => lap.splitMs)) : null;
 
     // ==================== HANDLERS ====================
 
@@ -394,7 +423,7 @@ const TimerPage: React.FC = () => {
         <>
             <Title title="Timer" />
 
-            <div className="books-page-wrapper">
+            <div className="timer-page-wrapper">
                 <div className="dashboard-section timer-section">
                     <div className="timer-card">
                         {/*
@@ -414,12 +443,6 @@ const TimerPage: React.FC = () => {
                             of overriding them.
                         */}
                         <div className="timer-header">
-                            <time className="timer-header__now" dateTime={new Date(panelNow).toISOString()}>
-                                {new Date(panelNow).toLocaleTimeString(undefined, {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                })}
-                            </time>
                             {/* The running readout, mirrored here as well as into the
                                 nav rail. The rail badge is the point -- this one is
                                 for somebody already on the page who has scrolled the
@@ -452,6 +475,12 @@ const TimerPage: React.FC = () => {
                                 above it. `order` puts it above on a phone, where
                                 there is no room for two columns. */}
                             <div className="timer-stage">
+                                <time className="timer-clock__now" dateTime={new Date(panelNow).toISOString()}>
+                                    {new Date(panelNow).toLocaleTimeString(undefined, {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </time>
                                 <TimerDisplay
                                     text={digits}
                                     fraction={fraction}
@@ -506,24 +535,7 @@ const TimerPage: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* Quick adds, only on a running countdown -- which is
-                                    exactly when "+5" is wanted and the moment it would
-                                    be useless otherwise. */}
-                                {engine.mode === 'countdown' && engine.running && (
-                                    <div className="timer-chips">
-                                        {QUICK_ADDS.map(minutes => (
-                                            <button
-                                                key={minutes}
-                                                type="button"
-                                                className="btn-action"
-                                                onClick={() => engine.addMinutes(minutes)}
-                                                data-tip={`Add ${minutes} minutes`}
-                                            >
-                                                <Plus size={11} /> {minutes}m
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
+
                             </div>
 
                             {/* The mosaic. Every panel is mounted and visible, and the
@@ -532,11 +544,10 @@ const TimerPage: React.FC = () => {
                                 conditionally rendered, so no panel can be the reason
                                 a running timer appears to have stopped. */}
                             <div className="timer-mosaic">
+                                <div className="daily-log-puzzle">
+                                <div className="daily-log-col">
                                 {/* ==================== RUN ==================== */}
                                 <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Timer</h3>
-                                    </div>
                                     <div className="card-body">
                                         <div className="timer-block">
                                         {/* Segmented rather than tabs: these three are
@@ -606,7 +617,11 @@ const TimerPage: React.FC = () => {
                                                     {engine.laps.length} {engine.laps.length === 1 ? 'lap' : 'laps'}
                                                 </span>
                                                 {laps.map(lap => (
-                                                    <div key={lap.index} className="course-row" style={{ marginBottom: '0.3rem' }}>
+                                                    <div
+                                                        key={lap.index}
+                                                        className={`course-row${bestSplit !== null && lap.splitMs === bestSplit ? ' timer-lap--best' : ''}${slowestSplit !== null && lap.splitMs === slowestSplit ? ' timer-lap--slow' : ''}`}
+                                                        style={{ marginBottom: '0.3rem' }}
+                                                    >
                                                         <div className="course-head">
                                                             <div className="course-head__text">
                                                                 <span className="course-title">Lap {lap.index}</span>
@@ -640,9 +655,6 @@ const TimerPage: React.FC = () => {
 
                                 {/* ==================== PRESETS ==================== */}
                                 <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Presets</h3>
-                                    </div>
                                     <div className="card-body">
                                     <PresetPanel
                                         presets={presets}
@@ -667,11 +679,10 @@ const TimerPage: React.FC = () => {
                                     </div>
                                 </section>
 
+                                </div>
+                                <div className="daily-log-col">
                                 {/* ==================== ALARMS ==================== */}
                                 <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Alarms</h3>
-                                    </div>
                                     <div className="card-body">
                                     <AlarmsPanel
                                         alarms={alarms}
@@ -691,9 +702,6 @@ const TimerPage: React.FC = () => {
 
                                 {/* ==================== SETTINGS ==================== */}
                                 <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-header">
-                                        <h3 className="card-title">Settings</h3>
-                                    </div>
                                     <div className="card-body">
                                     <SettingsPanel
                                         settings={draftSettings}
@@ -710,6 +718,8 @@ const TimerPage: React.FC = () => {
                                 {anyLoading && (
                                     <p className="timer-empty-hint">Loading your presets and alarms…</p>
                                 )}
+                                </div>
+                                </div>
                             </div>
                         </div>
                     </div>

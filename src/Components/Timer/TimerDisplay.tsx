@@ -27,21 +27,16 @@ interface TimerDisplayProps {
 /**
  * The countdown ring and its digits.
  *
- * The arc is the same technique `.score-ring` uses -- an SVG circle whose
- * `stroke-dashoffset` is the length of the remaining arc -- rather than a
- * conic-gradient. The reason to keep using it is that the dash offset is a real
- * length the browser interpolates, so the arc animates smoothly between two
- * values instead of stepping once per render. On a ring that repaints five times
- * a second, that is the difference between moving and strobing.
- *
- * `rotate(-90)` puts the start at twelve o'clock, because a countdown that
- * begins at three o'clock reads as an arbitrary amount done.
+ * Responsive now: the wrapper carries the size in CSS, and the SVG scales
+ * through its viewBox, so the component no longer hard-codes a pixel width.
+ * Sixty tick marks (major every five) turn the ring into an actual clock face
+ * rather than a bare progress track; the arc and the sweep behave as before.
  */
 const TimerDisplay: React.FC<TimerDisplayProps> = ({
     text, fraction, running, dimmed, done, phase, phaseTone, round,
 }) => {
     const size = 260;
-    const stroke = 10;
+    const stroke = 12;
     const radius = (size - stroke) / 2;
     const circumference = 2 * Math.PI * radius;
 
@@ -57,10 +52,23 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
         done ? 'timer-digits--done' : '',
     ].filter(Boolean).join(' ');
 
+    // Sixty ticks around the face. Major ticks every five seconds/minutes are
+    // longer, which is what makes the dial scannable at a glance.
+    const ticks = Array.from({ length: 60 }, (_, i) => {
+        const major = i % 5 === 0;
+        const angle = (i / 60) * 2 * Math.PI - Math.PI / 2;
+        const outer = radius + stroke / 2 + 2;
+        const inner = outer - (major ? 10 : 5);
+        const x1 = size / 2 + Math.cos(angle) * inner;
+        const y1 = size / 2 + Math.sin(angle) * inner;
+        const x2 = size / 2 + Math.cos(angle) * outer;
+        const y2 = size / 2 + Math.sin(angle) * outer;
+        return { i, major, x1, y1, x2, y2 };
+    });
+
     return (
         <div
             className="timer-display"
-            style={{ width: size, height: size }}
             // The digits are the live value, so the whole ring is the live region.
             // Polite rather than assertive: it updates five times a second, and an
             // assertive region doing that would talk over everything else on the
@@ -69,7 +77,21 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
             aria-live="polite"
             aria-atomic="true"
         >
-            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+            <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`}>
+                {/* Tick marks. Drawn first so the ring sits on top of them. */}
+                <g className="timer-ticks">
+                    {ticks.map(tick => (
+                        <line
+                            key={tick.i}
+                            x1={tick.x1} y1={tick.y1}
+                            x2={tick.x2} y2={tick.y2}
+                            stroke={tick.major ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'}
+                            strokeWidth={tick.major ? 1.5 : 1}
+                            strokeLinecap="round"
+                        />
+                    ))}
+                </g>
+
                 {/* Track. `rgba(255,255,255,0.08)` rather than a token: there is
                     no neutral token in this stylesheet and inventing one for a
                     single rule would be inconsistent with every other page. */}
@@ -122,10 +144,6 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
             <div className="timer-display__inner">
                 <span
                     className={digitsClass}
-                    // The font-size is set here rather than in CSS so the digits
-                    // scale with the ring, which means the ring can be resized for
-                    // a phone without a matching media query on the type.
-                    style={{ fontSize: `${size * 0.2}px` }}
                 >
                     {text}
                 </span>

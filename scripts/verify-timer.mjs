@@ -989,10 +989,7 @@ const blocked = await mountComponent('src/Components/Timer/SettingsPanel.tsx', h
 ));
 check('a blocked notification toggle is disabled', /disabled/.test(blocked.html()));
 check('and says why rather than looking broken', /Blocked for this site/.test(blocked.html()));
-// The OS-alarm limitation is a permissions decision, not a bug, and somebody
-// setting a 6am alarm deserves to know before they rely on it.
-check('the panel states the OS-level limitation', /no permission for one/.test(blocked.html())
-    || /needs an OS-level alarm/.test(blocked.html()));
+// The OS-alarm limitation paragraph was removed at the user's request.
 
 // ============================================================================
 

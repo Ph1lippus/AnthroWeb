@@ -1,5 +1,5 @@
 import React from 'react';
-import { BellRing, Smartphone, Volume2, Waves } from 'lucide-react';
+import { Volume2, Waves } from 'lucide-react';
 import { CHIMES, type ChimeId, type TimerSettings } from '../../utils/timerMath';
 
 interface SettingsPanelProps {
@@ -125,21 +125,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             />
         </div>
 
-        {/* Stated rather than implied. The limit is a permissions decision, not a
-            bug, and somebody setting a 6am alarm deserves to know now rather than
-            when it does not go off. */}
-        <p className="timer-empty-hint" style={{ textAlign: 'left', marginTop: '0.75rem' }}>
-            <Smartphone size={11} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: '0.25rem', opacity: 0.6 }} />
-            Alarms and timers run while the app is open or in a background tab.
-            Firing with the app closed needs an OS-level alarm, which this build
-            has no permission for.
-        </p>
 
-        <p className="timer-empty-hint" style={{ textAlign: 'left' }}>
-            <BellRing size={11} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: '0.25rem', opacity: 0.6 }} />
-            Presets, alarms and these settings follow you between devices. A running
-            timer does not, because it belongs to the machine it is running on.
-        </p>
     </div>
 );
 

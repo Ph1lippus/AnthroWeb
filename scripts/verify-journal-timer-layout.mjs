@@ -115,9 +115,11 @@ console.log('\n== the timer has no tabs ==');
     check('the panel state is gone', !/\bsetPanel\b/.test(timer) && !/\[panel\b/.test(timer));
 
     check('there is a mosaic', /className="timer-mosaic"/.test(timer));
-    const missing = ['Timer', 'Presets', 'Alarms', 'Settings']
-        .filter(label => !new RegExp(`<h3 className="card-title">${label}</h3>`).test(timer));
-    check('holding all four cells', missing.length === 0, `missing: ${missing.join(', ') || 'none'}`);
+    // Outer cell titles were removed on purpose -- each panel already names itself
+    // through its own inner header, and the duplicate was just noise above the form.
+    const present = ['Timer', 'Presets', 'Alarms', 'Settings']
+        .filter(label => new RegExp(`<h3 className="card-title">${label}</h3>`).test(timer));
+    check('the cells carry no redundant outer titles', present.length === 0, `still present: ${present.join(', ') || 'none'}`);
 
     check('nothing is conditionally rendered in it',
         !/\{panel ===|hidden=\{panel/.test(timer),
@@ -132,8 +134,8 @@ console.log('\n== the world clock is just your own time ==');
         'undefined locale, so the device\'s own region and 12/24-hour setting win');
     check('tabular figures, so it does not twitch every minute',
         /\.timer-header__now \{[^}]*font-variant-numeric: tabular-nums/.test(journalCss));
-    check('and it is marked up as a time',
-        /<time className="timer-header__now"/.test(timer));
+    check('and the wall clock is marked up as a time',
+        /<time className="timer-clock__now"/.test(timer));
 
     // Existence, not a read: the point is that the file is gone, and reading it
     // to find that out throws instead of reporting.
@@ -146,10 +148,10 @@ console.log('\n== the world clock is just your own time ==');
 
 console.log('\n== the mosaic layout ==');
 {
-    check('one column on a phone', /\.timer-mosaic \{[\s\S]*?grid-template-columns: 1fr/.test(journalCss));
-    check('two-up once there is room', /@media \(min-width: 1100px\)[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/.test(journalCss));
-    check('the ring goes above it on a phone, beside it on a wide screen',
-        /\.timer-stage[\s\S]*?order/.test(journalCss) || /order: 0/.test(journalCss));
+    check('mosaic uses daily-log two-column rules', /\.timer-mosaic \{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/.test(journalCss));
+    check('one column on a phone', /@media \(max-width: 768px\)[\s\S]*?timer-mosaic[\s\S]*?grid-template-columns: 1fr/.test(journalCss));
+    check('the ring sits beside it on a wide screen',
+        /\.timer-body \{[\s\S]*?grid-template-columns: minmax\(22rem/.test(journalCss));
 }
 
 console.log('\n== switching mode cannot stop a running timer ==');
