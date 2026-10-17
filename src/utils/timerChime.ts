@@ -1,16 +1,10 @@
-import type { ChimeId } from './timerMath';
-
 /**
  * The alarm sound, synthesised rather than shipped.
  *
- * Four reasons this builds its own audio instead of loading an mp3:
+ * Three reasons this builds its own audio instead of loading an mp3:
  *
  *  - Nothing to download, so it works on the first frame of a cold offline
  *    start and there is no "loading sound..." state to design around.
- *  - Four distinct timbres that are genuinely different from each other, not
- *    one sample pitched around. A digital beep and a struck bell are not the
- *    same sound at a different frequency, and picking between them by ear is
- *    most of the point.
  *  - Volume is a gain value, not a re-encoded file, so the slider is real.
  *  - The whole thing is about forty lines and has no asset to go missing.
  *
@@ -110,39 +104,17 @@ function tone(ctx: AudioContext, bus: GainNode, options: ToneOptions): Oscillato
 }
 
 /**
- * Each chime is a short score: an array of tones with timings.
+ * The chime, written as a short score: an array of tones with timings.
  *
- * Read as "what this sound is made of" rather than as parameters -- `chime` is
- * a two-note interval with a long decay, `radar` is the same pulse four times,
- * and `digital` is deliberately square and hard because that is what a bedside
- * clock is for.
+ * Read as "what this sound is made of" rather than as parameters. A fundamental
+ * with its fifth and octave above it, the upper two decaying faster, which is
+ * what makes it read as struck metal rather than as a flat chord.
  */
-const SCORES: Record<ChimeId, ToneOptions[]> = {
-    chime: [
-        { freq: 880, duration: 1.1, gain: 0.5 },
-        { freq: 1318.5, at: 0.09, duration: 1.4, gain: 0.36 },
-        { freq: 1760, at: 0.18, duration: 1.6, gain: 0.16 },
-    ],
-    bell: [
-        // A struck bell is a fundamental with a fifth and an octave above it,
-        // the upper two decaying faster, which is what makes it read as metal
-        // rather than as a chord.
-        { freq: 523.25, duration: 1.9, gain: 0.45, attack: 0.002 },
-        { freq: 784, duration: 1.3, gain: 0.2, attack: 0.002 },
-        { freq: 1046.5, duration: 0.8, gain: 0.12, attack: 0.002 },
-    ],
-    digital: [
-        { freq: 1000, duration: 0.16, gain: 0.4, type: 'square', attack: 0.001 },
-        { freq: 1000, at: 0.24, duration: 0.16, gain: 0.4, type: 'square', attack: 0.001 },
-        { freq: 1000, at: 0.48, duration: 0.32, gain: 0.4, type: 'square', attack: 0.001 },
-    ],
-    radar: [
-        { freq: 1200, duration: 0.09, gain: 0.42, type: 'triangle', attack: 0.004 },
-        { freq: 1200, at: 0.16, duration: 0.09, gain: 0.42, type: 'triangle', attack: 0.004 },
-        { freq: 1200, at: 0.32, duration: 0.09, gain: 0.42, type: 'triangle', attack: 0.004 },
-        { freq: 1600, at: 0.48, duration: 0.14, gain: 0.3, type: 'triangle', attack: 0.004 },
-    ],
-};
+const SCORE: ToneOptions[] = [
+    { freq: 880, duration: 1.1, gain: 0.5, attack: 0.002 },
+    { freq: 1318.5, at: 0.09, duration: 1.4, gain: 0.36, attack: 0.002 },
+    { freq: 1760, at: 0.18, duration: 1.6, gain: 0.16, attack: 0.002 },
+];
 
 /**
  * Play the chime once.
@@ -151,20 +123,19 @@ const SCORES: Record<ChimeId, ToneOptions[]> = {
  * that, an interval timer crossing three phases quickly stacks three sets of
  * oscillators on top of each other and the peak level climbs until it clips.
  */
-export function playChime(id: ChimeId, volume: number): void {
+export function playChime(volume: number): void {
     const ctx = ensureContext();
     if (!ctx || !master) return;
     if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
     stopChime();
 
-    const score = SCORES[id] ?? SCORES.chime;
     const level = Math.max(0, Math.min(1, volume));
 
     const bus = ctx.createGain();
     bus.gain.value = level;
     bus.connect(master);
 
-    const oscs = score.map(options => tone(ctx, bus, options));
+    const oscs = SCORE.map(options => tone(ctx, bus, options));
     active = { osc: oscs, gain: bus };
 }
 
@@ -190,23 +161,5 @@ export function stopChime(): void {
         }
     } catch {
         // A context closed underneath us. Nothing left to silence.
-    }
-}
-
-/**
- * A vibration pattern, or null where the platform cannot do it.
- *
- * A pattern rather than a single buzz, because one 400ms buzz on a phone in a
- * pocket is easy to miss and a three-pulse pattern is not. Returns null when
- * `navigator.vibrate` is absent (every desktop browser) so the caller can skip
- * the call instead of guarding it at the call site.
- */
-export function vibrationPattern(id: ChimeId): number[] | null {
-    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return null;
-    switch (id) {
-        case 'chime': return [220, 90, 220];
-        case 'bell': return [500];
-        case 'digital': return [160, 80, 160, 80, 160];
-        case 'radar': return [90, 60, 90, 60, 90, 60, 90];
     }
 }

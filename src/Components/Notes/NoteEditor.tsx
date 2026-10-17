@@ -631,7 +631,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
         () => ({
             placement: 'left-start',
             strategy: 'absolute',
-            offset: -8,
+            offset: -14,
             // floating-ui runs these after the placement is computed, which is
             // where the vertical correction belongs. Its own `flip` and `shift`
             // are deliberately absent: the grip belongs beside its block, even

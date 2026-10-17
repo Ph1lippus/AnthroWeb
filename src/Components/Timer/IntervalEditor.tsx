@@ -1,6 +1,5 @@
 import React from 'react';
-import { Repeat } from 'lucide-react';
-import { formatHumanDuration, type IntervalConfig } from '../../utils/timerMath';
+import { formatAlarmTime, formatHumanDuration, type IntervalConfig } from '../../utils/timerMath';
 
 interface IntervalEditorProps {
     config: IntervalConfig;
@@ -24,6 +23,9 @@ function parseInput(raw: string): number {
     return parts[0] || 0;
 }
 
+/** Two digits of digits. The ceiling is applied when the value is read, not here. */
+const digits = (raw: string): string => raw.replace(/\D/g, '').slice(0, 2);
+
 /**
  * A labelled numeric field that holds `MM:SS` but reports seconds.
  *
@@ -37,9 +39,7 @@ const Field: React.FC<{
     seconds: number;
     onChange: (seconds: number) => void;
     disabled: boolean;
-    /** A round-number stepper beside the field. */
-    step?: number;
-}> = ({ id, label, seconds, onChange, disabled, step }) => (
+}> = ({ id, label, seconds, onChange, disabled }) => (
     <div className="timer-field">
         <label className="form-label" htmlFor={id}>{label}</label>
         <input
@@ -57,23 +57,6 @@ const Field: React.FC<{
                 if (parsed > 0) onChange(parsed);
             }}
         />
-        {step && (
-            <div className="timer-chips" style={{ marginTop: '0.15rem' }}>
-                {[-step, step].map(delta => (
-                    <button
-                        key={delta}
-                        type="button"
-                        className="btn-action"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.6rem' }}
-                        disabled={disabled || (delta < 0 && seconds <= step)}
-                        onClick={() => onChange(Math.max(step, seconds + delta))}
-                        aria-label={`${delta > 0 ? 'Add' : 'Remove'} ${step}s`}
-                    >
-                        {delta > 0 ? '+' : '−'}{step}s
-                    </button>
-                ))}
-            </div>
-        )}
     </div>
 );
 
@@ -86,18 +69,46 @@ const Field: React.FC<{
  * underneath is the part that earns the form: it turns five fields into the one
  * sentence somebody actually wants to check ("4 rounds of 25m, 15m after the
  * fourth"), so a mis-typed field is visible without doing arithmetic.
+ *
+ * ## No header, no wrapper, no steppers
+ *
+ * This used to open a `.timer-block` with its own titled header, and to put a pair
+ * of `±300s` chips under every field. All three are gone.
+ *
+ * The wrapper was a panel *inside* the card that already held it, carrying a second
+ * copy of the name that card's own header already said -- so the intervals
+ * container was a container inside a container, and the eye had two edges to read
+ * as its boundary where there should have been one. It now renders its fields
+ * straight into the card it is given, which is what makes the page read as one
+ * mosaic of puzzle pieces rather than panels nested inside panels.
+ *
+ * The steppers were three pairs of buttons to nudge numbers that were already
+ * typeable in the field above them, each one a route to a value by arithmetic
+ * rather than by saying it. The fields do the job on their own.
  */
 const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disabled }) => {
     const set = (patch: Partial<IntervalConfig>) => onChange({ ...config, ...patch });
 
-    return (
-        <div className="timer-block">
-            <div className="timer-block__head">
-                <h3 className="timer-block__title">
-                    <Repeat size={14} aria-hidden="true" /> Intervals
-                </h3>
-            </div>
+    const startHour = config.startAt == null ? '' : String(Math.floor(config.startAt / 60));
+    const startMinute = config.startAt == null ? '' : String(config.startAt % 60);
 
+    /**
+     * Start-at, recomposed from whichever half was just edited.
+     *
+     * Both blank means "no scheduled start". One blank counts as zero rather than as
+     * nothing, so the hour can be typed before the minute -- the alternative is a
+     * field that discards what you typed because its partner was still empty, which
+     * is the same silent-nothing bug the rest of this file avoids.
+     */
+    const setStartAt = (hour: string, minute: string) => {
+        if (hour === '' && minute === '') { set({ startAt: null }); return; }
+        const h = Math.max(0, Math.min(23, parseInt(hour, 10) || 0));
+        const m = Math.max(0, Math.min(59, parseInt(minute, 10) || 0));
+        set({ startAt: h * 60 + m });
+    };
+
+    return (
+        <>
             <div className="timer-field-grid">
                 <Field
                     id="interval-work"
@@ -105,7 +116,6 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                     seconds={config.workSec}
                     onChange={workSec => set({ workSec })}
                     disabled={disabled}
-                    step={300}
                 />
                 <Field
                     id="interval-rest"
@@ -113,7 +123,6 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                     seconds={config.restSec}
                     onChange={restSec => set({ restSec })}
                     disabled={disabled}
-                    step={60}
                 />
                 <Field
                     id="interval-long-rest"
@@ -121,7 +130,6 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                     seconds={config.longRestSec}
                     onChange={longRestSec => set({ longRestSec })}
                     disabled={disabled}
-                    step={300}
                 />
             </div>
 
@@ -136,7 +144,7 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                         value={config.roundsBeforeLong === 0 ? 'Never' : config.roundsBeforeLong}
                         disabled={disabled}
                         onChange={event => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 2);
+                            const raw = digits(event.target.value);
                             set({ roundsBeforeLong: raw === '' ? 0 : Math.max(0, Math.min(24, parseInt(raw, 10))) });
                         }}
                         // "Never" is not digits, so the type is text and the
@@ -156,7 +164,7 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                         value={config.totalRounds === 0 ? 'Until stopped' : config.totalRounds}
                         disabled={disabled}
                         onChange={event => {
-                            const raw = event.target.value.replace(/\D/g, '').slice(0, 2);
+                            const raw = digits(event.target.value);
                             // 0 means unbounded, which is what clearing the field
                             // gives and what "Until stopped" displays.
                             set({ totalRounds: raw === '' ? 0 : Math.max(0, Math.min(99, parseInt(raw, 10))) });
@@ -164,6 +172,58 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                         placeholder="Until stopped"
                     />
                     <span className="timer-pad__unit" style={{ textAlign: 'left' }}>total</span>
+                </div>
+            </div>
+
+            {/*
+                The scheduled start, in a row of its own rather than tucked beside the
+                counts, because it is the one field here that is not describing the
+                session. Everything above sets the shape of the session; this says when
+                one begins, and mixing the two makes the shape unreadable.
+
+                Both halves carry a *visible* label. That is the fix for the misalignment
+                this row had before, and the cause was not the labels being different
+                lengths -- it was that the minute half's label was `sr-only`. A
+                visually hidden label is taken out of flow, so it contributes no height,
+                and the input under it sat a line above its partner. Equal structure is
+                what lines the two inputs up; equal wording is not required and would
+                not have helped.
+
+                The hour and minute are separate numeric fields rather than an
+                `<input type="time">`, which renders in whatever 12/24-hour convention
+                the browser's locale uses with no attribute to override it -- so on a
+                12-hour device the one field on this page expressing a wall-clock time
+                came out as "00:00 AM".
+            */}
+            <div className="timer-field-grid" style={{ marginTop: '0.6rem' }}>
+                <div className="timer-field">
+                    <label className="form-label" htmlFor="interval-start-hour">Start at, hour</label>
+                    <input
+                        id="interval-start-hour"
+                        className="form-control"
+                        type="text"
+                        inputMode="numeric"
+                        value={startHour}
+                        disabled={disabled}
+                        placeholder="--"
+                        onChange={event => setStartAt(digits(event.target.value), startMinute)}
+                    />
+                    <span className="timer-pad__unit" style={{ textAlign: 'left' }}>0-23, 24-hour</span>
+                </div>
+
+                <div className="timer-field">
+                    <label className="form-label" htmlFor="interval-start-minute">Start at, minute</label>
+                    <input
+                        id="interval-start-minute"
+                        className="form-control"
+                        type="text"
+                        inputMode="numeric"
+                        value={startMinute}
+                        disabled={disabled}
+                        placeholder="--"
+                        onChange={event => setStartAt(startHour, digits(event.target.value))}
+                    />
+                    <span className="timer-pad__unit" style={{ textAlign: 'left' }}>0-59 · blank for none</span>
                 </div>
             </div>
 
@@ -179,7 +239,7 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                             <> and {formatHumanDuration(config.longRestSec * 1000)} after round{' '}
                                 {config.roundsBeforeLong}</>
                         )}
-                        . Then it stops.
+                        . Runs until stopped.
                     </>
                 ) : (
                     <>
@@ -193,7 +253,22 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                     </>
                 )}
             </p>
-        </div>
+
+            {/* What the scheduled start will actually do, stated where it was set.
+
+                The limitation is the important half of this sentence and it is not
+                buried: it needs the page open, because nothing here can run when the
+                app is shut. A control that appears to work and quietly does not is
+                the same failure as the one this field used to be, and the difference
+                now is that the user is told rather than left to discover it. */}
+            {config.startAt != null && (
+                <p className="timer-empty-hint" style={{ textAlign: 'left', marginTop: '0.35rem' }}>
+                    Starts on its own at {formatAlarmTime(Math.floor(config.startAt / 60), config.startAt % 60)},
+                    {' '}once, next time that minute comes round. Keep this page open until then — a closed
+                    app cannot start it.
+                </p>
+            )}
+        </>
     );
 };
 

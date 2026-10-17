@@ -70,12 +70,29 @@ export function formatClock(ms: number): string {
 }
 
 /**
- * Hundredths, for the stopwatch only.
+ * The full display: clock plus hundredths, on every clock the timer shows.
  *
- * A count-up display has no deadline to round toward, so it shows the fraction
- * and looks like the precision it actually has.
+ * Always, all three of them. It used to be a preference, off by default and
+ * described as "stopwatch only", so switching modes quietly dropped the fraction
+ * and it read as broken rather than as a setting.
+ *
+ * Two digits of hundredths, not three of milliseconds, and the reason is the one
+ * that matters: a hundredth is a value this display can actually present. A
+ * millisecond changes a hundred times a second, so on a 60Hz screen more than
+ * two thirds of those states are never painted -- the digit is not resolving more
+ * time, it is flickering between values nobody can catch. Hundredths change ten
+ * times a second, which a display can follow, so the fraction counts instead of
+ * jumping.
+ *
+ * (The skipping this fixes was never a formatting problem. It was the repaint
+ * rate: at 200ms per repaint against a 10ms change, one value in twenty was ever
+ * shown. See the repaint loop in `useTimerEngine`.)
+ *
+ * Truncated, never rounded, for the same reason `formatClock` truncates: a
+ * countdown must never show more time than is left, and 59.999s is 59.99, not
+ * 60.00.
  */
-export function formatStopwatch(ms: number): string {
+export function formatTimer(ms: number): string {
     const total = clampDuration(ms);
     const centis = Math.floor((total % SECOND) / 10);
     return `${formatClock(total)}.${String(centis).padStart(2, '0')}`;
@@ -178,6 +195,22 @@ export interface IntervalConfig {
     roundsBeforeLong: number;
     /** Total work phases to run. 0 means "until stopped". */
     totalRounds: number;
+    /**
+     * Wall-clock minute of day to start the session automatically, or null for no
+     * scheduled start.
+     *
+     * A minute of day rather than a timestamp on purpose. "09:00" is a statement
+     * about the local clock, not about a date, so storing a timestamp would have
+     * it expire the moment it was set and mean something different in another
+     * timezone. This is the same shape an alarm stores for the same reason, and
+     * `nextStartAt` reads it the same way.
+     *
+     * Deliberately *not* part of what a saved preset carries. A preset is a
+     * reusable template for the shape of a session; when something happens to start
+     * is not part of its shape, and there is no column for it. It rides along in
+     * the persisted run state instead, where it belongs to one session.
+     */
+    startAt: number | null;
 }
 
 export interface IntervalPhase {
@@ -201,7 +234,20 @@ export const DEFAULT_INTERVAL: IntervalConfig = {
     restSec: 5 * 60,
     longRestSec: 15 * 60,
     roundsBeforeLong: 4,
-    totalRounds: 4,
+    /**
+     * Unbounded, and deliberately so.
+     *
+     * This was 4, which quietly contradicts every other line on the card: the
+     * summary said "Runs until you stop it" while the run stopped after four. A
+     * pomodoro timer that ends by itself, on a number nobody chose, is the wrong
+     * default for the one mode people leave running while they do something else.
+     * `0` means until stopped.
+     *
+     * A long rest after the fourth round is still set, because that is a different
+     * question -- it is about the shape of a long session, not where it ends.
+     */
+    totalRounds: 0,
+    startAt: null,
 };
 
 /**
@@ -367,6 +413,42 @@ export const formatAlarmTime = (hour: number, minute: number): string =>
     `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
 /**
+ * The next time a scheduled session start comes round, strictly after `from`, or
+ * null when there isn't one.
+ *
+ * `from` is a timestamp rather than a `Date`. That is not a style preference: the
+ * engine reads the wall clock through `Date.now()` and nowhere else, so a helper
+ * that wanted a `Date` would force a `new Date()` at the call site, put a second
+ * clock-reading path into the engine, and make the whole feature impossible to
+ * assert against a controlled clock.
+ *
+ * Delegates to `nextAlarmFire` with no days rather than doing its own date
+ * arithmetic, which is the whole reason it is worth a function at all. An alarm's
+ * one-shot branch is already exactly this rule -- today if the time is still ahead,
+ * otherwise tomorrow -- and it walks the local calendar through the `Date`
+ * constructor rather than adding 24-hour milliseconds, so it is correct across a
+ * DST boundary. A second implementation would be a second place to get that
+ * wrong, and the failure mode is the one that only shows up on two nights a year.
+ *
+ * "Strictly after" is load-bearing and easy to misread as a bug. This function
+ * answers *when the schedule next comes due*, and it is called once when the
+ * schedule is armed, not on every poll: the caller holds the returned instant and
+ * compares it against the clock from then on. Recomputing it per poll would return
+ * a future time every time and the schedule could never become due at all.
+ *
+ * Returns null rather than throwing on an unset schedule so the caller can treat
+ * "not scheduled" as a normal state rather than as an error.
+ */
+export function nextStartAt(startAt: number | null, from: number): Date | null {
+    if (startAt == null || !Number.isFinite(startAt)) return null;
+    const minute = Math.max(0, Math.min(24 * 60 - 1, Math.floor(startAt)));
+    return nextAlarmFire(
+        { hour: Math.floor(minute / 60), minute: minute % 60, days: [] },
+        new Date(from),
+    );
+}
+
+/**
  * "Every day", "Weekdays", "Weekends", "Mon, Wed, Fri", or "Once".
  *
  * The named cases exist because "Mon, Tue, Wed, Thu, Fri" is technically
@@ -413,59 +495,36 @@ export function buildLaps(marks: readonly number[], startMs = 0): Lap[] {
 // SETTINGS
 // ============================================================================
 
-export type ChimeId = 'chime' | 'bell' | 'digital' | 'radar';
+/**
+ * The one sound the timer makes.
+ *
+ * Four timbres were on offer and picking between them by ear was the point at the
+ * time. It is not any more: the choice was a preference nobody expressed an
+ * opinion about, and picking one removes a control, a stored column, four score
+ * definitions and a picker that existed only to be answered the same way every
+ * time. The id survives as a single-member union rather than being deleted,
+ * because the settings row still carries a `sound` column and an old value has to
+ * be recognised and folded onto the real one rather than render as nothing.
+ */
+export type ChimeId = 'chime';
 
 export const CHIMES: readonly { id: ChimeId; label: string }[] = [
     { id: 'chime', label: 'Chime' },
-    { id: 'bell', label: 'Bell' },
-    { id: 'digital', label: 'Digital' },
-    { id: 'radar', label: 'Radar' },
 ] as const;
 
-export interface TimerSettings {
-    chime: ChimeId;
-    /** 0..1 */
-    volume: number;
-    vibrate: boolean;
-    notify: boolean;
-    keepAwake: boolean;
-    /** Stopwatch only: show hundredths. */
-    hundredths: boolean;
-}
-
-export const DEFAULT_SETTINGS: TimerSettings = {
-    chime: 'chime',
-    volume: 0.6,
-    vibrate: true,
-    notify: true,
-    keepAwake: true,
-    hundredths: false,
-};
-
 /**
- * Coerce whatever came back from storage or the database into real settings.
+ * How loud the alert plays.
  *
- * The value has two sources that can both be wrong independently: localStorage
- * holds JSON written by an older build of this app, and the settings row can
- * predate a column. Reading a missing field as undefined and letting that
- * spread into the app is how a volume of `undefined` reaches the audio graph.
+ * Not a setting, because the panel it lived on is gone. That panel held a slider
+ * and four switches for one sound and three behaviours that should simply work;
+ * the only thing it really offered was a way to turn the timer down, which is not
+ * the same thing as tuning it.
+ *
+ * This is a level that carries across a room -- an alert nobody heard is a timer
+ * that failed, and sound is the one channel that still works with the screen off
+ * -- without being the level that wakes a sleeping house over a 60-second timer.
  */
-export function normalizeSettings(raw: unknown): TimerSettings {
-    const source = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof TimerSettings, unknown>>;
-    const chime = CHIMES.some(c => c.id === source.chime) ? source.chime as ChimeId : DEFAULT_SETTINGS.chime;
-    const volume = typeof source.volume === 'number' && Number.isFinite(source.volume)
-        ? Math.max(0, Math.min(1, source.volume))
-        : DEFAULT_SETTINGS.volume;
-    const flag = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
-    return {
-        chime,
-        volume,
-        vibrate: flag(source.vibrate, DEFAULT_SETTINGS.vibrate),
-        notify: flag(source.notify, DEFAULT_SETTINGS.notify),
-        keepAwake: flag(source.keepAwake, DEFAULT_SETTINGS.keepAwake),
-        hundredths: flag(source.hundredths, DEFAULT_SETTINGS.hundredths),
-    };
-}
+export const ALERT_VOLUME = 0.7;
 
 /** Same reasoning for an interval config arriving from a preset row. */
 export function normalizeIntervalConfig(raw: unknown): IntervalConfig {
@@ -492,6 +551,19 @@ export function normalizeIntervalConfig(raw: unknown): IntervalConfig {
         if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
         return Math.max(min, Math.min(max, Math.floor(value)));
     };
+    /**
+     * A minute of day, or nothing at all.
+     *
+     * Clamped rather than rejected so an out-of-range value from a hand-edited blob
+     * becomes the nearest real time instead of silently becoming "no schedule" --
+     * which is the difference between starting slightly wrong and not starting at
+     * all, with no indication of which happened.
+     */
+    const startAt = (value: unknown): number | null => {
+        if (value === null || value === undefined) return null;
+        if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+        return Math.max(0, Math.min(24 * 60 - 1, Math.floor(value)));
+    };
     return {
         // The ceilings are in seconds and are the same ones the database CHECKs
         // enforce, so a row that somehow got past Postgres is still clamped here
@@ -502,5 +574,6 @@ export function normalizeIntervalConfig(raw: unknown): IntervalConfig {
         longRestSec: seconds(source.longRestSec, DEFAULT_INTERVAL.longRestSec, 60 * 60),
         roundsBeforeLong: count(source.roundsBeforeLong, DEFAULT_INTERVAL.roundsBeforeLong, 0, 24),
         totalRounds: count(source.totalRounds, DEFAULT_INTERVAL.totalRounds, 0, 99),
+        startAt: startAt(source.startAt),
     };
 }

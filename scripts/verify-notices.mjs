@@ -12,8 +12,9 @@
  * properties of *where a thing is declared*, which is exactly the sort of thing
  * that regresses when somebody adds a form and copies a neighbour.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 let pass = 0;
 let fail = 0;
@@ -35,11 +36,22 @@ const css = read('src/index.css');
  */
 const strip = src => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-/** Every component and page, by glob, so a new file is covered automatically. */
+/**
+ * Every component and page, by glob, so a new file is covered automatically.
+ *
+ * Filtered against the filesystem as well. `git ls-files` lists tracked files, and
+ * a file that is deleted in the working tree but not yet committed is still
+ * tracked -- so a deletion that has not reached a commit makes this script throw
+ * ENOENT on its way to reporting a clean result. Removal is a normal thing to do
+ * here; the verifier should notice a file is gone and move on, not fall over on
+ * the way.
+ */
 const files = execSync(
     'git ls-files "src/**/*.tsx"',
     { cwd: new URL('../', import.meta.url).pathname.replace(/^\//, ''), encoding: 'utf8' },
-).split('\n').filter(Boolean);
+).split('\n').filter(Boolean).filter(file => existsSync(
+    fileURLToPath(new URL(`../${file}`, import.meta.url)),
+));
 
 console.log(`\n== ${files.length} components and pages ==`);
 

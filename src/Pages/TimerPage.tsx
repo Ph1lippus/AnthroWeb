@@ -1,74 +1,140 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Flag, Play, RotateCcw, Square, Timer as TimerIcon } from 'lucide-react';
+import { Flag, Maximize2, Minimize2, Play, RotateCcw, Square } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import DurationPad from '../Components/Timer/DurationPad';
 import TimerDisplay from '../Components/Timer/TimerDisplay';
 import TimeUpOverlay from '../Components/Timer/TimeUpOverlay';
-import SettingsPanel from '../Components/Timer/SettingsPanel';
-import PresetPanel from '../Components/Timer/PresetPanel';
+import AlarmsPanel from '../Components/Timer/AlarmsPanel';
 import IntervalEditor from '../Components/Timer/IntervalEditor';
-import AlarmsPanel, { type AlarmDraft } from '../Components/Timer/AlarmsPanel';
-import { useTimer, useTimerSound, type TimerMode } from '../hooks/useTimerEngine';
+import { useTimer, type TimerMode } from '../hooks/useTimerEngine';
 import { useTimerDocumentTitle } from '../hooks/useTimerDocumentTitle';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
-import {
-    buildLaps,
-    formatClock,
-    formatHumanDuration,
-    formatStopwatch,
-    normalizeSettings,
-    progressFraction,
-    type ChimeId,
-    type TimerSettings,
-} from '../utils/timerMath';
-import { playChime, unlockAudio } from '../utils/timerChime';
+import { buildLaps, formatTimer } from '../utils/timerMath';
+import { unlockAudio } from '../utils/timerChime';
+import { requestNotificationPermission } from '../utils/timerNotification';
 import {
     createTimerAlarm,
-    createTimerPreset,
     deleteTimerAlarm,
-    deleteTimerPreset,
     getTimerAlarms,
-    getTimerPresets,
-    getTimerSettings,
-    normalizePreset,
-    saveTimerSettings,
     updateTimerAlarm,
-    updateTimerPreset,
-    type NormalizedPreset,
+    type AlarmDraft,
     type TimerAlarm,
 } from '../services/timerService';
 
-const MODES: { id: TimerMode; label: string }[] = [
-    { id: 'countdown', label: 'Countdown' },
-    { id: 'stopwatch', label: 'Stopwatch' },
-    { id: 'interval', label: 'Intervals' },
-];
+/**
+ * The name each mode's card wears.
+ *
+ * `Countdown` and `Stopwatch` and `Intervals` are not three views of one thing
+ * that you pick between -- they are three instruments sharing a display, and
+ * each owns the fields that configure it. So each gets a card of its own, always
+ * on screen, and the card's own header is what selects it.
+ */
+const MODE_LABEL: Record<TimerMode, string> = {
+    countdown: 'Countdown',
+    stopwatch: 'Stopwatch',
+    interval: 'Intervals',
+};
 
 /**
- * The keys two settings objects have to agree on.
+ * One mode's container: its name, the control that makes it the active mode,
+ * and its own fields.
  *
- * Declared before the component so both comparisons in it use one list. Written
- * out at each call site instead, they would be free to drift into covering
- * different subsets -- and that shows up as a setting that quietly stops
- * syncing, which is the hardest kind of bug to notice.
+ * The header is the switch rather than a segmented strip floating above all
+ * three. Choosing a mode and configuring it are the same gesture, and the fields
+ * a card owns are visibly the fields of that card -- which is the thing the
+ * single-container layout could not express, because the two other modes were
+ * only ever "the one that is not selected".
+ *
+ * Disabled while running, like the pad and the interval editor inside it.
+ * `setMode` refuses mid-run rather than stopping the run, and a control that
+ * silently ignores you is worse than one that looks inert.
  */
-const SETTINGS_KEYS: readonly (keyof TimerSettings)[] =
-    ['chime', 'volume', 'vibrate', 'notify', 'keepAwake', 'hundredths'];
+const ModeCard: React.FC<{
+    mode: TimerMode;
+    label: string;
+    active: boolean;
+    running: boolean;
+    onSelect: () => void;
+    children: React.ReactNode;
+}> = ({ mode, label, active, running, onSelect, children }) => (
+    <section
+        className={`card puzzle-card timer-mosaic__cell timer-mode-card${active ? ' timer-mode-card--on' : ''}`}
+        data-mode={mode}
+    >
+        {/* The daily log's own card anatomy: header, title, body. Reused rather
+            than restyled, which is the whole point -- a card that looks like this
+            page's other cards is a card that reads as this app, and a page that
+            invents its own padding is a page whose containers sit further apart
+            than the ones beside them.
 
-/** Whether two settings objects describe the same configuration. */
-const sameSettings = (a: TimerSettings, b: TimerSettings): boolean =>
-    SETTINGS_KEYS.every(key => a[key] === b[key]);
+            The title is text alone. These cards are the Daily Log's and the
+            Measurements page's puzzle pieces, and every title on those pages is a
+            name and nothing else. A glyph in the corner of each of these said
+            nothing the word did not already say, and it made three cells of one
+            grid read as three separate widgets. */}
+        <div className="card-header">
+            <h3 className="card-title">{label}</h3>
+            <button
+                type="button"
+                className={`timer-chip${active ? ' timer-chip--on' : ''}`}
+                onClick={onSelect}
+                aria-pressed={active}
+                disabled={running}
+                data-tip={running ? 'Pause to change the mode' : `Run the ${label.toLowerCase()}`}
+            >
+                {active ? 'Active' : 'Use'}
+            </button>
+        </div>
+        <div className="card-body">{children}</div>
+    </section>
+);
+
+/**
+ * Where the focus-mode flag lives, and why it is its own key.
+ *
+ * Separate from the engine's `anthroweb:timer:v1` because that blob is the *run*:
+ * it is rewritten on every state change, holds a deadline, and is read before the
+ * page has even rendered. Folding a view preference into it would mean a page
+ * preference competing for space with state that has to be correct, and would put
+ * a display choice inside the record of what the timer actually did.
+ *
+ * `'on'` rather than JSON, because the flag has two states and one of them is the
+ * absence of the key -- so turning focus mode off is a removal, and anything that
+ * has never heard of the setting reads `null` and starts off, which is the correct
+ * default rather than an error.
+ */
+const FOCUS_KEY = 'anthroweb:timer:focus';
+
+/** Focus mode as it was left. Never throws: storage can be unavailable or full. */
+const readFocusMode = (): boolean => {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+        return localStorage.getItem(FOCUS_KEY) === 'on';
+    } catch {
+        // Private mode, or storage disabled. Focus mode simply starts off.
+        return false;
+    }
+};
+
+const writeFocusMode = (on: boolean): void => {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        if (on) localStorage.setItem(FOCUS_KEY, 'on');
+        else localStorage.removeItem(FOCUS_KEY);
+    } catch {
+        // The same. The page works, it just forgets where it was on reload.
+    }
+};
 
 const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
 
-    const [deletePreset, setDeletePreset] = useState<NormalizedPreset | null>(null);
     const [deleteAlarm, setDeleteAlarm] = useState<TimerAlarm | null>(null);
 
     /**
@@ -86,81 +152,28 @@ const TimerPage: React.FC = () => {
      * and it is what the lazy initialiser used.
      */
     const [panelNow, setPanelNow] = useState(() => Date.now());
+    const [focusMode, setFocusMode] = useState(readFocusMode);
+    /**
+     * Focus mode survives a reload.
+     *
+     * Written from an effect rather than inside the toggle, for the same reason the
+     * engine persists its deadline from one: the state setter is where the value
+     * is decided, and the write is the side effect of having decided it. It also
+     * means the stored value can never disagree with what is on screen -- there is
+     * one source of truth, and this keeps a copy of it.
+     *
+     * `readFocusMode` is the lazy initialiser, so a refresh paints the clock
+     * centred on the first frame rather than laying the page out, then flipping it.
+     */
+    useEffect(() => { writeFocusMode(focusMode); }, [focusMode]);
     useEffect(() => {
         const id = window.setInterval(() => setPanelNow(Date.now()), 1000);
         return () => window.clearInterval(id);
     }, []);
 
-    useEffect(() => {
-        const handler = (event: KeyboardEvent) => {
-            const target = event.target as HTMLElement | null;
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-            if (event.code === 'Space') {
-                event.preventDefault();
-                unlockAudio();
-                if (engine.running) engine.pause();
-                else engine.start();
-            } else if (event.key === 'r' || event.key === 'R') {
-                if (!engine.running) engine.reset();
-            } else if (event.key === 'l' || event.key === 'L') {
-                if (engine.mode === 'stopwatch' && engine.running) engine.addLap();
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [engine]);
-
     // ==================== DATA ====================
 
-    const presetsQuery = useQuery({ queryKey: queryKeys.timerPresets, queryFn: getTimerPresets });
     const alarmsQuery = useQuery({ queryKey: queryKeys.timerAlarms, queryFn: getTimerAlarms });
-    const settingsQuery = useQuery({ queryKey: queryKeys.timerSettings, queryFn: getTimerSettings });
-
-    /**
-     * Settings, always usable.
-     *
-     * The query returns null when nothing is saved yet, so the default is
-     * `normalizeSettings(null)` rather than a spread of possibly-absent fields.
-     * A volume of `undefined` reaching the audio graph is a silent failure, and
-     * this is the one place that makes it impossible.
-     */
-    const savedSettings = useMemo(
-        () => normalizeSettings(settingsQuery.data ?? null),
-        [settingsQuery.data],
-    );
-
-    /**
-     * The live settings, and the reason they are not just `savedSettings`.
-     *
-     * Held separately so a toggle moves under the finger immediately instead of
-     * after a round trip -- 80ms is short, but it is enough to feel broken on a
-     * switch, and the volume slider calls this on every one of its steps.
-     *
-     * Adopted during render rather than from an effect, which is the "adjusting
-     * state when a prop changes" case React documents: comparing the incoming
-     * value against the one in hand decides it before any render is committed.
-     * The comparison is by value, not identity, so a background refetch cannot
-     * yank the volume back while somebody is dragging it.
-     */
-    /**
-     * The live settings, and the reason they are not just `savedSettings`.
-     *
-     * Held separately so a toggle moves under the finger immediately instead of
-     * after a round trip. Adopting the server value only happens when it changed
-     * on its own (another device, or the first load) -- not every time the local
-     * draft differs from it, which is the normal state while the user is editing
-     * and would otherwise yank the toggle back to its previous value.
-     */
-    const savedSettingsRef = useRef<TimerSettings>(savedSettings);
-    const [draftSettings, setDraftSettings] = useState<TimerSettings>(savedSettings);
-    if (!sameSettings(savedSettings, savedSettingsRef.current)) {
-        savedSettingsRef.current = savedSettings;
-        setDraftSettings(savedSettings);
-    }
-
-    const patchSettings = useCallback((patch: Partial<TimerSettings>) => {
-        setDraftSettings(prev => normalizeSettings({ ...prev, ...patch }));
-    }, []);
 
     /**
      * Whether there is anything to resume.
@@ -168,38 +181,21 @@ const TimerPage: React.FC = () => {
      * A countdown that has been started or paused, or any elapsed time on the
      * other two modes. Reset is disabled when this is false because resetting
      * something that is already at zero does nothing but flicker the display.
+     *
+     * `remaining` rather than `deadline > Date.now()`: that comparison needs the
+     * wall clock, and reading the clock during render is both impure and a second
+     * answer to a question the engine has already answered. `remaining` is that
+     * answer, and an expired countdown reads zero exactly like one that was never
+     * started -- which is the whole distinction this is making.
      */
-    const canResume = useMemo(() => (
-        engine.mode === 'countdown'
-            ? engine.deadline !== null
-            : engine.elapsed > 0 || engine.laps.length > 0
-    ), [engine.mode, engine.deadline, engine.elapsed, engine.laps.length]);
+    const canResume = useMemo(() => {
+        if (engine.mode !== 'countdown') return engine.elapsed > 0 || engine.laps.length > 0;
+        return engine.deadline !== null && engine.remaining > 0;
+    }, [engine.mode, engine.deadline, engine.remaining, engine.elapsed, engine.laps.length]);
 
-    useTimerSound({
-        chime: draftSettings.chime,
-        volume: draftSettings.volume,
-        vibrate: draftSettings.vibrate,
-        notify: draftSettings.notify,
-    });
-
-    const presets = useMemo(() => (presetsQuery.data ?? []).map(normalizePreset), [presetsQuery.data]);
     const alarms = useMemo(() => alarmsQuery.data ?? [], [alarmsQuery.data]);
 
     // ==================== MUTATIONS ====================
-
-    const savePreset = useMutation({
-        mutationFn: (preset: Omit<NormalizedPreset, 'id'>) => createTimerPreset(preset),
-        onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerPresets }); },
-    });
-    const editPreset = useMutation({
-        mutationFn: ({ id, preset }: { id: string; preset: Omit<NormalizedPreset, 'id'> }) =>
-            updateTimerPreset(id, preset),
-        onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerPresets }); },
-    });
-    const removePreset = useMutation({
-        mutationFn: deleteTimerPreset,
-        onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerPresets }); },
-    });
 
     const addAlarm = useMutation({
         mutationFn: (alarm: AlarmDraft) => createTimerAlarm(alarm),
@@ -215,25 +211,26 @@ const TimerPage: React.FC = () => {
     });
 
     /**
-     * Settings are written on a debounce.
+     * Turning an alarm on and off is an edit, not a different verb.
      *
-     * The volume slider calls this on every step and the switches on every tap,
-     * so a write per change would be a request flood. Six hundred milliseconds is
-     * long enough to coalesce a drag and short enough that the row is synced
-     * before somebody closes the app.
+     * It used to have its own mutation and its own `toggleAlarm` that rebuilt the
+     * whole draft from the row it found. That is a second way to write the same
+     * columns, and the two drift.
      */
-    const saveSettings = useMutation({
-        mutationFn: saveTimerSettings,
-        onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerSettings }); },
-        onError: (error: unknown) => {
-            notify('error', (error as Error)?.message || 'Could not save settings');
-        },
-    });
-    useEffect(() => {
-        if (sameSettings(draftSettings, savedSettings)) return;
-        const id = window.setTimeout(() => saveSettings.mutate(draftSettings), 600);
-        return () => window.clearTimeout(id);
-    }, [draftSettings, savedSettings, saveSettings]);
+    const toggleAlarm = useCallback((id: string, enabled: boolean) => {
+        const found = alarms.find(alarm => alarm.id === id);
+        if (!found) return;
+        editAlarm.mutate({
+            id,
+            alarm: {
+                label: found.label,
+                hour: found.hour,
+                minute: found.minute,
+                days: found.days_of_week,
+                enabled,
+            },
+        });
+    }, [alarms, editAlarm]);
 
     /**
      * Raise any mutation failure, once.
@@ -243,9 +240,8 @@ const TimerPage: React.FC = () => {
      * expire before it is ever read, and a failure that vanishes without a trace
      * is the one nobody can debug.
      */
-    const anyError = savePreset.error ?? editPreset.error ?? removePreset.error
-        ?? addAlarm.error ?? editAlarm.error ?? removeAlarm.error
-        ?? settingsQuery.error ?? presetsQuery.error ?? alarmsQuery.error;
+    const anyError = addAlarm.error ?? editAlarm.error ?? removeAlarm.error
+        ?? alarmsQuery.error;
     /**
      * A query failure becomes a message, once per distinct message.
      *
@@ -283,10 +279,14 @@ const TimerPage: React.FC = () => {
     });
 
     /**
-     * The screen stays awake while something runs -- gated on the preference,
-     * because a user who switched it off has said they would rather it dimmed.
+     * The screen stays awake while something runs.
+     *
+     * Unconditional. It used to be gated on a preference, and that preference was
+     * a way to have a timer dim the screen halfway through -- which looks exactly
+     * like a timer that stopped working. Running something and letting the display
+     * go dark are not two readings of the same intention.
      */
-    useWakeLock(engine.running && draftSettings.keepAwake);
+    useWakeLock(engine.running);
 
     /**
      * The remaining time in the tab title.
@@ -303,63 +303,63 @@ const TimerPage: React.FC = () => {
     // ==================== NOTIFICATIONS ====================
 
     /**
-     * Whether the browser is refusing notifications.
+     * Everything a run needs before it starts, done from one gesture.
      *
-     * `denied` is permanent and cannot be re-asked, so the toggle is disabled with
-     * an explanation rather than left clickable and silently inert. Read on a
-     * timer rather than only on mount, because the user can revoke it from the
-     * browser's own UI while the page is open.
-     */
-    const [notificationState, setNotificationState] = useState(
-        typeof Notification !== 'undefined' ? Notification.permission : 'denied',
-    );
-    useEffect(() => {
-        if (typeof Notification === 'undefined') return;
-        const id = window.setInterval(() => setNotificationState(Notification.permission), 4000);
-        return () => window.clearInterval(id);
-    }, []);
-    const notificationsBlocked = notificationState === 'denied';
-
-    /**
-     * Ask for permission the moment it is switched on.
+     * Audio first: an AudioContext cannot start without a user gesture, and by the
+     * time a timer expires there is no gesture left to offer -- so the tap that
+     * begins the sequence is the one that unlocks it, rather than leaving the
+     * sound to fail silently at the end.
      *
-     * Deliberately from a click rather than on mount. A permission prompt with no
-     * context is the one thing a browser will refuse permanently, and asking at
-     * the moment somebody opts in is both better behaviour and the only variant
-     * that tends to get granted.
+     * Then the notification permission, asked unconditionally. There is no switch
+     * for it any more, so this is the only place it can come from, and it has to
+     * be a gesture: a prompt raised on mount is the contextless variant a browser
+     * refuses permanently. `requestNotificationPermission` returns early once the
+     * browser has decided, so asking on every tap costs nothing and cannot produce
+     * a second prompt.
+     *
+     * Declared as one callback rather than repeated at each call site so the
+     * keyboard shortcut cannot end up being the one way to start a timer that
+     * never rings.
      */
-    const requestNotifications = useCallback(async () => {
-        if (typeof Notification === 'undefined' || Notification.permission !== 'default') return;
-        try {
-            const result = await Notification.requestPermission();
-            setNotificationState(result);
-        } catch {
-            // Refused outside a gesture, or the page is not on https. The sound
-            // and the on-screen overlay still work, so this is not worth a toast.
-        }
+    const prepareToRun = useCallback(() => {
+        unlockAudio();
+        void requestNotificationPermission();
     }, []);
 
     // ==================== DISPLAY ====================
 
     /**
-     * What the big digits say.
+     * What the big digits say, in milliseconds.
      *
      * The countdown reads the deadline; the stopwatch and the interval read
      * elapsed. That split is the reason the engine tracks a deadline and an
      * elapsed time separately -- the countdown must never be derived from
      * elapsed, because elapsed is accumulated from ticks and ticks are the thing
      * that goes wrong in a background tab.
+     *
+     * One number rather than three, so the formatting below cannot drift between
+     * the modes -- which is what happened when the hundredths were a preference:
+     * three call sites, each with its own idea of whether to include them.
      */
-    const digits = engine.mode === 'countdown'
-        ? formatClock(engine.remaining)
+    const shownMs = engine.mode === 'countdown'
+        ? engine.remaining
         : engine.mode === 'stopwatch'
-            ? (draftSettings.hundredths ? formatStopwatch(engine.elapsed) : formatClock(engine.elapsed))
-            : formatClock(engine.phase?.remainingMs ?? 0);
+            ? engine.elapsed
+            : (engine.phase?.remainingMs ?? 0);
+
+    /**
+     * Milliseconds on every clock, always.
+     *
+     * It was a setting, off by default and described as stopwatch-only, so
+     * switching modes quietly dropped the extra digits and it read as broken
+     * rather than as a preference. There was no arrangement of it that was better
+     * than always showing them, so the setting is gone and this is not conditional
+     * on anything.
+     */
+    const digits = formatTimer(shownMs);
 
     /** The ring: a countdown has an end, the other two do not. */
-    const fraction = engine.mode === 'countdown' && engine.deadline !== null
-        ? progressFraction(engine.deadline, engine.totalMs, Date.now())
-        : null;
+    const fraction = engine.progress;
 
     /** Expired: red, pulsing, and no longer counting. */
     const done = engine.mode === 'countdown' && engine.alert?.kind === 'timeup';
@@ -387,89 +387,72 @@ const TimerPage: React.FC = () => {
     // ==================== HANDLERS ====================
 
     /**
-     * Unlock audio before doing anything else.
+     * Every control that can lead to an alert, wrapped in the gesture it needs.
      *
-     * An AudioContext cannot start without a user gesture, and by the time a
-     * timer expires there is no gesture left to offer. So every control that can
-     * lead to an alert unlocks it on the click that begins the sequence, rather
-     * than leaving the sound to fail silently at the end.
+     * Delegates to `prepareToRun` so the button and the keyboard shortcut take
+     * exactly the same path -- audio unlocked, permission asked -- rather than
+     * one of them remembering to.
      */
     const tap = <T extends unknown[]>(fn: (...args: T) => void) => (...args: T) => {
-        unlockAudio();
+        prepareToRun();
         fn(...args);
     };
 
-    const toggleAlarm = useCallback((id: string, enabled: boolean) => {
-        const found = alarms.find(alarm => alarm.id === id);
-        if (!found) return;
-        editAlarm.mutate({
-            id,
-            alarm: {
-                label: found.label,
-                hour: found.hour,
-                minute: found.minute,
-                days: found.days_of_week,
-                sound: found.sound,
-                enabled,
-            },
-        });
-    }, [alarms, editAlarm]);
+    /**
+     * Space starts and pauses, R resets, L marks a lap.
+     *
+     * Declared here rather than beside the other effects so `prepareToRun` is in
+     * hand: a keypress is a user gesture exactly like a click, and routing it
+     * through the same helper is what stops the spacebar from being the one way to
+     * start a timer that never rings. It was previously declared earlier in the
+     * file with only `engine` in its dependencies, which meant it closed over the
+     * settings and the permission state as they were at mount.
+     */
+    useEffect(() => {
+        const handler = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+            if (event.code === 'Space') {
+                event.preventDefault();
+                prepareToRun();
+                if (engine.running) engine.pause();
+                else engine.start();
+            } else if (event.key === 'r' || event.key === 'R') {
+                if (!engine.running) engine.reset();
+            } else if (event.key === 'l' || event.key === 'L') {
+                if (engine.mode === 'stopwatch' && engine.running) engine.addLap();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [engine, prepareToRun]);
 
     // ==================== RENDER ====================
 
-    const anyLoading = presetsQuery.isLoading || alarmsQuery.isLoading;
+    const anyLoading = alarmsQuery.isLoading;
 
     return (
         <>
             <Title title="Timer" />
 
-            <div className="timer-page-wrapper">
+            <div className={`timer-page-wrapper${focusMode ? ' timer-page-wrapper--focus' : ''}`}>
                 <div className="dashboard-section timer-section">
                     <div className="timer-card">
-                        {/*
-                            The page header. Two things and no more: what time it is
-                            where you are, and -- only while something is running --
-                            the run itself.
+                        {/* No header bar.
 
-                            The world clock used to be a fourth tab holding a dozen
-                            cities. The only part of it anybody used was their own
-                            time, and that was already on the tab bar they had to
-                            click through to reach. So the panel is gone and the one
-                            figure that was wanted sits here, where it is visible
-                            whatever else the page is doing.
+                            This used to be an empty `.timer-header`, left behind when
+                            the world-clock panel it once held was removed along with
+                            everything else in it. An empty element with a
+                            `border-bottom` is not invisible: it drew a rule straight
+                            across the top of the page, sitting on the first row of
+                            cards with nothing above it to belong to. Its own time
+                            moved down into the display column, where it lives now,
+                            so there is nothing left here and the border went with
+                            it.
 
-                            `Intl` rather than a hand-built string, so it follows
-                            the device's own region and 12/24-hour setting instead
-                            of overriding them.
-                        */}
-                        <div className="timer-header">
-                            {/* The running readout, mirrored here as well as into the
-                                nav rail. The rail badge is the point -- this one is
-                                for somebody already on the page who has scrolled the
-                                ring out of view. */}
-                            {engine.running && (
-                                <span className="weight-badge weight-badge--ok">
-                                    <TimerIcon size={11} aria-hidden="true" />
-                                    {formatClock(
-                                        engine.mode === 'countdown' ? engine.remaining
-                                            : engine.mode === 'interval' ? (engine.phase?.remainingMs ?? 0)
-                                                : engine.elapsed,
-                                    )}
-                                </span>
-                            )}
-                        </div>
-
-                        {/* No tab bar. The things a timer page holds are not
-                            alternatives between which you choose one -- they are
-                            panels of the same instrument, and hiding three of them
-                            behind a tab meant the page could only ever show a
-                            quarter of itself at a time.
-
-                            The clock and its controls stay in a column of their own
-                            on the left, which is also what makes the rest safe to
-                            show all at once: the running display never scrolls out of
-                            reach and never gets covered by whichever panel you happen
-                            to be reading. */}
+                            That clock reads through `Intl` rather than a hand-built
+                            string, so it follows the device's own region and 12/24
+                            setting instead of overriding them. */}
                         <div className="timer-body">
                             {/* The display column, beside the mosaic rather than
                                 above it. `order` puts it above on a phone, where
@@ -479,6 +462,8 @@ const TimerPage: React.FC = () => {
                                     {new Date(panelNow).toLocaleTimeString(undefined, {
                                         hour: '2-digit',
                                         minute: '2-digit',
+                                        second: '2-digit',
+                                        hour12: false,
                                     })}
                                 </time>
                                 <TimerDisplay
@@ -504,6 +489,16 @@ const TimerPage: React.FC = () => {
                                         {engine.running
                                             ? <><Square size={14} /> Pause</>
                                             : <><Play size={14} /> {canResume ? 'Resume' : 'Start'}</>}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={() => setFocusMode(v => !v)}
+                                        aria-pressed={focusMode}
+                                        data-tip={focusMode ? 'Exit focus' : 'Focus mode'}
+                                    >
+                                        {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                     </button>
 
                                     {/* Lap. Stopwatch only, because a split is only
@@ -542,148 +537,150 @@ const TimerPage: React.FC = () => {
                                 grid decides how they stack -- two-up on a wide
                                 screen, one column on a phone. Nothing here is
                                 conditionally rendered, so no panel can be the reason
-                                a running timer appears to have stopped. */}
-                            <div className="timer-mosaic">
-                                <div className="daily-log-puzzle">
+                                a running timer appears to have stopped.
+
+                                Two columns, and the daily log's own classes rather than a restatement of
+                                them: `.daily-log-puzzle` is the two-column grid,
+                                `.daily-log-col` is a column that packs its cards
+                                independently so a short card leaves no hole beside
+                                a tall one. That is what the Measurements page
+                                uses, and using the classes themselves rather than
+                                copies is what keeps the two from drifting apart
+                                again.
+
+                                Which means the order that matters is reading
+                                order -- down the left column, then down the right
+                                -- and not the order in the file. So the containers
+                                are placed by column deliberately: countdown and
+                                stopwatch down the left, then the alarms and the
+                                intervals down the right. The alarms are therefore
+                                the very next thing read after the stopwatch, which
+                                is what putting them there is for. Appending a
+                                container at the end instead would have put it
+                                beside the countdown, which is how it ended up in
+                                the wrong place when this was a plain two-column
+                                grid in source order.
+
+                                Each mode owns its own card: the three used to be a
+                                single container holding a segmented control and
+                                whichever set of fields matched the active mode, so
+                                two of the three functions existed only as "not the
+                                one you are looking at". They stay mounted, carry
+                                their own fields, and dim when they are not the one
+                                the shared clock is running. */}
+                            <div className="timer-mosaic daily-log-puzzle">
                                 <div className="daily-log-col">
-                                {/* ==================== RUN ==================== */}
-                                <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-body">
-                                        <div className="timer-block">
-                                        {/* Segmented rather than tabs: these three are
-                                            one operation with different setup, and they
-                                            share the display to the left. */}
-                                        {/* Disabled while running, like the pad and
-                                            the interval editor below it. `setMode`
-                                            refuses mid-run rather than stopping the
-                                            run, and a control that silently ignores
-                                            you is worse than one that looks inert. */}
-                                        <div className="timer-chips" style={{ marginBottom: '0.85rem' }}>
-                                            {MODES.map(mode => (
-                                                <button
-                                                    key={mode.id}
-                                                    type="button"
-                                                    className={`timer-chip${engine.mode === mode.id ? ' timer-chip--on' : ''}`}
-                                                    onClick={tap(() => engine.setMode(mode.id))}
-                                                    aria-pressed={engine.mode === mode.id}
-                                                    disabled={engine.running}
-                                                    data-tip={engine.running ? 'Pause to change the mode' : undefined}
-                                                >
-                                                    {mode.label}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {engine.mode === 'countdown' && (
-                                            <>
-                                                <DurationPad
-                                                    value={engine.totalMs}
-                                                    onChange={engine.setDuration}
-                                                    /* Locked while running: changing the
-                                                       target mid-run would silently
-                                                       restart it. Disabled says so,
-                                                       which the engine refusing behind
-                                                       an apparently dead input does
-                                                       not. */
-                                                    disabled={engine.running}
-                                                />
-                                                <p className="timer-empty-hint" style={{ marginTop: '0.5rem' }}>
-                                                    {engine.running
-                                                        ? 'Pause to change the length.'
-                                                        : 'Type the hours, minutes and seconds.'}
-                                                </p>
-                                            </>
-                                        )}
-
-                                        {engine.mode === 'stopwatch' && (
-                                            <p className="timer-empty-hint" style={{ textAlign: 'left' }}>
-                                                Counts up from zero and runs until you stop it.
-                                                Press the flag mid-run to mark a split.
-                                            </p>
-                                        )}
-
-                                        {engine.mode === 'interval' && (
-                                            <IntervalEditor
-                                                config={engine.intervalConfig}
-                                                onChange={engine.setIntervalConfig}
-                                                disabled={engine.running}
-                                            />
-                                        )}
-
-                                        {/* Laps, newest first. */}
-                                        {engine.mode === 'stopwatch' && engine.laps.length > 0 && (
-                                            <div style={{ marginTop: '0.85rem' }}>
-                                                <span className="academic-kicker" style={{ display: 'block', marginBottom: '0.35rem' }}>
-                                                    {engine.laps.length} {engine.laps.length === 1 ? 'lap' : 'laps'}
-                                                </span>
-                                                {laps.map(lap => (
-                                                    <div
-                                                        key={lap.index}
-                                                        className={`course-row${bestSplit !== null && lap.splitMs === bestSplit ? ' timer-lap--best' : ''}${slowestSplit !== null && lap.splitMs === slowestSplit ? ' timer-lap--slow' : ''}`}
-                                                        style={{ marginBottom: '0.3rem' }}
-                                                    >
-                                                        <div className="course-head">
-                                                            <div className="course-head__text">
-                                                                <span className="course-title">Lap {lap.index}</span>
-                                                            </div>
-                                                            <div className="course-scores">
-                                                                {/* Split first, then total. The
-                                                                    split is the number a lap
-                                                                    is actually for; the total
-                                                                    is the running context. */}
-                                                                <span className="score-block">
-                                                                    <span className="academic-kicker">Split</span>
-                                                                    <span className="score-block__value">
-                                                                        {formatHumanDuration(lap.splitMs)}
-                                                                    </span>
-                                                                </span>
-                                                                <span className="score-block">
-                                                                    <span className="academic-kicker">Total</span>
-                                                                    <span className="score-block__value">
-                                                                        {formatHumanDuration(lap.totalMs)}
-                                                                    </span>
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                    </div>
-                                </section>
-
-                                {/* ==================== PRESETS ==================== */}
-                                <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-body">
-                                    <PresetPanel
-                                        presets={presets}
-                                        onCreate={preset => {
-                                            savePreset.mutate(preset);
-                                            showToast('success', `Saved "${preset.label}"`);
-                                        }}
-                                        onUpdate={(id, preset) => editPreset.mutate({ id, preset })}
-                                        onDelete={id => setDeletePreset(presets.find(p => p.id === id) ?? null)}
-                                        onUse={preset => {
-                                            if (preset.kind === 'interval') {
-                                                engine.setMode('interval');
-                                                engine.setIntervalConfig(preset.config);
-                                            } else {
-                                                engine.setMode('countdown');
-                                                engine.setDuration(preset.durationMs);
-                                            }
-                                            showToast('info', `Loaded "${preset.label}"`);
-                                        }}
-                                        busy={savePreset.isPending || editPreset.isPending}
+                                {/* ==================== COUNTDOWN ==================== */}
+                                <ModeCard
+                                    mode="countdown"
+                                    label={MODE_LABEL.countdown}
+                                    active={engine.mode === 'countdown'}
+                                    running={engine.running}
+                                    onSelect={tap(() => engine.setMode('countdown'))}
+                                >
+                                    <DurationPad
+                                        value={engine.totalMs}
+                                        onChange={engine.setDuration}
+                                        /* Locked while running, and while
+                                           another mode is the active one:
+                                           changing the target mid-run would
+                                           silently restart it, and changing it
+                                           for a mode the clock is not
+                                           displaying would look like it did
+                                           something. Disabled says so, which
+                                           the engine refusing behind an
+                                           apparently dead input does not. */
+                                        disabled={engine.running || engine.mode !== 'countdown'}
                                     />
-                                    </div>
-                                </section>
+                                    <p className="timer-empty-hint" style={{ marginTop: '0.5rem' }}>
+                                        {engine.running
+                                            ? 'Pause to change the length.'
+                                            : 'Type the hours, minutes and seconds.'}
+                                    </p>
+                                </ModeCard>
 
+                                {/* ==================== STOPWATCH ==================== */}
+                                <ModeCard
+                                    mode="stopwatch"
+                                    label={MODE_LABEL.stopwatch}
+                                    active={engine.mode === 'stopwatch'}
+                                    running={engine.running}
+                                    onSelect={tap(() => engine.setMode('stopwatch'))}
+                                >
+                                    <p className="timer-empty-hint" style={{ textAlign: 'left' }}>
+                                        Counts up from zero and runs until you stop it.
+                                        Press the flag mid-run to mark a split.
+                                    </p>
+
+                                    {/*
+                                        The lap table.
+
+                                        Newest first, and laid out as a table
+                                        rather than as a list of course rows: a lap
+                                        is a measurement of one thing, and it should
+                                        read as two numbers on one line with their
+                                        labels above them, not as a card with a
+                                        title on the left and a stack of labelled
+                                        boxes on the right. The split is the number
+                                        a lap is actually for; the total is the
+                                        running context it sits in, so the split
+                                        leads and the total is the quieter column.
+                                    */}
+                                    {engine.laps.length > 0 && (
+                                        <div className="timer-laps">
+                                            <div className="timer-laps__head" aria-hidden="true">
+                                                <span>Lap</span>
+                                                <span>Split</span>
+                                                <span>Total</span>
+                                            </div>
+                                            {laps.map(lap => (
+                                                <div
+                                                    key={lap.index}
+                                                    className={[
+                                                        'timer-lap',
+                                                        bestSplit !== null && lap.splitMs === bestSplit ? 'timer-lap--best' : '',
+                                                        slowestSplit !== null && lap.splitMs === slowestSplit ? 'timer-lap--slow' : '',
+                                                    ].filter(Boolean).join(' ')}
+                                                >
+                                                    <span className="timer-lap__index">{lap.index}</span>
+                                                    <span className="timer-lap__split">{formatTimer(lap.splitMs)}</span>
+                                                    <span className="timer-lap__total">{formatTimer(lap.totalMs)}</span>
+                                                </div>
+                                            ))}
+                                            {/* Only worth saying once there is something to
+                                                compare. With one lap, best and slowest are the
+                                                same number and the note would be claiming a
+                                                distinction that does not exist. */}
+                                            {laps.length > 1 && (
+                                                <p className="timer-laps__note">
+                                                    Fastest split {formatTimer(bestSplit ?? 0)}, slowest {formatTimer(slowestSplit ?? 0)}.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </ModeCard>
+
+                                {/* Presets removed at user request. */}
                                 </div>
+
+                                {/*
+                                    Right column, and the alarms lead it -- which is
+                                    what makes them the next thing read after the
+                                    stopwatch rather than the fourth thing seen.
+
+                                    No `ModeCard`: an alarm is not a mode, so it has no
+                                    "Use" switch and is never dimmed. It takes the same
+                                    card anatomy directly, which is what makes the four
+                                    read as one mosaic rather than three modes and a
+                                    guest.
+
+                                    Above the intervals rather than under them because an
+                                    alarm is set once and forgotten, while the intervals
+                                    form is the tallest thing on the page -- underneath,
+                                    it would push the alarms off the screen.
+                                */}
                                 <div className="daily-log-col">
-                                {/* ==================== ALARMS ==================== */}
                                 <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-body">
                                     <AlarmsPanel
                                         alarms={alarms}
                                         onCreate={alarm => {
@@ -697,28 +694,26 @@ const TimerPage: React.FC = () => {
                                         busy={addAlarm.isPending || editAlarm.isPending}
                                         now={panelNow}
                                     />
-                                    </div>
                                 </section>
 
-                                {/* ==================== SETTINGS ==================== */}
-                                <section className="card puzzle-card timer-mosaic__cell">
-                                    <div className="card-body">
-                                    <SettingsPanel
-                                        settings={draftSettings}
-                                        onChange={patch => {
-                                            patchSettings(patch);
-                                            if (patch.notify === true) void requestNotifications();
-                                        }}
-                                        onPreview={(id: ChimeId) => playChime(id, draftSettings.volume)}
-                                        notificationsBlocked={notificationsBlocked}
+                                {/* ==================== INTERVALS ==================== */}
+                                <ModeCard
+                                    mode="interval"
+                                    label={MODE_LABEL.interval}
+                                    active={engine.mode === 'interval'}
+                                    running={engine.running}
+                                    onSelect={tap(() => engine.setMode('interval'))}
+                                >
+                                    <IntervalEditor
+                                        config={engine.intervalConfig}
+                                        onChange={engine.setIntervalConfig}
+                                        disabled={engine.running || engine.mode !== 'interval'}
                                     />
-                                    </div>
-                                </section>
+                                </ModeCard>
 
                                 {anyLoading && (
-                                    <p className="timer-empty-hint">Loading your presets and alarms…</p>
+                                    <p className="timer-empty-hint">Loading your alarms…</p>
                                 )}
-                                </div>
                                 </div>
                             </div>
                         </div>
@@ -738,29 +733,10 @@ const TimerPage: React.FC = () => {
                 }}
             />
 
-            {/* Both dialogs stay open until the delete actually succeeds. Clearing
-                the target straight after mutate() closed it while the request was
-                still in flight, so `busy` was never seen and a failed delete
-                vanished without a trace. */}
-            <ConfirmModal
-                open={!!deletePreset}
-                title={deletePreset ? `Delete "${deletePreset.label}"?` : ''}
-                confirmLabel="Delete"
-                danger
-                busy={removePreset.isPending}
-                onConfirm={() => {
-                    if (!deletePreset) return;
-                    const label = deletePreset.label;
-                    removePreset.mutate(deletePreset.id, {
-                        onSuccess: () => {
-                            setDeletePreset(null);
-                            showToast('success', `Deleted "${label}"`);
-                        },
-                    });
-                }}
-                onCancel={() => setDeletePreset(null)}
-            />
-
+            {/* Stays open until the delete actually succeeds. Clearing the target
+                straight after mutate() closed it while the request was still in
+                flight, so `busy` was never seen and a failed delete vanished
+                without a trace. */}
             <ConfirmModal
                 open={!!deleteAlarm}
                 title={deleteAlarm ? `Delete "${deleteAlarm.label}"?` : ''}

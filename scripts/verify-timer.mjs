@@ -28,11 +28,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 register(new URL('./lib/ts-extension-resolver.mjs', import.meta.url));
 
 const {
-    formatClock, formatStopwatch, formatHumanDuration, formatUntil, formatAlarmTime,
+    formatClock, formatTimer, formatHumanDuration, formatUntil, formatAlarmTime,
     splitDuration, joinDuration, clampDuration, remainingMs, progressFraction,
-    phaseAt, intervalTotalMs, isLongRestRound, nextAlarmFire, describeAlarmDays,
-    buildLaps, normalizeSettings, normalizeIntervalConfig,
-    DEFAULT_INTERVAL, DEFAULT_SETTINGS, CHIMES, MAX_DURATION_MS, SECOND, MINUTE, HOUR,
+    phaseAt, intervalTotalMs, isLongRestRound, nextAlarmFire, nextStartAt, describeAlarmDays,
+    buildLaps, normalizeIntervalConfig,
+    DEFAULT_INTERVAL, ALERT_VOLUME, CHIMES, MAX_DURATION_MS, SECOND, MINUTE, HOUR,
 } = await import('../src/utils/timerMath.ts');
 
 let pass = 0, fail = 0;
@@ -72,8 +72,46 @@ check('59:59 is still MM:SS', formatClock(59 * MINUTE + 59 * SECOND) === '59:59'
 check('an hour and a minute', formatClock(HOUR + MINUTE) === '1:01:00', formatClock(HOUR + MINUTE));
 check('over a day is not capped', formatClock(30 * HOUR) === '30:00:00', formatClock(30 * HOUR));
 
-check('stopwatch adds hundredths', formatStopwatch(1234) === '00:01.23', formatStopwatch(1234));
-check('stopwatch hundredths truncate', formatStopwatch(1999) === '00:01.99', formatStopwatch(1999));
+// Hundredths, on every clock. Two digits, because a hundredth is a value this
+// display can actually present -- a millisecond changes a hundred times a second
+// and a 60Hz screen cannot paint most of them, so a third digit flickers between
+// values nobody can catch rather than resolving more time.
+check('the display counts hundredths', formatTimer(1234) === '00:01.23', formatTimer(1234));
+check('and truncates rather than rounding up', formatTimer(1999) === '00:01.99', formatTimer(1999));
+// Two digits, always, including at zero -- a fraction that changes width between
+// "00:00.00" and "00:00.0" shifts the whole string sideways mid-run.
+check('there are always two of them', formatTimer(0) === '00:00.00', formatTimer(0));
+check('and the last hundredth before a minute',
+    formatTimer(59 * SECOND + 990) === '00:59.99', formatTimer(59 * SECOND + 990));
+// A countdown must never show more time than is left, and 59.999s is 59.99.
+check('the last instant before the minute is not 60.00',
+    formatTimer(59 * SECOND + 999) !== '01:00.00', formatTimer(59 * SECOND + 999));
+check('an hour and change keeps both digits',
+    formatTimer(HOUR + SECOND + 70) === '1:00:01.07', formatTimer(HOUR + SECOND + 70));
+check('an expired timer is zero, not NaN',
+    formatTimer(-5000) === '00:00.00', formatTimer(-5000));
+
+// The repaint rate, which is the half of this the formatter cannot fix.
+//
+// A hundredth is 10ms. At the 200ms interval this engine used to run on, one
+// value in twenty was ever put on screen -- the fraction appeared to jump rather
+// than count, which is exactly how it was reported. The assertion is that the
+// display advances at least as often as the value it is displaying changes.
+{
+    const engineSource = readFileSync(join(root, 'src/hooks/useTimerEngine.tsx'), 'utf8');
+    check('the repaint loop is on requestAnimationFrame',
+        /requestAnimationFrame/.test(engineSource),
+        'a fixed interval asks for renders faster than the screen can show them');
+    check('and cancels the frame it scheduled',
+        /cancelAnimationFrame/.test(engineSource), 'a leaked frame loop keeps a whole tree alive');
+    // An explicit 200ms poll would reintroduce the skip in a way that still
+    // renders, so the old number must not come back.
+    check('there is no 200ms poll left in it',
+        !/TICK_MS\s*=\s*200/.test(engineSource) && !/setInterval\(\(\) => setNow/.test(engineSource),
+        'the timer has to be able to keep up with the digits it claims to show');
+    check('and it reads the wall clock inside the frame',
+        /requestAnimationFrame\(repaint\);\s*\n\s*setNow\(Date\.now\(\)\)/.test(engineSource));
+}
 
 check('45s reads as 45s', formatHumanDuration(45 * SECOND) === '45s', formatHumanDuration(45 * SECOND));
 check('90s reads as 1m 30s', formatHumanDuration(90 * SECOND) === '1m 30s', formatHumanDuration(90 * SECOND));
@@ -280,6 +318,89 @@ check('a long rest round is every Nth', [1, 2, 3, 4, 5].map(r => isLongRestRound
 check('the default config is a classic pomodoro',
     DEFAULT_INTERVAL.workSec === 1500 && DEFAULT_INTERVAL.roundsBeforeLong === 4);
 
+// The default session is unbounded. This was 4, which contradicted the card's own
+// copy -- it said "Runs until you stop it" while stopping after four rounds -- and
+// a timer that ends on a number nobody picked is wrong for the one mode people
+// leave running while they get on with something. `0` is the until-stopped value
+// `intervalTotalMs` and `phaseAt` already understand.
+check('and the default run is unbounded, not four rounds',
+    DEFAULT_INTERVAL.totalRounds === 0,
+    `expected 0 (until stopped), got ${DEFAULT_INTERVAL.totalRounds}`);
+check('so the default has no total length to count down to',
+    intervalTotalMs(DEFAULT_INTERVAL) === null);
+check('but still takes its long rest after the fourth round',
+    isLongRestRound(DEFAULT_INTERVAL, 4) && !isLongRestRound(DEFAULT_INTERVAL, 3));
+// The four is still here on purpose and it is a different question: the shape of a
+// long session, not where it ends.
+check('which is a separate setting from the number of rounds',
+    DEFAULT_INTERVAL.roundsBeforeLong === 4 && DEFAULT_INTERVAL.totalRounds === 0);
+
+// ============================================================================
+// SCHEDULED START
+// ============================================================================
+
+console.log('\n== scheduled start ==');
+
+// Local-time constructors throughout, so nothing here depends on the machine's zone.
+const at = (y, mo, d, h = 0, mi = 0) => new Date(y, mo, d, h, mi, 0, 0).getTime();
+
+check('no schedule by default', DEFAULT_INTERVAL.startAt === null);
+check('an unset schedule has no next time', nextStartAt(null, at(2026, 0, 5, 10)) === null);
+
+// Local midnight, so the hour and minute assertions cannot be thrown off by a zone.
+check('a time still ahead today is today', nextStartAt(9 * 60, at(2026, 0, 5, 6)).getTime()
+    === at(2026, 0, 5, 9));
+check('a time already past today is tomorrow', nextStartAt(9 * 60, at(2026, 0, 5, 11)).getTime()
+    === at(2026, 0, 6, 9));
+check('and it is strictly after, always',
+    [0, 1, 9 * 60, 12 * 60, 23 * 60 + 59].every(m => nextStartAt(m, at(2026, 0, 5, 10)).getTime() > at(2026, 0, 5, 10)));
+// This is the property that makes a closed tab safe rather than surprising: a page
+// that was shut across the due time must not start a session hours late on reopen.
+check('so a minute that has passed waits for tomorrow rather than firing late',
+    nextStartAt(9 * 60, at(2026, 0, 5, 23)).getTime() === at(2026, 0, 6, 9));
+check('including exactly on the minute',
+    nextStartAt(9 * 60, at(2026, 0, 5, 9)).getTime() === at(2026, 0, 6, 9),
+    'strictly after, so 09:00:00 does not count as still-ahead');
+
+// The minute and hour are recombined, so 09:05 must come back as 09:05 rather than
+// as whatever a single division gives.
+check('the minute is not dropped when it is folded back out',
+    nextStartAt(9 * 60 + 5, at(2026, 0, 5, 6)).getHours() === 9
+    && nextStartAt(9 * 60 + 5, at(2026, 0, 5, 6)).getMinutes() === 5);
+// Midnight is the boundary a `Math.floor(minute / 60)` gets wrong by being off by a
+// day rather than by a minute. It also cannot fire "today" at all, and that is
+// correct rather than a bug: 00:00 today has already gone by at any moment you could
+// arm it, so it always means the start of the day ahead.
+check('midnight comes back as midnight',
+    nextStartAt(0, at(2026, 0, 5, 6)).getTime() === at(2026, 0, 6, 0)
+    && nextStartAt(0, at(2026, 0, 5, 0)).getTime() === at(2026, 0, 6, 0));
+check('and it means the start of the day ahead, not tonight',
+    nextStartAt(0, at(2026, 0, 5, 22)).getHours() === 0
+    && nextStartAt(0, at(2026, 0, 5, 22)).getDate() === 6,
+    'armed at 22:00, 00:00 has to mean midnight tonight');
+check('and the last minute of the day is 23:59, not 24:00',
+    nextStartAt(23 * 60 + 59, at(2026, 0, 5, 6)).getHours() === 23);
+
+// Clamped rather than rejected, so a corrupted blob becomes the nearest real time
+// instead of silently becoming "no schedule" -- which is the difference between
+// starting slightly wrong and not starting at all, with nothing saying which.
+check('an out-of-range minute is clamped to the nearest real one',
+    nextStartAt(9 * 60 + 900, at(2026, 0, 5, 6)).getTime() === at(2026, 0, 5, 23, 59)
+    && nextStartAt(-500, at(2026, 0, 5, 6)).getTime() === at(2026, 0, 6, 0));
+check('and the normaliser does the same, rather than discarding it',
+    normalizeIntervalConfig({ startAt: 99999 }).startAt === 24 * 60 - 1
+    && normalizeIntervalConfig({ startAt: -1 }).startAt === 0);
+check('a non-numeric schedule is no schedule',
+    normalizeIntervalConfig({ startAt: 'nine' }).startAt === null
+    && normalizeIntervalConfig({ startAt: NaN }).startAt === null);
+check('and one that was never there stays null',
+    normalizeIntervalConfig({ workSec: 60 }).startAt === null);
+
+// A preset carries no schedule, which is why there is no column for one.
+check('a preset row restores with no schedule',
+    normalizeIntervalConfig({ workSec: 1500 }).startAt === null
+    && JSON.parse(JSON.stringify(DEFAULT_INTERVAL)).startAt === null);
+
 // ============================================================================
 // ALARMS
 // ============================================================================
@@ -346,31 +467,48 @@ check('laps are numbered from 1', laps.map(l => l.index).join(',') === '1,2,3');
 check('no marks means no laps', buildLaps([]).length === 0);
 
 // ============================================================================
-// SETTINGS
+// THE ALERT
 // ============================================================================
 
-console.log('\n== settings ==');
+// There are no settings any more, and that is the point rather than a gap in the
+// coverage. The panel they lived on held a slider and four switches for one sound
+// and three behaviours, and every one of those was a way for a finished timer to
+// end in silence -- which is the failure this page exists to prevent, offered as
+// four checkboxes. So there is nothing left to normalise, coerce or validate, and
+// what remains is a level and a list of one.
+console.log('\n== the alert ==');
 
-check('null becomes the defaults', JSON.stringify(normalizeSettings(null)) === JSON.stringify(DEFAULT_SETTINGS),
-    JSON.stringify(normalizeSettings(null)));
-check('undefined becomes the defaults', JSON.stringify(normalizeSettings(undefined)) === JSON.stringify(DEFAULT_SETTINGS));
+check('there is exactly one sound to choose', CHIMES.length === 1, String(CHIMES.length));
+check('and it is the one the player knows', CHIMES[0].id === 'chime', CHIMES[0].id);
+check('the id is a single-member union, so nothing can be asked for that is not there',
+    CHIMES.every(c => c.id === 'chime'));
 
-// A volume of `undefined` reaching the audio graph is a silent failure, and the
-// value has two sources that can each be wrong -- localStorage from an older
-// build, and a settings row that predates a column.
-check('a missing volume becomes a number', typeof normalizeSettings({}).volume === 'number',
-    typeof normalizeSettings({}).volume);
-check('an unknown sound falls back rather than rendering', normalizeSettings({ chime: 'kazoo' }).chime === 'chime');
-check('a real sound is kept', normalizeSettings({ chime: 'bell' }).chime === 'bell');
-check('volume above 1 is clamped', normalizeSettings({ volume: 5 }).volume === 1);
-check('volume below 0 is clamped', normalizeSettings({ volume: -1 }).volume === 0);
-check('a NaN volume falls back', normalizeSettings({ volume: Number.NaN }).volume === DEFAULT_SETTINGS.volume);
-check('a string volume is rejected, not coerced', normalizeSettings({ volume: '0.5' }).volume === DEFAULT_SETTINGS.volume);
-// "off" is a real choice, so a false has to survive. `|| DEFAULT` would lose it.
-check('false survives normalisation', normalizeSettings({ vibrate: false }).vibrate === false,
-    String(normalizeSettings({ vibrate: false }).vibrate));
-check('every chime id is one the player knows',
-    CHIMES.every(c => ['chime', 'bell', 'digital', 'radar'].includes(c.id)));
+// The level has to be a real number in range, because an `undefined` or a NaN
+// reaching the gain node is a silent failure -- the timer ends and makes no sound,
+// which is precisely what nobody would notice until they needed it.
+check('the alert level is a number', typeof ALERT_VOLUME === 'number', typeof ALERT_VOLUME);
+check('and in range', ALERT_VOLUME > 0 && ALERT_VOLUME <= 1, String(ALERT_VOLUME));
+// Loud enough to be heard across a room, which is the whole point of a chime.
+check('and audible rather than a token level', ALERT_VOLUME >= 0.5, String(ALERT_VOLUME));
+check('but not the ceiling, so it is not startling either', ALERT_VOLUME < 1, String(ALERT_VOLUME));
+
+// And the notification is unconditional: there is no switch left to turn it off,
+// so the only question the engine asks is whether the browser will take one.
+const engineSource = readFileSync(join(root, 'src/hooks/useTimerEngine.tsx'), 'utf8');
+check('the alert always raises a notification',
+    /playChime\(ALERT_VOLUME\);\s*\n\s*void showNotification\(/.test(engineSource),
+    'gated, it is a switch for the timer to end in silence');
+check('and nothing in the engine can turn it off',
+    !/args\.notify/.test(engineSource) && !/ChimeArgs/.test(engineSource));
+check('nor the page',
+    !/notify:/.test(readFileSync(join(root, 'src/Pages/TimerPage.tsx'), 'utf8')));
+
+// Same reasoning for the screen lock: a timer that dims the display halfway
+// through looks exactly like a timer that stopped.
+check('and the screen lock is held unconditionally too',
+    /useWakeLock\(engine\.running\)/.test(
+        readFileSync(join(root, 'src/Pages/TimerPage.tsx'), 'utf8')),
+    'gated, it is a switch for the screen to go dark mid-run');
 
 // Same reasoning for an interval config arriving from a preset row, which can be
 // null in every column and is not guaranteed to have been written by this build.
@@ -393,6 +531,56 @@ check('a fractional phase is floored, not rounded',
 check('a fractional round count is floored, not rounded',
     normalizeIntervalConfig({ totalRounds: 3.7 }).totalRounds === 3,
     String(normalizeIntervalConfig({ totalRounds: 3.7 }).totalRounds));
+
+// The normaliser rebuilds the object from scratch rather than spreading what it was
+// given, so a field that is dropped from the config actually disappears rather than
+// riding along forever in a stored blob.
+check('and the normaliser rebuilds rather than spreads',
+    /return \{[\s\S]{0,600}?workSec: seconds\(/.test(readFileSync(join(root, 'src/utils/timerMath.ts'), 'utf8')),
+    'a spread would carry a removed field through forever');
+
+// `startAt` was a wall-clock minute of day that nothing ever read. It was removed for
+// that reason and put back only once there was something on the other side of it, so
+// the property worth pinning is that it is *read* -- a field with a control and no
+// reader is the exact bug this replaced.
+check('something reads the schedule, rather than only a field writing it',
+    /nextStartAt\(startAt, Date\.now\(\)\)/.test(engineSource),
+    'a control that accepts a value and ignores it is worse than no control');
+// Delegated rather than reimplemented, so there is one calendar walk and not two.
+check('through the one helper, so the date arithmetic is not duplicated',
+    /nextStartAt/.test(readFileSync(join(root, 'src/utils/timerMath.ts'), 'utf8'))
+    && /nextAlarmFire\([\s\S]{0,160}days: \[\]/.test(
+        readFileSync(join(root, 'src/utils/timerMath.ts'), 'utf8')));
+// One-shot by construction: the schedule is cleared in the same update that starts
+// the run, so there is no "already fired today" flag to fall out of step.
+check('and it clears itself in the same update that starts the run',
+    /intervalConfig: \{ \.\.\.prev\.intervalConfig, startAt: null \}/.test(engineSource));
+// A finished run leaves `elapsedBefore` at the end of the sequence, so a scheduled
+// start that did not reset it would begin a new session already finished and alert
+// on its first tick -- the bug `start()` already has a branch for.
+check('a scheduled start resets a finished run rather than resuming its end',
+    /const exhausted = phaseAt\(prev\.elapsedBefore, prev\.intervalConfig\) === null/.test(engineSource));
+// It arms only in interval mode. The field is on the interval card, and arming it
+// while a countdown is on screen would start a different kind of run than the one it
+// was set on.
+check('and it arms for the interval session only',
+    /if \(current\.mode !== 'interval'\) return;/.test(engineSource));
+// Starting a session is not something to be woken for; the ring starting to move is
+// the feedback. An alert here would fire in a tab nobody is looking at.
+check('and starting on its own is silent',
+    !/fireAlert[\s\S]{0,80}schedule/i.test(engineSource));
+
+// What comes back out of localStorage goes through the same normaliser as a
+// database row. The blob is written by whichever build last ran and read by
+// whichever is running now, so trusting it raw is how a deleted field and an
+// out-of-range phase length both survive a reload.
+check('a restored config is normalised, not trusted raw',
+    /intervalConfig: normalizeIntervalConfig\(parsed\.intervalConfig\)/.test(engineSource));
+// And normalised *before* the running check, which replays elapsed time through the
+// config to decide which phase a closed tab wakes up in.
+check('before the restore decides whether it is still running',
+    /const restored[\s\S]{0,200}normalizeIntervalConfig[\s\S]{0,400}restoreRunning\(restored/.test(engineSource),
+    'a raw config here can put the restored phase in the wrong place');
 
 // ============================================================================
 
@@ -591,11 +779,26 @@ act(() => { engine.api().setDuration(3000); });
 check('a duration is accepted', engine.api().totalMs === 3000, String(engine.api().totalMs));
 check('nothing is running before start', engine.api().running === false);
 
+// The bug this file's clock is worth more than: `now` lives in state and only
+// advances inside the repaint interval, which does not exist until something is
+// running. So a page left sitting on the pad had a `now` from mount, and pressing
+// Start set a deadline from the real clock -- and `remaining` then measured the
+// gap as time still to run. A 59 second timer read 01:07 after eight idle
+// seconds, which is exactly how it was reported.
+advance(8000);
+act(() => { engine.api().start(); });
+check('starting after sitting idle does not add the idle time to the countdown',
+    engine.api().remaining === 3000, `${engine.api().remaining} of ${engine.api().totalMs}`);
+check('and the ring agrees with the digits rather than being a tick behind them',
+    engine.api().progress === 0, String(engine.api().progress));
+
 act(() => { engine.api().start(); });
 check('starting marks it running', engine.api().running === true);
 check('a running countdown has a deadline', typeof engine.api().deadline === 'number');
 check('the deadline is in the future',
     engine.api().deadline > window.Date.now(), String(engine.api().deadline));
+check('the ring starts empty and fills',
+    engine.api().progress === 0, String(engine.api().progress));
 
 // The core property. A tick counter would have subtracted 500ms per tick; a
 // deadline-based one reads the wall clock, so time that passed without anybody
@@ -720,16 +923,48 @@ check('and the same deadline',
 // Mode switching abandons the loaded run rather than converting it, because a
 // stopwatch carries no duration and an interval carries a shape.
 //
-// But it is *refused* while a run is going, rather than stopping it. That is the
-// fix: this used to set `running: false`, so touching the mode chips mid-run
-// silently threw the run away -- no alert, no confirmation, the display simply
-// reset. The two controls already in that panel refused instead of stopping, and
-// this was the odd one out.
+// But it is *refused* while there is time left to run, rather than stopping it.
+// That is the fix: this used to set `running: false`, so touching the mode chips
+// mid-run silently threw the run away -- no alert, no confirmation, the display
+// simply reset. The two controls already in that panel refused instead of
+// stopping, and this was the odd one out.
 act(() => { reloaded.api().setMode('stopwatch'); });
 check('switching mode mid-run is refused', reloaded.api().mode === 'countdown',
     String(reloaded.api().mode));
 check('and the run is untouched by the attempt', reloaded.api().running === true);
 check('with its deadline intact', reloaded.api().deadline !== null);
+
+// The other half of the same question, and the one that was reported as "I used
+// the countdown and now I cannot pick stopwatch or intervals".
+//
+// Stored `running` is a historical fact -- the user pressed start -- and it stays
+// true after a run finishes on purpose, so that a loaded run survives a reload.
+// The UI reads the *derived* flag, which is false the moment a run ends. Testing
+// the stored flag in `setMode` therefore left the buttons looking enabled and
+// doing nothing at all, for as long as the finished countdown stayed loaded. Only
+// Reset cleared it, which is why it looked like the modes had been taken away.
+//
+// The run has to actually finish first: `reloaded` restored a countdown with
+// time still on it, and refusing mid-run is the case above.
+advance(20 * MINUTE);
+await reloaded.refresh();
+check('the run has ended', reloaded.api().running === false);
+act(() => { reloaded.api().dismissAlert(); });
+await reloaded.refresh();
+act(() => { reloaded.api().setMode('stopwatch'); });
+check('so switching mode after a run has ended is allowed',
+    reloaded.api().mode === 'stopwatch', reloaded.api().mode);
+check('and clears the expired deadline with it',
+    reloaded.api().deadline === null, String(reloaded.api().deadline));
+check('rather than leaving a finished run flagged as running',
+    reloaded.api().running === false);
+
+// The same test governs the pad, which is the other control that used to go dead
+// on a finished countdown.
+act(() => { reloaded.api().setMode('countdown'); });
+act(() => { reloaded.api().setDuration(5000); });
+check('the pad is live again once the run is over', reloaded.api().totalMs === 5000,
+    String(reloaded.api().totalMs));
 
 // Stopped, the switch goes through and does clear the loaded run.
 act(() => { reloaded.api().pause(); });
@@ -737,6 +972,10 @@ act(() => { reloaded.api().setMode('stopwatch'); });
 check('switching mode clears the deadline', reloaded.api().deadline === null);
 check('and the elapsed time', reloaded.api().elapsed === 0, String(reloaded.api().elapsed));
 check('and lands on the requested mode', reloaded.api().mode === 'stopwatch');
+// No end to measure against, so no arc to draw. A ring that fills toward nothing
+// is decoration pretending to be a measurement.
+check('and has no ring fraction, because a stopwatch has no end',
+    reloaded.api().progress === null, String(reloaded.api().progress));
 
 // Laps are stopwatch-only, and a lap at a fixed zero is a split of nothing.
 act(() => { reloaded.api().start(); });
@@ -757,30 +996,179 @@ check('a lap while stopped is refused', (() => {
     return reloaded.api().laps.length === before;
 })());
 
-// Unmounting must not leave an interval running. A leaked one keeps a whole
-// component tree's worth of work alive for the life of the document, and the only
-// symptom is a tab that gets hot for no visible reason.
+// Unmounting must not leave the repaint loop running. A leaked frame loop keeps a
+// whole component tree's worth of work alive for the life of the document, and
+// the only symptom is a tab that gets hot for no visible reason -- which matters
+// more now than it did, since the loop runs on every animation frame rather than
+// five times a second.
 //
 // Counted on a *running* engine, because an engine that is not running has no
-// interval to leak -- asserting this against a stopped one would pass whether or
-// not the cleanup existed.
+// loop to leak -- asserting this against a stopped one would pass whether or not
+// the cleanup existed.
 // Patched on `window` rather than on `globalThis`: the engine calls
-// `window.clearInterval`, and a wrapper on the Node global would never be reached.
+// `window.cancelAnimationFrame`, and a wrapper on the Node global would never be
+// reached.
+const originalCancel = window.cancelAnimationFrame;
 const originalClear = window.clearInterval;
+const originalSet = window.setInterval;
+let cancelled = 0;
 let cleared = 0;
+let created = 0;
+window.cancelAnimationFrame = id => { cancelled++; return originalCancel.call(window, id); };
+window.setInterval = (...args) => { created++; return originalSet.apply(window, args); };
 window.clearInterval = id => { cleared++; return originalClear.call(window, id); };
 
 act(() => { engine.api().reset(); });
 act(() => { engine.api().setDuration(30_000); });
 act(() => { engine.api().start(); });
 await engine.refresh();
-check('it is running, so there is an interval to leak', engine.api().running === true,
+check('it is running, so there is a repaint loop to leak', engine.api().running === true,
     String(engine.api().running));
 
 act(() => { engine.root.unmount(); });
-check('unmounting clears the repaint interval', cleared > 0, `${cleared} intervals cleared`);
+check('unmounting cancels the scheduled frame', cancelled > 0, `${cancelled} frames cancelled`);
+// Every timer started is a timer stopped, rather than "no timers exist". The
+// scheduled-start checker polls once a second, so it legitimately owns one; what
+// must not survive unmount is the interval itself, and an assertion of "zero
+// intervals" would be satisfied only by deleting the feature.
+check('and every interval it started is cleared', cleared >= created && cleared > 0,
+    `${created} started, ${cleared} cleared -- an interval outliving the provider is a leak`);
 
+window.cancelAnimationFrame = originalCancel;
 window.clearInterval = originalClear;
+window.setInterval = originalSet;
+
+// ============================================================================
+// THE SCHEDULED START, DRIVEN
+// ============================================================================
+
+console.log('\n== the scheduled start, driven ==');
+
+// The checker is driven through `focus` rather than by waiting out its one-second
+// interval. A `focus` event reaches the same handler a backgrounded tab uses, so the
+// assertion covers the path that matters -- the tab that was not in front of you --
+// and costs no wall-clock time.
+const poke = () => act(() => { window.dispatchEvent(new window.Event('focus')); });
+
+store.clear();
+const scheduled = await mountEngine();
+
+const shortSession = {
+    ...DEFAULT_INTERVAL, workSec: 60, restSec: 60, longRestSec: 60,
+    totalRounds: 0, roundsBeforeLong: 0,
+};
+
+/**
+ * Arms a schedule for the minute the frozen clock is *currently* in.
+ *
+ * By construction that minute is just past, so its next occurrence is the same
+ * minute tomorrow -- which is what makes `advance` able to reach it without the
+ * test sleeping. Read at arm time rather than once at the top: several advances
+ * happen in between, and a minute-of-day captured before them describes a minute
+ * that may still be two days away.
+ */
+const armNow = target => {
+    const at = new Date(shiftedNow());
+    const minuteOfDay = at.getHours() * 60 + at.getMinutes();
+    act(() => { target.api().setIntervalConfig({ ...shortSession, startAt: minuteOfDay }); });
+    return minuteOfDay;
+};
+
+/**
+ * A day and a minute later.
+ *
+ * Exactly a day, because that lands on the same minute of day with the seconds
+ * still past it -- the armed minute has just gone by, and `nextStartAt` is
+ * strictly-after so this is the one instant where it reports it as due. An extra
+ * minute makes that independent of where in the minute the test happened to start,
+ * which is the difference between a reliable assertion and one that fails on
+ * 1-in-60 runs.
+ */
+const comeRound = () => advance(24 * 60 * 60 * 1000 + 60_000);
+
+act(() => { scheduled.api().setMode('interval'); });
+const armedMinute = armNow(scheduled);
+check('a schedule can be armed', scheduled.api().intervalConfig.startAt === armedMinute,
+    String(scheduled.api().intervalConfig.startAt));
+
+poke();
+check('and it does not fire early, however many times it is asked',
+    scheduled.api().running === false, String(scheduled.api().running));
+
+// Busy: a run already going means the schedule waits rather than stacking a second
+// run on top of it, and rather than being consumed and lost while it waits.
+//
+// The run is started *after* the clock is moved rather than before. A minute-long
+// session is long enough to still be running when the check happens but not long
+// enough to survive a day, and advancing first is what makes "still running" a fact
+// the engine can agree with -- otherwise the run has ended by the time the check
+// runs and this asserts nothing at all.
+comeRound();
+act(() => { scheduled.api().start(); });
+poke();
+check('a run already going is left alone', scheduled.api().running === true
+    && scheduled.api().intervalConfig.startAt === armedMinute,
+    `running=${scheduled.api().running} startAt=${scheduled.api().intervalConfig.startAt}`);
+
+act(() => { scheduled.api().pause(); });
+poke();
+check('it fires at the first idle moment after the minute comes round',
+    scheduled.api().running === true && scheduled.api().intervalConfig.startAt === null,
+    `running=${scheduled.api().running} startAt=${scheduled.api().intervalConfig.startAt}`);
+check('in work, not in a rest phase', scheduled.api().phase?.kind === 'work',
+    String(scheduled.api().phase?.kind));
+
+// The alerts recorded so far are from earlier assertions, so the bar is whatever was
+// played before this run rather than zero. Silent: a session beginning is not
+// something to wake anyone for -- they set it precisely so they would not have to be
+// there -- and the ring starting to move is the feedback.
+store.clear();
+const silent = await mountEngine();
+act(() => { silent.api().setMode('interval'); });
+armNow(silent);
+const playsBefore = played.length;
+comeRound();
+poke();
+check('an idle timer starts itself when the minute comes round',
+    silent.api().running === true, String(silent.api().running));
+check('silently -- nobody is woken by a session beginning',
+    played.length === playsBefore, `${played.length - playsBefore} alerts raised`);
+
+// A second check after the run is already going must not stack another run on top of
+// it, which is what the busy case above asserts from the other direction.
+poke();
+advance(60 * 1000);
+poke();
+check('and being asked again does not start a second session',
+    silent.api().intervalConfig.startAt === null && silent.api().running === true,
+    `startAt=${silent.api().intervalConfig.startAt} running=${silent.api().running}`);
+act(() => { silent.root.unmount(); });
+
+// Re-arming, which is the case a latched flag would break: the feature has to work
+// more than once in the life of a page, not only for the first schedule.
+act(() => { scheduled.api().reset(); });
+const rearmed = armNow(scheduled);
+check('a new schedule can be armed after one has fired',
+    scheduled.api().intervalConfig.startAt === rearmed, String(scheduled.api().intervalConfig.startAt));
+comeRound();
+poke();
+check('and it fires in turn', scheduled.api().running === true
+    && scheduled.api().intervalConfig.startAt === null);
+
+// Not in interval mode. The field is on the interval card and starts an interval
+// session; it must not start a countdown.
+store.clear();
+const wrongMode = await mountEngine();
+act(() => { wrongMode.api().setDuration(30_000); });
+armNow(wrongMode);
+comeRound();
+poke();
+check('a countdown is not started by the interval schedule',
+    wrongMode.api().running === false, String(wrongMode.api().running));
+check('and the countdown it had armed is left exactly as it was',
+    wrongMode.api().totalMs === 30_000, String(wrongMode.api().totalMs));
+act(() => { wrongMode.root.unmount(); });
+act(() => { scheduled.root.unmount(); });
 
 // The provider is what makes `useTimer` usable at all outside it, and the failure
 // mode has to be loud.
@@ -959,37 +1347,24 @@ const alarmOverlay = await mountComponent('src/Components/Timer/TimeUpOverlay.ts
 check('an alarm names itself', /Wake up/.test(alarmOverlay.html()));
 check('and offers no way to extend it', !/5 more minutes/.test(alarmOverlay.html()));
 
-// The switch, which the app did not have before. `role="switch"` is what makes a
-// screen reader say "on" rather than nothing.
-const settings = await mountComponent('src/Components/Timer/SettingsPanel.tsx', h(
-    (await loadComponent('src/Components/Timer/SettingsPanel.tsx')).default,
-    {
-        settings: {
-            chime: 'bell', volume: 0.5, vibrate: true, notify: false,
-            keepAwake: true, hundredths: false,
-        },
-        onChange: () => {}, onPreview: () => {}, notificationsBlocked: false,
-    },
-));
-check('the settings panel renders its switches', (settings.html().match(/role="switch"/g) || []).length === 4,
-    String((settings.html().match(/role="switch"/g) || []).length));
-check('a switch reports its state to assistive tech',
-    /aria-checked="true"/.test(settings.html()) && /aria-checked="false"/.test(settings.html()));
-// Four identical-looking toggles, with the one that cannot work disabled and the
-// reason on screen. Otherwise it reads as broken rather than unavailable.
-const blocked = await mountComponent('src/Components/Timer/SettingsPanel.tsx', h(
-    (await loadComponent('src/Components/Timer/SettingsPanel.tsx')).default,
-    {
-        settings: {
-            chime: 'chime', volume: 0.6, vibrate: true, notify: true,
-            keepAwake: true, hundredths: false,
-        },
-        onChange: () => {}, onPreview: () => {}, notificationsBlocked: true,
-    },
-));
-check('a blocked notification toggle is disabled', /disabled/.test(blocked.html()));
-check('and says why rather than looking broken', /Blocked for this site/.test(blocked.html()));
-// The OS-alarm limitation paragraph was removed at the user's request.
+// The settings panel is gone, and this file no longer mounts it.
+//
+// It held a slider and four switches for one sound and three behaviours, and every
+// one of those was a way for a finished timer to end in silence -- the failure this
+// page exists to prevent, offered as four checkboxes. The level is a constant and
+// the rest is unconditional, so there is nothing left to render or assert switch
+// counts on. What replaced it is asserted above, against the constant and against
+// the engine.
+//
+// The file itself is deleted rather than left unreferenced: an orphaned panel with
+// a working volume slider in it is a control somebody would eventually wire back
+// in, on the assumption that it still did something.
+check('the settings panel is deleted, not merely unused',
+    !existsSync(join(root, 'src/Components/Timer/SettingsPanel.tsx')),
+    'left in place it is a control that looks live and is not');
+check('and nothing imports it',
+    !/SettingsPanel/.test(readFileSync(join(root, 'src/Pages/TimerPage.tsx'), 'utf8')),
+    'a dead import is still a dead import');
 
 // ============================================================================
 

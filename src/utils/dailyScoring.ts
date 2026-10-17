@@ -187,24 +187,13 @@ export const calculateMetricScore = (
         }
 
         // === OPTIONAL BODY FIELDS ===
-        case 'weight': {
-            const w = parseFloat(value as string);
-            if (isNaN(w)) return { score: 0, logged: false };
-            const targetWeight = currentSettings?.target_weight;
-            if (!targetWeight) return { score: 50, logged: true };
-            const diff = Math.abs(w - targetWeight);
-            if (diff <= 2) return { score: 100, logged: true };
-            return { score: Math.max(0, Math.round(100 - ((diff - 2) / 2) * 100)), logged: true };
-        }
-
+        case 'weight':
         case 'bodyFat': {
-            const bf = parseFloat(value as string);
-            if (isNaN(bf)) return { score: 0, logged: false };
-            const targetBodyFat = currentSettings?.target_bodyfat;
-            if (!targetBodyFat) return { score: 50, logged: true };
-            const diff = Math.abs(bf - targetBodyFat);
-            if (diff <= 3) return { score: 100, logged: true };
-            return { score: Math.max(0, Math.round(100 - ((diff - 3) / 3) * 100)), logged: true };
+            // Shown as 100 once a measurement exists; the actual decay lives in
+            // the hidden measurementRecency metric.
+            const n = parseFloat(value as string);
+            if (isNaN(n)) return { score: 0, logged: false };
+            return { score: 100, logged: true };
         }
 
         default:

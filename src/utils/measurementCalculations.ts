@@ -64,6 +64,9 @@ export interface BodyCalculations {
     metabolic_age: number | null;
     muscle_quality: number | null;
     dynamic_strength: number | null;
+    // Body-fat percentage the user actually supplied (a reading, not an estimate).
+    // Surfaced on the breakdown as the first of the two body-fat figures.
+    body_fat_measured: number | null;
     // Estimated body-fat percentage (US Navy method). Not a stored column but
     // surfaced in the UI and used by the body-composition formula above.
     body_fat_percent: number | null;
@@ -113,9 +116,9 @@ const navyBodyFatPercent = (m: MeasurementInput, ctx: CalculationContext): numbe
 // Mifflin-St Jeor to compute BMR from weight (kg), height (cm), age.
 const mifflinStJeor = (weight: number, heightCm: number, age: number, gender: string): number => {
     const base = 10 * weight + 6.25 * heightCm - 5 * age;
-    if (gender === 'female') return Math.round(base - 161);
-    if (gender === 'male') return Math.round(base + 5);
-    return Math.round(base - 78); // average of the two adjustments
+    if (gender === 'female') return Math.floor(base - 161);
+    if (gender === 'male') return Math.floor(base + 5);
+    return Math.floor(base - 78); // average of the two adjustments
 };
 
 // Find the age whose normative BMR (same weight/height/gender) is closest to
@@ -171,7 +174,7 @@ export const computeBodyCalculations = (
 
     // Dynamic strength: best recent relative 1RM (kg lifted per kg bodyweight) scaled to 0-100.
     const dynamicStrength = weight != null && ctx.relativeBestLift != null
-        ? Math.round((ctx.relativeBestLift / weight) * 100)
+        ? Math.floor((ctx.relativeBestLift / weight) * 100)
         : null;
 
     return {
@@ -200,12 +203,13 @@ export const computeBodyCalculations = (
             : null,
         muscle_quality: weight != null && leanMass != null ? round1((leanMass / weight) * 100) : null,
         dynamic_strength: dynamicStrength,
+        body_fat_measured: measuredFat != null ? round1(measuredFat) : null,
         body_fat_percent: bodyFat != null ? round1(bodyFat) : null,
     };
 };
 
-const round2 = (value: number): number => Math.round(value * 100) / 100;
-const round1 = (value: number): number => Math.round(value * 10) / 10;
+const round2 = (value: number): number => Math.floor(value * 100) / 100;
+const round1 = (value: number): number => Math.floor(value * 10) / 10;
 const round2OrNull = (value: number | null): number | null => (value == null ? null : round2(value));
 const round1OrNull = (value: number | null): number | null => (value == null ? null : round1(value));
 

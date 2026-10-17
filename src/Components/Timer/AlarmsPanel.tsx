@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { AlarmClock, Plus, SquarePen, Trash2, X } from 'lucide-react';
+import { Plus, SquarePen, Trash2, X } from 'lucide-react';
 import {
-    CHIMES,
     DAY_LABELS,
     describeAlarmDays,
     formatAlarmTime,
     formatUntil,
     nextAlarmFire,
-    type ChimeId,
 } from '../../utils/timerMath';
 import type { AlarmDraft, TimerAlarm } from '../../services/timerService';
+
+/** The days a new alarm starts on: a working week, which is the common case. */
+const DEFAULT_DAYS = [1, 2, 3, 4, 5];
 
 // Re-exported so the page can import the draft type from wherever it is already
 // importing the panel, rather than reaching into the service for a shape it never
@@ -67,12 +68,10 @@ const AlarmForm: React.FC<{
     setTime: (v: string) => void;
     days: number[];
     setDays: (v: number[]) => void;
-    sound: ChimeId;
-    setSound: (v: ChimeId) => void;
     busy: boolean;
     onSubmit: () => void;
     onCancel: () => void;
-}> = ({ idPrefix, label, setLabel, time, setTime, days, setDays, sound, setSound, busy, onSubmit, onCancel }) => (
+}> = ({ idPrefix, label, setLabel, time, setTime, days, setDays, busy, onSubmit, onCancel }) => (
     <>
         <div className="timer-field-grid" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)' }}>
             <div className="timer-field">
@@ -98,45 +97,72 @@ const AlarmForm: React.FC<{
             </div>
         </div>
 
-        <div className="timer-field" style={{ marginTop: '0.6rem' }}>
-            <span className="form-label" id={`${idPrefix}-repeat-label`}>Repeat</span>
-            <div className="timer-days" role="group" aria-labelledby={`${idPrefix}-repeat-label`}>
-                {WEEKDAY_ORDER.map(day => (
-                    <button
-                        key={day}
-                        type="button"
-                        className={`timer-day${days.includes(day) ? ' timer-day--on' : ''}`}
-                        onClick={() => setDays(toggleDay(days, day))}
-                        aria-pressed={days.includes(day)}
-                        aria-label={DAY_LABELS[day]}
-                    >
-                        {DAY_LABELS[day].slice(0, 2)}
-                    </button>
-                ))}
-            </div>
-            {/* Spelled out, because "no days selected" is not something a row of
-                unlit buttons can explain by itself. This is also the line that
-                tells somebody an empty selection means one-shot. */}
-            <span className="timer-empty-hint" style={{ textAlign: 'left', padding: '0.3rem 0 0' }}>
-                {describeAlarmDays(days)}
-            </span>
-        </div>
+        {/*
+            Whether this alarm repeats, as a choice rather than as an absence.
 
-        <div className="timer-field" style={{ marginTop: '0.5rem' }}>
-            <span className="form-label">Sound</span>
-            <div className="timer-sounds">
-                {CHIMES.map(chime => (
-                    <button
-                        key={chime.id}
-                        type="button"
-                        className={`timer-sound${sound === chime.id ? ' timer-sound--on' : ''}`}
-                        onClick={() => setSound(chime.id)}
-                        aria-pressed={sound === chime.id}
-                    >
-                        {chime.label}
-                    </button>
-                ))}
+            The data has always supported a one-shot -- an empty day list is a single
+            firing, and `nextAlarmFire` reads it that way -- but the only way to get
+            one was to click all seven days off, which is a thing you cannot tell you
+            have done. A caption reading "Once" under seven unlit buttons is not a
+            control, and "what if I don't want it to repeat" was a question the form
+            could not be asked.
+
+            So the two cases are named and picking one is a single tap. The day picker
+            only appears when repeating, because seven buttons nobody was asked to
+            use are clutter next to a choice they did make.
+        */}
+        <div className="timer-field" style={{ marginTop: '0.6rem' }}>
+            <span className="form-label" id={`${idPrefix}-repeat-label`}>Repeats</span>
+            <div className="timer-chips" role="group" aria-labelledby={`${idPrefix}-repeat-label`}>
+                <button
+                    type="button"
+                    className={`timer-chip${days.length > 0 ? ' timer-chip--on' : ''}`}
+                    onClick={() => setDays(days.length > 0 ? days : [...DEFAULT_DAYS])}
+                    aria-pressed={days.length > 0}
+                >
+                    Every week
+                </button>
+                <button
+                    type="button"
+                    className={`timer-chip${days.length === 0 ? ' timer-chip--on' : ''}`}
+                    onClick={() => setDays([])}
+                    aria-pressed={days.length === 0}
+                >
+                    Once
+                </button>
             </div>
+
+            {days.length > 0 ? (
+                <>
+                    <div
+                        className="timer-days"
+                        role="group"
+                        aria-labelledby={`${idPrefix}-repeat-label`}
+                        style={{ marginTop: '0.45rem' }}
+                    >
+                        {WEEKDAY_ORDER.map(day => (
+                            <button
+                                key={day}
+                                type="button"
+                                className={`timer-day${days.includes(day) ? ' timer-day--on' : ''}`}
+                                onClick={() => setDays(toggleDay(days, day))}
+                                aria-pressed={days.includes(day)}
+                                aria-label={DAY_LABELS[day]}
+                            >
+                                {DAY_LABELS[day].slice(0, 2)}
+                            </button>
+                        ))}
+                    </div>
+                    <span className="timer-empty-hint" style={{ textAlign: 'left', padding: '0.3rem 0 0' }}>
+                        {describeAlarmDays(days)}
+                    </span>
+                </>
+            ) : (
+                // Spelled out, because "once" has to say what once means.
+                <span className="timer-empty-hint" style={{ textAlign: 'left', padding: '0.3rem 0 0' }}>
+                    Fires once, at the next time it comes round.
+                </span>
+            )}
         </div>
 
         <div className="timer-controls" style={{ justifyContent: 'flex-end', marginTop: '0.75rem' }}>
@@ -162,22 +188,21 @@ const AlarmsPanel: React.FC<AlarmsPanelProps> = ({
     const [adding, setAdding] = useState(false);
     const [label, setLabel] = useState('Alarm');
     const [time, setTime] = useState('07:30');
-    const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
-    const [sound, setSound] = useState<ChimeId>('chime');
+    const [days, setDays] = useState<number[]>([...DEFAULT_DAYS]);
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editLabel, setEditLabel] = useState('');
     const [editTime, setEditTime] = useState('07:30');
     const [editDays, setEditDays] = useState<number[]>([]);
-    const [editSound, setEditSound] = useState<ChimeId>('chime');
 
     const submitAdd = () => {
         const { hour, minute } = parseTime(time);
-        onCreate({ label: label.trim() || 'Alarm', hour, minute, days, enabled: true, sound });
+        onCreate({ label: label.trim() || 'Alarm', hour, minute, days, enabled: true });
         setAdding(false);
         setTime('07:30');
-        setDays([1, 2, 3, 4, 5]);
-        setSound('chime');
+        // Back to the common case rather than to whatever was last typed: the form
+        // is for the next alarm, not a record of the last one.
+        setDays([...DEFAULT_DAYS]);
     };
 
     const submitEdit = (id: string) => {
@@ -192,7 +217,6 @@ const AlarmsPanel: React.FC<AlarmsPanelProps> = ({
             minute,
             days: editDays,
             enabled: existing?.enabled ?? true,
-            sound: editSound,
         });
         setEditingId(null);
     };
@@ -211,24 +235,31 @@ const schedulable = (alarm: TimerAlarm) => ({
     });
 
     return (
-        <div className="timer-block">
-            <div className="timer-block__head">
-                <h3 className="timer-block__title">
-                    <AlarmClock size={14} aria-hidden="true" /> Alarms
-                </h3>
-                <div className="timer-block__actions">
-                    <button
-                        type="button"
-                        className="book-action-btn"
-                        onClick={() => setAdding(v => !v)}
-                        data-tip={adding ? 'Cancel' : 'Add an alarm'}
-                        aria-label={adding ? 'Cancel adding an alarm' : 'Add an alarm'}
-                    >
-                        {adding ? <X /> : <Plus />}
-                    </button>
-                </div>
+        <React.Fragment>
+            {/* The same header the other three containers use, so this one is a
+                card rather than a panel nested inside a card.
+
+                It used to open a `.timer-block` with its own titled header, which
+                meant the alarms card was a container inside a container, and the
+                title was set at `0.7rem` against the `0.75rem` the other cards use
+                -- so the one card that was not the same size as its neighbours was
+                also the one that did not look like them. The Daily Log's
+                `.card-header` / `.card-title` are what the other containers are
+                built from, so this uses them too. */}
+            <div className="card-header">
+                <h3 className="card-title">Alarms</h3>
+                <button
+                    type="button"
+                    className="book-action-btn"
+                    onClick={() => setAdding(v => !v)}
+                    data-tip={adding ? 'Cancel' : 'Add an alarm'}
+                    aria-label={adding ? 'Cancel adding an alarm' : 'Add an alarm'}
+                >
+                    {adding ? <X /> : <Plus />}
+                </button>
             </div>
 
+            <div className="card-body">
             {adding && (
                 <div style={{ marginBottom: '0.85rem' }}>
                     <AlarmForm
@@ -236,7 +267,6 @@ const schedulable = (alarm: TimerAlarm) => ({
                         label={label} setLabel={setLabel}
                         time={time} setTime={setTime}
                         days={days} setDays={setDays}
-                        sound={sound} setSound={setSound}
                         busy={busy}
                         onSubmit={submitAdd}
                         onCancel={() => setAdding(false)}
@@ -245,16 +275,18 @@ const schedulable = (alarm: TimerAlarm) => ({
             )}
 
             {sorted.length === 0 && !adding ? (
-                <p className="timer-empty-hint">
-                    No alarms. One set for the time you actually get up beats one set
-                    for the time you intend to.
+                /* Short, and it points at the thing that fixes it. The old line was
+                   a sentence of advice about waking up, which is a pleasant thing to
+                   read once and no help at all when you are looking for the button
+                   that adds an alarm. */
+                <p className="timer-empty-hint" style={{ textAlign: 'left' }}>
+                    No alarms set. Use the + above to add one.
                 </p>
             ) : (
                 sorted.map(alarm => (
                     <div
                         key={alarm.id}
-                        className={`course-row${alarm.enabled ? '' : ' timer-row--off'}`}
-                        style={{ marginBottom: '0.4rem' }}
+                        className={`timer-alarm-row${alarm.enabled ? '' : ' timer-alarm-row--off'}`}
                     >
                         {editingId === alarm.id ? (
                             <AlarmForm
@@ -262,33 +294,38 @@ const schedulable = (alarm: TimerAlarm) => ({
                                 label={editLabel} setLabel={setEditLabel}
                                 time={editTime} setTime={setEditTime}
                                 days={editDays} setDays={setEditDays}
-                                sound={editSound} setSound={setEditSound}
                                 busy={busy}
                                 onSubmit={() => submitEdit(alarm.id)}
                                 onCancel={() => setEditingId(null)}
                             />
                         ) : (
-                            <div className="course-head">
-                                <div className="course-head__text">
-                                    <div className="timer-row__main">
-                                        <span className="timer-row__clock">
-                                            {formatAlarmTime(alarm.hour, alarm.minute)}
-                                        </span>
-                                        <span className="course-title">{alarm.label}</span>
-                                    </div>
-                                    <span className="course-sub">
-                                        <span>{describeAlarmDays(alarm.days_of_week)}</span>
-                                        {!alarm.enabled && <span>· Off</span>}
+                            <>
+                                {/* Left: the time is the headline and the label is
+                                    the context under it. Stacked so the time is the
+                                    thing the eye finds first. */}
+                                <div className="timer-alarm-row__main">
+                                    <span className="timer-row__clock">
+                                        {formatAlarmTime(alarm.hour, alarm.minute)}
+                                    </span>
+                                    <span className="timer-alarm-row__label">{alarm.label}</span>
+                                    <span className="timer-alarm-row__days">
+                                        {describeAlarmDays(alarm.days_of_week)}
+                                        {!alarm.enabled && ' · Paused'}
                                     </span>
                                 </div>
 
-                                <div className="course-scores">
+                                {/* Right: when it next goes off, then the controls,
+                                    as one centred group. This is the whole fix for
+                                    the alignment: `.course-head` aligned its cells
+                                    to `flex-start`, so a switch on the right lined
+                                    up with the top of a three-line left side. */}
+                                <div className="timer-alarm-row__right">
                                     <span className={`timer-row__when${alarm.enabled ? '' : ' timer-row__when--off'}`}>
                                         {alarm.enabled
                                             ? formatUntil(nextAlarmFire(schedulable(alarm), new Date(now)).getTime() - now)
                                             : 'Paused'}
                                     </span>
-                                    <span className="flex gap-1">
+                                    <div className="timer-alarm-row__actions">
                                         <button
                                             type="button"
                                             role="switch"
@@ -306,7 +343,6 @@ const schedulable = (alarm: TimerAlarm) => ({
                                                 setEditLabel(alarm.label);
                                                 setEditTime(toInput(alarm.hour, alarm.minute));
                                                 setEditDays(alarm.days_of_week);
-                                                setEditSound(alarm.sound);
                                             }}
                                             data-tip="Edit alarm"
                                             aria-label={`Edit ${alarm.label}`}
@@ -322,14 +358,15 @@ const schedulable = (alarm: TimerAlarm) => ({
                                         >
                                             <Trash2 />
                                         </button>
-                                    </span>
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         )}
                     </div>
                 ))
             )}
-        </div>
+            </div>
+        </React.Fragment>
     );
 };
 

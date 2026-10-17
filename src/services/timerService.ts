@@ -1,13 +1,20 @@
 import { supabase } from './supabaseClient';
-import { normalizeIntervalConfig, normalizeSettings, type ChimeId, type IntervalConfig, type TimerSettings } from '../utils/timerMath';
+import { normalizeIntervalConfig, type ChimeId, type IntervalConfig } from '../utils/timerMath';
 
 /**
- * Presets, alarms and preferences.
+ * Presets and alarms.
  *
  * Everything here is configuration that should follow the user between devices,
  * and it is the *only* thing that is. The running timer is deliberately not in
  * this file -- its deadline lives in `localStorage` so the display can paint on
  * the first frame without a network round-trip. See `useTimerEngine`.
+ *
+ * There is no settings section any more. The page had one, and it held a slider
+ * and four switches for one sound and three behaviours; every one of those was a
+ * way for a finished timer to say nothing, which is the failure this page exists
+ * to prevent. The alert level is a constant and the rest is unconditional, so
+ * there is nothing left to read, normalise or write -- and a `timer_settings` row
+ * that nothing reads is a row that cannot go stale.
  *
  * Reads swallow their errors and return the empty case, writes throw. That is
  * the house pattern across every service in `src/services`, and it is why each
@@ -246,19 +253,28 @@ export interface AlarmDraft {
     label: string;
     hour: number;
     minute: number;
+    /** Empty means one-shot: the next time that time comes round, and no more. */
     days: number[];
     enabled: boolean;
-    sound: ChimeId;
 }
 
-/** Draft to row. The one place the day-list name changes. */
+/**
+ * Draft to row. The one place the day-list name changes.
+ *
+ * `sound` is written as a constant rather than taken from the draft, because the
+ * form no longer asks for one -- there is a single chime, so the picker it used to
+ * carry could only ever be answered the same way. It is written explicitly rather
+ * than left to the column default so that an older row still carrying one of the
+ * retired ids is normalised on its next edit, instead of keeping a sound nothing
+ * can play.
+ */
 const draftToRow = (alarm: AlarmDraft) => ({
     label: alarm.label,
     hour: alarm.hour,
     minute: alarm.minute,
     days_of_week: alarm.days,
     enabled: alarm.enabled,
-    sound: alarm.sound,
+    sound: 'chime' as ChimeId,
 });
 
 export const createTimerAlarm = async (alarm: AlarmDraft): Promise<TimerAlarm> => {
@@ -306,73 +322,6 @@ export const deleteTimerAlarm = async (id: string): Promise<void> => {
     const { error } = await supabase.from('timer_alarms').delete().eq('id', id);
     if (error) {
         console.error('Error deleting timer alarm:', error.message);
-        throw error;
-    }
-};
-
-// ============================================================================
-// SETTINGS
-// ============================================================================
-
-/**
- * The settings row, or null when there isn't one yet.
- *
- * Null rather than a defaulted object, because the two mean different things
- * and the page cares about the difference: null means "nothing saved yet", and
- * writing defaults on first read would make the row's existence the only
- * evidence a sync has ever happened.
- */
-export const getTimerSettings = async (): Promise<TimerSettings | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const { data, error } = await supabase
-        .from('timer_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    if (error) {
-        console.error('Error fetching timer settings:', error.message);
-        return null;
-    }
-    if (!data) return null;
-
-    return normalizeSettings({
-        chime: (data as { sound?: unknown }).sound,
-        volume: (data as { volume?: unknown }).volume,
-        vibrate: (data as { vibrate?: unknown }).vibrate,
-        notify: (data as { notify?: unknown }).notify,
-        keepAwake: (data as { keep_awake?: unknown }).keep_awake,
-        hundredths: (data as { hundredths?: unknown }).hundredths,
-    });
-};
-
-/**
- * Upsert the whole settings row.
- *
- * Written whole rather than column by column. Every value here comes from a
- * toggle or a slider the user just moved, so the row is small and always fully
- * known; a partial patch would only add a way for two fields to disagree about
- * which is newer.
- */
-export const saveTimerSettings = async (settings: TimerSettings): Promise<void> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('No user found');
-
-    const { error } = await supabase.from('timer_settings').upsert({
-        user_id: user.id,
-        sound: settings.chime,
-        volume: settings.volume,
-        vibrate: settings.vibrate,
-        notify: settings.notify,
-        keep_awake: settings.keepAwake,
-        hundredths: settings.hundredths,
-        updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-
-    if (error) {
-        console.error('Error saving timer settings:', error.message);
         throw error;
     }
 };

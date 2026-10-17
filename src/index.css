@@ -3023,7 +3023,6 @@ input[type='number']::-webkit-inner-spin-button {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.04);
   padding: 0.4rem 0.7rem;
   border-radius: 25px;
   flex-shrink: 0;
@@ -5844,6 +5843,13 @@ textarea.form-control {
 .note-prose ul,
 .note-prose ol {
   padding-left: 1.4rem;
+  list-style: revert;
+}
+.note-prose ul {
+  list-style-type: disc;
+}
+.note-prose ol {
+  list-style-type: decimal;
 }
 .note-prose li { margin: 0.2rem 0; }
 .note-prose li > p { margin: 0; }
@@ -8220,11 +8226,9 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
    labelled boxes, which matched nothing else in the app and put the calculated
    metrics twenty-three fields away from the fields that produce them.
    ============================================ */
-/* The mosaic itself is `.daily-log-puzzle` / `.daily-log-col`, borrowed rather
-   than copied -- two columns, each packing independently -- so this block only
-   needs what the daily log does not already provide. Nothing: the two classes
-   above do the whole layout. Kept as a hook for the pair styling below, which
-   applies inside these cards and nowhere else. */
+/* The timer's cards are direct children of `.timer-mosaic`, which borrows the
+   daily log's two-column, independently-packing arrangement -- so this block only
+   needs what the mosaic itself does not already provide. */
 
 /* A left/right pair on one row.
    The two halves are the same measurement of the same thing, and the comparison
@@ -10538,6 +10542,15 @@ select.form-control option {
   min-height: 100svh;
   padding: 1rem 1.25rem;
 }
+/* Focus mode moves the wrapper to `dvh` as well. The chain inside it is
+   `100dvh - 2rem` so that the padding does not overflow, which only lines up if
+   the wrapper is `100dvh` too: a `svh` wrapper around a `dvh` chain is *taller*
+   than the chain by exactly the gap between the two units, and the chain sits at
+   the top of the difference. Same top-pinned clock, arrived at from the other
+   end. */
+.timer-page-wrapper--focus {
+  min-height: 100dvh;
+}
 
 .dashboard-section.timer-section {
   max-width: 100%;
@@ -10546,6 +10559,96 @@ select.form-control option {
   display: flex;
   flex-direction: column;
   margin: 0 auto;
+}
+
+/* Focus mode: the clock, and the whole page it is centred in.
+   The stage used to be capped at 520px inside the same left-hand column, so
+   turning focus on hid the mosaic and left a small clock marooned on the left
+   of a wide page -- the opposite of a distraction-free view. The column itself
+   is released here, so the stage gets the viewport and centres in it. */
+.timer-page-wrapper--focus .timer-mosaic {
+  display: none;
+}
+/* One rule, four elements, and it is the whole of the centring.
+
+   The wrapper is `100dvh` *including* its `1rem` vertical padding, so the chain
+   inside it gets `100dvh - 2rem`; asking for a full `100dvh` overflows by exactly
+   that padding and hands focus mode a scrollbar it has no reason to have.
+
+   `dvh` rather than `svh`, at every size rather than only on small screens. `svh`
+   is the height with the browser chrome *expanded*, so a clock centred in `svh`
+   sits above centre the moment the chrome retracts. That is a phone-sized problem
+   but not a phone-only one: any viewport that can scroll can have its viewport
+   height change under it, and `dvh` is the unit that follows it.
+
+   Every element in the chain gets the same floor rather than only the outermost,
+   because the page below 1024px releases the chain's heights (see the block in
+   the responsive section) and this has to put them back. And the *stage* is the one
+   that has to stretch: it is the flex column with `justify-content: center`, so a
+   stage that does not fill the chain has nothing to centre within. */
+.timer-page-wrapper--focus .timer-section,
+.timer-page-wrapper--focus .timer-card,
+.timer-page-wrapper--focus .timer-body,
+.timer-page-wrapper--focus .timer-stage {
+  min-height: calc(100dvh - 2rem);
+}
+.timer-page-wrapper--focus .timer-body {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.timer-page-wrapper--focus .timer-stage {
+  width: 100%;
+  max-width: none;
+  /* `align-self` overrides the body's `align-items`, and the wide-screen layout
+     sets this grid item to `align-self: start`. Left alone it would stop the stage
+     filling the chain and the clock would ride the top of it again. */
+  align-self: stretch;
+  margin: 0 auto;
+  text-align: center;
+}
+/* The ring grows with the space rather than staying a 360px circle in the
+   middle of a desktop. `clamp` keeps it sane on a phone, where going full
+   width would put the digits off both edges. */
+.timer-page-wrapper--focus .timer-display {
+  width: clamp(260px, 46vw, 640px);
+}
+/* Eight characters now -- the clock, the colon and two hundredths. The display
+   font is a fixed-width terminal face at half the em per character, so the string
+   needs `8 * 0.5em` of room and the ceiling here is what keeps that inside the
+   ring above at the largest size. Sized so the widest it can be is still
+   narrower than the ring, rather than at the edge of it. */
+.timer-page-wrapper--focus .timer-digits {
+  font-size: clamp(3.5rem, 11vw, 9rem);
+}
+.timer-page-wrapper {
+  transition: all 0.3s ease;
+}
+
+/* --- the three mode cards ------------------------------------------------ */
+
+/* One card per mode. All three stay mounted, so the page never describes a mode
+   as "not the one you are looking at"; the two that are not driving the clock
+   are held back rather than removed, because a card at half opacity still reads
+   as available and switching is one tap on its own header. */
+.timer-mode-card {
+  transition: opacity 0.25s ease, border-color 0.25s ease;
+}
+.timer-mode-card:not(.timer-mode-card--on) {
+  opacity: 0.62;
+}
+.timer-mode-card:not(.timer-mode-card--on):hover {
+  opacity: 1;
+}
+.timer-mode-card--on {
+  border-color: var(--accent-border);
+}
+.timer-mode-card .timer-block__title {
+  flex: 1;
+  min-width: 0;
+}
+.timer-mode-card .timer-chip {
+  flex-shrink: 0;
 }
 
 .timer-card {
@@ -10615,58 +10718,88 @@ select.form-control option {
   gap: 0.6rem;
 }
 
-/* The page header: the user's own time, and the run while one is going.
-   The world clock panel it replaces was a dozen cities, of which the one anybody
-   used was their own time -- and that was already visible on the tab bar they
-   had to click through to reach it. */
-.timer-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-}
-/* Tabular figures, so the minute does not shift the whole string sideways once an
-   hour and make the clock twitch. It is on screen every second. */
-.timer-header__now {
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
+/* No page header, and no rule across the top of the page.
+   There used to be an empty `.timer-header` here, left behind when the world-clock
+   panel it once held was removed along with everything else in it. An empty element
+   carrying a `border-bottom` is not invisible: it drew a line straight across the
+   top of the page, sitting on the first row of cards with nothing above it to
+   belong to. The clock it used to hold is in the display column now. */
 
-/* The mosaic. Replaces the tab strip: every panel is mounted and visible, and
-   the grid alone decides how they arrange. Nothing here is conditionally
-   rendered, so no panel can be the reason a running timer looks stopped. */
-.timer-mosaic,
-.timer-panel-stack {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+/* The mosaic.
+
+   Two columns, by the Daily Log's own arrangement rather than a copy of it: the
+   element carries `.daily-log-puzzle` as well, so the grid, its `1rem` gap, its
+   phone fallback and its independent per-column packing are literally the daily
+   log's declarations. Writing them out again here is how the two drifted apart in
+   the first place -- and when they did, the page looked like the daily log and
+   behaved like something else.
+
+   So this block declares nothing about layout. It only adds what the container
+   needs on top of that: it scrolls, because the clock beside it is sticky and the
+   cards below it are not.
+
+   Reading order is down the left column and then down the right, which is what
+   `.daily-log-puzzle` and `.daily-log-col` already mean. That is why the
+   containers are placed by column rather than appended -- see the page. */
+.timer-mosaic {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.25rem;
-  align-items: start;
 }
-@media (max-width: 768px) {
-  .timer-mosaic,
-  .timer-panel-stack {
-    grid-template-columns: 1fr;
-  }
-}
-/* Cells are cards in a puzzle grid, like the Daily Log's, so the page reads as
-   the same instrument as every other page in the app rather than as a widget. */
+/* Cells are the Daily Log's cards, by the Daily Log's own rules.
+   `.daily-log-form .card` / `.card-header` / `.card-title` are restated here
+   rather than reached through the daily log's own selector, because this page is
+   not inside `.daily-log-form` and sharing a selector would couple the two.
+
+   The values are the daily log's, unchanged. That is the point: the timer's
+   containers used to be a bare `.card` (which has no background at all) wrapping
+   a `.card-body` at 1rem plus a `.timer-block` at another 1rem -- two backgrounds
+   and two rems of padding, so every panel read as a big empty box and the gaps
+   between them looked larger than the 1rem the grid actually sets. */
 .timer-mosaic__cell {
   min-width: 0;
   margin-bottom: 0;
+  background: #ffffff08;
+  box-shadow: none;
+  border-radius: 20px;
+  padding: 1rem;
 }
 .timer-mosaic__cell > .card-header {
-  padding: 0.85rem 1rem 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0 0 0.4rem;
+  border-bottom: 1px solid #ffffff14;
 }
+/* The header is the daily log's too, including the title's size.
+
+   It used to be `.timer-block__title`, which is `0.7rem` against the daily log's
+   `.card-title` at `0.75rem`. The alarms card was the one that still used it, so
+   the one container that did not look like its neighbours was also the one whose
+   title was a half-step smaller -- and a title at a different size from its
+   neighbours is what makes a row of cards read as a row of unrelated panels rather
+   than as one mosaic. */
+.timer-mosaic__cell > .card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-light);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+/* No padding: the card already has its 1rem, and the body is where the fields
+   start rather than a second inset inside the first one. */
 .timer-mosaic__cell > .card-body {
-  padding: 1rem;
+  padding: 0;
 }
 .timer-mosaic__cell .timer-empty-hint { grid-column: 1 / -1; }
 
@@ -10711,7 +10844,12 @@ select.form-control option {
 /* VT323 rather than the app's JetBrains Mono. The whole page is monospace
    already, so the display needed a second voice rather than more size, and VT323
    is loaded by index.html for exactly this kind of terminal readout. The bloom is
-   what makes it read as a screen and not as a font. */
+   what makes it read as a screen and not as a font.
+
+   The size is capped against the ring's width rather than left to the viewport,
+   because the string is eight characters wide -- clock, colon, hundredths -- and
+   the ring is a fixed-size circle. A clock whose digits touch its edge stops
+   looking like a readout and starts looking like a label. */
 .timer-digits {
   font-family: var(--font-display);
   font-size: clamp(2.4rem, 9vw, 4rem);
@@ -10758,8 +10896,86 @@ select.form-control option {
   letter-spacing: 0.08em;
 }
 
-.timer-lap--best .score-block__value { color: var(--color-primary); }
-.timer-lap--slow .score-block__value { color: #ff5a60; }
+/* --- the lap table -------------------------------------------------------- */
+
+/* A lap is one measurement, so it is a row of two numbers under their own
+   headings rather than a card with a title on the left and a stack of labelled
+   boxes on the right. The old version borrowed the Academic page's `.course-row`
+   for that, which is why a list of numbers on the timer page looked like a list
+   of course assignments.
+
+   Split first because a lap is for its split; the total is the running context it
+   sits in, so it is the quieter of the two columns rather than an equal. */
+.timer-laps {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+}
+.timer-laps__head,
+.timer-lap {
+  display: grid;
+  /* A fixed gutter for the number, then the two times. `1fr` and not `auto`: the
+     times are monospaced and the same width every row, so an auto column would
+     be sized by the longest split seen so far and the whole table would jump
+     sideways the first time somebody marked a long one. */
+  grid-template-columns: 2.2rem 1fr 1fr;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.timer-laps__head {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-light);
+  opacity: 0.45;
+  padding: 0 0 0.35rem;
+  margin-bottom: 0.15rem;
+  border-bottom: 1px solid #ffffff14;
+}
+.timer-lap {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  /* Every number in the column is the same width, so a digit changing does not
+     move the row sideways under the finger. */
+  font-variant-numeric: tabular-nums;
+  color: var(--color-light);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #ffffff0a;
+}
+.timer-laps .timer-lap:last-of-type { border-bottom: none; }
+.timer-lap__index {
+  font-size: 0.65rem;
+  font-weight: 600;
+  opacity: 0.4;
+}
+.timer-lap__split {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.timer-lap__total {
+  opacity: 0.55;
+}
+/* The extremes, by the row rather than by one number, so the whole lap is marked
+   and the eye can find it without reading either column. */
+.timer-lap--best {
+  background: rgba(0, 255, 166, 0.06);
+}
+.timer-lap--best .timer-lap__split { color: var(--color-primary); }
+.timer-lap--slow {
+  background: rgba(255, 90, 96, 0.06);
+}
+.timer-lap--slow .timer-lap__split { color: #ff5a60; }
+.timer-laps__note {
+  margin: 0.6rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--color-light);
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
 
 /* A slow sweep around the ring while it runs. Reads as "live" from across the
    room, which a static arc does not. */
@@ -11090,45 +11306,111 @@ select.form-control option {
 }
 .timer-range:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* --- sound picker -------------------------------------------------------- */
+/* No sound picker.
 
-.timer-sounds {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr));
-  gap: 0.4rem;
+   There was one here, in two places: the settings panel's volume card and the
+   alarm form. Both are gone -- there is a single chime and a level that is a
+   constant, so a row of buttons that could only ever be answered the same way was
+   a control rather than a choice. Removed rather than left unused, because a
+   styled picker with nothing behind it is the next thing somebody wires up. */
+
+/* --- rows: alarms --------------------------------------------------------- */
+
+/* An alarm row is its own flex row, not the Academic page's `.course-head`.
+   That is a grid whose cells are `align-items: flex-start` -- right for a course
+   title over a subtitle, wrong here, where the right-hand group is a single line
+   and the left is three. So the switch and the countdown sat against the *top* of
+   the time rather than the middle of the row, which is the misalignment this
+   replaced.
+
+   Aligning the two groups to each other's centre is the whole fix, and a
+   two-group flex row is the shape that expresses it: there is no third cell left
+   free to drift out of step with the other two.
+
+   `min-height` rather than more padding, so a one-line label and a three-line one
+   produce rows of the same height -- which is what makes the column read as a
+   list rather than as a ragged stack. */
+.timer-alarm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #ffffff0a;
 }
-.timer-sound {
+.timer-alarm-row:last-of-type { border-bottom: none; }
+.timer-alarm-row--off { opacity: 0.5; }
+
+.timer-alarm-row__main {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.55rem 0.3rem;
-  border-radius: 14px;
-  background: #ffffff08;
-  border: 1px solid transparent;
-  color: var(--color-light);
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
+  justify-content: center;
+  gap: 0.05rem;
+  min-width: 0;
+}
+.timer-alarm-row__label {
+  font-size: 0.72rem;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  color: var(--color-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.timer-sound:hover:not(:disabled) { background: #ffffff14; }
-.timer-sound--on {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  color: var(--color-primary);
+/* Tabular figures on the countdown beside it. Without them the row twitches once
+   a second, because the time it is counting towards never moves. */
+.timer-alarm-row__days {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--color-light);
+  opacity: 0.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.timer-sound:disabled { opacity: 0.4; cursor: not-allowed; }
-.timer-sound svg { opacity: 0.7; }
 
-/* --- rows: presets and alarms ------------------------------------------- */
+.timer-alarm-row__right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-shrink: 0;
+}
+.timer-alarm-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+/* The enabled switch is the row's primary control, so it reads first from the
+   right-hand edge. The two that can destroy it are the smallest thing in the row,
+   because reaching them should cost a deliberate tap rather than a stray one. */
+.timer-alarm-row__actions .timer-switch { margin-right: 0.2rem; }
 
-/* The app's own item-row treatment (`course-row`), reused so the preset and alarm
-   lists are visually the same kind of object as every other list in the app. The
-   extra bits are the countdown-to-next strip and the row's enabled state. */
+/* A visible focus ring on the row's controls.
+   `.timer-switch` is a real button and the app has no global `focus-visible`
+   rule for it, so tabbing to an alarm went nowhere visible -- the switch is the
+   only control on the row that changes what happens without opening anything, so
+   it is the one a keyboard user most needs to find. Offset by its own box so the
+   ring does not sit under the neighbouring button. */
+.timer-alarm-row :is(.timer-switch, .book-action-btn):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 25px;
+}
+/* Hover on the row itself, held back rather than absent. The rows are not
+   clickable -- only their three controls are -- so a hover that lit the whole row
+   would promise something tapping it does not do. */
+.timer-alarm-row:hover { background: #ffffff05; }
+
+@media (max-width: 480px) {
+  /* A phone has room for one line, so the row wraps rather than squeezing the
+     time and the countdown towards each other until they collide. */
+  .timer-alarm-row { flex-wrap: wrap; gap: 0.45rem; }
+  .timer-alarm-row__main { flex: 1 1 100%; }
+  .timer-alarm-row__right { flex: 1 1 100%; justify-content: space-between; }
+}
+
+/* The preset rows still use the app's own item-row treatment (`course-row`), so
+   they are visually the same kind of object as every other list in the app. */
 .timer-row--off { opacity: 0.5; }
 
 .timer-row__main {
@@ -11143,7 +11425,10 @@ select.form-control option {
   color: var(--color-primary);
   opacity: 0.8;
   white-space: nowrap;
+  /* The row it sits in is a flex container, so without this it is free to shrink
+     and re-wraps once a second as the number under it changes width. */
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .timer-row__when--off { color: var(--color-light); opacity: 0.4; }
 
@@ -11361,11 +11646,81 @@ select.form-control option {
   .timer-day { width: 1.95rem; height: 1.95rem; }
 }
 
+/* Focus mode below the height-release breakpoint.
+   The block above sets `min-height: 0 !important`, `height: auto !important` and
+   `flex: none !important` on the section, card, body and stage, so a phone's page
+   scrolls instead of trapping a nested scroll area.
+
+   Focus mode needs none of that -- it has no mosaic to reach and nothing below the
+   fold -- and inheriting it is what left the clock pinned to the top of a phone
+   screen. `!important` is carried over rather than dropped, because the rule being
+   corrected uses it: a rule without it loses, whatever its selector.
+
+   All four elements, not just the two whose heights are easiest to name. The
+   section and the card are released too, and leaving them at `height: auto` lets
+   the chain collapse to its content and take the stage's own floor with it -- which
+   is the same top-of-screen bug by a different route. */
+@media (max-width: 1023px) {
+  .timer-page-wrapper--focus .timer-section,
+  .timer-page-wrapper--focus .timer-card,
+  .timer-page-wrapper--focus .timer-body,
+  .timer-page-wrapper--focus .timer-stage {
+    height: auto !important;
+    max-height: none !important;
+    min-height: calc(100dvh - 2rem) !important;
+    overflow: visible !important;
+  }
+  /* `flex: none` on the body and the stage, from the same block: neither is a flex
+     item any more, so neither can stretch to fill the chain. */
+  .timer-page-wrapper--focus .timer-body,
+  .timer-page-wrapper--focus .timer-stage {
+    flex: 1 !important;
+    align-self: stretch !important;
+  }
+}
+
+/* No height cap on a tall viewport, and that is worth stating plainly because
+   there was one here and it put the clock at the top of every vertical monitor.
+
+   A cap on the *container* is the wrong thing to bound. Centring happens inside
+   the container, so a container shorter than the viewport is centred correctly
+   within itself and then parked wherever that box sits -- which is the top. A
+   portrait monitor is narrow enough to miss the `max-width` rules and tall enough
+   to hit this one, so it was the case that broke: 1200x2560 gave a 736px-tall
+   container centred in nothing, at the top of a 2560px page.
+
+   What actually needs bounding on a very tall viewport is the ring, not the
+   space around it, and `clamp(260px, 46vw, 640px)` above already does that -- a
+   portrait monitor's `vw` is small, so the ring stays proportionate and the
+   space around it is simply space. So the chain below is left filling the
+   viewport all the way down, and the centring has a real box to centre in. */
+
+/* A window that is short rather than narrow -- a phone held sideways, or a
+   half-height window on a desktop. The clock is centred and the digits are sized
+   off `vw`, which on a short-and-wide viewport produces digits far too tall to
+   fit: the ring is square, so it is bounded by the *smaller* of the two axes, and
+   `vw` cannot see the height at all.
+
+   Sized off the short axis instead. `min()` against both is what makes the ring a
+   circle that fits rather than one that overflows, and it is the only way a square
+   element can be sized from CSS without JavaScript measuring the window. */
+@media (max-height: 34rem) {
+  .timer-page-wrapper--focus .timer-display {
+    width: min(46vw, 26rem, calc(100dvh - 12rem));
+  }
+  .timer-page-wrapper--focus .timer-digits {
+    font-size: clamp(2.2rem, 7vw, 5rem);
+  }
+  /* The stage's own gap is generous by desktop standards and becomes most of the
+     screen once the ring is small, so it is pulled in rather than letting the
+     clock overflow the space the centring is aiming at. */
+  .timer-page-wrapper--focus .timer-stage { gap: 0.9rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .timer-btn,
   .timer-chip,
   .timer-day,
-  .timer-sound,
   .timer-switch,
   .timer-switch::after { transition: none; }
 }

@@ -36,6 +36,7 @@ const DERIVED_GROUPS: DerivedGroup[] = [
         key: 'composition',
         title: 'Composition',
         rows: [
+            { key: 'body_fat_measured', label: 'Body Fat (Measured)', unit: '%' },
             { key: 'body_fat_percent', label: 'Body Fat (Navy)', unit: '%' },
             { key: 'fat_mass', label: 'Fat Mass', unit: 'kg' },
             { key: 'lean_body_mass', label: 'Lean Body Mass', unit: 'kg' },
@@ -86,7 +87,7 @@ const DERIVED_GROUPS: DerivedGroup[] = [
 
 const formatValue = (value: number | null, unit: string): string =>
     value != null
-        ? `${Number.isInteger(value) ? value : value.toFixed(1)}${unit ? ` ${unit}` : ''}`
+        ? `${Number.isInteger(value) ? value : (Math.floor(value * 10) / 10).toFixed(1)}${unit ? ` ${unit}` : ''}`
         : '—';
 
 const DerivedMetrics: React.FC<{ values: BodyCalculations; expanded: boolean }> = ({ values, expanded }) => {

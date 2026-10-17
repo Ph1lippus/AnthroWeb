@@ -977,7 +977,7 @@ export const buildNoteExtensions = ({
         // handles the blank one. The cost is that Tab no longer nests a to-do
         // inside another to-do, which is the right trade: nested checkboxes read
         // as a broken list far more often than as structure.
-        nested: false,
+        nested: true,
     }),
     Callout,
     InlineMath,

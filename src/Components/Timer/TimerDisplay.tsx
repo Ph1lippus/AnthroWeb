@@ -27,24 +27,57 @@ interface TimerDisplayProps {
 /**
  * The countdown ring and its digits.
  *
- * Responsive now: the wrapper carries the size in CSS, and the SVG scales
- * through its viewBox, so the component no longer hard-codes a pixel width.
- * Sixty tick marks (major every five) turn the ring into an actual clock face
- * rather than a bare progress track; the arc and the sweep behave as before.
+ * Responsive: the wrapper carries the size in CSS, and the SVG scales through its
+ * viewBox, so the component does not hard-code a pixel width. Sixty tick marks
+ * (major every five) turn the ring into an actual clock face rather than a bare
+ * progress track.
+ *
+ * ## Why the geometry lives out here
+ *
+ * This component re-renders on every animation frame while a timer runs, because
+ * that is what it takes for the hundredths to resolve instead of jumping. Sixty
+ * tick marks means sixty `cos`/`sin` pairs per frame, and every one of them is
+ * the same number it was on the last frame -- recomputing them sixty times a
+ * second to hand React the identical result is the difference between a smooth
+ * clock and a hot one.
+ *
+ * So it is not memoised, it is *finished*: `size` and `stroke` were literals and
+ * nothing in the props moves a mark, so the whole set is a constant of the
+ * module. Built once when the file is loaded, then never again. What is left per
+ * frame is one text node and one `stroke-dashoffset`.
  */
+const SIZE = 260;
+const STROKE = 12;
+const RADIUS = (SIZE - STROKE) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+/**
+ * Sixty ticks around the face. Major ticks every five are longer, which is what
+ * makes the dial scannable at a glance rather than just decorative.
+ */
+const TICKS = Array.from({ length: 60 }, (_, i) => {
+    const major = i % 5 === 0;
+    const angle = (i / 60) * 2 * Math.PI - Math.PI / 2;
+    const outer = RADIUS + STROKE / 2 + 2;
+    const inner = outer - (major ? 10 : 5);
+    return {
+        i,
+        major,
+        x1: SIZE / 2 + Math.cos(angle) * inner,
+        y1: SIZE / 2 + Math.sin(angle) * inner,
+        x2: SIZE / 2 + Math.cos(angle) * outer,
+        y2: SIZE / 2 + Math.sin(angle) * outer,
+    };
+});
+
 const TimerDisplay: React.FC<TimerDisplayProps> = ({
     text, fraction, running, dimmed, done, phase, phaseTone, round,
 }) => {
-    const size = 260;
-    const stroke = 12;
-    const radius = (size - stroke) / 2;
-    const circumference = 2 * Math.PI * radius;
-
     // A null fraction means "no end to measure against", which is drawn as an
     // empty track rather than as a full circle -- a full ring on a stopwatch
     // reads as "finished".
     const clamped = fraction === null ? 0 : Math.max(0, Math.min(1, fraction));
-    const offset = circumference * (1 - clamped);
+    const offset = CIRCUMFERENCE * (1 - clamped);
 
     const digitsClass = [
         'timer-digits',
@@ -52,35 +85,21 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
         done ? 'timer-digits--done' : '',
     ].filter(Boolean).join(' ');
 
-    // Sixty ticks around the face. Major ticks every five seconds/minutes are
-    // longer, which is what makes the dial scannable at a glance.
-    const ticks = Array.from({ length: 60 }, (_, i) => {
-        const major = i % 5 === 0;
-        const angle = (i / 60) * 2 * Math.PI - Math.PI / 2;
-        const outer = radius + stroke / 2 + 2;
-        const inner = outer - (major ? 10 : 5);
-        const x1 = size / 2 + Math.cos(angle) * inner;
-        const y1 = size / 2 + Math.sin(angle) * inner;
-        const x2 = size / 2 + Math.cos(angle) * outer;
-        const y2 = size / 2 + Math.sin(angle) * outer;
-        return { i, major, x1, y1, x2, y2 };
-    });
-
     return (
         <div
             className="timer-display"
             // The digits are the live value, so the whole ring is the live region.
-            // Polite rather than assertive: it updates five times a second, and an
+            // Polite rather than assertive: it updates on every animation frame, and an
             // assertive region doing that would talk over everything else on the
             // page.
             role="timer"
             aria-live="polite"
             aria-atomic="true"
         >
-            <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`}>
+            <svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
                 {/* Tick marks. Drawn first so the ring sits on top of them. */}
                 <g className="timer-ticks">
-                    {ticks.map(tick => (
+                    {TICKS.map(tick => (
                         <line
                             key={tick.i}
                             x1={tick.x1} y1={tick.y1}
@@ -96,27 +115,29 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
                     no neutral token in this stylesheet and inventing one for a
                     single rule would be inconsistent with every other page. */}
                 <circle
-                    cx={size / 2} cy={size / 2} r={radius}
+                    cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
                     fill="none"
                     stroke="rgba(255,255,255,0.08)"
-                    strokeWidth={stroke}
+                    strokeWidth={STROKE}
                 />
 
                 {fraction !== null && (
                     <circle
-                        cx={size / 2} cy={size / 2} r={radius}
+                        cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
                         fill="none"
                         stroke={done ? '#ff5a60' : 'var(--color-primary)'}
-                        strokeWidth={stroke}
+                        strokeWidth={STROKE}
                         strokeLinecap="round"
-                        strokeDasharray={circumference}
+                        strokeDasharray={CIRCUMFERENCE}
                         strokeDashoffset={offset}
-                        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                        transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
                         style={{
-                            // Shorter than a full repaint interval. A transition
-                            // longer than the gap between ticks would make the arc
-                            // lag behind the digits, which are not transitioned.
-                            transition: 'stroke-dashoffset 0.25s linear, stroke 0.3s ease',
+                            // A hair longer than one frame, so the arc moves
+                            // continuously between repaints instead of stepping
+                            // with the digits. Shorter than a frame and it would
+                            // sit still between them and stutter against numbers
+                            // that had already moved.
+                            transition: 'stroke-dashoffset 0.05s linear, stroke 0.3s ease',
                         }}
                     />
                 )}
@@ -127,15 +148,15 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
                 {running && fraction === null && (
                     <circle
                         className="timer-sweep"
-                        cx={size / 2} cy={size / 2} r={radius}
+                        cx={SIZE / 2} cy={SIZE / 2} r={RADIUS}
                         fill="none"
                         stroke="var(--color-primary)"
                         strokeWidth={2}
                         strokeLinecap="round"
                         // One eighth of the circumference, so it is a moving tick
                         // around the edge rather than a second full ring.
-                        strokeDasharray={`${circumference * 0.08} ${circumference * 0.92}`}
-                        strokeDashoffset={circumference * 0.25}
+                        strokeDasharray={`${CIRCUMFERENCE * 0.08} ${CIRCUMFERENCE * 0.92}`}
+                        strokeDashoffset={CIRCUMFERENCE * 0.25}
                         opacity={0.5}
                     />
                 )}

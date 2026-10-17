@@ -86,9 +86,7 @@ const dataLoaders: Record<string, DataLoader[]> = {
     // already there when the panel is switched to, rather than filling in a beat
     // after the ring is already running.
     '/Timer': [
-        { key: queryKeys.timerPresets, load: () => import('../services/timerService').then(module => module.getTimerPresets()) },
         { key: queryKeys.timerAlarms, load: () => import('../services/timerService').then(module => module.getTimerAlarms()) },
-        { key: queryKeys.timerSettings, load: () => import('../services/timerService').then(module => module.getTimerSettings()) },
     ],
 };
 

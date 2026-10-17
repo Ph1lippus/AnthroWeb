@@ -63,7 +63,10 @@ const PresetPanel: React.FC<PresetPanelProps> = ({
             label: label.trim() || toInput(seconds),
             kind: 'countdown',
             durationMs: seconds * 1000,
-            config: { workSec: seconds, restSec: 300, longRestSec: 900, roundsBeforeLong: 4, totalRounds: 4 },
+            // `startAt: null` rather than inherited: a preset is a template for the
+            // shape of a session, and "when it begins" is not part of its shape. There
+            // is no column for it either, so anything set here could never be saved.
+            config: { workSec: seconds, restSec: 300, longRestSec: 900, roundsBeforeLong: 4, totalRounds: 0, startAt: null },
         });
         setLabel('');
         setDuration('25:00');

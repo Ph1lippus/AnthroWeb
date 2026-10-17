@@ -69,21 +69,31 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
     const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
     const openWritesRef = useRef(0);
 
+    const lastDateRef = useRef(date);
+    const dirtyRef = useRef(false);
+
     useEffect(() => {
+        // Only clobber the form when the day actually changed. A background
+        // refetch (autosave invalidation) must not wipe what is being typed.
+        if (lastDateRef.current !== date) {
+            lastDateRef.current = date;
+            dirtyRef.current = false;
+        }
+        if (dirtyRef.current) return;
         const next: Record<string, string> = {};
         for (const f of MEASUREMENT_FIELDS) {
             const v = initial?.[f.id as keyof BodyMeasurement];
             next[f.id] = v != null ? String(v) : '';
         }
-        // Populating the editor from the fetched record is an external-system
-        // sync (server data -> local state), which is what effects are for. The
-        // component is also keyed on `date`, so this only runs on a day change.
         onValuesChange(next);
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setDeleteConfirm(false);
     }, [initial, date, onValuesChange]);
 
-    const setField = (id: string, value: string) => onValuesChange({ ...values, [id]: value });
+    const setField = (id: string, value: string) => {
+        dirtyRef.current = true;
+        onValuesChange({ ...values, [id]: value });
+    };
 
     const raw = useMemo(() => {
         const out: Record<string, number | null> = {};
@@ -144,6 +154,7 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
             .finally(() => {
                 openWritesRef.current -= 1;
                 if (openWritesRef.current > 0) return;
+                if (written) dirtyRef.current = false;
                 if (!written) {
                     setSaveState('idle');
                     return;

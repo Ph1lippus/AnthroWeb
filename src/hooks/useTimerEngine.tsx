@@ -1,13 +1,17 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ALERT_VOLUME,
     DEFAULT_INTERVAL,
     clampDuration,
+    nextStartAt,
+    normalizeIntervalConfig,
     phaseAt,
+    progressFraction,
     remainingMs,
-    type ChimeId,
     type IntervalConfig,
 } from '../utils/timerMath';
-import { playChime, stopChime, unlockAudio, vibrationPattern } from '../utils/timerChime';
+import { playChime, stopChime, unlockAudio } from '../utils/timerChime';
+import { showNotification } from '../utils/timerNotification';
 
 /**
  * The timer engine, and the reason it is not inside the page.
@@ -58,14 +62,6 @@ export type TimerAlert = {
     /** For an alarm, so the notification and overlay can name it. */
     alarmLabel?: string;
 } | null;
-
-/** The sound preferences the engine alerts with. Supplied by the page. */
-export interface ChimeArgs {
-    chime: ChimeId;
-    volume: number;
-    vibrate: boolean;
-    notify: boolean;
-}
 
 interface EngineState {
     mode: TimerMode;
@@ -169,11 +165,32 @@ function loadPersisted(): RestoredState {
         if (!raw) return {};
         const parsed = JSON.parse(raw) as Partial<PersistedState>;
         if (!parsed || typeof parsed !== 'object') return {};
-        return {
+        // The interval config goes through the same normaliser a database row does,
+        // rather than being trusted raw.
+        //
+        // The blob is written by this build but read by whichever build is running,
+        // so it carries whatever shape an older one put there -- including fields
+        // that have since been deleted, and values outside the ranges the editor
+        // would have clamped. Normalising rebuilds the object from the current
+        // shape, which drops a removed field on the next load instead of carrying
+        // it around forever, and clamps the rest before the phase arithmetic below
+        // sees them. It also matters that this happens *before* `restoreRunning`:
+        // that function replays the elapsed time through the config to decide which
+        // phase a closed tab should wake up in, and a config with an out-of-range
+        // phase length in it would put that answer in the wrong place.
+        // `restoreRunning` replays the elapsed time through the config to decide
+        // which phase a closed tab should wake up in, so the config is normalised
+        // once and shared with it rather than passed through raw. A config with an
+        // out-of-range phase length in it would put that answer in the wrong place.
+        const restored: Partial<PersistedState> = {
             ...parsed,
+            intervalConfig: normalizeIntervalConfig(parsed.intervalConfig),
+        };
+        return {
+            ...restored,
             // Restoring rather than persisting, so the flag cannot outlive the
             // deadline it was derived from. See `restoreRunning`.
-            running: restoreRunning(parsed, Date.now()),
+            running: restoreRunning(restored, Date.now()),
             // Nothing has been seen ending yet, so a restored run that turns out to
             // be over alerts on its first tick.
             acknowledged: false,
@@ -216,6 +233,8 @@ export interface EngineApi {
     /** All recomputed on a tick. None of it is stored. */
     remaining: number;
     elapsed: number;
+    /** 0..1 through a countdown, or null where there is no end to measure. */
+    progress: number | null;
     phase: ReturnType<typeof phaseAt>;
 
     setMode: (mode: TimerMode) => void;
@@ -246,8 +265,6 @@ export interface EngineApi {
     testAlert: () => void;
     /** Raise an alarm-specific overlay. Used by the alarm scheduler. */
     raiseAlarm: (alarmLabel: string) => void;
-    /** Hand over the sound preferences. See `useTimerSound`. */
-    setChime: (args: ChimeArgs | null) => void;
 }
 
 /**
@@ -290,85 +307,67 @@ const EngineContext = createContext<EngineApi | null>(null);
 const REASON_TIMEUP: TimerAlert = { kind: 'timeup' };
 const REASON_INTERVAL_DONE: TimerAlert = { kind: 'timeup', label: 'Interval run complete' };
 
-// `useTimerEngine` and `useTimerSound` are hooks that live beside their provider so
-// the two cannot be split across files and drift out of sync -- the same reason
+// `useTimerEngine` is the hook that lives beside its provider so the two cannot
+// be split across files and drift out of sync -- the same reason
 // `ConfirmModalProvider` and `useConfirmModal` share a file. Fast Refresh wants a
 // module to export either components or non-components, not both, so the rule is
 // opted out of here explicitly rather than by splitting the file and moving the
 // context somewhere less convenient.
 /* eslint-disable react-refresh/only-export-components */
 
-/** How often the display repaints. Fast enough to read as continuous, cheap enough to idle. */
-const TICK_MS = 200;
-
+/**
+ * The repaint loop, on `requestAnimationFrame` rather than on a timer.
+ *
+ * This was a `setInterval` at 200ms, which was fine while the display showed whole
+ * seconds and quietly wrong the moment it showed hundredths. A hundredth changes
+ * every 10ms, so a 200ms repaint showed one value in twenty -- the fraction
+ * appeared to jump rather than count, which is the bug this replaced.
+ *
+ * `requestAnimationFrame` is the right clock for this and not just a faster one.
+ * It fires once per *actual paint*, so it cannot run ahead of the screen and queue
+ * work that will be thrown away, and it runs at the display's own refresh rate --
+ * 60Hz on a laptop, 90 or 120 on a phone. A fixed 10ms interval would ask for 100
+ * renders a second and get whatever survived, which is more CPU for no additional
+ * visible frame.
+ *
+ * The honest limit, since it is worth stating: hundredths are 100 distinct states
+ * a second, and no 60Hz screen can show 100 of them. The fraction now advances as
+ * fast as the hardware can present it rather than jumping twenty-fold, which is
+ * the whole of what is achievable here. A 120Hz display resolves nearly all of
+ * them.
+ *
+ * It also stops on its own when the tab is hidden, which is correct rather than a
+ * loss: nothing is visible to repaint, and every derived value is recomputed from
+ * the deadline when the tab comes back, so nothing is lost but the frames nobody
+ * would have seen.
+ */
 export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [state, setState] = useState<EngineState>(() => ({ ...IDLE, ...loadPersisted() }));
     const [now, setNow] = useState(() => Date.now());
 
     /**
-     * The sound preferences, in a ref rather than in state.
-     *
-     * The tick has to be able to read the current volume at the moment it fires,
-     * but the preferences live in React Query on the page, which unmounts on
-     * navigation. Holding them in a ref means a volume change is picked up
-     * without the repaint loop being torn down and rebuilt -- a rebuilt loop
-     * races against expiry, because the effect that fires the alert is keyed on
-     * the same state that schedules the interval.
-     */
-    const chimeRef = useRef<ChimeArgs | null>(null);
-
-    const setChime = useCallback((args: ChimeArgs | null) => {
-        chimeRef.current = args;
-    }, []);
-
-    /**
-     * Sound, vibration and notification, in that order.
+     * Sound and notification, in that order, both every time.
      *
      * Layered because a sound nobody was listening for is a timer that failed,
-     * and any one of the three alone leaves that gap: muted and no notification
-     * permission means a finished timer that says nothing at all. The order
-     * matters too -- audio is the one that still works with the screen off, so
-     * it goes first while the context is still live.
+     * and either one alone leaves that gap: no sound and no notification is a
+     * finished timer that says nothing at all. The order matters too -- audio is
+     * the one that still works with the screen off, so it goes first while the
+     * context is still live.
+     *
+     * Neither is conditional any more, and that is the point. There used to be a
+     * panel that could switch the notification off, the screen lock off, and the
+     * volume down, and every one of those was a way for the timer to end without
+     * telling anybody -- which is the failure this page exists to prevent, offered
+     * as three checkboxes. The level is a constant and the rest is unconditional.
      */
     const fireAlert = useCallback((alert: NonNullable<TimerAlert>) => {
-        const args = chimeRef.current;
-        if (!args) return;
-
         unlockAudio();
-        playChime(args.chime, args.volume);
-
-        if (args.vibrate) {
-            const pattern = vibrationPattern(args.chime);
-            if (pattern) {
-                try {
-                    navigator.vibrate(pattern);
-                } catch {
-                    // Some Android WebViews expose `vibrate` and refuse the
-                    // call. The sound has already played; nothing to recover.
-                }
-            }
-        }
-
-        if (args.notify && typeof Notification !== 'undefined') {
-            try {
-                if (Notification.permission === 'granted') {
-                    new Notification(
-                        alert.kind === 'alarm' ? (alert.alarmLabel || 'Alarm') : "Time's up",
-                        {
-                            body: alert.kind === 'alarm'
-                                ? 'Your alarm is going off.'
-                                : alert.label || 'Your timer has finished.',
-                            // The app's own favicon rather than a new asset for
-                            // the one notification the app already looks like.
-                            icon: '/favicon.ico',
-                        },
-                    );
-                }
-            } catch {
-                // The constructor can exist with the permission revoked under
-                // it, in which case constructing throws.
-            }
-        }
+        playChime(ALERT_VOLUME);
+        void showNotification(
+            alert.kind === 'alarm'
+                ? { title: alert.alarmLabel || 'Alarm', body: 'Your alarm is going off.' }
+                : { title: "Time's up", body: alert.label || 'Your timer has finished.' },
+        );
     }, []);
 
     // ==================== DERIVED ====================
@@ -394,6 +393,25 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (state.mode !== 'countdown' || !state.deadline) return 0;
         return remainingMs(state.deadline, now);
     }, [state.mode, state.deadline, now]);
+
+    /**
+     * How far through its run a countdown is: 0 at the start, 1 at the deadline.
+     *
+     * Null for the two count-up modes, which have no end to measure against and
+     * so have no honest arc.
+     *
+     * Computed here rather than by the page because it needs `now`, and the engine
+     * owns the one reading of the wall clock the display is built on. The page
+     * used to call `Date.now()` itself to fill the ring, which took a second
+     * reading a fraction of a tick after the digits above it were derived -- so
+     * the arc and the numbers were always very slightly out of step, and nothing
+     * about that is visible until you look for it.
+     */
+    const progress = useMemo(() => (
+        state.mode === 'countdown' && state.deadline !== null
+            ? progressFraction(state.deadline, state.totalMs, now)
+            : null
+    ), [state.mode, state.deadline, state.totalMs, now]);
 
     /** The current interval phase, or null when not in interval mode / run over. */
     const phase = useMemo(
@@ -505,12 +523,160 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      * flag rather than the stored one, so it is torn down the instant a run ends
      * rather than ticking out the rest of the session, and an idle page costs
      * nothing.
+     *
+     * Rescheduled before the state update rather than after it: React renders
+     * asynchronously, so queueing the next frame first is what keeps the loop
+     * independent of how long a render takes. A render that overruns its frame
+     * delays one repaint; it cannot stop the loop.
      */
     useEffect(() => {
         if (!active) return;
-        const id = window.setInterval(() => setNow(Date.now()), TICK_MS);
-        return () => window.clearInterval(id);
+        let frame = 0;
+        const repaint = () => {
+            frame = window.requestAnimationFrame(repaint);
+            setNow(Date.now());
+        };
+        frame = window.requestAnimationFrame(repaint);
+        return () => window.cancelAnimationFrame(frame);
     }, [active]);
+
+    // ==================== SCHEDULED START ====================
+
+    /**
+     * Starts the session on its own when the armed time arrives.
+     *
+     * This is the thing that reads `startAt`. Until now the field was written by a
+     * control and read by nothing at all, which is why it was removed; it is back
+     * only because there is now something on this side of it.
+     *
+     * Read through a ref rather than from `state` directly, for the same reason
+     * `useAlarmScheduler` does: the checker runs on an interval, and closing over
+     * `state` would tear that interval down and rebuild it on every keystroke in
+     * the editor and every frame of a running timer.
+     *
+     * The due instant is computed once, when the schedule is set, and then held. That
+     * is the whole design, and getting it wrong makes the feature impossible:
+     * `nextStartAt` answers "the next time this minute comes round, strictly after
+     * now", so recomputing it on every poll would return a time in the future every
+     * time and the schedule could never become due at all.
+     *
+     * Holding it also gives a shut page the right behaviour for free. A closed app
+     * has no engine mounted, so on reopening the instant is computed against the
+     * clock as it is then, and a minute that went by while the app was shut resolves
+     * to tomorrow -- so nothing starts hours late on the strength of a stored value
+     * that has been sitting there. A tab that was merely backgrounded keeps its held
+     * instant instead and fires the first time it is asked, which is the point of a
+     * scheduled start not requiring you to be in front of the screen.
+     */
+    const stateRef = useRef(state);
+    const armedRef = useRef<{ startAt: number | null; dueAt: number | null }>({
+        startAt: null, dueAt: null,
+    });
+
+    useEffect(() => {
+        stateRef.current = state;
+        // Arming lives here rather than inside the checker so that it happens the
+        // moment the schedule is set, not on the first poll afterwards. Lazily arming
+        // is the same bug in a different costume: a poll that arrives after the minute
+        // has already gone by would resolve the schedule to *tomorrow*, so a schedule
+        // armed from a page that had been open a while would silently never fire.
+        const startAt = state.intervalConfig.startAt;
+        if (startAt == null) {
+            armedRef.current = { startAt: null, dueAt: null };
+            return;
+        }
+        if (armedRef.current.startAt === startAt) return;
+        const next = nextStartAt(startAt, Date.now());
+        armedRef.current = { startAt, dueAt: next ? next.getTime() : null };
+    }, [state]);
+
+    useEffect(() => {
+        /**
+         * Polling this often rather than every frame: the due time is a minute of
+         * day, so the precision anyone can perceive is a second, and the state update
+         * this triggers is a full re-render of the page.
+         */
+        const CHECK_MS = 1000;
+
+        const check = () => {
+            const current = stateRef.current;
+            const dueAt = armedRef.current.dueAt;
+            if (dueAt == null || Date.now() < dueAt) return;
+            const startAt = armedRef.current.startAt;
+            if (startAt == null) return;
+
+            // A schedule only belongs to the interval session. Arming it while a
+            // countdown is on screen would mean the field started a *different* kind
+            // of run than the one it was set on, which is not what setting it on that
+            // card means. It stays stored and fires if the user returns to interval
+            // mode.
+            if (current.mode !== 'interval') return;
+            // Not started on top of a run already going. `state.running` alone is
+            // wrong for this question for the same reason it is wrong everywhere else
+            // in this file: it stays true after a run ends, so a finished timer would
+            // look busy forever and the schedule would never fire again.
+            //
+            // `Date.now()` rather than the `now` this file keeps in state, and that is
+            // not an inconsistency. `now` only advances inside the repaint loop, which
+            // is torn down the moment a run ends and is throttled to nothing in a
+            // background tab -- so it is the wrong answer precisely when the question
+            // is asked. This checker reads the clock directly two lines above for the
+            // due comparison; asking for the same instant here costs nothing and
+            // cannot go stale.
+            if (current.running && !runHasEnded(current, Date.now())) return;
+
+            // Cleared synchronously, before the state update, and that is the whole of
+            // the double-fire guard. `check()` is reachable twice in one tick -- on
+            // mount, on `focus` and on `visibilitychange`, and a tab regaining focus
+            // fires both -- and the second call would otherwise read a pre-update state
+            // and start a second run on top of the first. Re-arming from scratch here
+            // is safe rather than merely sufficient: the minute just went by, so a
+            // second call re-arms to *tomorrow* and correctly declines to fire.
+            armedRef.current = { startAt: null, dueAt: null };
+
+            // Clearing the schedule in the same update that starts the run is what
+            // makes it one-shot. There is no separate "fired today" bookkeeping to get
+            // out of step with the clock, and a session that starts itself at 09:00
+            // cannot also start itself at 09:30 because nobody noticed.
+            //
+            // No sound and no notification. The run beginning is not an event the user
+            // needs to be woken for -- they set it precisely so they would not have to
+            // be there -- and an alert here would go off in a tab nobody is looking
+            // at. The ring starts moving, which is the feedback.
+            setState(prev => {
+                // Same reset `start()` does, and for the same reason. `elapsedBefore`
+                // holds however far the *previous* run got, and a finished run leaves it
+                // at the end of the sequence. Starting from there would begin a "new"
+                // session already finished, alert immediately, and look like a timer
+                // that cannot be restarted -- which is precisely the bug the branch in
+                // `start()` was written to avoid.
+                const exhausted = phaseAt(prev.elapsedBefore, prev.intervalConfig) === null;
+                return {
+                    ...prev,
+                    acknowledged: false,
+                    running: true,
+                    legStartedAt: Date.now(),
+                    elapsedBefore: exhausted ? 0 : prev.elapsedBefore,
+                    intervalConfig: { ...prev.intervalConfig, startAt: null },
+                };
+            });
+        };
+
+        check();
+        const id = window.setInterval(check, CHECK_MS);
+        // Re-checking on the way back in is what covers the tab that was asleep or
+        // backgrounded across the due time. `setInterval` in a background tab is
+        // throttled hard enough to be minutes late, and the whole point of a scheduled
+        // start is that it does not need the tab to be in front of you.
+        const onWake = () => { if (document.visibilityState === 'visible') check(); };
+        document.addEventListener('visibilitychange', onWake);
+        window.addEventListener('focus', check);
+        return () => {
+            window.clearInterval(id);
+            document.removeEventListener('visibilitychange', onWake);
+            window.removeEventListener('focus', check);
+        };
+    }, []);
 
     // ==================== PERSIST ====================
 
@@ -521,6 +687,14 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // ==================== HANDLERS ====================
 
     const start = useCallback(() => {
+        try { unlockAudio(); } catch { /* ignore */ }
+        // `now` only advances inside the repaint interval, which does not exist
+        // until something is running. Pressing Start minutes after the page
+        // settled left it at its mount value, so `remaining` compared a fresh
+        // deadline against a stale clock and reported the idle time as time
+        // still to run -- a 59 second timer read 01:07 after eight idle seconds.
+        // Re-seeding it here is what makes the first frame exact.
+        setNow(Date.now());
         setState(prev => {
             // `runHasEnded` rather than a bare `prev.running` check. An expired run
             // leaves `running` true in stored state -- it is a historical fact about
@@ -574,6 +748,10 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }, []);
 
     const pause = useCallback(() => {
+        // Same stale-clock problem as `start`, seen from the other side: the leg
+        // is banked against the moment the pause is pressed, so a stale `now`
+        // would bank a run that is slightly too long.
+        setNow(Date.now());
         setState(prev => {
             const at = Date.now();
             // Same reasoning as `start`, for the same reason: pausing a run that has
@@ -596,6 +774,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }, []);
 
     const reset = useCallback(() => {
+        setNow(Date.now());
         setState(prev => ({
             ...prev,
             running: false,
@@ -616,6 +795,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      * replacing -- so the reset would be undone. One update has no such window.
      */
     const restart = useCallback(() => {
+        setNow(Date.now());
         setState(prev => {
             const at = Date.now();
             // `acknowledged: false` because this is a brand new run, so its end
@@ -651,27 +831,43 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      * this was the odd one out rather than a deliberate choice.
      */
     const setMode = useCallback((mode: TimerMode) => {
-        setState(prev => (prev.mode === mode || prev.running
-            ? prev
+        setState(prev => {
+            // `runHasEnded` rather than a bare `prev.running`, and the difference
+            // is the whole bug this was reported as.
+            //
+            // `running` in stored state is a historical fact -- "the user pressed
+            // start" -- and it deliberately stays true after a run finishes. So
+            // testing it directly meant that a countdown which had run out left
+            // every mode switch refusing: the buttons were enabled (the UI reads
+            // the *derived* running flag, which is false once a run ends) and
+            // clicking them did nothing at all. `runHasEnded` asks the question
+            // that is actually meant -- is there still time left to run -- and is
+            // the same test `start` and `pause` already use.
+            const at = Date.now();
+            if (prev.mode === mode || (prev.running && !runHasEnded(prev, at))) return prev;
             // A stopwatch carries no duration and an interval carries a shape, and
             // neither converts into the other, so switching abandons the loaded
             // configuration. That is the honest thing to do -- but it is only
             // reachable while stopped, where it costs nothing.
-            : { ...prev, mode, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null }));
+            return { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null };
+        });
     }, []);
 
     const setDuration = useCallback((ms: number) => {
         setState(prev => {
             const total = clampDuration(ms);
-            if (total <= 0 || prev.running) return prev;
+            // Same `runHasEnded` reasoning as `setMode`: a finished run is still
+            // flagged as having run, and refusing the pad on a timer that is
+            // sitting at 00:00 is the same dead control.
+            if (total <= 0 || (prev.running && !runHasEnded(prev, Date.now()))) return prev;
             return { ...prev, totalMs: total, deadline: null };
         });
     }, []);
 
     const setIntervalConfigCb = useCallback((config: IntervalConfig) => {
-        // Refused while running. Changing the shape mid-run would silently
-        // re-derive the current phase from a different timeline.
-        setState(prev => (prev.running
+        // Refused while there is time left to run. Changing the shape mid-run would
+        // silently re-derive the current phase from a different timeline.
+        setState(prev => ((prev.running && !runHasEnded(prev, Date.now()))
             ? prev
             : { ...prev, intervalConfig: config, deadline: null, elapsedBefore: 0 }));
     }, []);
@@ -756,6 +952,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         alert,
         remaining,
         elapsed,
+        progress,
         phase,
         setMode,
         setDuration,
@@ -770,12 +967,11 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         dismissAlert,
         testAlert,
         raiseAlarm,
-        setChime,
     }), [
         state.mode, active, state.deadline, state.totalMs, state.intervalConfig, state.laps, alert,
-        remaining, elapsed, phase,
+        remaining, elapsed, progress, phase,
         setMode, setDuration, setIntervalConfigCb, start, pause, reset, restart, addLap, clearLaps,
-        addMinutes, dismissAlert, testAlert, raiseAlarm, setChime,
+        addMinutes, dismissAlert, testAlert, raiseAlarm,
     ]);
 
     return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
@@ -790,21 +986,4 @@ export function useTimer(): EngineApi {
         throw new Error('useTimer must be used inside TimerEngineProvider');
     }
     return context;
-}
-
-/**
- * Hand the engine the preferences it should alert with.
- *
- * An effect rather than provider props because the preferences live in React
- * Query on the page, and the page unmounts on navigation while the engine does
- * not. Registering them here is what lets a countdown started on the timer page
- * still ring correctly after the user has gone somewhere else for the
- * twenty-five minutes. Nothing re-registers on navigation, so the last value
- * the page set simply stands.
- */
-export function useTimerSound(settings: ChimeArgs): void {
-    const { setChime } = useTimer();
-    useEffect(() => {
-        setChime(settings);
-    }, [settings, setChime]);
 }
