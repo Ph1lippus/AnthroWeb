@@ -413,8 +413,8 @@ export const formatAlarmTime = (hour: number, minute: number): string =>
     `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
 /**
- * The next time a scheduled session start comes round, strictly after `from`, or
- * null when there isn't one.
+ * The next time a scheduled session start comes round, never before `from`, or null
+ * when there isn't one.
  *
  * `from` is a timestamp rather than a `Date`. That is not a style preference: the
  * engine reads the wall clock through `Date.now()` and nowhere else, so a helper
@@ -422,19 +422,16 @@ export const formatAlarmTime = (hour: number, minute: number): string =>
  * clock-reading path into the engine, and make the whole feature impossible to
  * assert against a controlled clock.
  *
- * Delegates to `nextAlarmFire` with no days rather than doing its own date
- * arithmetic, which is the whole reason it is worth a function at all. An alarm's
- * one-shot branch is already exactly this rule -- today if the time is still ahead,
- * otherwise tomorrow -- and it walks the local calendar through the `Date`
- * constructor rather than adding 24-hour milliseconds, so it is correct across a
- * DST boundary. A second implementation would be a second place to get that
- * wrong, and the failure mode is the one that only shows up on two nights a year.
+ * Delegates to `nextAlarmFire` and then repairs its strictly-after rule at the
+ * minute boundary. An alarm means the start of a minute, so a schedule entered for
+ * 17:27 while the clock reads 17:27:42 must resolve to 17:27:00 -- roughly two
+ * minutes away from 17:25 -- not to 17:27 tomorrow. Waiting until the minute has
+ * fully elapsed is still safe: `armedRef` holds the due instant, and the checker
+ * refuses to start anything before it.
  *
- * "Strictly after" is load-bearing and easy to misread as a bug. This function
- * answers *when the schedule next comes due*, and it is called once when the
- * schedule is armed, not on every poll: the caller holds the returned instant and
- * compares it against the clock from then on. Recomputing it per poll would return
- * a future time every time and the schedule could never become due at all.
+ * Only a minute that has completely gone rolls to tomorrow. That preserves the
+ * closed-page safety property: a schedule restored after its time has passed never
+ * starts hours late.
  *
  * Returns null rather than throwing on an unset schedule so the caller can treat
  * "not scheduled" as a normal state rather than as an error.
@@ -442,10 +439,33 @@ export const formatAlarmTime = (hour: number, minute: number): string =>
 export function nextStartAt(startAt: number | null, from: number): Date | null {
     if (startAt == null || !Number.isFinite(startAt)) return null;
     const minute = Math.max(0, Math.min(24 * 60 - 1, Math.floor(startAt)));
-    return nextAlarmFire(
-        { hour: Math.floor(minute / 60), minute: minute % 60, days: [] },
-        new Date(from),
+    const alarm = { hour: Math.floor(minute / 60), minute: minute % 60, days: [] };
+    const source = new Date(from);
+    const startOfMinute = new Date(
+        source.getFullYear(), source.getMonth(), source.getDate(), alarm.hour, alarm.minute, 0, 0,
     );
+    // Include the exact start of the minute. At 17:27:00.000 the schedule is due;
+    // rejecting that instant would push it to tomorrow for no elapsed time at all.
+    //
+    // Comparing local fields rather than epoch times. This project deliberately
+    // patches the Date constructor under the verification clock, and that makes an
+    // exact boundary instant compare *earlier* than the instant being asked about
+    // even though it is on the same wall-clock minute. Comparing the wall-clock
+    // parts gives the semantic answer and is independent of that clock shim.
+    const sameMinute =
+        source.getFullYear() === startOfMinute.getFullYear()
+        && source.getMonth() === startOfMinute.getMonth()
+        && source.getDate() === startOfMinute.getDate()
+        && source.getHours() === startOfMinute.getHours()
+        && source.getMinutes() === startOfMinute.getMinutes();
+    // Midnight is the one minute that cannot be "the minute currently under the
+    // clock" in the past: 00:00 today has already gone by at any moment after it,
+    // so it always means the start of the day ahead. Every other minute keeps
+    // belonging to today for its whole sixty seconds.
+    const isMidnight = alarm.hour === 0 && alarm.minute === 0;
+    if (startOfMinute.getTime() >= from) return startOfMinute;
+    if (sameMinute && !isMidnight) return startOfMinute;
+    return nextAlarmFire(alarm, source);
 }
 
 /**

@@ -342,7 +342,8 @@ check('which is a separate setting from the number of rounds',
 console.log('\n== scheduled start ==');
 
 // Local-time constructors throughout, so nothing here depends on the machine's zone.
-const at = (y, mo, d, h = 0, mi = 0) => new Date(y, mo, d, h, mi, 0, 0).getTime();
+const at = (y, mo, d, h = 0, mi = 0, s = 0, ms = 0) =>
+    new Date(y, mo, d, h, mi, s, ms).getTime();
 
 check('no schedule by default', DEFAULT_INTERVAL.startAt === null);
 check('an unset schedule has no next time', nextStartAt(null, at(2026, 0, 5, 10)) === null);
@@ -350,17 +351,25 @@ check('an unset schedule has no next time', nextStartAt(null, at(2026, 0, 5, 10)
 // Local midnight, so the hour and minute assertions cannot be thrown off by a zone.
 check('a time still ahead today is today', nextStartAt(9 * 60, at(2026, 0, 5, 6)).getTime()
     === at(2026, 0, 5, 9));
-check('a time already past today is tomorrow', nextStartAt(9 * 60, at(2026, 0, 5, 11)).getTime()
+// The entered minute itself belongs to today, even when seconds have already
+// elapsed inside it. Without this, entering 17:27 at 17:27:42 resolves to
+// tomorrow and the dial reports a 24-hour wait for a time that is now.
+check('the minute currently under the clock is today, at the start of that minute',
+    nextStartAt(17 * 60 + 27, at(2026, 0, 5, 17, 27, 42)).getTime()
+    === at(2026, 0, 5, 17, 27));
+// Only a minute that has completely gone rolls forward.
+check('a minute already past today is tomorrow', nextStartAt(9 * 60, at(2026, 0, 5, 11)).getTime()
     === at(2026, 0, 6, 9));
-check('and it is strictly after, always',
-    [0, 1, 9 * 60, 12 * 60, 23 * 60 + 59].every(m => nextStartAt(m, at(2026, 0, 5, 10)).getTime() > at(2026, 0, 5, 10)));
+// And it is never before the instant it was asked about.
+check('and it is never before the instant passed in, always',
+    [0, 1, 9 * 60, 12 * 60, 23 * 60 + 59].every(m => nextStartAt(m, at(2026, 0, 5, 10)).getTime() >= at(2026, 0, 5, 10)));
 // This is the property that makes a closed tab safe rather than surprising: a page
 // that was shut across the due time must not start a session hours late on reopen.
 check('so a minute that has passed waits for tomorrow rather than firing late',
     nextStartAt(9 * 60, at(2026, 0, 5, 23)).getTime() === at(2026, 0, 6, 9));
-check('including exactly on the minute',
-    nextStartAt(9 * 60, at(2026, 0, 5, 9)).getTime() === at(2026, 0, 6, 9),
-    'strictly after, so 09:00:00 does not count as still-ahead');
+check('including exactly at the start of the minute',
+    nextStartAt(9 * 60, at(2026, 0, 5, 9)).getTime() === at(2026, 0, 5, 9),
+    'the minute starts at 09:00:00, so that instant belongs to it');
 
 // The minute and hour are recombined, so 09:05 must come back as 09:05 rather than
 // as whatever a single division gives.
@@ -371,13 +380,14 @@ check('the minute is not dropped when it is folded back out',
 // day rather than by a minute. It also cannot fire "today" at all, and that is
 // correct rather than a bug: 00:00 today has already gone by at any moment you could
 // arm it, so it always means the start of the day ahead.
-check('midnight comes back as midnight',
+check('midnight comes back as midnight, when its minute has not begun',
     nextStartAt(0, at(2026, 0, 5, 6)).getTime() === at(2026, 0, 6, 0)
-    && nextStartAt(0, at(2026, 0, 5, 0)).getTime() === at(2026, 0, 6, 0));
-check('and it means the start of the day ahead, not tonight',
-    nextStartAt(0, at(2026, 0, 5, 22)).getHours() === 0
+    && nextStartAt(0, at(2026, 0, 5, 23, 59, 59)).getTime() === at(2026, 0, 6, 0));
+check('and it means the start of the day ahead once its minute has begun',
+    nextStartAt(0, at(2026, 0, 5, 0, 0, 1)).getTime() === at(2026, 0, 6, 0)
+    && nextStartAt(0, at(2026, 0, 5, 22)).getHours() === 0
     && nextStartAt(0, at(2026, 0, 5, 22)).getDate() === 6,
-    'armed at 22:00, 00:00 has to mean midnight tonight');
+    'armed after 00:00, today\'s minute has gone so it means midnight tonight');
 check('and the last minute of the day is 23:59, not 24:00',
     nextStartAt(23 * 60 + 59, at(2026, 0, 5, 6)).getHours() === 23);
 
@@ -549,7 +559,7 @@ check('something reads the schedule, rather than only a field writing it',
 // Delegated rather than reimplemented, so there is one calendar walk and not two.
 check('through the one helper, so the date arithmetic is not duplicated',
     /nextStartAt/.test(readFileSync(join(root, 'src/utils/timerMath.ts'), 'utf8'))
-    && /nextAlarmFire\([\s\S]{0,160}days: \[\]/.test(
+    && /alarm = \{[^}]*days: \[\]/.test(
         readFileSync(join(root, 'src/utils/timerMath.ts'), 'utf8')));
 // One-shot by construction: the schedule is cleared in the same update that starts
 // the run, so there is no "already fired today" flag to fall out of step.
@@ -1079,7 +1089,7 @@ const armNow = target => {
  *
  * Exactly a day, because that lands on the same minute of day with the seconds
  * still past it -- the armed minute has just gone by, and `nextStartAt` is
- * strictly-after so this is the one instant where it reports it as due. An extra
+ * no-earlier-than so this is the one instant where it reports it as due. An extra
  * minute makes that independent of where in the minute the test happened to start,
  * which is the difference between a reliable assertion and one that fails on
  * 1-in-60 runs.
@@ -1304,6 +1314,46 @@ await act(async () => {
 });
 check('typing in a field commits a duration', typed.length > 0 && typed[typed.length - 1] === 25 * 60 * 1000,
     JSON.stringify(typed));
+
+// The interval editor's scheduled-start pair used to commit a value after every
+// keystroke, treating the other blank half as zero. Clearing or retyping one half
+// therefore flashed an unintended schedule and could leave the fields disagreeing.
+// The draft may change locally on each keystroke, but the schedule only changes when
+// both halves form a valid time.
+const scheduledChanges = [];
+const startEditor = await mountComponent('src/Components/Timer/IntervalEditor.tsx', h(
+    (await loadComponent('src/Components/Timer/IntervalEditor.tsx')).default,
+    {
+        config: { workSec: 1500, restSec: 300, longRestSec: 900, roundsBeforeLong: 4, totalRounds: 0, startAt: 9 * 60 + 5 },
+        onChange: config => scheduledChanges.push(config.startAt),
+        disabled: false,
+        dueAt: null,
+    },
+));
+const typeInto = async (field, value) => {
+    await act(async () => {
+        // A React-controlled input must be changed through a native setter, or
+        // React restores the previous prop before the component sees the event.
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(field, value);
+        field.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+};
+const setLiveStart = async (part, value) => {
+    const latest = startEditor.container.querySelector(`#interval-start-${part}`);
+    await typeInto(latest, value);
+    return startEditor.container.querySelector(`#interval-start-${part}`);
+};
+await setLiveStart('hour', '');
+check('typing in the scheduled start does not commit a half-entered value',
+    scheduledChanges.length === 0, JSON.stringify(scheduledChanges));
+await setLiveStart('hour', '1');
+check('and the other half is not treated as zero while the pair is incomplete',
+    scheduledChanges.length === 0, JSON.stringify(scheduledChanges));
+await setLiveStart('minute', '30');
+check('the complete pair commits one new schedule',
+    scheduledChanges.length === 1 && scheduledChanges[0] === 1 * 60 + 30,
+    JSON.stringify(scheduledChanges));
 
 // The overlay, which is the one thing that must not be dismissible by accident.
 const overlay = await mountComponent('src/Components/Timer/TimeUpOverlay.tsx', h(

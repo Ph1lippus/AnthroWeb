@@ -541,7 +541,7 @@ console.log('\n== every container is built the same way ==');
     check('and the card says plainly that it needs the page open',
         /Keep this page open/.test(intervalEditor));
     check('and says when it will run, in the one time format the page uses',
-        /Starts on its own at/.test(intervalEditor)
+        /Starts on its own/.test(intervalEditor)
         && /formatAlarmTime\(/.test(intervalEditor),
         'a wall-clock time rendered any other way is how "00:00 AM" happened');
 }

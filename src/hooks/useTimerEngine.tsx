@@ -237,6 +237,20 @@ export interface EngineApi {
     progress: number | null;
     phase: ReturnType<typeof phaseAt>;
 
+    /**
+     * When the armed scheduled start comes round, or null when nothing is armed.
+     * Independent of mode, so the card can describe the schedule whichever mode is
+     * showing.
+     */
+    startDueAt: Date | null;
+    /**
+     * The same instant, but only when the wait is what the dial is showing. Non-null
+     * means the digits belong to `untilStartMs` rather than to `phase`.
+     */
+    scheduledFor: Date | null;
+    /** Milliseconds until then, never negative. Null whenever `scheduledFor` is. */
+    untilStartMs: number | null;
+
     setMode: (mode: TimerMode) => void;
     /** Countdown only. Ignored while running, and a zero duration is refused. */
     setDuration: (ms: number) => void;
@@ -483,6 +497,61 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const active = state.running && !runFinished;
 
     /**
+     * When the armed schedule comes round, or null when nothing is scheduled.
+     *
+     * This is what lets the clock show the wait. Without it, setting a start time was
+     * a thing you did and then could not see: the card said when, and the dial above
+     * it sat on the pad showing nothing about it. A control whose effect is invisible
+     * is the same failure as one with no effect at all, and this is what makes the
+     * waiting visible in the one place the user is already looking.
+     *
+     * Derived from `now` rather than held, which is what makes it correct. Held, it
+     * would have to be re-synced in three places -- when the schedule is set, when a
+     * restored one is read at mount, and when it is cleared -- and a missed sync is
+     * a clock counting down to nothing. Derived, there is one calculation and it is
+     * right for any instant, including one the tab was asleep through.
+     *
+     * Independent of the current mode on purpose. The card is worth reading whichever
+     * mode is showing, and a caption that disappeared whenever you glanced at a
+     * countdown would be a caption that was not there when you needed it -- so this
+     * answers "when is the armed schedule" and `scheduledFor` below answers "is the
+     * dial showing it".
+     */
+    const startDueAt = useMemo(() => {
+        const startAt = state.intervalConfig.startAt;
+        return startAt == null ? null : nextStartAt(startAt, now);
+    }, [state.intervalConfig.startAt, now]);
+
+    /**
+     * The same instant, but only when the wait is what the clock is showing.
+     *
+     * The three exclusions are each a case where it is not. Interval mode only,
+     * because that is the mode the schedule fires in and the card it was set on. No
+     * run going, so a live session keeps its own digits. And nothing run *yet*, so a
+     * session paused part-way through shows how much of it is left rather than being
+     * replaced by a countdown to tomorrow.
+     */
+    const scheduledFor = useMemo(() => {
+        if (startDueAt == null || state.mode !== 'interval' || active) return null;
+        if (state.elapsedBefore > 0) return null;
+        return startDueAt;
+    }, [startDueAt, state.mode, state.elapsedBefore, active]);
+
+    /**
+     * Milliseconds until it is due, or null when nothing is scheduled.
+     *
+     * Floored at zero rather than allowed to go negative. There is up to a second
+     * between the minute arriving and the checker noticing, and in that gap a
+     * negative value would render as `-00:00:01` on the dial -- the one place on the
+     * page where a formatting accident is unmissable. Zero is also the honest reading
+     * for that instant: it is due, and it has not started yet.
+     */
+    const untilStartMs = useMemo(
+        () => (scheduledFor ? Math.max(0, scheduledFor.getTime() - now) : null),
+        [scheduledFor, now],
+    );
+
+    /**
      * The overlay's alert: a finished run, or one raised explicitly (an alarm, or
      * the preview control).
      *
@@ -524,13 +593,21 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      * rather than ticking out the rest of the session, and an idle page costs
      * nothing.
      *
+     * The one exception is a page waiting for a scheduled start, which is idle in
+     * exactly the sense that would tear this loop down and is the one case where a
+     * frozen clock is wrong. The countdown to the start is made of the same `now`
+     * everything else is, so with the loop down it sits at one value while the wall
+     * clock walks away from it -- a wait that never visibly gets shorter. Ticking
+     * while armed is the cost of showing the wait, and it stops the moment the
+     * schedule clears.
+     *
      * Rescheduled before the state update rather than after it: React renders
      * asynchronously, so queueing the next frame first is what keeps the loop
      * independent of how long a render takes. A render that overruns its frame
      * delays one repaint; it cannot stop the loop.
      */
     useEffect(() => {
-        if (!active) return;
+        if (!active && scheduledFor == null) return;
         let frame = 0;
         const repaint = () => {
             frame = window.requestAnimationFrame(repaint);
@@ -538,7 +615,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         };
         frame = window.requestAnimationFrame(repaint);
         return () => window.cancelAnimationFrame(frame);
-    }, [active]);
+    }, [active, scheduledFor]);
 
     // ==================== SCHEDULED START ====================
 
@@ -556,7 +633,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      *
      * The due instant is computed once, when the schedule is set, and then held. That
      * is the whole design, and getting it wrong makes the feature impossible:
-     * `nextStartAt` answers "the next time this minute comes round, strictly after
+     * `nextStartAt` answers "the next time this minute comes round, no earlier than
      * now", so recomputing it on every poll would return a time in the future every
      * time and the schedule could never become due at all.
      *
@@ -783,6 +860,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             elapsedBefore: 0,
             laps: [],
             alert: null,
+            intervalConfig: { ...prev.intervalConfig, startAt: null },
         }));
         stopChime();
     }, []);
@@ -954,6 +1032,9 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         elapsed,
         progress,
         phase,
+        startDueAt,
+        scheduledFor,
+        untilStartMs,
         setMode,
         setDuration,
         setIntervalConfig: setIntervalConfigCb,
@@ -969,7 +1050,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         raiseAlarm,
     }), [
         state.mode, active, state.deadline, state.totalMs, state.intervalConfig, state.laps, alert,
-        remaining, elapsed, progress, phase,
+        remaining, elapsed, progress, phase, startDueAt, scheduledFor, untilStartMs,
         setMode, setDuration, setIntervalConfigCb, start, pause, reset, restart, addLap, clearLaps,
         addMinutes, dismissAlert, testAlert, raiseAlarm,
     ]);

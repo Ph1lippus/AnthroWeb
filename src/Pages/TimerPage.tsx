@@ -14,7 +14,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
-import { buildLaps, formatTimer } from '../utils/timerMath';
+import { buildLaps, formatAlarmTime, formatTimer } from '../utils/timerMath';
 import { unlockAudio } from '../utils/timerChime';
 import { requestNotificationPermission } from '../utils/timerNotification';
 import {
@@ -189,7 +189,7 @@ const TimerPage: React.FC = () => {
      * started -- which is the whole distinction this is making.
      */
     const canResume = useMemo(() => {
-        if (engine.mode !== 'countdown') return engine.elapsed > 0 || engine.laps.length > 0;
+        if (engine.mode !== 'countdown') return engine.elapsed > 0 || engine.laps.length > 0 || engine.scheduledFor !== null;
         return engine.deadline !== null && engine.remaining > 0;
     }, [engine.mode, engine.deadline, engine.remaining, engine.elapsed, engine.laps.length]);
 
@@ -345,7 +345,11 @@ const TimerPage: React.FC = () => {
         ? engine.remaining
         : engine.mode === 'stopwatch'
             ? engine.elapsed
-            : (engine.phase?.remainingMs ?? 0);
+            // Waiting for a scheduled start: the dial counts down to the start, not
+            // to the end of a phase that has not begun. `phase` is non-null here --
+            // `phaseAt(0)` is a work phase -- so this has to be checked first, or the
+            // dial shows 25:00 and reads as a session already under way.
+            : engine.untilStartMs ?? engine.phase?.remainingMs ?? 0;
 
     /**
      * Milliseconds on every clock, always.
@@ -358,26 +362,67 @@ const TimerPage: React.FC = () => {
      */
     const digits = formatTimer(shownMs);
 
-    /** The ring: a countdown has an end, the other two do not. */
-    const fraction = engine.progress;
+    /**
+     * The ring: a countdown has an end, the other two do not.
+     *
+     * A scheduled start is the third case rather than a special one, and its arc
+     * fills over the *last hour* before the session begins. The polarity matches the
+     * countdown's -- empty at the start of a wait, full as it runs out -- so "nearly
+     * full" reads the same way on both, and a schedule more than an hour out sits
+     * empty rather than claiming a fraction of an elapsed wait that never happened.
+     *
+     * An hour rather than "since you set it" on purpose: measuring from the moment
+     * of arming would need the arming instant held in state alongside the schedule,
+     * which is three places to keep in sync for an arc nobody measures. A schedule
+     * set for tomorrow would also fill its ring over sixteen hours, slowly and
+     * meaninglessly, whereas an hour is a unit a person can hold in their head.
+     */
+    const WAIT_ARC_MS = 60 * 60 * 1000;
+    const fraction = engine.untilStartMs == null
+        ? engine.progress
+        : Math.max(0, Math.min(1, 1 - engine.untilStartMs / WAIT_ARC_MS));
 
     /** Expired: red, pulsing, and no longer counting. */
     const done = engine.mode === 'countdown' && engine.alert?.kind === 'timeup';
 
-    const phaseLabel = engine.mode === 'interval' && engine.phase
-        ? (engine.phase.kind === 'work' ? 'Focus' : engine.phase.kind === 'long' ? 'Long rest' : 'Rest')
-        : engine.mode === 'stopwatch' ? 'Stopwatch'
-            : engine.running ? 'Counting down' : 'Ready';
+    /**
+     * Under the digits, and the thing that makes the wait legible.
+     *
+     * Naming the time is not optional here. A countdown with no label is still a
+     * countdown, but a dial counting down to something unstated is just a number
+     * getting smaller, and this one is counting toward the start of a session the
+     * user is not running -- so without the time it would read as the timer running
+     * backwards, or as one already broken.
+     *
+     * `24-hour` because that is what the field it is set in says, and because
+     * `formatAlarmTime` is the only wall-clock format on the page -- the one place
+     * that must not render "00:00 AM".
+     */
+    const phaseLabel = engine.untilStartMs != null && engine.scheduledFor
+        ? `Starts at ${formatAlarmTime(engine.scheduledFor.getHours(), engine.scheduledFor.getMinutes())}`
+        : engine.mode === 'interval' && engine.phase
+            ? (engine.phase.kind === 'work' ? 'Focus' : engine.phase.kind === 'long' ? 'Long rest' : 'Rest')
+            : engine.mode === 'stopwatch' ? 'Stopwatch'
+                : engine.running ? 'Counting down' : 'Ready';
 
-    const phaseTone = engine.mode === 'interval' && engine.phase
-        ? (engine.phase.kind === 'work' ? 'work' : engine.phase.kind === 'long' ? 'long' : 'rest')
-        : undefined;
+    // No work/rest colour while waiting. The tone colours the phase name, and
+    // "Focus" in green while nothing is running would be claiming a phase that has
+    // not started.
+    const phaseTone = engine.untilStartMs != null
+        ? undefined
+        : engine.mode === 'interval' && engine.phase
+            ? (engine.phase.kind === 'work' ? 'work' : engine.phase.kind === 'long' ? 'long' : 'rest')
+            : undefined;
 
-    const roundLabel = engine.mode === 'interval' && engine.phase
-        ? (engine.phase.totalRounds > 0
-            ? `Round ${engine.phase.round} of ${engine.phase.totalRounds}`
-            : `Round ${engine.phase.round}`)
-        : undefined;
+    // No round either: round 1 has not begun, and "Round 1" under a countdown to the
+    // start would read as though it had.
+    const roundLabel = engine.untilStartMs != null
+        ? undefined
+        : engine.mode === 'interval' && engine.phase
+            ? (engine.phase.totalRounds > 0
+                ? `Round ${engine.phase.round} of ${engine.phase.totalRounds}`
+                : `Round ${engine.phase.round}`)
+            : undefined;
 
     /** Laps, newest first -- the order they are read in. */
     const laps = useMemo(() => buildLaps(engine.laps).reverse(), [engine.laps]);
@@ -708,6 +753,7 @@ const TimerPage: React.FC = () => {
                                         config={engine.intervalConfig}
                                         onChange={engine.setIntervalConfig}
                                         disabled={engine.running || engine.mode !== 'interval'}
+                                        dueAt={engine.startDueAt}
                                     />
                                 </ModeCard>
 
