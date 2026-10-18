@@ -143,28 +143,55 @@ check('the page and the manifest agree on theme-color',
 console.log('\n== it survives the host ==');
 
 // The build being correct is only half of it: the same files have to arrive with the
-// right headers, and both of these fail quietly.
+// right headers, and all three of these fail quietly.
+//
+// Which is why the reasoning lives here rather than in `vercel.json`. JSON has no
+// comments, and the obvious substitute -- a `"//"` key -- is rejected: Vercel
+// validates a header entry against a schema with `additionalProperties: false`, so
+// `headers[0] should NOT have additional property "//"` is a deploy-blocking error
+// rather than an ignored extra. The check below is the enforcement, so the "why" can
+// sit with the thing that verifies it.
 const vercel = JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8'));
 const headerFor = (path, key) => (vercel.headers ?? [])
     .filter(entry => entry.source === path)
     .flatMap(entry => entry.headers ?? [])
     .find(header => header.key.toLowerCase() === key.toLowerCase())?.value;
 
-// `sw.js` is a fixed filename. A CDN that caches it hard means clients keep running
-// the previous service worker indefinitely -- new bundle, old worker, and the update
-// appears to have shipped and not landed.
+// Anything but `source` and `headers` fails Vercel's schema, and does so at deploy
+// time -- after review, on the one change nobody smoke-tested locally. Asserting the
+// shape here turns that into a local failure with a sentence attached.
+const strayKeys = (vercel.headers ?? [])
+    .flatMap(entry => Object.keys(entry).filter(key => key !== 'source' && key !== 'headers'));
+check('no header entry carries a key Vercel\'s schema rejects',
+    strayKeys.length === 0,
+    strayKeys.length ? `${strayKeys.join(', ')} -- vercel.json rejects unknown keys and blocks the deploy` : '');
+
+// The same trap one level down: the key/value objects are validated too.
+const strayHeaderKeys = (vercel.headers ?? [])
+    .flatMap(entry => entry.headers ?? [])
+    .flatMap(header => Object.keys(header).filter(key => key !== 'key' && key !== 'value'));
+check('nor does any header it sets',
+    strayHeaderKeys.length === 0, strayHeaderKeys.join(', '));
+
+// `sw.js` is a fixed filename. Workbox versions the file's *contents* internally, but
+// that only reaches the client if the file itself is revalidated on every visit -- and
+// a CDN that caches it hard means clients keep running the previous service worker
+// indefinitely: new bundle, old worker, and an update that appears to have shipped
+// and has not landed. `no-cache` revalidates rather than forbidding storage, which is
+// what keeps offline support working.
 check('the service worker is revalidated rather than cached hard',
     headerFor('/sw.js', 'Cache-Control')?.includes('must-revalidate') === true,
     JSON.stringify(headerFor('/sw.js', 'Cache-Control')));
-// Safari rejects a manifest with the wrong content type silently: the app installs
-// and then opens as a web page, with no icon and no standalone window. Chrome does
-// not care, so it works in testing and fails on iOS.
-check('the manifest is served as application/manifest+json, which Safari requires',
-    headerFor('/manifest.webmanifest', 'Content-Type')?.includes('application/manifest+json') === true,
-    JSON.stringify(headerFor('/manifest.webmanifest', 'Content-Type')));
+// The registration shim, same reasoning: a stale copy registers a stale worker.
 check('the registration shim is revalidated too',
     headerFor('/registerSW.js', 'Cache-Control')?.includes('must-revalidate') === true,
     JSON.stringify(headerFor('/registerSW.js', 'Cache-Control')));
+// Safari refuses a manifest served as anything other than application/manifest+json,
+// and refuses it silently: the app installs, then opens with browser chrome and no
+// icon. Chrome is lenient here, which is how this works in testing and breaks on iOS.
+check('the manifest is served as application/manifest+json, which Safari requires',
+    headerFor('/manifest.webmanifest', 'Content-Type')?.includes('application/manifest+json') === true,
+    JSON.stringify(headerFor('/manifest.webmanifest', 'Content-Type')));
 
 console.log('\n== it works offline ==');
 

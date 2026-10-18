@@ -1,20 +1,8 @@
 {
   "headers": [
-    {
-      "//": "The service worker is a fixed filename, so anything that caches it hard means clients never see an update. Workbox versions its *contents* internally, but that only helps if the file itself is revalidated on every visit. `no-cache` revalidates rather than forbidding storage, which is what keeps offline support working.",
-      "source": "/sw.js",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    },
-    {
-      "//": "Safari refuses a manifest served as anything other than application/manifest+json, and it does so quietly: the app installs, then opens with browser chrome and no icon. Chrome is lenient here, which is why this has a habit of working in testing and breaking on iOS.",
-      "source": "/manifest.webmanifest",
-      "headers": [{ "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }]
-    },
-    {
-      "//": "The registration shim, same reasoning as the worker itself: a stale copy means a stale registration, and an old worker outlives a new bundle.",
-      "source": "/registerSW.js",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    }
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    { "source": "/registerSW.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    { "source": "/manifest.webmanifest", "headers": [{ "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" }] }
   ],
   "redirects": [
     { "source": "/dashboard", "destination": "/Dashboard", "permanent": false },
