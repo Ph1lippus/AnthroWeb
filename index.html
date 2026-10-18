@@ -7,11 +7,48 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <!--
+      No <link rel="manifest"> here on purpose: vite-plugin-pwa injects one at build
+      time, pointing at the manifest it generates from `vite.config.ts`.
+
+      This page used to carry its own, pointing at a hand-written
+      `public/site.webmanifest` that the plugin does not know about and does not
+      overwrite. The build therefore shipped *two* manifest links, and a browser
+      takes the first it finds -- so the hand-written one won, and it was quietly
+      wrong: white theme and background colours against a black app, which is what
+      produced a white splash before the app's own black one, and no `start_url` or
+      `scope` at all.
+
+      Meanwhile the manifest the plugin *did* generate -- the one with the correct
+      black colours -- carried a single 48x48 .ico and no 192 or 512, so on its own
+      it would have failed Chrome's installability criteria outright. Both are now
+      the one in `vite.config.ts`, and the injection is the only thing that emits a
+      link to it.
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>AnthroWeb</title>
     <meta name="description" content="A comprehensive daily tracking application for health, habits, goals, and more." />
+    <!--
+      `theme-color` is the one manifest field the page has to repeat, because the
+      browser reads it here to paint the toolbar and the splash *before* the
+      manifest has been fetched. It must match the manifest's value or the app
+      flashes one colour and settles into another.
+    -->
     <meta name="theme-color" content="#000000" />
+    <!--
+      Standalone on iOS.
+
+      Safari ignores `display: standalone` and `display_override`, and without this
+      meta tag it opens the installed app in a browser frame with the URL bar --
+      which on an app named AnthroWeb, living on someone's home screen, looks like
+      a website that failed to install. `mobile-web-app-capable` is the same thing
+      for Chrome on Android, kept alongside it for parity rather than because
+      Chrome needs it.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AnthroWeb" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- The app root stays out of layout until these faces have settled, so

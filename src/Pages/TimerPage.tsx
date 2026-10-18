@@ -191,7 +191,7 @@ const TimerPage: React.FC = () => {
     const canResume = useMemo(() => {
         if (engine.mode !== 'countdown') return engine.elapsed > 0 || engine.laps.length > 0 || engine.scheduledFor !== null;
         return engine.deadline !== null && engine.remaining > 0;
-    }, [engine.mode, engine.deadline, engine.remaining, engine.elapsed, engine.laps.length]);
+    }, [engine.mode, engine.deadline, engine.remaining, engine.elapsed, engine.laps.length, engine.scheduledFor]);
 
     const alarms = useMemo(() => alarmsQuery.data ?? [], [alarmsQuery.data]);
 

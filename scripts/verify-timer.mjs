@@ -695,13 +695,44 @@ install('AudioContext', class {
         };
     }
     createOscillator() {
+        // The sound, at the moment it is actually scheduled -- `start()`, not
+        // `createOscillator()`, so a context that is built and never played does
+        // not read as a chime. Three of these is one chime: the score in
+        // `timerChime`. The assertions below compare before/after rather than
+        // looking for a particular count, so the exact figure cannot go stale.
+        const record = () => played.push(true);
         return {
             type: 'sine', frequency: { setValueAtTime() {} },
-            connect() {}, start() {}, stop() {}, addEventListener() {},
+            connect() {}, start: record, stop() {}, addEventListener() {},
         };
     }
     resume() { return Promise.resolve(); }
 });
+// On `window` as well as the global. `timerChime` deliberately feature-detects
+// through `window` -- `candidate.AudioContext ?? candidate.webkitAudioContext` --
+// so a stub installed only on `globalThis` is invisible to it, `ensureContext()`
+// returns null, and `playChime` returns without scheduling anything. That is
+// indistinguishable from "the timer ended in silence", which is exactly what the
+// assertions below exist to rule out.
+window.AudioContext = globalThis.AudioContext;
+
+// `played` used to be declared and never written to, which made "nobody is woken by
+// a session beginning" pass for the wrong reason: an empty array equals an empty
+// array whether or not anything rang.
+
+// The other half of the same question, and it was the half that was never checked
+// at all. `timerNotification` refuses to raise anything until the browser has said
+// `granted`, so without a stub there is no `Notification` in this environment and
+// every alert silently falls through to its no-op -- which means the suite would
+// have gone on reporting green with the notification path removed.
+const notified = [];
+class StubNotification {
+    constructor(title, options) { this.title = title; this.options = options; notified.push({ title, ...options }); }
+    static permission = 'granted';
+    static requestPermission() { return Promise.resolve('granted'); }
+}
+install('Notification', StubNotification);
+window.Notification = StubNotification;
 
 const { TimerEngineProvider, useTimer } = await loadComponent('src/hooks/useTimerEngine.tsx');
 
@@ -820,6 +851,8 @@ check('a second of wall time is a second of countdown',
 
 // The throttled-tab case, which is the one a counter cannot survive. In a frozen
 // or background tab the interval stops firing entirely; the deadline does not move.
+const tonesBefore = played.length;
+const notesBefore = notified.length;
 advance(60_000);
 await engine.refresh();
 check('a minute of un-ticked time still expires the timer',
@@ -828,6 +861,19 @@ check('the engine reports it stopped',
     engine.api().running === false, String(engine.api().running));
 check('and raises time’s up',
     engine.api().alert?.kind === 'timeup', JSON.stringify(engine.api().alert));
+
+// The other two things a finished timer has to do, which are the reason the overlay
+// alone is not enough: somebody who is not looking at the tab gets nothing from a
+// dialog on it. Both are asserted together and for one run, because a chime without
+// a notification fails the user who cannot hear, and a notification without a chime
+// fails the one who cannot see -- and the suite has been green with either one
+// deleted, because neither channel was observable from here.
+check('and it makes a noise', played.length > tonesBefore,
+    `${played.length - tonesBefore} tones scheduled`);
+check('and raises a system notification', notified.length > notesBefore,
+    `${notified.length - notesBefore} notifications raised`);
+check('naming the timer, so the banner means something without the app open',
+    notified.at(-1)?.title === "Time's up", JSON.stringify(notified.at(-1)));
 
 // Pausing must not grant extra time. Resume pushes the deadline forward by the
 // paused duration; if it did not, a paused timer would silently gain minutes.
@@ -1047,6 +1093,115 @@ check('and every interval it started is cleared', cleared >= created && cleared 
 window.cancelAnimationFrame = originalCancel;
 window.clearInterval = originalClear;
 window.setInterval = originalSet;
+
+// ============================================================================
+// EVERY ENDING MAKES A NOISE AND A NOTIFICATION
+// ============================================================================
+
+console.log('\n== every ending rings, and notifies ==');
+
+// Countdown expiry is asserted above, in the section that drove it to zero. What is
+// left are the two endings that are not a countdown running out, and they fail in
+// different ways, which is why they are worth asserting separately.
+//
+// The alarm never reaches `runFinished` at all -- it is raised imperatively by the
+// scheduler, through `raiseAlarm`, so a change to the derivation would not touch it.
+// The interval run does reach the derivation, but arrives with its own wording and
+// its own "the last phase is over" test, so it can be broken without the countdown
+// noticing. And the third case is the one nothing in the app can be relied on to
+// re-check later: a run that ended while the document was shut.
+
+/**
+ * Records both channels across one ending, so a failure names which half is missing.
+ *
+ * A count rather than a flag, because "did it ring" as a boolean cannot tell a timer
+ * that stayed quiet from one that rang four times, and the doubling this is here to
+ * catch -- the alert effect re-firing on every re-render of a finished run -- is
+ * only visible as a number that grows when it should not.
+ */
+const channels = () => ({ tones: played.length, notifications: notified.length });
+
+// --- an alarm ---
+store.clear();
+const alarmed = await mountEngine();
+await alarmed.refresh();
+let before = channels();
+act(() => { alarmed.api().raiseAlarm('Tea'); });
+await alarmed.refresh();
+const afterAlarm = channels();
+check('an alarm makes a noise', afterAlarm.tones > before.tones,
+    `${afterAlarm.tones - before.tones} tones scheduled`);
+check('and raises a notification', afterAlarm.notifications > before.notifications,
+    `${afterAlarm.notifications - before.notifications} notifications raised`);
+check('that names the alarm, so the banner is not just "Time’s up"',
+    notified.at(-1)?.title === 'Tea', JSON.stringify(notified.at(-1)?.title));
+check('and is not counted twice by the re-renders that follow',
+    channels().tones === afterAlarm.tones,
+    `${channels().tones - afterAlarm.tones} extra tones after settling`);
+act(() => { alarmed.root.unmount(); });
+
+// --- an interval run reaching the end of its sequence ---
+store.clear();
+const finishedSession = await mountEngine();
+act(() => { finishedSession.api().setMode('interval'); });
+act(() => {
+    finishedSession.api().setIntervalConfig({
+        workSec: 1, restSec: 1, longRestSec: 1, roundsBeforeLong: 0, totalRounds: 1, startAt: null,
+    });
+});
+act(() => { finishedSession.api().start(); });
+before = channels();
+advance(2000);
+await finishedSession.refresh();
+const afterSession = channels();
+check('an interval run that reaches its last phase alerts',
+    finishedSession.api().alert?.kind === 'timeup',
+    JSON.stringify(finishedSession.api().alert));
+check('and says which run it was',
+    finishedSession.api().alert?.label === 'Interval run complete',
+    JSON.stringify(finishedSession.api().alert?.label));
+check('and makes a noise', afterSession.tones > before.tones,
+    `${afterSession.tones - before.tones} tones scheduled`);
+check('and raises a notification', afterSession.notifications > before.notifications,
+    `${afterSession.notifications - before.notifications} notifications raised`);
+act(() => { finishedSession.root.unmount(); });
+
+// --- a run that ended while the app was shut ---
+//
+// `running` is deliberately not persisted, so a countdown whose deadline passed an
+// hour ago comes back from storage flagged as *not* running, and a finished check
+// that trusted that flag reported the run as having ended in silence. This is the
+// failure the whole page exists to prevent, and it landed hardest on exactly the
+// timers nobody was in front of.
+store.clear();
+const closing = await mountEngine();
+act(() => { closing.api().setDuration(3000); });
+act(() => { closing.api().start(); });
+await closing.refresh();
+// The deadline is three seconds out and the clock moves well past it with no tick
+// in between -- the page is closed as far as anything here can tell.
+advance(20 * MINUTE);
+act(() => { closing.root.unmount(); });
+
+// Read before the reopen, because the alert lands on the first render *inside* that
+// mount. Counting afterwards would compare a number with itself.
+before = channels();
+const reopened = await mountEngine();
+await reopened.refresh();
+const afterReopen = channels();
+check('a countdown that expired while the app was shut does not restore as running',
+    reopened.api().running === false, String(reopened.api().running));
+check('it alerts on reopening, rather than being restored as unfinished',
+    reopened.api().alert?.kind === 'timeup', JSON.stringify(reopened.api().alert));
+check('and rings, rather than reopening in silence',
+    afterReopen.tones > before.tones, `${afterReopen.tones - before.tones} tones scheduled`);
+check('and raises a notification too',
+    afterReopen.notifications > before.notifications,
+    `${afterReopen.notifications - before.notifications} notifications raised`);
+check('and does not ring again on the ticks that follow',
+    channels().tones === afterReopen.tones,
+    `${channels().tones - afterReopen.tones} extra tones after settling`);
+act(() => { reopened.root.unmount(); });
 
 // ============================================================================
 // THE SCHEDULED START, DRIVEN
@@ -1354,6 +1509,85 @@ await setLiveStart('minute', '30');
 check('the complete pair commits one new schedule',
     scheduledChanges.length === 1 && scheduledChanges[0] === 1 * 60 + 30,
     JSON.stringify(scheduledChanges));
+
+// Editing one half of an armed schedule must commit against the other half's
+// committed value, from either side.
+//
+// The minute field had no `onChange` at all, so minutes could not be typed into at
+// all; that was the visible half of this. The subtle half is what it would have
+// done *even with* one: the pair rule was "both halves must have been typed in this
+// pass", so touching only the minute left the hour's draft null and the edit was
+// discarded on blur. It read as intermittent because it worked if you happened to
+// touch the hour first. The other direction was broken in exactly the same way --
+// typing an hour into an armed `09:30` committed nothing.
+const oneHalfChanges = [];
+const EditorUnderTest = (await loadComponent('src/Components/Timer/IntervalEditor.tsx')).default;
+// A *stateful* parent. A real one re-renders with the committed schedule, and a
+// harness that records `onChange` without applying it would leave `config.startAt`
+// frozen at its initial value forever -- which is a second, purely artificial way
+// for a single-half edit to look broken.
+const StartHarness = () => {
+    const [config, setConfig] = React.useState({
+        workSec: 1500, restSec: 300, longRestSec: 900, roundsBeforeLong: 4, totalRounds: 0, startAt: 9 * 60 + 30,
+    });
+    return React.createElement(EditorUnderTest, {
+        config,
+        onChange: next => { oneHalfChanges.push(next.startAt); setConfig(next); },
+        disabled: false,
+        dueAt: null,
+    });
+};
+const minuteOnly = await mountComponent('src/Components/Timer/IntervalEditor.tsx',
+    React.createElement(StartHarness));
+const typeHalf = async (part, value) => {
+    await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        const field = minuteOnly.container.querySelector(`#interval-start-${part}`);
+        setter.call(field, value);
+        field.dispatchEvent(new window.Event('input', { bubbles: true }));
+    });
+};
+await typeHalf('minute', '3');
+check('a first minute digit is still half-typed and does not commit',
+    oneHalfChanges.length === 0, JSON.stringify(oneHalfChanges));
+await typeHalf('minute', '45');
+check('editing only the minute commits against the armed hour',
+    oneHalfChanges.length === 1 && oneHalfChanges[0] === 9 * 60 + 45,
+    JSON.stringify(oneHalfChanges));
+await typeHalf('hour', '17');
+check('editing only the hour commits against the armed minute',
+    oneHalfChanges.length === 2 && oneHalfChanges[1] === 17 * 60 + 45,
+    JSON.stringify(oneHalfChanges));
+// A one-digit minute is still a complete minute -- `09:07` is not a half-typed
+// `09:0` -- and a single-digit entry has no keystroke that could ever complete it,
+// so it is `onBlur` rather than `onChange` that has to commit it.
+await typeHalf('minute', '7');
+check('a deliberate one-digit minute does not commit mid-typing',
+    oneHalfChanges.length === 2, JSON.stringify(oneHalfChanges));
+await act(async () => {
+    // `focusout`, not `blur`: React binds `onBlur` to the bubbling `focusout`
+    // rather than to `blur`, so dispatching the native non-bubbling event reaches
+    // the DOM and not React, and the assertion would pass for the wrong reason.
+    minuteOnly.container.querySelector('#interval-start-minute')
+        .dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+});
+check('but commits on blur, against the armed hour',
+    oneHalfChanges.length === 3 && oneHalfChanges[2] === 17 * 60 + 7,
+    JSON.stringify(oneHalfChanges));
+// A half that is actively cleared is the one thing that must *not* commit, because
+// that is the case the whole draft model exists for: clearing a field to retype it
+// briefly showed a whole unrelated time.
+await typeHalf('hour', '');
+check('but clearing a half commits nothing at all',
+    oneHalfChanges.length === 3, JSON.stringify(oneHalfChanges));
+// And leaving a field alone is not an edit: tabbing through the row must not write
+// the committed schedule back over itself.
+await act(async () => {
+    minuteOnly.container.querySelector('#interval-start-hour')
+        .dispatchEvent(new window.FocusEvent('focusout', { bubbles: true }));
+});
+check('and a blur with nothing typed writes nothing at all',
+    oneHalfChanges.length === 3, JSON.stringify(oneHalfChanges));
 
 // The overlay, which is the one thing that must not be dismissible by accident.
 const overlay = await mountComponent('src/Components/Timer/TimeUpOverlay.tsx', h(

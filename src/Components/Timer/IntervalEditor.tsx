@@ -193,7 +193,7 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
     });
 
     /**
-     * Start-at, recomputed only when both typed halves contain a complete value.
+     * Start-at, committed once both halves form a complete time.
      *
      * The old implementation treated an empty minute as zero, so clearing one
      * field committed the other field as a fresh time before the replacement
@@ -211,12 +211,29 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
     };
 
     /**
-     * The visible value of one start-at half.
+     * The visible value of one start-at half, and the whole of the draft model.
      *
      * `config.startAt` is the committed schedule, while `startDraft` holds a
      * partially entered replacement. A non-null draft half wins so that the
-     * text under the caret stays exactly what the user typed; a null half
-     * still shows the committed value it is preserving.
+     * text under the caret stays exactly what the user typed; a null half still
+     * shows the committed value it is preserving.
+     *
+     * The same resolution is what *decides* whether an edit may commit, and that
+     * is not a detail. It is what makes the two fields interchangeable: with the
+     * raw draft read instead, editing one half of an armed schedule committed
+     * nothing, because the other half's draft was still null and the rule was
+     * "both halves must be typed". So typing the new minutes into `09:05` and
+     * nothing else silently did nothing -- the exact shape of "I cannot write on
+     * the minutes", and the reason it read as intermittent rather than broken: it
+     * worked only if you happened to touch the hour first. Reading the pair the
+     * way the user sees it is what lets either field be the one they edit.
+     *
+     * The two callers differ only in how much of the pair they are allowed to
+     * treat as supplied, and that difference is the guard against the bug above:
+     * `commitStartAt` receives the pair the user typed, while the keystroke
+     * handlers pass the *displayed* pair -- which includes this half's own
+     * half-typed digit. Requiring the other half to be complete is therefore the
+     * condition for committing, and `3` never commits while `30` does.
      */
     const startDraftPart = (
         draft: { hour: string | null; minute: string | null },
@@ -227,6 +244,26 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
         return part === 'hour'
             ? String(Math.floor(config.startAt / 60))
             : String(config.startAt % 60);
+    };
+
+    /**
+     * Commit on the way out, and only if something was actually being edited.
+     *
+     * The displayed pair rather than the typed one, for the reason
+     * `startDraftPart` gives: leaving a field that was never touched would commit
+     * the committed schedule back to itself, which is a write nobody asked for and
+     * which resets the run's elapsed time as a side effect of tabbing past a
+     * control. The draft check is what makes the blur conditional, so "nothing was
+     * typed" stays "nothing happened".
+     *
+     * A half that was actively cleared still blocks the commit, because
+     * `startDraftPart` shows the cleared text rather than the committed value for a
+     * non-null draft. That is the case the draft model exists for: clearing a field
+     * to retype it must not flash a whole unrelated time on its way.
+     */
+    const commitStartFromDraft = () => {
+        if (startDraft.hour == null && startDraft.minute == null) return;
+        commitStartAt(startDraftPart(startDraft, 'hour'), startDraftPart(startDraft, 'minute'));
     };
 
     return (
@@ -331,13 +368,20 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                         onChange={event => {
                             const next = { ...startDraft, hour: digits(event.target.value) };
                             setStartDraft(next);
-                            const m = next.minute ?? '';
-                            if (digits(event.target.value).length >= 1 && m.length === 2) {
-                                commitStartAt(next.hour, next.minute);
+                            // The minute as *displayed*, not as drafted: editing the
+                            // hour of an armed schedule has to commit against the
+                            // minute already on screen, or typing an hour into `09:05`
+                            // would do nothing at all. This half's own value is the
+                            // half-typed one, which is what keeps a first digit from
+                            // committing.
+                            if (startDraftPart(next, 'hour').length >= 1
+                                && startDraftPart(next, 'minute').length === 2) {
+                                commitStartAt(startDraftPart(next, 'hour'), startDraftPart(next, 'minute'));
                             }
                         }}
+                        maxLength={2}
                         onBlur={() => {
-                            commitStartAt(startDraft.hour, startDraft.minute);
+                            commitStartFromDraft();
                         }}
                     />
                     <span className="timer-pad__unit" style={{ textAlign: 'left' }}>0-23 · 20 is 8pm</span>
@@ -352,10 +396,29 @@ const IntervalEditor: React.FC<IntervalEditorProps> = ({ config, onChange, disab
                         inputMode="numeric"
                         value={startDraftPart(startDraft, 'minute')}
                         disabled={disabled}
+                        maxLength={2}
+                        onChange={event => {
+                            // It is here that this field used to be a `value` with no
+                            // `onChange` at all, which React renders as read-only and
+                            // which is why minutes could not be typed into: every
+                            // keystroke was discarded before it reached the component.
+                            const next = { ...startDraft, minute: digits(event.target.value) };
+                            setStartDraft(next);
+                            // The hour as displayed, and the minute as half-typed --
+                            // the same pair the hour half reads, from the other side.
+                            // `3` is still a half-typed minute and does not commit;
+                            // `30` is the value that was meant and does. `onBlur`
+                            // below is what commits a deliberate single digit, such
+                            // as minute `5`.
+                            if (startDraftPart(next, 'hour').length >= 1
+                                && startDraftPart(next, 'minute').length === 2) {
+                                commitStartAt(startDraftPart(next, 'hour'), startDraftPart(next, 'minute'));
+                            }
+                        }}
                         onBlur={() => {
                             // Same as the hour half: the pair commits once it is
                             // complete, and an incomplete entry remains a draft.
-                            commitStartAt(startDraft.hour, startDraft.minute);
+                            commitStartFromDraft();
                         }}
                     />
                     <span className="timer-pad__unit" style={{ textAlign: 'left' }}>0-59 · blank to cancel</span>

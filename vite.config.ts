@@ -58,20 +58,63 @@ export default defineConfig(({ mode }) => {
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'site.webmanifest', 'background.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'favicon-16x16.png',
+        'favicon-32x32.png',
+        'apple-touch-icon.png',
+        'android-chrome-192x192.png',
+        'android-chrome-512x512.png',
+        'android-chrome-maskable-512x512.png',
+        'background.svg',
+      ],
       manifest: {
         name: 'AnthroWeb',
         short_name: 'AnthroWeb',
         description: 'Personal tracking and planning workspace',
+        /**
+         * The identity of the installed app, and deliberately not its URL.
+         *
+         * `id` defaults to `start_url`, so without it the identity moves whenever
+         * the start URL is edited -- and a moved identity is a moved icon: the
+         * launcher treats the result as a different app, asks to install it again,
+         * and leaves the old one where it is. Pinning it to the origin means a
+         * change to `start_url` is a routing change, not a rebrand.
+         */
+        id: '/',
+        start_url: '/',
+        scope: '/',
+        lang: 'en',
+        dir: 'ltr',
+        categories: ['lifestyle', 'productivity', 'health'],
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
+        /**
+         * A preference order, not an assertion. `minimal-ui` is the graceful
+         * fallback for a platform that cannot do standalone, and preferring it over
+         * `browser` keeps a usable window chrome rather than the URL bar if the
+         * browser ever ignores `display` outright.
+         */
+        display_override: ['standalone', 'minimal-ui'],
         icons: [
+          { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // The adaptive-icon variant: full-bleed, logo inside the 80% safe zone, so
+          // Android's own mask can crop it to a circle or a squircle without clipping
+          // the lettering. Built from the 512 above by scripts/generate-maskable-icon.mjs.
           {
-            src: '/favicon.ico',
-            sizes: '48x48',
-            type: 'image/x-icon',
+            src: '/android-chrome-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
+          // iOS ignores the manifest entirely for the home screen and reads
+          // `apple-touch-icon`, so declaring it here as well is what keeps the two
+          // platforms showing the same mark rather than iOS falling back to a
+          // screenshot of the page.
+          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png', purpose: 'any' },
+          { src: '/favicon.ico', sizes: '48x48', type: 'image/x-icon', purpose: 'any' },
         ],
       },
       workbox: {

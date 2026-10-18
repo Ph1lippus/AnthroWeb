@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import {
     ALERT_VOLUME,
     DEFAULT_INTERVAL,
+    MINUTE,
     clampDuration,
     nextStartAt,
     normalizeIntervalConfig,
@@ -453,8 +454,26 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      *   - a countdown whose deadline has passed, and
      *   - an interval run whose last phase is over, which `phaseAt` reports as null
      *     because there is no phase left to be in.
+     *
+     * `state.running || state.legStartedAt !== null` rather than `state.running`,
+     * and the second clause is the case this file previously could not see at all:
+     * a run that ended while the document was closed. `running` is deliberately not
+     * persisted, so a countdown whose deadline passed an hour ago comes back from
+     * `localStorage` with `running: false` -- `restoreRunning` reads the timestamps,
+     * finds the deadline in the past, and correctly refuses to claim a live run --
+     * and gating on it alone meant that run finished in silence. No chime, no
+     * notification, no overlay: the single most expensive failure this page has,
+     * and it hit precisely the runs nobody was sitting in front of.
+     *
+     * `legStartedAt` is what distinguishes that from a *paused* countdown, which is
+     * the one case that must stay silent: pausing leaves the deadline where it is,
+     * so it drifts past while the run is stopped, and every one of `pause`, `reset`
+     * and `setMode` nulls `legStartedAt` on the way out. A leg that is still stamped
+     * on a run that is no longer running can only have come back from storage, which
+     * is exactly the case that needs telling.
      */
-    const runFinished = state.running && runHasEnded(state, now);
+    const runFinished = runHasEnded(state, now)
+        && (state.running || state.legStartedAt !== null);
 
     /**
      * Which of the two endings it was, for the wording on the overlay and the
@@ -519,7 +538,16 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      */
     const startDueAt = useMemo(() => {
         const startAt = state.intervalConfig.startAt;
-        return startAt == null ? null : nextStartAt(startAt, now);
+        if (startAt == null) return null;
+        const shown = nextStartAt(startAt, now);
+        // Same roll-forward as the arming block below, and it has to be the same
+        // rule or the dial and the checker disagree about what the schedule means.
+        // Left relaxed, `nextStartAt` puts a minute that is already under the clock
+        // at the start of that minute -- which is already past -- so the ring would
+        // sit at 00:00.00 reading "starting now" for up to a minute while nothing
+        // was going to fire, and then jump to tomorrow on its own. A countdown that
+        // lies about its own deadline is worse than one that is merely unhelpful.
+        return shown && shown.getTime() < now ? (nextStartAt(startAt, now + MINUTE) ?? shown) : shown;
     }, [state.intervalConfig.startAt, now]);
 
     /**
@@ -663,8 +691,35 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             return;
         }
         if (armedRef.current.startAt === startAt) return;
-        const next = nextStartAt(startAt, Date.now());
-        armedRef.current = { startAt, dueAt: next ? next.getTime() : null };
+
+        // The schedule's own reading of itself, and the instant the checker acts on
+        // -- which are not always the same, and the difference is the whole of this
+        // block.
+        //
+        // `nextStartAt` is relaxed at the minute boundary on purpose: a schedule
+        // typed for 09:05 while the clock reads 09:05:42 comes back as 09:05:00
+        // *today*, so the dial can count down to "now" rather than report a
+        // twenty-four hour wait for a time that is already happening. That is the
+        // right answer for the display and the wrong one here, because as a fire
+        // instant it is in the past from the moment it is computed -- so the first
+        // poll after arming started the session immediately, and a schedule armed at
+        // 09:05:42 ran at 09:05:42. A minute already under the clock has no moment
+        // left to be armed for, so it resolves to the next time that minute comes
+        // round instead.
+        //
+        // Strictly *before*, not `<=`: arming at exactly 09:05:00.000 has not missed
+        // anything, and that has to fire immediately rather than wait a day. The
+        // second call asks the same question from a minute later, which is what makes
+        // `nextStartAt` roll a spent minute to tomorrow -- so this is still the one
+        // calendar walk, not a second implementation of it.
+        const shown = nextStartAt(startAt, Date.now());
+        if (!shown) {
+            armedRef.current = { startAt: null, dueAt: null };
+            return;
+        }
+        const at = Date.now();
+        const next = shown.getTime() < at ? nextStartAt(startAt, at + MINUTE) : shown;
+        armedRef.current = { startAt, dueAt: (next ?? shown).getTime() };
     }, [state]);
 
     useEffect(() => {
