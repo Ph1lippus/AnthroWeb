@@ -14,7 +14,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
-import { buildLaps, formatAlarmTime, formatTimer } from '../utils/timerMath';
+import { buildLaps, formatAlarmTime, formatTimer, nextAlarmFire } from '../utils/timerMath';
 import { unlockAudio } from '../utils/timerChime';
 import { requestNotificationPermission } from '../utils/timerNotification';
 import {
@@ -195,6 +195,49 @@ const TimerPage: React.FC = () => {
 
     const alarms = useMemo(() => alarmsQuery.data ?? [], [alarmsQuery.data]);
 
+    /**
+     * The closest alarm that will actually ring, if any.
+     *
+     * Only enabled alarms count: a paused alarm is not going to fire, so
+     * counting it would show a countdown to a time that nothing happens at.
+     * When several are enabled, the one whose next firing is soonest wins --
+     * "closer" means sooner, and ties cannot happen because `nextAlarmFire` is
+     * strictly after `now`.
+     */
+    const nextAlarm = useMemo(() => {
+        const enabled = alarms.filter(alarm => alarm.enabled);
+        if (enabled.length === 0) return null;
+        let best: { alarm: TimerAlarm; fire: number } | null = null;
+        for (const alarm of enabled) {
+            const fire = nextAlarmFire(
+                { hour: alarm.hour, minute: alarm.minute, days: alarm.days_of_week },
+                new Date(panelNow),
+            ).getTime();
+            if (!best || fire < best.fire) best = { alarm, fire };
+        }
+        return best;
+    }, [alarms, panelNow]);
+
+    /**
+     * Whether the clock is free for an alarm to take over the display.
+     *
+     * "Free" means no countdown, stopwatch or interval is loaded or running, no
+     * splits are sitting on a stopwatch, and no scheduled start is armed. An
+     * alarm countdown that displaced any of those would be lying about what the
+     * clock is actually doing.
+     */
+    const alarmIdle = !engine.running
+        && engine.deadline === null
+        && engine.elapsed === 0
+        && engine.laps.length === 0
+        && engine.scheduledFor === null
+        && engine.startDueAt === null
+        && engine.alert === null;
+
+    const alarmCountdownMs = alarmIdle && nextAlarm !== null
+        ? Math.max(0, nextAlarm.fire - panelNow)
+        : null;
+
     // ==================== MUTATIONS ====================
 
     const addAlarm = useMutation({
@@ -341,15 +384,17 @@ const TimerPage: React.FC = () => {
      * the modes -- which is what happened when the hundredths were a preference:
      * three call sites, each with its own idea of whether to include them.
      */
-    const shownMs = engine.mode === 'countdown'
-        ? engine.remaining
-        : engine.mode === 'stopwatch'
-            ? engine.elapsed
-            // Waiting for a scheduled start: the dial counts down to the start, not
-            // to the end of a phase that has not begun. `phase` is non-null here --
-            // `phaseAt(0)` is a work phase -- so this has to be checked first, or the
-            // dial shows 25:00 and reads as a session already under way.
-            : engine.untilStartMs ?? engine.phase?.remainingMs ?? 0;
+    const shownMs = alarmCountdownMs !== null
+        ? alarmCountdownMs
+        : engine.mode === 'countdown'
+            ? engine.remaining
+            : engine.mode === 'stopwatch'
+                ? engine.elapsed
+                // Waiting for a scheduled start: the dial counts down to the start, not
+                // to the end of a phase that has not begun. `phase` is non-null here --
+                // `phaseAt(0)` is a work phase -- so this has to be checked first, or the
+                // dial shows 25:00 and reads as a session already under way.
+                : engine.untilStartMs ?? engine.phase?.remainingMs ?? 0;
 
     /**
      * Milliseconds on every clock, always.
@@ -378,9 +423,11 @@ const TimerPage: React.FC = () => {
      * meaninglessly, whereas an hour is a unit a person can hold in their head.
      */
     const WAIT_ARC_MS = 60 * 60 * 1000;
-    const fraction = engine.untilStartMs == null
-        ? engine.progress
-        : Math.max(0, Math.min(1, 1 - engine.untilStartMs / WAIT_ARC_MS));
+    const fraction = alarmCountdownMs !== null
+        ? null
+        : engine.untilStartMs == null
+            ? engine.progress
+            : Math.max(0, Math.min(1, 1 - engine.untilStartMs / WAIT_ARC_MS));
 
     /** Expired: red, pulsing, and no longer counting. */
     const done = engine.mode === 'countdown' && engine.alert?.kind === 'timeup';
@@ -398,12 +445,14 @@ const TimerPage: React.FC = () => {
      * `formatAlarmTime` is the only wall-clock format on the page -- the one place
      * that must not render "00:00 AM".
      */
-    const phaseLabel = engine.untilStartMs != null && engine.scheduledFor
-        ? `Starts at ${formatAlarmTime(engine.scheduledFor.getHours(), engine.scheduledFor.getMinutes())}`
-        : engine.mode === 'interval' && engine.phase
-            ? (engine.phase.kind === 'work' ? 'Focus' : engine.phase.kind === 'long' ? 'Long rest' : 'Rest')
-            : engine.mode === 'stopwatch' ? 'Stopwatch'
-                : engine.running ? 'Counting down' : 'Ready';
+    const phaseLabel = alarmCountdownMs !== null && nextAlarm !== null
+        ? nextAlarm.alarm.label || 'Alarm'
+        : engine.untilStartMs != null && engine.scheduledFor
+            ? `Starts at ${formatAlarmTime(engine.scheduledFor.getHours(), engine.scheduledFor.getMinutes())}`
+            : engine.mode === 'interval' && engine.phase
+                ? (engine.phase.kind === 'work' ? 'Focus' : engine.phase.kind === 'long' ? 'Long rest' : 'Rest')
+                : engine.mode === 'stopwatch' ? 'Stopwatch'
+                    : engine.running ? 'Counting down' : 'Ready';
 
     // No work/rest colour while waiting. The tone colours the phase name, and
     // "Focus" in green while nothing is running would be claiming a phase that has
