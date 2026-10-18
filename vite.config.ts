@@ -67,6 +67,7 @@ export default defineConfig(({ mode }) => {
         'android-chrome-512x512.png',
         'android-chrome-maskable-512x512.png',
         'background.svg',
+        'background-night.svg',
       ],
       manifest: {
         name: 'AnthroWeb',

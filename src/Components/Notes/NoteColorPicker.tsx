@@ -96,7 +96,7 @@ const NoteColorPicker: React.FC<NoteColorPickerProps> = ({ anchor, onClose, valu
                     <input
                         type="color"
                         className="note-color-custom-input"
-                        value={custom ? current.solid : SEED}
+                        value={custom ? current.solid : (typeof window === 'undefined' ? SEED : (getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || SEED))}
                         onChange={event => onChange(event.target.value)}
                         aria-label="Pick any page colour"
                     />

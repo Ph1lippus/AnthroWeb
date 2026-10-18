@@ -35,6 +35,12 @@
       flashes one colour and settles into another.
     -->
     <meta name="theme-color" content="#000000" />
+    <script>
+      (function () {
+        var h = new Date().getHours();
+        if (h >= 18 || h < 7) document.documentElement.classList.add('night');
+      })();
+    </script>
     <!--
       Standalone on iOS.
 

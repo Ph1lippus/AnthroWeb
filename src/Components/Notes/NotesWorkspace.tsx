@@ -13,6 +13,7 @@ import QuickSwitcher from './QuickSwitcher';
 import { useNoteEditorChunk } from './useNoteEditorChunk';
 import type { Note } from '../../services/noteService';
 import { holdNoteKey, releaseNoteKey } from '../../services/noteService';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBootHold } from '../../services/bootScreen';
 import {
@@ -20,6 +21,7 @@ import {
     useDeleteNoteForever,
     useDuplicateNote,
     useMoveNote,
+    useNote,
     useNotes,
     useRenameNote,
     useRestoreNote,
@@ -28,6 +30,7 @@ import {
     useTrashedNotes,
 } from '../../hooks/useNotes';
 import { stripHtml } from '../../utils/noteContent';
+import { queryKeys } from '../../utils/queryKeys';
 import type { DropMode } from '../../utils/noteTree';
 import {
     allTags,
@@ -105,6 +108,8 @@ const NotesWorkspace: React.FC = () => {
 
     const notesQuery = useNotes();
     const trashedQuery = useTrashedNotes();
+    const queryClient = useQueryClient();
+    const noteQuery = useNote(id);
     const createNote = useCreateNote();
     const restoreNote = useRestoreNote();
     const deleteForever = useDeleteNoteForever();
@@ -192,8 +197,9 @@ const NotesWorkspace: React.FC = () => {
     // pane already has a blank state for exactly this, and it says what to do.
     const activeNote: Note | null = useMemo(() => {
         if (!id) return null;
+        if (noteQuery.data) return noteQuery.data;
         return notes.find(note => note.id === id) ?? null;
-    }, [id, notes]);
+    }, [id, notes, noteQuery.data]);
 
     /**
      * Which page is open, when it is one that carries its own PIN.
@@ -225,7 +231,8 @@ const NotesWorkspace: React.FC = () => {
      */
     const handleLockChanged = useCallback(() => {
         void notesQuery.refetch();
-    }, [notesQuery]);
+        if (id) void queryClient.invalidateQueries({ queryKey: queryKeys.note(id) });
+    }, [notesQuery, queryClient, id]);
 
     const handleUnlocked = useCallback((noteId: string, key: CryptoKey) => {
         setUnlockedNoteId(noteId);
@@ -236,7 +243,10 @@ const NotesWorkspace: React.FC = () => {
         // key -- quietly putting the contents back in reach of anyone who has
         // the app unlocked, which is what the PIN was set to prevent.
         holdNoteKey(noteId, key);
-    }, []);
+        // The list query only carries the locked stub for this page, so the full
+        // body has to be re-read now that the key is in hand.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.note(noteId) });
+    }, [queryClient]);
 
     /**
      * Locking the page you just walked away from.

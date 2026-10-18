@@ -38,7 +38,38 @@ export const handleMarkdownPaste = (view: EditorView, event: ClipboardEvent): bo
     // this must let through. Anything richer than a wrapper does not qualify.
     if (html && html.replace(/<[^>]*>/g, '').trim() !== text.trim()) return false;
 
-    if (!looksLikeMarkdown(text)) return false;
+    if (!looksLikeMarkdown(text)) {
+        // Plain text with several lines is almost always a list of separate
+        // things (a schedule, a checklist, a set of notes), not one paragraph
+        // that happens to contain line breaks. ProseMirror's default paste
+        // turns those newlines into hard breaks inside a single block, which
+        // is what makes the drag handle sit in the middle of the whole block
+        // and a to-do attach to its first line. Splitting them into
+        // paragraphs here gives each line its own block and its own handle.
+        const lines = text.replace(/\\r\\n?/g, '\\n').split('\\n');
+        const nonEmpty = lines.filter(line => line.trim() !== '');
+        if (lines.length > 1 && nonEmpty.length > 0) {
+            const escape = (value: string) =>
+                value
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            const html = lines
+                .map(line => (line.trim() === '' ? '<p></p>' : `<p>${escape(line)}</p>`))
+                .join('');
+            const parsed = ProseMirrorDOMParser.fromSchema(view.state.schema).parse(
+                new window.DOMParser().parseFromString(html, 'text/html'),
+            );
+            if (parsed.childCount > 0) {
+                const { from, to } = view.state.selection;
+                view.dispatch(
+                    view.state.tr.replaceRange(from, to, new Slice(parsed.content, 0, 0)).scrollIntoView(),
+                );
+                return true;
+            }
+        }
+        return false;
+    }
     const converted = markdownToEditorHtml(text);
     if (!converted) return false;
 

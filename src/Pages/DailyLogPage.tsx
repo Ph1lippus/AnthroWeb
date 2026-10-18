@@ -37,7 +37,7 @@ import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 
 const getScoreColor = (score: number): string => {
-    if (score >= 80) return 'var(--color-primary)';
+    if (score >= 80) return '#00ffa6';
     if (score >= 60) return '#a8e600';
     if (score >= 30) return '#ffa500';
     return 'var(--color-danger)';

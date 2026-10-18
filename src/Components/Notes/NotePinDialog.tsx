@@ -104,8 +104,8 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
         }
     };
 
-    const disabled = busy || wait > 0
-        || (mode === 'on' && (pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirm));
+    const disabled = busy
+        || (mode === 'on' && (wait > 0 || pin.length < MIN_NOTE_PIN_LENGTH || pin !== confirm));
 
     return (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="note-lock-title">

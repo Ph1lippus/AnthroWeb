@@ -72,7 +72,7 @@ import { getMasterKey } from './keyring';
  * queries, and a calendar of dates is a far smaller disclosure than a calendar
  * of contents.
  */
-const CLEAR_COLUMNS: Record<string, readonly string[]> = {
+export const CLEAR_COLUMNS: Record<string, readonly string[]> = {
     daily_logs: ['id', 'user_id', 'log_date', 'created_at', 'updated_at', 'vault'],
     notes: [
         'id', 'user_id', 'is_pinned', 'notes_position', 'notes_parent_id',

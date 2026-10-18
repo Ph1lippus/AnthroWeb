@@ -51,13 +51,13 @@ const analyzeTime = (time: string | null, goalTime: string | null): TimeAnalysis
     const goalMin = goalH * 60 + goalM;
     let diff = Math.abs(actualMin - goalMin);
     if (diff > 12 * 60) diff = 24 * 60 - diff;
-    if (diff <= 15) return { status: 'On Time', color: 'var(--color-primary)' };
+    if (diff <= 15) return { status: 'On Time', color: '#00ffa6' };
     if (diff <= 60) return { status: 'Close', color: '#ffa500' };
     return { status: 'Off', color: 'var(--color-danger)' };
 };
 
 export const getScoreColor = (score: number) => {
-    if (score >= 80) return 'var(--color-primary)';
+    if (score >= 80) return '#00ffa6';
     if (score >= 60) return '#a8e600';
     if (score >= 30) return '#ffa500';
     return 'var(--color-danger)';

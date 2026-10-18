@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { openRow, openRows, sealExistingRow } from './vault/rows';
+import { CLEAR_COLUMNS, openRow, openRows, sealExistingRow, VaultLockedError } from './vault/rows';
 import { getUserSettings, updateUserSettings } from './profileService';
 import { armNoteLock, disarmNoteLock, openNoteKeyWithAccount, openNoteKeyWithMasterEncoded, reWrapNotePin, retryAfterMs, unlockNoteWithMaster, unlockNoteWithPin } from './vault/noteLock';
 import { buildAccountRecovery, checkAccountPassword, deriveAccountWrapKey, type AccountRecoveryColumns } from './vault/accountRecovery';
@@ -294,8 +294,20 @@ const openForDisplay = async <T extends Note>(rows: (Note & T)[], userId: string
             out.push({ ...stub, content: '', notes_tags: [], notes_cover: null });
             continue;
         }
-        const { rows: opened } = await openRows<Note>('notes', [row], userId);
-        if (opened[0]) out.push(opened[0]);
+        try {
+            const { rows: opened } = await openRows<Note>('notes', [row], userId);
+            if (opened[0]) out.push(opened[0]);
+        } catch (error) {
+            // A row that still carries a vault blob but can no longer be opened
+            // (a note whose PIN was removed without restoring its contents, for
+            // example) must not take the whole list down with it. Surface the
+            // title so the page is at least visible and recoverable.
+            if (error instanceof VaultLockedError || error instanceof Error) {
+                const stub = { ...row } as Note;
+                delete stub.vault;
+                out.push({ ...stub, content: '', notes_tags: [], notes_cover: null });
+            }
+        }
     }
     return out;
 };
@@ -384,8 +396,12 @@ export const getNoteById = async (id: string, includeTrashed = false): Promise<N
      */
     const noteKey = heldNoteKey(id);
     if (noteKey) {
-        const { rows } = await openRows<Note>('notes', [data as Note], user.id, noteKey);
-        if (rows[0]) return rows[0];
+        try {
+            const { rows } = await openRows<Note>('notes', [data as Note], user.id, noteKey);
+            if (rows[0]) return rows[0];
+        } catch {
+            // Fall through to the stub below rather than throwing.
+        }
     }
 
     if (data.lock_enabled) {
@@ -397,8 +413,14 @@ export const getNoteById = async (id: string, includeTrashed = false): Promise<N
         return { ...stub, content: '', notes_tags: [], notes_cover: null };
     }
 
-    const { rows } = await openRows<Note>('notes', [data as Note], user.id);
-    return rows[0] ?? null;
+    try {
+        const { rows } = await openRows<Note>('notes', [data as Note], user.id);
+        return rows[0] ?? null;
+    } catch {
+        const stub = { ...(data as Note) };
+        delete stub.vault;
+        return { ...stub, content: '', notes_tags: [], notes_cover: null };
+    }
 };
 
 // Create a new page. Title defaults to empty rather than being required, so
@@ -805,9 +827,17 @@ export const unlockNote = async (id: string): Promise<Note> => {
         // No master key. Put the page's own fields back in the clear and drop the
         // PIN. `current` came out of the payload, so this is its content restored
         // to the column it lives in.
-        const restore: Record<string, unknown> = { ...disarmNoteLock() };
-        for (const key of Object.keys(blanks)) {
-            const value = (current as unknown as Record<string, unknown>)[key];
+        //
+        // `blanks` is empty in this branch (sealExistingRow only fills it when a
+        // seal actually happened), so the private columns have to be taken from
+        // `current` directly. And `vault` must be cleared too: leaving the sealed
+        // blob in place keeps the row unreadable, because nothing left can open it
+        // once the lock columns are dropped.
+        const clearSet = new Set(CLEAR_COLUMNS.notes ?? []);
+        const restore: Record<string, unknown> = { ...disarmNoteLock(), vault: null };
+        for (const [key, value] of Object.entries(current as unknown as Record<string, unknown>)) {
+            if (key === 'vault') continue;
+            if (clearSet.has(key)) continue;
             if (value !== undefined) restore[key] = value;
         }
 

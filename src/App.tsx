@@ -13,6 +13,7 @@ import AppLockGate from './Components/Security/AppLockGate'
 import { TimerEngineProvider } from './hooks/useTimerEngine'
 import { useBootFetchHandoff, useBootHold, dismissBootScreenImmediate } from './services/bootScreen'
 import { useAuthSession } from './hooks/useAuthSession'
+import { useNightTheme } from './hooks/useNightTheme'
 import { useQueryClient } from '@tanstack/react-query'
 import { pageLoaders, preloadRoute } from './utils/routePreloaders'
 import LoadingBar from './Components/LoadingBar'
@@ -303,6 +304,7 @@ const AuthenticatedApp: React.FC = () => {
 };
 
 function App() {
+  useNightTheme();
   return (
     <BrowserRouter>
       <ScrollToTop />

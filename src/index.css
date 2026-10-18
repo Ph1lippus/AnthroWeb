@@ -165,6 +165,33 @@
   --tabs-dur: 250ms;
   --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Night theme (18:00-07:00). Toggled by useNightTheme on <html>. Only the
+   accent and the background gradient move; the graphite base stays. */
+html.night {
+  --color-primary: #ff5a5f;
+  --color-primary-dark: #a8323a;
+  --accent: #ff5a5f;
+  --accent-bg: rgba(255, 90, 95, 0.1);
+  --accent-border: rgba(255, 90, 95, 0.5);
+  --chart-primary: #ff5a5f;
+}
+
+html.night body::before {
+  background-image: url('/background-night.svg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+html.night .loader-screen {
+  background-color: #1a0f12;
+  background-image: url('/background-night.svg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
 @media (max-width: 1024px) {
   :root { font-size: 16px; }
 }

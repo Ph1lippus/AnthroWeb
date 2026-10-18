@@ -220,9 +220,17 @@ const centreOnFirstLine: HandleMiddleware = {
         const element = state.elements.reference;
         const declared =
             element instanceof Element ? parseFloat(getComputedStyle(element).lineHeight) : NaN;
-        const firstLine = Number.isFinite(declared)
-            ? Math.min(reference.height, declared)
-            : reference.height;
+        // `line-height: normal` (lists, flex rows, ...) does not parse, so the
+        // old fallback took the whole block's height and centered the handle in
+        // the middle of a multi-line block. Estimate the first line from the
+        // font size instead, which is what `normal` resolves to anyway.
+        const fontSize =
+            element instanceof Element ? parseFloat(getComputedStyle(element).fontSize) : NaN;
+        const fallbackLine = Number.isFinite(fontSize) ? fontSize * 1.5 : reference.height;
+        const firstLine = Math.min(
+            reference.height,
+            Number.isFinite(declared) ? declared : fallbackLine,
+        );
         return { y: state.y + (firstLine - handle.offsetHeight) / 2 };
     },
 };
