@@ -137,6 +137,44 @@ export const downloadNoteMarkdown = (note: Note, allNotes: Note[]) => {
     downloadTextFile(noteFileName(note), noteToMarkdown(note, allNotes), 'text/markdown');
 };
 
+/** Converts an HTML fragment to Markdown using the same rules as file export. */
+export const htmlToMarkdown = (html: string): string => {
+    if (!html) return '';
+    return buildService().turndown(html).trim();
+};
+
+/** Writes text to the clipboard, returning false if the browser refuses. */
+export const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
+        }
+    }
+};
+
+/** Copies an HTML fragment to the clipboard as Markdown. */
+export const copyHtmlAsMarkdown = async (html: string): Promise<boolean> => {
+    return copyTextToClipboard(htmlToMarkdown(html));
+};
+
+/** Copies a whole page to the clipboard as Markdown. */
+export const copyNoteAsMarkdown = async (note: Note, allNotes: Note[]): Promise<boolean> => {
+    return copyTextToClipboard(noteToMarkdown(note, allNotes));
+};
+
 export const downloadNoteHtml = (note: Note) => {
     // A minimal shell, so the exported file renders on its own rather than as a
     // bare fragment that a browser shows as unstyled text.

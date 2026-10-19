@@ -1,4 +1,5 @@
 import { Selection } from '@tiptap/pm/state';
+import { DOMSerializer } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
 import { Fragment } from '@tiptap/pm/model';
 import type { ResolvedPos } from '@tiptap/pm/model';
@@ -278,6 +279,38 @@ export const isMarkedOver = (editor: Editor, target: BlockTarget, markName: stri
     const type = editor.schema.marks[markName];
     if (!type) return false;
     return editor.state.doc.rangeHasMark(target.from, target.to, type);
+};
+
+/** Copies the targeted blocks to the clipboard as Markdown. */
+export const copyBlocksAsMarkdown = async (editor: Editor, target: BlockTarget): Promise<boolean> => {
+    if (editor.isDestroyed) return false;
+    const { state } = editor;
+    const slice = state.doc.slice(target.from, target.to);
+    const serializer = DOMSerializer.fromSchema(state.schema);
+    const fragment = serializer.serializeFragment(slice.content);
+    const container = document.createElement('div');
+    container.appendChild(fragment);
+    const html = container.innerHTML;
+    const { htmlToMarkdown } = await import('./noteExport.ts');
+    const markdown = htmlToMarkdown(html);
+    try {
+        await navigator.clipboard.writeText(markdown);
+        return true;
+    } catch {
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = markdown;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return ok;
+        } catch {
+            return false;
+        }
+    }
 };
 
 /** Copies the targeted blocks, putting the caret at the top of the copy. */

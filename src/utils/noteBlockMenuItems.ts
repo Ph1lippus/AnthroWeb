@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { SlashCommand, SlashIconName } from './noteEditorExtensions';
 import type { BlockTarget, MenuSource } from './noteBlockActions';
 import {
+    copyBlocksAsMarkdown,
     deleteBlocks,
     duplicateBlocks,
     isMarkedOver,
@@ -137,6 +138,15 @@ export const buildActionCommands = (editor: Editor, target: BlockTarget): SlashC
             group: 'Actions',
             keywords: ['duplicate', 'copy', 'clone', 'repeat'],
             run: () => duplicateBlocks(editor, target),
+        },
+        {
+            id: 'copy-as-markdown',
+            title: 'Copy as Markdown',
+            hint: plural ? `Copy ${target.blocks} blocks as Markdown` : 'Copy this block as Markdown',
+            icon: 'Copy',
+            group: 'Actions',
+            keywords: ['copy', 'markdown', 'clipboard'],
+            run: () => void copyBlocksAsMarkdown(editor, target),
         },
         {
             id: 'move-up',

@@ -30,7 +30,7 @@ import { useNoteEditorChunk } from './useNoteEditorChunk';
 import { useNotice } from '../Feedback/useNotice';
 import { useDuplicateNote, useToggleNotePin, useTrashNote, useUpdateNote, useUpdateNoteAppearance } from '../../hooks/useNotes';
 import { noteAncestors } from '../../utils/noteTree';
-import { downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
+import { copyNoteAsMarkdown, downloadNoteHtml, downloadNoteMarkdown } from '../../utils/noteExport';
 import { resolveNoteColor } from '../../utils/noteColors';
 import { resolveNoteIcon } from '../../utils/noteIcons';
 import {
@@ -334,6 +334,15 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                 downloadNoteMarkdown(note, allNotes);
                 return;
             }
+            if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'c') {
+                event.preventDefault();
+                void (async () => {
+                    const ok = await copyNoteAsMarkdown(note, allNotes);
+                    if (ok) notify('success', 'Copied as Markdown');
+                    else notify('error', 'Could not copy as Markdown');
+                })();
+                return;
+            }
             // "?" only when it is not being typed: an editable target means the
             // character belongs to the note.
             if (
@@ -350,7 +359,7 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [note, allNotes]);
+    }, [note, allNotes, notify]);
 
     const currentColor = localColor;
     // Resolved once here ...
@@ -493,6 +502,21 @@ return (
                                 }}
                             >
                                 HTML
+                            </button>
+                            <button
+                                type="button"
+                                data-tip="Copy this page as Markdown"
+                                aria-label="Copy as Markdown"
+                                onClick={() => {
+                                    void (async () => {
+                                        const ok = await copyNoteAsMarkdown(note, allNotes);
+                                        if (ok) notify('success', 'Copied as Markdown');
+                                        else notify('error', 'Could not copy as Markdown');
+                                    })();
+                                    setShowExport(false);
+                                }}
+                            >
+                                Copy as Markdown
                             </button>
                         </div>
                     )}
