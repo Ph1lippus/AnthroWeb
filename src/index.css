@@ -166,7 +166,7 @@
   --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Night theme (18:00-07:00). Toggled by useNightTheme on <html>. Only the
+/* Night theme (18:00-09:00). Toggled by useNightTheme on <html>. Only the
    accent and the background gradient move; the graphite base stays. */
 html.night {
   --color-primary: #ff5a5f;

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * Time-based night theme.
  *
- * Between 18:00 and 07:00 local time the app switches its accent from the
+ * Between 18:00 and 09:00 local time the app switches its accent from the
  * daytime green to a softer "ember" red and layers a red gradient over the
  * existing background. The base surface stays the same graphite, so the app
  * still reads as one product -- it just warms up at night.
@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
  * class, so no component has to know about it.
  */
 const NIGHT_START = 18; // 6pm
-const NIGHT_END = 7;    // 7am
+const NIGHT_END = 9;    // 9am
 
 export const isNightHour = (hour: number): boolean =>
     hour >= NIGHT_START || hour < NIGHT_END;
