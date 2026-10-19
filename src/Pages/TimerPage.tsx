@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Flag, Maximize2, Minimize2, Play, RotateCcw, Square } from 'lucide-react';
+import { Coffee, Flag, Maximize2, Minimize2, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import DurationPad from '../Components/Timer/DurationPad';
@@ -593,6 +593,38 @@ const TimerPage: React.FC = () => {
                                         data-tip={focusMode ? 'Exit focus' : 'Focus mode'}
                                     >
                                         {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                    </button>
+
+                                    {/* Choose which phase an interval run starts in. */}
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={tap(() => engine.startWork())}
+                                        data-phase="work"
+                                        data-tip="Start with a work interval"
+                                        aria-label="Start with a work interval"
+                                    >
+                                        <Zap size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={tap(() => engine.startRest())}
+                                        data-phase="rest"
+                                        data-tip="Start with a rest break"
+                                        aria-label="Start with a rest break"
+                                    >
+                                        <Coffee size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={tap(() => engine.startLongRest())}
+                                        data-phase="long"
+                                        data-tip="Start with a long break"
+                                        aria-label="Start with a long break"
+                                    >
+                                        <Moon size={14} />
                                     </button>
 
                                     {/* Lap. Stopwatch only, because a split is only

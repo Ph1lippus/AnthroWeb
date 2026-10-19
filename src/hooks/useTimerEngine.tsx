@@ -256,7 +256,11 @@ export interface EngineApi {
     /** Countdown only. Ignored while running, and a zero duration is refused. */
     setDuration: (ms: number) => void;
     setIntervalConfig: (config: IntervalConfig) => void;
-    start: () => void;
+    start: (startPhase?: 'work' | 'rest' | 'long') => void;
+    startPhase: (phase: 'work' | 'rest' | 'long') => void;
+    startWork: () => void;
+    startRest: () => void;
+    startLongRest: () => void;
     pause: () => void;
     reset: () => void;
     /** Stopwatch splits in order. Persisted, so a reload does not lose them. */
@@ -611,6 +615,39 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         fireAlert(finishedReason);
     }, [finishedReason, fireAlert]);
 
+    /**
+     * A sound at every phase boundary, not only at the end of the run.
+     *
+     * The whole-run alert above covers "the session is over", but an interval
+     * session is made of several intervals and the user needs to know when each
+     * one stops -- a focus phase ending is the moment to switch to rest, and
+     * nothing about it is visible if the tab is not in front of you. So every
+     * transition between phases rings, the same way the final one does.
+     *
+     * Tracked by a phase key rather than by identity, because `phaseAt` hands
+     * back a fresh object each tick and an identity comparison would fire on
+     * every render. The first phase of a run is recorded but not announced:
+     * starting is deliberately silent, and a restored run must not announce the
+     * phase it happened to wake up in.
+     */
+    const prevPhaseRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (state.mode !== 'interval' || !state.running) {
+            prevPhaseRef.current = null;
+            return;
+        }
+        const key = phase ? `${phase.kind}:${phase.round}:${phase.index}` : null;
+        if (prevPhaseRef.current !== null && prevPhaseRef.current !== key && key !== null) {
+            unlockAudio();
+            playChime(ALERT_VOLUME);
+            void showNotification({
+                title: phase!.kind === 'work' ? 'Focus' : phase!.kind === 'long' ? 'Long rest' : 'Rest',
+                body: 'The next phase has begun.',
+            });
+        }
+        prevPhaseRef.current = key;
+    }, [state.mode, state.running, phase]);
+
     // ==================== TICK ====================
 
     /**
@@ -783,12 +820,35 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 // that cannot be restarted -- which is precisely the bug the branch in
                 // `start()` was written to avoid.
                 const exhausted = phaseAt(prev.elapsedBefore, prev.intervalConfig) === null;
+                // When the previous run was exhausted, begin the new one in the
+                // configured start phase rather than always at work.
+                let initialElapsed = prev.elapsedBefore;
+                if (exhausted) {
+                    const phase = prev.intervalConfig.startPhase ?? 'work';
+                    if (phase === 'work') initialElapsed = 0;
+                    else {
+                        const workMs = prev.intervalConfig.workSec * 1000;
+                        let t = 0;
+                        let found: number | null = null;
+                        const maxRounds = prev.intervalConfig.totalRounds > 0 ? prev.intervalConfig.totalRounds : 500;
+                        for (let round = 1; round <= maxRounds; round++) {
+                            t += workMs;
+                            const isLong = (prev.intervalConfig.roundsBeforeLong > 0
+                                && round % prev.intervalConfig.roundsBeforeLong === 0);
+                            const matches = (phase === 'long') ? isLong : !isLong;
+                            if (matches) { found = t; break; }
+                            t += isLong ? prev.intervalConfig.longRestSec * 1000 : prev.intervalConfig.restSec * 1000;
+                            if (prev.intervalConfig.totalRounds > 0 && round === prev.intervalConfig.totalRounds) break;
+                        }
+                        initialElapsed = found ?? 0;
+                    }
+                }
                 return {
                     ...prev,
                     acknowledged: false,
                     running: true,
                     legStartedAt: Date.now(),
-                    elapsedBefore: exhausted ? 0 : prev.elapsedBefore,
+                    elapsedBefore: initialElapsed,
                     intervalConfig: { ...prev.intervalConfig, startAt: null },
                 };
             });
@@ -818,7 +878,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // ==================== HANDLERS ====================
 
-    const start = useCallback(() => {
+    const start = useCallback((startPhase?: 'work' | 'rest' | 'long') => {
         try { unlockAudio(); } catch { /* ignore */ }
         // `now` only advances inside the repaint interval, which does not exist
         // until something is running. Pressing Start minutes after the page
@@ -866,18 +926,54 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             // starting a leg from it is what makes resume exact rather than
             // approximately right.
             const finished = phaseAt(prev.elapsedBefore, prev.intervalConfig) === null;
-            if (finished) {
+            const forcePhase = startPhase !== undefined;
+            if (finished || prev.elapsedBefore === 0 || forcePhase) {
+                const phase = startPhase ?? prev.intervalConfig.startPhase ?? 'work';
+                // Begin at the start of the chosen phase. The rest of the
+                // sequence then follows naturally from there.
+                // initialElapsed is the elapsed time at the START of the chosen phase.
+                // For 'work' that is 0; for a rest phase it is the end of the
+                // preceding work block.
+                let initialElapsed = 0;
+                if (phase === 'work') initialElapsed = 0;
+                else if (phase === 'rest' || phase === 'long') {
+                    // elapsed at the start of the first matching rest
+                    const workMs = prev.intervalConfig.workSec * 1000;
+                    const restMs = prev.intervalConfig.restSec * 1000;
+                    const longMs = prev.intervalConfig.longRestSec * 1000;
+                    let t = 0;
+                    let foundElapsed: number | null = null;
+                    const maxRounds = prev.intervalConfig.totalRounds > 0 ? prev.intervalConfig.totalRounds : 500;
+                    for (let round = 1; round <= maxRounds; round++) {
+                        t += workMs; // end of this work block
+                        const isLong = (prev.intervalConfig.roundsBeforeLong > 0
+                            && round % prev.intervalConfig.roundsBeforeLong === 0);
+                        const matches = (phase === 'long') ? isLong : !isLong;
+                        if (matches) { foundElapsed = t; break; }
+                        t += isLong ? longMs : restMs;
+                        if (prev.intervalConfig.totalRounds > 0 && round === prev.intervalConfig.totalRounds) break;
+                    }
+                    if (foundElapsed !== null) initialElapsed = foundElapsed;
+                    else initialElapsed = 0;
+                }
                 return {
                     ...prev,
                     acknowledged: false,
-                    elapsedBefore: 0,
+                    elapsedBefore: initialElapsed,
                     running: true,
                     legStartedAt: at,
+                    intervalConfig: startPhase ? { ...prev.intervalConfig, startPhase } : prev.intervalConfig,
                 };
             }
             return { ...prev, acknowledged: false, running: true, legStartedAt: at };
         });
     }, []);
+
+    // The aliases below forward to `start` with a fixed phase.
+    const startWork = useCallback(() => { start('work'); }, [start]);
+    const startRest = useCallback(() => { start('rest'); }, [start]);
+    const startLongRest = useCallback(() => { start('long'); }, [start]);
+    const startPhaseAlias = useCallback((phase: 'work' | 'rest' | 'long') => { start(phase); }, [start]);
 
     const pause = useCallback(() => {
         // Same stale-clock problem as `start`, seen from the other side: the leg
@@ -933,11 +1029,29 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             const at = Date.now();
             // `acknowledged: false` because this is a brand new run, so its end
             // has not been seen yet. Leaving it true would silence the restart.
+            const phase = prev.intervalConfig.startPhase ?? 'work';
+            let initialElapsed = 0;
+            if (phase !== 'work' && prev.mode === 'interval') {
+                const workMs = prev.intervalConfig.workSec * 1000;
+                let t = 0;
+                let found: number | null = null;
+                const maxRounds = prev.intervalConfig.totalRounds > 0 ? prev.intervalConfig.totalRounds : 500;
+                for (let round = 1; round <= maxRounds; round++) {
+                    t += workMs;
+                    const isLong = (prev.intervalConfig.roundsBeforeLong > 0
+                        && round % prev.intervalConfig.roundsBeforeLong === 0);
+                    const matches = (phase === 'long') ? isLong : !isLong;
+                    if (matches) { found = t; break; }
+                    t += isLong ? prev.intervalConfig.longRestSec * 1000 : prev.intervalConfig.restSec * 1000;
+                    if (prev.intervalConfig.totalRounds > 0 && round === prev.intervalConfig.totalRounds) break;
+                }
+                initialElapsed = found ?? 0;
+            }
             const base = {
                 ...prev,
                 alert: null,
                 acknowledged: false,
-                elapsedBefore: 0,
+                elapsedBefore: prev.mode === 'interval' ? initialElapsed : 0,
                 running: true,
                 legStartedAt: at,
             };
@@ -1094,6 +1208,10 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setDuration,
         setIntervalConfig: setIntervalConfigCb,
         start,
+        startPhase: startPhaseAlias,
+        startWork,
+        startRest,
+        startLongRest,
         pause,
         reset,
         restart,
@@ -1106,8 +1224,8 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }), [
         state.mode, active, state.deadline, state.totalMs, state.intervalConfig, state.laps, alert,
         remaining, elapsed, progress, phase, startDueAt, scheduledFor, untilStartMs,
-        setMode, setDuration, setIntervalConfigCb, start, pause, reset, restart, addLap, clearLaps,
-        addMinutes, dismissAlert, testAlert, raiseAlarm,
+        setMode, setDuration, setIntervalConfigCb, start, startPhaseAlias, startWork, startRest, startLongRest,
+        pause, reset, restart, addLap, clearLaps, addMinutes, dismissAlert, testAlert, raiseAlarm,
     ]);
 
     return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

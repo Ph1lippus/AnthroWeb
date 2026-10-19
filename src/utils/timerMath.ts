@@ -211,6 +211,12 @@ export interface IntervalConfig {
      * the persisted run state instead, where it belongs to one session.
      */
     startAt: number | null;
+    /**
+     * Which phase a freshly started run begins in. The run begins at the start
+     * of that phase and the rest of the sequence follows from there. `work` is
+     * the normal beginning; `rest` and `long` let a break be taken first.
+     */
+    startPhase?: 'work' | 'rest' | 'long';
 }
 
 export interface IntervalPhase {
@@ -248,6 +254,7 @@ export const DEFAULT_INTERVAL: IntervalConfig = {
      */
     totalRounds: 0,
     startAt: null,
+    startPhase: 'work',
 };
 
 /**
@@ -595,5 +602,10 @@ export function normalizeIntervalConfig(raw: unknown): IntervalConfig {
         roundsBeforeLong: count(source.roundsBeforeLong, DEFAULT_INTERVAL.roundsBeforeLong, 0, 24),
         totalRounds: count(source.totalRounds, DEFAULT_INTERVAL.totalRounds, 0, 99),
         startAt: startAt(source.startAt),
+        startPhase: ((): 'work' | 'rest' | 'long' => {
+            const raw = source as Record<string, unknown>;
+            const v = raw.startPhase ?? raw.initialPhase ?? raw.startWith ?? raw.firstPhase ?? raw.startInterval;
+            return v === 'rest' || v === 'long' ? v : 'work';
+        })(),
     };
 }
