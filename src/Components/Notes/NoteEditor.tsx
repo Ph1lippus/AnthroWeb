@@ -298,6 +298,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
             onTocUpdate: setTocItems,
         }),
         content: normalizeNoteHtml(initialHtml),
+        // Preserve leading/trailing spaces (e.g. Tab indentation) when the stored
+        // HTML is parsed back into the document; otherwise HTML collapses them and
+        // indentation is lost on reload.
+        parseOptions: { preserveWhitespace: 'full' },
         // Notion-style pages are not a form field: nothing should submit them and
         // nothing should be stripped out of them.
         editorProps: {
@@ -673,6 +677,9 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 editor={editor}
                 className="note-drag-handle"
                 computePositionConfig={handlePositionConfig}
+                // Nested handles: each list item (and other nested blocks) gets its
+                // own grip, so a task list is not treated as one block.
+                nested
                 onNodeChange={({ node, pos }) => {
                     handlePosRef.current = node ? pos : -1;
                 }}

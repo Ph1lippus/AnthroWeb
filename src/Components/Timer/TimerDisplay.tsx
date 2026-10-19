@@ -3,6 +3,8 @@ import React from 'react';
 interface TimerDisplayProps {
     /** Already formatted, e.g. "24:59" or "1:01:01". */
     text: string;
+    /** Current wall-clock time, shown just above the main digits. */
+    now?: string;
     /**
      * 0..1 around the ring, or null to draw the track only.
      *
@@ -71,7 +73,7 @@ const TICKS = Array.from({ length: 60 }, (_, i) => {
 });
 
 const TimerDisplay: React.FC<TimerDisplayProps> = ({
-    text, fraction, running, dimmed, done, phase, phaseTone, round,
+    text, now, fraction, running, dimmed, done, phase, phaseTone, round,
 }) => {
     // A null fraction means "no end to measure against", which is drawn as an
     // empty track rather than as a full circle -- a full ring on a stopwatch
@@ -163,6 +165,11 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
             </svg>
 
             <div className="timer-display__inner">
+                {now && (
+                    <span className="timer-display__now">
+                        {now}
+                    </span>
+                )}
                 <span
                     className={digitsClass}
                 >

@@ -37,8 +37,21 @@
     <meta name="theme-color" content="#000000" />
     <script>
       (function () {
-        var h = new Date().getHours();
-        if (h >= 18 || h < 9) document.documentElement.classList.add('night');
+        var night = false;
+        try {
+          var override = localStorage.getItem('nightThemeOverride');
+          var expiry = Number(localStorage.getItem('nightThemeOverrideExpiry'));
+          if ((override === 'day' || override === 'night') && expiry && Date.now() < expiry) {
+            night = override === 'night';
+          } else {
+            var h = new Date().getHours();
+            night = h >= 18 || h < 9;
+          }
+        } catch (e) {
+          var h = new Date().getHours();
+          night = h >= 18 || h < 9;
+        }
+        if (night) document.documentElement.classList.add('night');
       })();
     </script>
     <!--

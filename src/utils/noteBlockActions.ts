@@ -62,6 +62,21 @@ const containerAt = (doc: ProseMirrorNode, pos: number): Container => {
         if ($pos.node(bodyDepth).type.name !== 'detailsContent') break;
         return { node: $pos.node(bodyDepth), start: $pos.before(bodyDepth) + 1 };
     }
+    // Top-level lists: each item is its own line, so a list is a container of
+    // its items rather than one block. Without this a bulleted or numbered list
+    // was treated as a single line no matter how many items it held, and only
+    // the whole list could be selected or acted on.
+    for (let depth = $pos.depth; depth > 0; depth--) {
+        const node = $pos.node(depth);
+        if (node.type.name !== 'listItem' && node.type.name !== 'taskItem') continue;
+        const listDepth = depth - 1;
+        if (listDepth < 1) continue;
+        const listNode = $pos.node(listDepth);
+        if (!/list/i.test(listNode.type.name)) continue;
+        const parentDepth = listDepth - 1;
+        if (parentDepth < 0 || $pos.node(parentDepth).type.name !== 'doc') continue;
+        return { node: listNode, start: $pos.before(listDepth) + 1 };
+    }
     return { node: doc, start: 0 };
 };
 
@@ -148,7 +163,20 @@ export const resolveBlockTarget = (editor: Editor, handlePos: number): BlockTarg
     }
 
     const fallback = empty ? from : to;
-    const pos = handlePos >= 0 && !caretNarrowsHandle(state.doc, handlePos, from) ? handlePos : fallback;
+    // A top-level list's grip is the list's, but when the caret is inside it the
+    // reader pointed at one of its items rather than the whole list. The same
+    // narrowing the toggle already gets, so the handle does not swallow every
+    // item at once.
+    const handleNode = handlePos >= 0 ? state.doc.nodeAt(handlePos) : null;
+    const isTopLevelList =
+        !!handleNode &&
+        /list/i.test(handleNode.type.name) &&
+        state.doc.resolve(handlePos).depth === 1;
+    const narrows =
+        handleNode?.type.name === 'details'
+            ? caretNarrowsHandle(state.doc, handlePos, from)
+            : isTopLevelList && from > handlePos && from < handlePos + (handleNode?.nodeSize ?? 0);
+    const pos = handlePos >= 0 && !narrows ? handlePos : fallback;
     return rangeInContainer(state.doc, pos, pos, pos + 1);
 };
 

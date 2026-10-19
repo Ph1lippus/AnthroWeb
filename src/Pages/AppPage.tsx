@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Title from '../Components/Title';
 import SettingsShell from '../Components/Settings/SettingsShell';
+import { getNightThemeOverride, setNightThemeOverride, type ThemeOverride } from '../hooks/useNightTheme';
 import { Package, RotateCw, Download, Info, ChevronRight } from 'lucide-react';
 import { checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp } from '../services/updateService';
 import type { UpdateInfo } from '../services/updateService';
@@ -15,6 +16,7 @@ const AppPage: React.FC = () => {
     const [checkStatus, setCheckStatus] = useState<CheckStatus>('idle');
     const [checkedUpdate, setCheckedUpdate] = useState<UpdateInfo | null>(null);
     const [installing, setInstalling] = useState(false);
+    const [themeOverride, setThemeOverride] = useState<ThemeOverride>(() => getNightThemeOverride());
     const [, raiseInstallError, clearInstallError] = useInlineError();
 
     useEffect(() => {
@@ -107,6 +109,30 @@ const AppPage: React.FC = () => {
                     </div>
 
                     <div className="settings-list">
+                        <div className="settings-item" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                            <div className="settings-item-content">
+                                <span className="settings-item-title">Primary background</span>
+                                <span className="settings-item-description">
+                                    Auto follows the hour (green by day, red at night). A manual choice lasts until the next scheduled change.
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                                {(['auto', 'day', 'night'] as ThemeOverride[]).map(mode => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        className="btn-action"
+                                        onClick={() => {
+                                            setNightThemeOverride(mode);
+                                            setThemeOverride(mode);
+                                        }}
+                                        style={{ opacity: themeOverride === mode ? 1 : 0.5 }}
+                                    >
+                                        {mode === 'auto' ? 'Auto' : mode === 'day' ? 'Green' : 'Red'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <button
                             className="settings-item"
                             onClick={handleCheck}

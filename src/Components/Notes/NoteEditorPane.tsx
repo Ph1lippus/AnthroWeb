@@ -470,6 +470,22 @@ return (
 
                     <button
                         type="button"
+                        className="note-action-btn"
+                        onClick={() => {
+                            void (async () => {
+                                const ok = await copyNoteAsMarkdown(note, allNotes);
+                                if (ok) notify('success', 'Copied as Markdown');
+                                else notify('error', 'Could not copy as Markdown');
+                            })();
+                        }}
+                        data-tip="Copy full page as Markdown"
+                        aria-label="Copy full page as Markdown"
+                    >
+                        <Copy size={14} />
+                    </button>
+
+                    <button
+                        type="button"
                         className={`note-action-btn${showExport ? ' note-action-btn--pinned' : ''}`}
                         onClick={() => setShowExport(v => !v)}
                         data-tip="Export this page"

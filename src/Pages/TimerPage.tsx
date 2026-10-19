@@ -552,24 +552,35 @@ const TimerPage: React.FC = () => {
                                 above it. `order` puts it above on a phone, where
                                 there is no room for two columns. */}
                             <div className="timer-stage">
-                                <time className="timer-clock__now" dateTime={new Date(panelNow).toISOString()}>
-                                    {new Date(panelNow).toLocaleTimeString(undefined, {
+                                {(() => {
+                                    const idle = !engine.running
+                                        && engine.deadline === null
+                                        && engine.elapsed === 0
+                                        && engine.laps.length === 0
+                                        && engine.scheduledFor === null
+                                        && engine.startDueAt === null
+                                        && engine.alert === null
+                                        && alarmCountdownMs === null;
+                                    const nowText = new Date(panelNow).toLocaleTimeString(undefined, {
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         second: '2-digit',
                                         hour12: false,
-                                    })}
-                                </time>
-                                <TimerDisplay
-                                    text={digits}
-                                    fraction={fraction}
-                                    running={engine.running}
-                                    dimmed={!engine.running && !done}
-                                    done={done}
-                                    phase={phaseLabel}
-                                    phaseTone={phaseTone}
-                                    round={roundLabel}
-                                />
+                                    });
+                                    return (
+                                        <TimerDisplay
+                                            text={idle ? nowText : digits}
+                                            now={idle ? undefined : nowText}
+                                            fraction={idle ? null : fraction}
+                                            running={idle ? false : engine.running}
+                                            dimmed={idle ? false : !engine.running && !done}
+                                            done={idle ? false : done}
+                                            phase={idle ? undefined : phaseLabel}
+                                            phaseTone={idle ? undefined : phaseTone}
+                                            round={idle ? undefined : roundLabel}
+                                        />
+                                    );
+                                })()}
 
                                 <div className="timer-controls">
                                     <button
@@ -596,9 +607,9 @@ const TimerPage: React.FC = () => {
                                     </button>
 
                                     {/* Choose which phase an interval run starts in.
-                                        This only selects the starting phase; it does
-                                        not start the timer. Press Start (or arm a
-                                        scheduled start) to begin. */}
+                                        Only relevant in interval mode. */}
+                                    {engine.mode === 'interval' && (
+                                        <>
                                     <button
                                         type="button"
                                         className={`timer-btn${engine.intervalConfig.startPhase === 'work' ? ' timer-chip--on' : ''}`}
@@ -632,6 +643,8 @@ const TimerPage: React.FC = () => {
                                     >
                                         <Moon size={14} />
                                     </button>
+                                        </>
+                                    )}
 
                                     {/* Lap. Stopwatch only, because a split is only
                                         meaningful against a count-up: on a countdown
@@ -650,16 +663,17 @@ const TimerPage: React.FC = () => {
                                         </button>
                                     )}
 
+                                    {canResume && (
                                     <button
                                         type="button"
                                         className="timer-btn"
                                         onClick={tap(engine.reset)}
                                         data-tip="Reset"
                                         aria-label="Reset the timer"
-                                        disabled={!canResume}
                                     >
                                         <RotateCcw size={14} />
                                     </button>
+                                    )}
                                 </div>
 
 
