@@ -595,34 +595,40 @@ const TimerPage: React.FC = () => {
                                         {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                     </button>
 
-                                    {/* Choose which phase an interval run starts in. */}
+                                    {/* Choose which phase an interval run starts in.
+                                        This only selects the starting phase; it does
+                                        not start the timer. Press Start (or arm a
+                                        scheduled start) to begin. */}
                                     <button
                                         type="button"
-                                        className="timer-btn"
-                                        onClick={tap(() => engine.startWork())}
+                                        className={`timer-btn${engine.intervalConfig.startPhase === 'work' ? ' timer-chip--on' : ''}`}
+                                        onClick={tap(() => engine.setIntervalConfig({ ...engine.intervalConfig, startPhase: 'work' }))}
                                         data-phase="work"
-                                        data-tip="Start with a work interval"
-                                        aria-label="Start with a work interval"
+                                        data-tip="Start in a work interval"
+                                        aria-label="Start in a work interval"
+                                        aria-pressed={engine.intervalConfig.startPhase === 'work'}
                                     >
                                         <Zap size={14} />
                                     </button>
                                     <button
                                         type="button"
-                                        className="timer-btn"
-                                        onClick={tap(() => engine.startRest())}
+                                        className={`timer-btn${engine.intervalConfig.startPhase === 'rest' ? ' timer-chip--on' : ''}`}
+                                        onClick={tap(() => engine.setIntervalConfig({ ...engine.intervalConfig, startPhase: 'rest' }))}
                                         data-phase="rest"
-                                        data-tip="Start with a rest break"
-                                        aria-label="Start with a rest break"
+                                        data-tip="Start in a rest break"
+                                        aria-label="Start in a rest break"
+                                        aria-pressed={engine.intervalConfig.startPhase === 'rest'}
                                     >
                                         <Coffee size={14} />
                                     </button>
                                     <button
                                         type="button"
-                                        className="timer-btn"
-                                        onClick={tap(() => engine.startLongRest())}
+                                        className={`timer-btn${engine.intervalConfig.startPhase === 'long' ? ' timer-chip--on' : ''}`}
+                                        onClick={tap(() => engine.setIntervalConfig({ ...engine.intervalConfig, startPhase: 'long' }))}
                                         data-phase="long"
-                                        data-tip="Start with a long break"
-                                        aria-label="Start with a long break"
+                                        data-tip="Start in a long break"
+                                        aria-label="Start in a long break"
+                                        aria-pressed={engine.intervalConfig.startPhase === 'long'}
                                     >
                                         <Moon size={14} />
                                     </button>
