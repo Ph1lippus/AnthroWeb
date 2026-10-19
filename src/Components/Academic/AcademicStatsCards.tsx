@@ -47,6 +47,7 @@ interface Stat {
     icon: React.ReactNode;
     tone: 'good' | 'warn' | 'flat';
     highlight?: boolean;
+    tip?: string;
 }
 
 const statTips: Record<string, string> = {
@@ -98,15 +99,14 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             if (!course.id || course.credits <= 0) return sum;
             const finalGrade = typeof course.final_grade === 'number' && !Number.isNaN(course.final_grade);
             const prediction = predictions.get(course.id);
+            let covered = 0;
             if (finalGrade) {
-                return {
-                    coveredCredits: sum.coveredCredits + course.credits,
-                    totalCredits: sum.totalCredits + course.credits,
-                };
+                covered = course.credits;
+            } else if (prediction?.percent !== null && prediction?.percent !== undefined) {
+                covered = (course.credits * Math.min(100, prediction.gradedWeight)) / 100;
             }
-            if (prediction?.percent === null || prediction?.percent === undefined) return sum;
             return {
-                coveredCredits: sum.coveredCredits + (course.credits * Math.min(100, prediction.gradedWeight)) / 100,
+                coveredCredits: sum.coveredCredits + covered,
                 totalCredits: sum.totalCredits + course.credits,
             };
         },
@@ -115,6 +115,32 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
     const projectedConfidence = projectedCoverage.totalCredits > 0
         ? Math.round((projectedCoverage.coveredCredits / projectedCoverage.totalCredits) * 100)
         : null;
+
+    // Breakdown of where the confidence comes from, so the single number is
+    // not misleading: finished courses are 100% known, the current term is
+    // almost entirely open.
+    const finishedCourses = courses.filter(
+        course => course.id && course.credits > 0 && typeof course.final_grade === 'number' && !Number.isNaN(course.final_grade),
+    );
+    const inProgressCourses = courses.filter(
+        course => course.id && course.credits > 0 && !(typeof course.final_grade === 'number' && !Number.isNaN(course.final_grade)),
+    );
+    const finishedCredits = finishedCourses.reduce((sum, course) => sum + course.credits, 0);
+    const inProgressCredits = inProgressCourses.reduce((sum, course) => sum + course.credits, 0);
+    const inProgressCovered = inProgressCourses.reduce((sum, course) => {
+        const prediction = course.id ? predictions.get(course.id) : undefined;
+        if (!prediction || prediction.percent === null || prediction.percent === undefined) return sum;
+        return sum + (course.credits * Math.min(100, prediction.gradedWeight)) / 100;
+    }, 0);
+    const inProgressConfidence = inProgressCredits > 0
+        ? Math.round((inProgressCovered / inProgressCredits) * 100)
+        : 0;
+    const projectedBreakdownTip =
+        `Finished courses: ${finishedCourses.length} (${finishedCredits} ECTS) fully known. ` +
+        `This term: ${inProgressCourses.length} courses (${inProgressCredits} ECTS), ` +
+        `${inProgressCovered.toFixed(1)} ECTS graded (${inProgressConfidence}%). ` +
+        `Overall confidence ${projectedConfidence ?? 0}%. ` +
+        `Projected GPA is a floor: past finals plus banked points only.`;
 
     // Best and worst completed term, so a single strong semester is visible next
     // to the aggregate instead of being averaged away.
@@ -165,9 +191,10 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
                     ? 'No data yet'
                     : projected.predictedCount === 0
                       ? 'Finals only'
-                      : `Confidence ${projectedConfidence ?? 0}%`,
+                      : `Floor · Confidence ${projectedConfidence ?? 0}%`,
             icon: <Target size={14} className="analysis-card-icon" />,
             tone: projected.points === null ? 'flat' : 'good',
+            tip: projectedBreakdownTip,
         },
         {
             key: 'semester',
@@ -332,7 +359,7 @@ const AcademicStatsCards: React.FC<AcademicStatsCardsProps> = ({
             {stats.map(stat => (
                 <div
                     key={stat.key}
-                    data-tip={statTips[stat.key]}
+                    data-tip={stat.tip ?? statTips[stat.key]}
                     className={`analysis-card analysis-card--${stat.tone}${stat.highlight ? ' academic-gpa-card' : ''}`}
                 >
                     <div className="analysis-card-head">

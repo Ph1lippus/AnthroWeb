@@ -539,8 +539,8 @@ export const predictCoursePercent = (
         totalCount,
     };
 
-    if (gradedCount === 0) {
-        return { ...base, percent: null, isPartial: true, gradedCount: 0 };
+    if (gradedCount === 0 || totalWeight <= 0) {
+        return { ...base, percent: null, isPartial: true, gradedCount };
     }
 
     // Divided by 100, not by gradedWeight: an input worth 10% can only ever be
