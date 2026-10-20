@@ -97,7 +97,7 @@ const WorldClockPanel: React.FC<WorldClockPanelProps> = ({ activeTz, mainTz, inU
 
     if (activeTz) {
         return (
-            <section className={`card puzzle-card timer-mosaic__cell${inUse ? '' : ' dim-until-hover'}`} style={inUse ? { opacity: 1 } : undefined}>
+            <section className={`card puzzle-card timer-mosaic__cell${inUse ? ' timer-mode-card--on' : ' dim-until-hover'}`} style={inUse ? { opacity: 1 } : undefined}>
                 <div className="books-top-bar" style={{ marginBottom: '0.5rem' }}>
                     <h3 className="card-title" style={{ margin: 0, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>World clock</h3>
                     <div className="daily-log-daynav" style={{ justifyContent: 'flex-end' }}>
@@ -123,11 +123,17 @@ const WorldClockPanel: React.FC<WorldClockPanelProps> = ({ activeTz, mainTz, inU
 
     return (
         <>
-            <section className={`card puzzle-card timer-mosaic__cell${inUse ? '' : ' dim-until-hover'}`} style={inUse ? { opacity: 1 } : undefined}>
+            <section className={`card puzzle-card timer-mosaic__cell${inUse ? ' timer-mode-card--on' : ' dim-until-hover'}`} style={inUse ? { opacity: 1 } : undefined}>
                 <div className="books-top-bar" style={{ marginBottom: '0.5rem', flexWrap: 'nowrap' }}>
                     <h3 className="card-title" style={{ margin: 0, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>World clock</h3>
                     <div className="daily-log-daynav" style={{ justifyContent: 'flex-end', gap: '0.5rem' }}>
-                        <button type="button" className="btn-action" onClick={() => { onSelectMain?.(DEFAULT_TZ); onUse?.(); }} data-tip={inUse ? 'Active' : 'Use'} aria-pressed={inUse}>
+                        <button
+                            type="button"
+                            className={`timer-chip${inUse ? ' timer-chip--on' : ''}`}
+                            onClick={() => { onSelectMain?.(DEFAULT_TZ); onUse?.(); }}
+                            data-tip={inUse ? 'Active' : 'Use'}
+                            aria-pressed={inUse}
+                        >
                             {inUse ? 'Active' : 'Use'}
                         </button>
                         <button type="button" className="daily-log-daynav-btn" onClick={() => setShowForm(true)} data-tip="Add world clock">
