@@ -10,7 +10,8 @@ import AlarmsPanel from '../Components/Timer/AlarmsPanel';
 import IntervalEditor from '../Components/Timer/IntervalEditor';
 import { useTimer, type TimerMode } from '../hooks/useTimerEngine';
 import { useSaveSession } from '../hooks/useAcademic';
-import StudyPanel from '../Components/Study/StudyPanel';
+import StudySessions from '../Components/Study/StudySessions';
+import WorldClockPanel from '../Components/Timer/WorldClockPanel';
 import { useTimerDocumentTitle } from '../hooks/useTimerDocumentTitle';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
@@ -176,6 +177,25 @@ const TimerPage: React.FC = () => {
     // ==================== DATA ====================
 
     const alarmsQuery = useQuery({ queryKey: queryKeys.timerAlarms, queryFn: getTimerAlarms });
+
+    const [worldClockTz, setWorldClockTz] = useState<string | null>(() => {
+        try {
+            return window.localStorage.getItem('anthroweb:world-clock-main');
+        } catch {
+            return null;
+        }
+    });
+    const [worldClockActive, setWorldClockActive] = useState<string | null>(null);
+    const [worldClockInUse, setWorldClockInUse] = useState(false);
+
+    useEffect(() => {
+        try {
+            if (worldClockTz) window.localStorage.setItem('anthroweb:world-clock-main', worldClockTz);
+            else window.localStorage.removeItem('anthroweb:world-clock-main');
+        } catch {
+            // ignore
+        }
+    }, [worldClockTz]);
 
 
     /**
@@ -361,37 +381,28 @@ const TimerPage: React.FC = () => {
             const rounds = cfg.totalRounds > 0
                 ? cfg.totalRounds
                 : Math.max(1, Math.round(elapsedMs / ((cfg.workSec + cfg.restSec) * 1000)));
-            const workMinutes = Math.max(1, Math.round((rounds * cfg.workSec) / 60));
-            const breakMinutes = Math.max(0, Math.round((elapsedMs / 1000 - rounds * cfg.workSec) / 60));
-            saveSession.mutate({
-                user_id: '',
-                session_date: endedAt.toISOString().slice(0, 10),
-                duration_minutes: workMinutes,
-                session_type: 'study',
-                notes: `Interval run: ${workMinutes}m focus, ${breakMinutes}m break`,
-                mode: 'interval',
-                source: 'timer',
-                run_key: runId,
-                started_at: startedAt.toISOString(),
-                ended_at: endedAt.toISOString(),
-                planned_minutes: Math.round(engine.totalMs / 60000),
-                break_minutes: breakMinutes,
-            }, {
-                onSuccess: () => notify('success', 'Study session saved'),
-                onError: () => savedRunsRef.current.delete(runId),
-            });
-            if (breakMinutes > 0) {
+            const roundsBeforeLong = cfg.roundsBeforeLong > 0 ? cfg.roundsBeforeLong : 4;
+            for (let i = 0; i < rounds; i++) {
+                const isLong = (i + 1) % roundsBeforeLong === 0 && cfg.longRestSec > 0;
+                const breakSec = isLong ? cfg.longRestSec : cfg.restSec;
+                const workMinutes = Math.max(1, Math.round(cfg.workSec / 60));
+                const breakMinutes = Math.max(0, Math.round(breakSec / 60));
                 saveSession.mutate({
                     user_id: '',
                     session_date: endedAt.toISOString().slice(0, 10),
-                    duration_minutes: breakMinutes,
-                    session_type: 'break',
-                    notes: `Interval run break`,
+                    duration_minutes: workMinutes,
+                    session_type: 'study',
+                    notes: `Interval round ${i + 1}: ${workMinutes}m focus, ${breakMinutes}m break`,
                     mode: 'interval',
                     source: 'timer',
-                    run_key: `${runId}:break`,
+                    run_key: `${runId}:${i}`,
                     started_at: startedAt.toISOString(),
                     ended_at: endedAt.toISOString(),
+                    planned_minutes: Math.round(cfg.workSec / 60),
+                    break_minutes: breakMinutes,
+                }, {
+                    onSuccess: () => notify('success', 'Study session saved'),
+                    onError: () => savedRunsRef.current.delete(runId),
                 });
             }
         } else {
@@ -664,6 +675,7 @@ const TimerPage: React.FC = () => {
                                         && engine.alert === null
                                         && alarmCountdownMs === null;
                                     const nowText = new Date(panelNow).toLocaleTimeString(undefined, {
+                                        timeZone: worldClockTz && worldClockTz !== 'local' ? worldClockTz : undefined,
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         second: '2-digit',
@@ -671,10 +683,10 @@ const TimerPage: React.FC = () => {
                                     });
                                     return (
                                         <TimerDisplay
-                                            text={idle ? nowText : digits}
+                                            text={worldClockInUse || idle ? nowText : digits}
                                             now={idle ? undefined : nowText}
                                             fraction={idle ? null : fraction}
-                                            running={idle ? false : engine.running}
+                                            running={worldClockInUse ? false : (idle ? false : engine.running)}
                                             dimmed={idle ? false : !engine.running && !done}
                                             done={idle ? false : done}
                                             phase={idle ? undefined : phaseLabel}
@@ -685,6 +697,7 @@ const TimerPage: React.FC = () => {
                                 })()}
 
                                 <div className="timer-controls">
+                                    {!worldClockTz && (<> 
                                     <button
                                         type="button"
                                         className="timer-btn timer-btn--primary"
@@ -696,16 +709,6 @@ const TimerPage: React.FC = () => {
                                         {engine.running
                                             ? <><Square size={14} /> Pause</>
                                             : <><Play size={14} /> {canResume ? 'Resume' : 'Start'}</>}
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className="timer-btn"
-                                        onClick={() => setFocusMode(v => !v)}
-                                        aria-pressed={focusMode}
-                                        data-tip={focusMode ? 'Exit focus' : 'Focus mode'}
-                                    >
-                                        {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                                     </button>
 
                                     {/* Choose which phase an interval run starts in.
@@ -788,6 +791,16 @@ const TimerPage: React.FC = () => {
                                         <RotateCcw size={14} />
                                     </button>
                                     )}
+                                    </>)}
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={() => setFocusMode(v => !v)}
+                                        aria-pressed={focusMode}
+                                        data-tip={focusMode ? 'Exit focus' : 'Focus mode'}
+                                    >
+                                        {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                    </button>
                                 </div>
 
 
@@ -830,11 +843,16 @@ const TimerPage: React.FC = () => {
                                 the shared clock is running. */}
                             <div className="timer-mosaic daily-log-puzzle">
                                 <div className="daily-log-col">
+                                {/* ==================== STUDY SESSIONS ==================== */}
+                                <section className={`card puzzle-card timer-mosaic__cell dim-until-hover${worldClockInUse ? ' dimmed-by-world-clock' : ''}`}>
+                                    <StudySessions />
+                                </section>
+
                                 {/* ==================== COUNTDOWN ==================== */}
                                 <ModeCard
                                     mode="countdown"
                                     label={MODE_LABEL.countdown}
-                                    active={engine.mode === 'countdown'}
+                                    active={engine.mode === 'countdown' && !worldClockInUse}
                                     running={engine.running}
                                     onSelect={tap(() => engine.setMode('countdown'))}
                                 >
@@ -863,7 +881,7 @@ const TimerPage: React.FC = () => {
                                 <ModeCard
                                     mode="stopwatch"
                                     label={MODE_LABEL.stopwatch}
-                                    active={engine.mode === 'stopwatch'}
+                                    active={engine.mode === 'stopwatch' && !worldClockInUse}
                                     running={engine.running}
                                     onSelect={tap(() => engine.setMode('stopwatch'))}
                                 >
@@ -940,7 +958,7 @@ const TimerPage: React.FC = () => {
                                     it would push the alarms off the screen.
                                 */}
                                 <div className="daily-log-col">
-                                <section className="card puzzle-card timer-mosaic__cell">
+                                <section className={`card puzzle-card timer-mosaic__cell dim-until-hover${worldClockInUse ? ' dimmed-by-world-clock' : ''}`}>
                                     <AlarmsPanel
                                         alarms={alarms}
                                         onCreate={alarm => {
@@ -960,7 +978,7 @@ const TimerPage: React.FC = () => {
                                 <ModeCard
                                     mode="interval"
                                     label={MODE_LABEL.interval}
-                                    active={engine.mode === 'interval'}
+                                    active={engine.mode === 'interval' && !worldClockInUse}
                                     running={engine.running}
                                     onSelect={tap(() => engine.setMode('interval'))}
                                 >
@@ -972,6 +990,17 @@ const TimerPage: React.FC = () => {
                                     />
                                 </ModeCard>
 
+                                {/* ==================== WORLD CLOCK ==================== */}
+                                <WorldClockPanel
+                                    activeTz={worldClockActive}
+                                    mainTz={worldClockTz}
+                                    inUse={worldClockInUse}
+                                    onSelect={setWorldClockActive}
+                                    onSelectMain={setWorldClockTz}
+                                    onUse={() => setWorldClockInUse(v => !v)}
+                                    onFullscreen={() => setFocusMode(true)}
+                                />
+
                                 {anyLoading && (
                                     <p className="timer-empty-hint">Loading your alarms…</p>
                                 )}
@@ -980,11 +1009,6 @@ const TimerPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            {/* ==================== STUDY SESSIONS ==================== */}
-            <div style={{ marginTop: '1rem' }}>
-                <StudyPanel />
             </div>
 
             {/* ==================== OVERLAYS ==================== */}

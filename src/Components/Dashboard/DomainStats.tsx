@@ -83,7 +83,7 @@ const DomainStats: React.FC = () => {
                     key: 'projectsMaintenance',
                     label: 'In Maintenance',
                     value: String(maintenance.length),
-                    hint: 'Past the finish line, still open',
+                    hint: 'Still open',
                     icon: FolderKanban,
                     tone: 'flat' as const,
                     pending: pending.projects,
@@ -149,7 +149,7 @@ const DomainStats: React.FC = () => {
     if (stats.length === 0) return null;
 
     return (
-        <div className="analysis-grid">
+        <>
             {stats.map(s => {
                 const Icon = s.icon;
                 return (
@@ -163,7 +163,7 @@ const DomainStats: React.FC = () => {
                     </div>
                 );
             })}
-        </div>
+        </>
     );
 };
 

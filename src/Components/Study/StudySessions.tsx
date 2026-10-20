@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, SquarePen, Trash2, Target } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { useStudySessions, useSaveSession, useDeleteSession, useStudyGoal, useSaveStudyGoal } from '../../hooks/useAcademic';
+import { Plus, SquarePen, Trash2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { useStudySessions, useSaveSession, useDeleteSession } from '../../hooks/useAcademic';
 import type { StudySession } from '../../services/academicService';
-import { todayString, addDays } from '../../utils/dates';
+import { todayString, addDays, isDateString } from '../../utils/dates';
 import LoadingSpinner from '../LoadingSpinner';
 import ConfirmModal from '../ConfirmModal';
 
@@ -14,13 +13,12 @@ const formatMinutes = (minutes: number): string => {
     return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 };
 
-const StudyPanel: React.FC = () => {
+const StudySessions: React.FC = () => {
     const { data: sessions, isLoading } = useStudySessions();
-    const { data: goal } = useStudyGoal();
     const saveSession = useSaveSession();
     const deleteSession = useDeleteSession();
-    const saveGoal = useSaveStudyGoal();
 
+    const [selectedDate, setSelectedDate] = useState(todayString());
     const [editing, setEditing] = useState<StudySession | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<StudySession | null>(null);
@@ -30,14 +28,9 @@ const StudyPanel: React.FC = () => {
     const [sessionType, setSessionType] = useState<'study' | 'break'>('study');
     const [notes, setNotes] = useState('');
 
-    const [localDaily, setLocalDaily] = useState<number | null>(null);
-    const [localWeekly, setLocalWeekly] = useState<number | null>(null);
-    const dailyGoal = localDaily ?? goal?.daily_goal_minutes ?? 60;
-    const weeklyGoal = localWeekly ?? goal?.weekly_goal_minutes ?? 300;
-
     const openCreate = () => {
         setEditing(null);
-        setSessionDate(todayString());
+        setSessionDate(selectedDate);
         setDuration('25');
         setSessionType('study');
         setNotes('');
@@ -66,47 +59,13 @@ const StudyPanel: React.FC = () => {
                 duration_minutes: minutes,
                 session_type: sessionType,
                 notes: notes.trim(),
-                source: 'manual',
+                source: editing?.source ?? 'manual',
             },
             { onSuccess: () => setShowForm(false) },
         );
     };
 
-    const allSessions = sessions ?? [];
-    const today = todayString();
-    const weekStart = addDays(today, -6);
-
-
-    const studyMinutesByDate = new Map<string, number>();
-    for (const session of allSessions) {
-        if (session.session_type === 'break') continue;
-        studyMinutesByDate.set(
-            session.session_date,
-            (studyMinutesByDate.get(session.session_date) ?? 0) + session.duration_minutes,
-        );
-    }
-
-    const todayMinutes = studyMinutesByDate.get(today) ?? 0;
-    const weekMinutes = Array.from(studyMinutesByDate.entries())
-        .filter(([date]) => date >= weekStart && date <= today)
-        .reduce((sum, [, minutes]) => sum + minutes, 0);
-
-    // Consecutive days ending today that meet the daily goal.
-    let streak = 0;
-    for (let i = 0; i < 365; i++) {
-        const date = addDays(today, -i);
-        if ((studyMinutesByDate.get(date) ?? 0) >= dailyGoal) streak++;
-        else break;
-    }
-
-    const chartData = [];
-    for (let i = 13; i >= 0; i--) {
-        const date = addDays(today, -i);
-        chartData.push({
-            date: date.slice(5),
-            minutes: studyMinutesByDate.get(date) ?? 0,
-        });
-    }
+    const daySessions = (sessions ?? []).filter(session => session.session_date === selectedDate);
 
     const renderForm = () => (
         <div className="import-modal-overlay" onClick={() => { if (!saveSession.isPending) setShowForm(false); }}>
@@ -181,113 +140,74 @@ const StudyPanel: React.FC = () => {
 
     return (
         <>
-            <div className="books-top-bar">
-                <button type="button" className="btn-action" onClick={openCreate}>
-                    <Plus size={13} /> Add session
-                </button>
-                <span className="weight-badge weight-badge--empty">
-                    Today {formatMinutes(todayMinutes)} · Week {formatMinutes(weekMinutes)} · Streak {streak}d
-                </span>
-            </div>
-
-            {/* Goals */}
-            <div className="card" style={{ marginBottom: '1rem' }}>
-                <div className="card-header">
-                    <h3 className="card-title">Study goals</h3>
-                    <Target size={16} />
-                </div>
-                <div className="card-body">
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                            <label className="form-label">Daily goal (min)</label>
-                            <input
-                                type="number"
-                                min={1}
-                                value={dailyGoal}
-                                onChange={event => setLocalDaily(Number(event.target.value) || 0)}
-                                className="form-control"
-                            />
-                        </div>
-                        <div>
-                            <label className="form-label">Weekly goal (min)</label>
-                            <input
-                                type="number"
-                                min={1}
-                                value={weeklyGoal}
-                                onChange={event => setLocalWeekly(Number(event.target.value) || 0)}
-                                className="form-control"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end">
-                        <button
-                            type="button"
-                            className="btn-form-submit"
-                            disabled={saveGoal.isPending}
-                            onClick={() => saveGoal.mutate({ daily_goal_minutes: dailyGoal, weekly_goal_minutes: weeklyGoal })}
-                        >
-                            {saveGoal.isPending ? 'Saving...' : 'Save goals'}
-                        </button>
-                    </div>
-                    <div style={{ marginTop: '0.75rem' }}>
-                        <div className="form-label">Today progress</div>
-                        <div style={{ background: 'var(--border, #e5e7eb)', borderRadius: 4, height: 8, overflow: 'hidden' }}>
-                            <div
-                                style={{
-                                    width: `${Math.min(100, (todayMinutes / Math.max(1, dailyGoal)) * 100)}%`,
-                                    background: 'var(--chart-primary, #3b82f6)',
-                                    height: '100%',
-                                }}
-                            />
-                        </div>
-                        <div className="timer-empty-hint" style={{ marginTop: 4 }}>
-                            {todayMinutes} / {dailyGoal} min
-                        </div>
-                    </div>
+            <div className="books-top-bar" style={{ marginBottom: '0.5rem', flexWrap: 'nowrap' }}>
+                <h3 className="card-title" style={{ margin: 0, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>Study sessions</h3>
+                <div className="daily-log-daynav" style={{ justifyContent: 'flex-end' }}>
+                    <button
+                        type="button"
+                        className="daily-log-daynav-btn"
+                        onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+                        data-tip="Previous day"
+                        aria-label="Previous day"
+                    >
+                        <ChevronLeft size={15} />
+                    </button>
+                    <label className="daily-log-daynav-btn" data-tip="Pick a day">
+                        <Calendar size={14} aria-hidden="true" />
+                        <span className="sr-only">Pick a day</span>
+                        <input
+                            type="date"
+                            className="daily-log-daynav-input"
+                            value={selectedDate}
+                            onChange={event => {
+                                if (isDateString(event.target.value)) setSelectedDate(event.target.value);
+                            }}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className="daily-log-daynav-btn"
+                        onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                        data-tip="Next day"
+                        aria-label="Next day"
+                        disabled={selectedDate >= todayString()}
+                    >
+                        <ChevronRight size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        className="daily-log-daynav-btn"
+                        onClick={() => setSelectedDate(todayString())}
+                        data-tip="Today"
+                        aria-label="Today"
+                    >
+                        <Calendar size={14} />
+                    </button>
+                    <button type="button" className="daily-log-daynav-btn" onClick={openCreate} data-tip="Add session">
+                        <Plus size={14} />
+                    </button>
                 </div>
             </div>
 
-            {/* Analytics */}
-            <div className="card" style={{ marginBottom: '1rem' }}>
-                <div className="card-header">
-                    <h3 className="card-title">Last 14 days</h3>
+            {isLoading ? (
+                <LoadingSpinner />
+            ) : daySessions.length === 0 ? (
+                <div className="academic-empty" style={{ padding: '1rem 0' }}>
+                    <span className="academic-empty__title">No sessions logged</span>
+                    <span className="academic-empty__text">
+                        Finish a timer run or add one manually.
+                    </span>
                 </div>
-                <div className="card-body" style={{ height: 180 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 10 }} />
-                            <Tooltip />
-                            <Bar dataKey="minutes" fill="var(--chart-primary, #3b82f6)" />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* Sessions */}
-            <div className="academic-scroll">
-                {isLoading ? (
-                    <LoadingSpinner />
-                ) : allSessions.length === 0 ? (
-                    <div className="academic-empty">
-                        <Target size={32} className="academic-empty__icon" />
-                        <span className="academic-empty__title">No sessions logged</span>
-                        <span className="academic-empty__text">
-                            Finish a timer run or add one manually.
-                        </span>
-                    </div>
-                ) : (
-                    allSessions.map(session => (
+            ) : (
+                <div className="academic-scroll" style={{ maxHeight: 260 }}>
+                    {daySessions.map(session => (
                         <div key={session.id} className="course-row">
                             <div className="course-head">
                                 <div className="course-head__text">
-                                    <span className="course-title">{session.session_date}</span>
+                                    <span className="course-title">{formatMinutes(session.duration_minutes)}</span>
                                     <span className="course-sub">
-                                        <span>{session.session_type}</span>
-                                        <span> · {formatMinutes(session.duration_minutes)}</span>
-                                        {session.mode ? <span> · {session.mode}</span> : null}
-                                        {session.source ? <span> · {session.source}</span> : null}
+                                        {session.mode ? session.mode : ''}
+                                        {session.source ? ` · ${session.source}` : ''}
                                     </span>
                                     {session.notes && (
                                         <span className="course-empty-note" style={{ marginTop: 0.3 }}>
@@ -316,9 +236,9 @@ const StudyPanel: React.FC = () => {
                                 </span>
                             </div>
                         </div>
-                    ))
-                )}
-            </div>
+                    ))}
+                </div>
+            )}
 
             {showForm && renderForm()}
 
@@ -338,4 +258,4 @@ const StudyPanel: React.FC = () => {
     );
 };
 
-export default StudyPanel;
+export default StudySessions;

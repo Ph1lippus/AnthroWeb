@@ -1,25 +1,11 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { ReplaceStep, ReplaceAroundStep } from '@tiptap/pm/transform';
 import { Fragment } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
-import { TaskItem as BaseTaskItem } from '@tiptap/extension-task-item';
-
-/**
- * A to-do that holds exactly one paragraph.
- *
- * The stock `TaskItem` allows `paragraph+` (or `paragraph block*` when nested),
- * so a single to-do can quietly accumulate several paragraphs -- which is exactly
- * what happens after an Enter followed by a Backspace/Delete: the stray empty
- * paragraph stays inside the item and adds a blank line, making that row taller
- * than its neighbours. Restricting the content to a single paragraph means Enter
- * always splits into a new item and Backspace merges cleanly, so no stray
- * paragraph can accumulate.
- */
-const TaskItem = BaseTaskItem.extend({
-    content: 'paragraph',
-});
+import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
 import CharacterCount from '@tiptap/extension-character-count';
 import Highlight from '@tiptap/extension-highlight';
@@ -914,6 +900,74 @@ export const SlashCommandExtension = Extension.create({
 });
 
 /* ------------------------------------------------------------------ *
+ * Runtime cleanup of stray empty paragraphs inside to-dos
+ * ------------------------------------------------------------------ */
+
+/**
+ * Enter followed by Backspace/Delete can leave a second, empty paragraph inside
+ * a to-do. With `paragraph+` content the schema allows that, and the empty
+ * paragraph renders as a blank line that makes the row taller than its
+ * neighbours. Removing it at load time meant re-serialising the whole document
+ * through DOMParser, which risks altering whitespace and attribute order.
+ *
+ * Instead this plugin watches every transaction that changes the document and,
+ * when one lands, drops any trailing empty paragraph beyond the first inside
+ * each to-do. A genuinely blank to-do keeps its single caret line; a leftover
+ * empty one stops adding height. Returning null when nothing changed keeps the
+ * plugin from feeding transactions back into itself.
+ */
+const StrayEmptyParagraphCleanup = Extension.create({
+    name: 'strayEmptyParagraphCleanup',
+
+    addProseMirrorPlugins() {
+        return [
+            new Plugin({
+                key: new PluginKey('strayEmptyParagraphCleanup'),
+                appendTransaction: (trs, _oldState, newState) => {
+                    if (!trs.some(tr => tr.docChanged)) return null;
+                    // Only clean up after real content edits (Enter, Backspace,
+                    // typing). Attribute-only transactions such as a checkbox
+                    // toggle must not trigger a cleanup pass, which could drop
+                    // content out from under the toggle.
+                    const hasContentChange = trs.some(tr =>
+                        tr.steps.some(step => step instanceof ReplaceStep || step instanceof ReplaceAroundStep),
+                    );
+                    if (!hasContentChange) return null;
+
+                    const ranges: { from: number; to: number }[] = [];
+                    newState.doc.descendants((node, pos) => {
+                        if (node.type.name !== 'taskItem') return;
+                        const paragraphs: { from: number; to: number; empty: boolean }[] = [];
+                        node.forEach((child, offset) => {
+                            if (child.type.name !== 'paragraph') return;
+                            paragraphs.push({
+                                from: pos + 1 + offset,
+                                to: pos + 1 + offset + child.nodeSize,
+                                empty: (child.textContent ?? '').trim() === '',
+                            });
+                        });
+                        if (paragraphs.length <= 1) return;
+                        for (let i = paragraphs.length - 1; i >= 1; i--) {
+                            if (!paragraphs[i].empty) break;
+                            ranges.push({ from: paragraphs[i].from, to: paragraphs[i].to });
+                        }
+                    });
+
+                    if (ranges.length === 0) return null;
+                    // Delete from the end so earlier offsets stay valid.
+                    ranges.sort((a, b) => b.from - a.from);
+                    const tr = newState.tr;
+                    for (const range of ranges) {
+                        tr.delete(range.from, range.to);
+                    }
+                    return tr;
+                },
+            }),
+        ];
+    },
+});
+
+/* ------------------------------------------------------------------ *
  * Extension set
  * ------------------------------------------------------------------ */
 
@@ -980,18 +1034,13 @@ export const buildNoteExtensions = ({
     }),
     TaskList,
     TaskItem.configure({
-        // A to-do holds a single paragraph. `nested: true` would widen it to
-        // `paragraph block*`, and splitListItem respects that: Enter at the end
-        // of a to-do then adds a second paragraph *inside the same checkbox*
-        // instead of a new checkbox. That is the "I can't write after a to-do"
-        // dead end, and it is also what left some to-dos with an extra blank
-        // line and uneven spacing between rows -- the second paragraph inherited
-        // the prose's paragraph margin while the first was reset to zero.
-        //
-        // With `paragraph` only, Enter makes a fresh checkbox and ExitEmptyListItem
-        // handles the blank one. Tab no longer nests a to-do inside another
-        // to-do, which is the right trade: nested checkboxes read as a broken
-        // list far more often than as structure.
+        // `nested: false` keeps a to-do's content as `paragraph+` and disables
+        // Tab-nesting. Enter then makes a fresh checkbox (splitListItem) and
+        // ExitEmptyListItem handles the blank one. Stray empty paragraphs that
+        // still slip through (Enter then Backspace/Delete) are cleaned up at
+        // runtime by the stray-empty-paragraph plugin below, rather than by
+        // narrowing the schema -- narrowing to a single paragraph broke
+        // toggleTaskList and Enter on empty items.
         nested: false,
     }),
     Callout,
@@ -1034,6 +1083,10 @@ export const buildNoteExtensions = ({
     // Ahead of ListItem and TaskItem in the keymap, so Enter on a blank to-do
     // leaves the list. See the extension for why that is not just liftListItem.
     ExitEmptyListItem,
+    // Drops stray empty paragraphs left inside to-dos after Enter/Backspace,
+    // so a row cannot grow a blank line. Runs as a transaction, not a
+    // load-time DOMParser pass, to avoid re-serialising the document.
+    StrayEmptyParagraphCleanup,
     // Backspace and Delete at the edges of a toggle's label. Ahead of ListItem and
     // TaskItem in the keymap for the same reason ExitEmptyListItem is.
     LiftToggleOnBackspace,

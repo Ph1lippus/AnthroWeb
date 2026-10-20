@@ -88,7 +88,10 @@ const buildService = () => {
  */
 export const noteToMarkdown = (note: Note, allNotes: Note[]): string => {
     const service = buildService();
-    const body = service.turndown(note.content ?? '').trim();
+    const body = service
+        .turndown(mergeAdjacentTaskLists(note.content ?? ''))
+        .trim()
+        .replace(/\n{3,}/g, '\n\n');
 
     const trail = noteAncestors(allNotes, note)
         .map(ancestor => ancestor.title?.trim() || 'Untitled')
@@ -137,10 +140,41 @@ export const downloadNoteMarkdown = (note: Note, allNotes: Note[]) => {
     downloadTextFile(noteFileName(note), noteToMarkdown(note, allNotes), 'text/markdown');
 };
 
+/**
+ * Merge consecutive to-do lists into a single list.
+ *
+ * Lifting an item out of a list (or Enter/Delete round-trips) can leave two
+ * `<ul data-type="taskList">` elements sitting next to each other. Turndown then
+ * emits a blank line between them, which reads as a gap in the middle of a
+ * single to-do list. Merging them before conversion keeps the export as one
+ * contiguous list.
+ */
+const mergeAdjacentTaskLists = (html: string): string => {
+    if (!html || !html.includes('taskList')) return html;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    let changed = false;
+    const lists = Array.from(doc.body.querySelectorAll('ul[data-type="taskList"]'));
+    for (let i = lists.length - 1; i > 0; i--) {
+        const prev = lists[i - 1];
+        const curr = lists[i];
+        // Only merge when they are truly adjacent siblings.
+        if (curr.previousElementSibling !== prev) continue;
+        while (curr.firstChild) {
+            prev.appendChild(curr.firstChild);
+        }
+        curr.remove();
+        changed = true;
+    }
+    return changed ? doc.body.innerHTML : html;
+};
+
 /** Converts an HTML fragment to Markdown using the same rules as file export. */
 export const htmlToMarkdown = (html: string): string => {
     if (!html) return '';
-    return buildService().turndown(html).trim();
+    return buildService()
+        .turndown(mergeAdjacentTaskLists(html))
+        .trim()
+        .replace(/\n{3,}/g, '\n\n');
 };
 
 /** Writes text to the clipboard, returning false if the browser refuses. */

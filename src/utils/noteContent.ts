@@ -258,9 +258,15 @@ export const normalizeTaskItems = (html: string): string => {
     return changed ? doc.body.innerHTML : html;
 };
 
-/** Every load-time repair to stored note HTML, in one call. */
+/** Every load-time repair to stored note HTML, in one call.
+ *
+ * Stray empty paragraphs inside to-dos are no longer repaired here: that
+ * pass re-serialised the whole document through DOMParser and could alter
+ * whitespace/attribute order. They are cleaned up at runtime by the
+ * stray-empty-paragraph plugin in noteEditorExtensions instead. Only the
+ * targeted legacy migrations remain. */
 export const normalizeNoteHtml = (html: string): string =>
-    normalizeTaskItems(normalizeLegacyToggles(normalizeLegacyCheckboxes(html)));
+    normalizeLegacyToggles(normalizeLegacyCheckboxes(html));
 
 /** True when a note has nothing in it yet: no text and no embedded media. */
 export const isBlankNote = (html?: string | null): boolean => {

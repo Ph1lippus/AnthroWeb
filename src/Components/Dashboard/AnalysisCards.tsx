@@ -243,7 +243,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
     if (stats.length === 0) return null;
 
     return (
-        <div className="analysis-grid">
+        <>
             {stats.map(s => {
                 const Icon = s.icon;
                 return (
@@ -260,7 +260,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
                     </div>
                 );
             })}
-        </div>
+        </>
     );
 };
 

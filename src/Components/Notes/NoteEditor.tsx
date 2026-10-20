@@ -644,7 +644,15 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                         const handle = state.elements.floating;
                         if (!(handle instanceof HTMLElement)) return {};
                         const reference = state.rects.reference;
-                        const element = handleElementRef.current;
+                        // Resolve the real block node fresh from its position on every
+                        // pass rather than trusting the cached ref, which goes stale
+                        // for nested blocks (list items) after a document change.
+                        let element = handleElementRef.current;
+                        const pos = handlePosRef.current;
+                        if (pos >= 0 && editor && !editor.isDestroyed) {
+                            const dom = editor.view.nodeDOM(pos);
+                            if (dom instanceof HTMLElement) element = dom;
+                        }
                         const declared =
                             element instanceof HTMLElement
                                 ? parseFloat(getComputedStyle(element).lineHeight)
@@ -665,7 +673,7 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 },
             ],
         }),
-        [],
+        [editor],
     );
 
     useImperativeHandle(

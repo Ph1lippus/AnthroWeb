@@ -10,6 +10,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { useBodyMeasurements } from '../hooks/useMeasurements';
 import { useBootHold } from '../services/bootScreen';
 import MetricsCharts from '../Components/Dashboard/MetricsCharts';
+import StudyChart from '../Components/Dashboard/StudyChart';
 import LoadingBar from '../Components/LoadingBar';
 
 const DashboardPage: React.FC = () => {
@@ -56,19 +57,21 @@ const DashboardPage: React.FC = () => {
                             </button>
                         ))}
                     </div>
-                    <AnalysisCards
-                        logs={logs}
-                        habits={habits}
-                        habitLogs={habitLogs}
-                        settings={settings}
-                        range={range}
-                        measurements={measurements ?? null}
-                    />
-                    {/* Lifetime totals moved off the Projects, Books and Abstinence
-                        pages. Deliberately outside `ready`: each card fills itself
-                        in when its own query lands, so a slow library query cannot
-                        hold the dashboard on the splash. */}
-                    <DomainStats />
+                    <div className="analysis-grid">
+                        <AnalysisCards
+                            logs={logs}
+                            habits={habits}
+                            habitLogs={habitLogs}
+                            settings={settings}
+                            range={range}
+                            measurements={measurements ?? null}
+                        />
+                        {/* Lifetime totals moved off the Projects, Books and Abstinence
+                            pages. Deliberately outside `ready`: each card fills itself
+                            in when its own query lands, so a slow library query cannot
+                            hold the dashboard on the splash. */}
+                        <DomainStats />
+                    </div>
                     <div className="dashboard-charts-enter dashboard-charts-enter--ready">
                         <MetricsCharts
                             logs={logs}
@@ -79,6 +82,7 @@ const DashboardPage: React.FC = () => {
                             measurements={measurements ?? null}
                         />
                     </div>
+                    <StudyChart range={range} />
                 </div>
             </div>
         </>

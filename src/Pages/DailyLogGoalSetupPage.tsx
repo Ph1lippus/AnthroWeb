@@ -5,6 +5,7 @@ import { queryKeys } from '../utils/queryKeys';
 import Title from '../Components/Title';
 import TimeField from '../Components/TimeField';
 import { getUserSettings, updateUserSettings, type UserSettings } from '../services/profileService';
+import { getUserStudyGoal, upsertStudyGoal } from '../services/academicService';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { goalsForDate, latestGoals, parseGoalHistory, withVersion } from '../utils/goalHistory';
 import { todayString } from '../utils/dates';
@@ -59,6 +60,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
     // "1" here.
     const [cheatAllowed, setCheatAllowed] = useState('');
     const [cheatPeriod, setCheatPeriod] = useState<'week' | 'month'>('week');
+    const [studyDaily, setStudyDaily] = useState('');
+    const [studyWeekly, setStudyWeekly] = useState('');
 
     const formatTimeInput = (value: string): string => {
         const numbers = value.replace(/\D/g, '').slice(0, 4);
@@ -118,6 +121,13 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         : ''
                 );
                 setCheatPeriod(userSettings?.cheat_days_period === 'month' ? 'month' : 'week');
+                try {
+                    const studyGoal = await getUserStudyGoal();
+                    setStudyDaily(studyGoal.daily_goal_minutes != null ? String(studyGoal.daily_goal_minutes) : '');
+                    setStudyWeekly(studyGoal.weekly_goal_minutes != null ? String(studyGoal.weekly_goal_minutes) : '');
+                } catch {
+                    // Study goals are optional; leave blank on failure.
+                }
             } finally {
                 // In a `finally` because this flag is both the page's gate and the
                 // boot splash's. A rejected request has to count as "asked and
@@ -187,6 +197,14 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 cheat_days_period: cheatPeriod,
             };
             await updateUserSettings(updatedSettings);
+            // Study goals live in their own table, but they are edited here
+            // alongside the rest of the daily goals, so save them in the same
+            // submit and refresh the cached copy the timer/dashboard read.
+            await upsertStudyGoal({
+                daily_goal_minutes: studyDaily ? parseInt(studyDaily, 10) : 60,
+                weekly_goal_minutes: studyWeekly ? parseInt(studyWeekly, 10) : 300,
+            });
+            queryClient.invalidateQueries({ queryKey: queryKeys.studyGoal });
             // Charts, insight cards and the daily log all read settings through
             // this cache key; without this they keep scoring against the old
             // goals until a reload.
@@ -301,6 +319,13 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         <div className="form-grid">
                             <TimeField id="wakeTime" label="Wake Time" value={wakeTime} onChange={setWakeTime} hint="07:00" />
                             <TimeField id="bedtime" label="Bedtime" value={bedtime} onChange={setBedtime} hint="23:00" />
+                        </div>
+
+                        {/* Study goals. Edited here alongside the daily goals so
+                            there is one place to set every target. */}
+                        <div className="form-grid">
+                            {renderInput('studyDaily', 'Study Daily Goal (min)', studyDaily, setStudyDaily, 'number', '60')}
+                            {renderInput('studyWeekly', 'Study Weekly Goal (min)', studyWeekly, setStudyWeekly, 'number', '300')}
                         </div>
 
                         {/* Cheat-day budget. Blank box means no limit, which is how

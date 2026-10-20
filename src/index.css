@@ -5977,18 +5977,15 @@ textarea.form-control {
      surrounding prose, not from the browser's default list margin, which is
      what left a list sitting further from its neighbours than a paragraph. */
   margin: 0.4rem 0;
-  /* Consistent, predictable gaps between rows: the gap lives on the list, not
-     on each item, so a row that happens to contain two paragraphs (or that was
-     created by Enter then had its text deleted) cannot pull the rows apart. */
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  display: block;
 }
 .note-prose ul[data-type='taskList'] > li {
-  /* The row's own margin is reset: the list's gap is the single source of
-     spacing between to-dos, which is what keeps them "together" instead of
-     drifting apart after an Enter/Delete. */
   margin: 0;
+}
+/* Gap between rows lives on the following item, so it never doubles up at the
+   ends of a list (or between two adjacent lists) and stays consistent. */
+.note-prose ul[data-type='taskList'] > li + li {
+  margin-top: 0.2rem;
 }
 .note-prose ul[data-type='taskList'] > li > div > * {
   margin: 0;
@@ -5997,6 +5994,12 @@ textarea.form-control {
    of a list) must not double their margins and create a visibly larger gap. */
 .note-prose ul[data-type='taskList'] + ul[data-type='taskList'] {
   margin-top: 0;
+}
+/* Two to-do lists created one after the other must read as one continuous
+   list, so the gap between them matches the gap between rows rather than the
+   larger gap a list takes from a paragraph. */
+.note-prose ul[data-type='taskList']:has(+ ul[data-type='taskList']) {
+  margin-bottom: 0.2rem;
 }
 /* A stray empty paragraph left inside a to-do (Enter then Delete) renders as a
    blank line and makes that row taller than its neighbours. Collapse it when it
@@ -10038,7 +10041,11 @@ select.form-control option {
   border-radius: 20px;
   padding: 0.85rem 0.95rem;
   min-width: 0;
+  min-height: 6.25rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .analysis-card-head {
   display: flex;
@@ -10835,6 +10842,7 @@ select.form-control option {
 .timer-mosaic__cell > .card-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
   padding: 0 0 0.4rem;
@@ -10848,6 +10856,19 @@ select.form-control option {
    title was a half-step smaller -- and a title at a different size from its
    neighbours is what makes a row of cards read as a row of unrelated panels rather
    than as one mosaic. */
+.dim-until-hover {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+.dim-until-hover:hover {
+  opacity: 1;
+}
+.dimmed-by-world-clock {
+  opacity: 0.3;
+}
+.dimmed-by-world-clock:hover {
+  opacity: 0.6;
+}
 .timer-mosaic__cell > .card-title {
   display: flex;
   align-items: center;
