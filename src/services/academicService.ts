@@ -77,7 +77,37 @@ export interface StudySession {
     duration_minutes: number;
     session_type?: 'study' | 'break';
     notes?: string;
+    mode?: 'countdown' | 'stopwatch' | 'interval';
+    source?: 'timer' | 'manual';
+    run_key?: string;
+    started_at?: string;
+    ended_at?: string;
+    planned_minutes?: number;
+    break_minutes?: number;
     created_at?: string;
+}
+
+// Study Goal types (one row per user)
+export interface StudyGoal {
+    id?: string;
+    user_id: string;
+    daily_goal_minutes: number;
+    weekly_goal_minutes: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+// Study History types (one row per user/date)
+export interface StudyHistory {
+    id?: string;
+    user_id: string;
+    history_date: string;
+    total_study_minutes: number;
+    total_break_minutes: number;
+    session_count: number;
+    average_session_length: number;
+    created_at?: string;
+    updated_at?: string;
 }
 
 // ==================== ACADEMIC SEMESTERS ====================
@@ -511,6 +541,13 @@ export const createStudySession = async (session: StudySession) => {
             duration_minutes: session.duration_minutes,
             session_type: session.session_type || 'study',
             notes: session.notes,
+            mode: session.mode ?? null,
+            source: session.source ?? 'manual',
+            run_key: session.run_key ?? null,
+            started_at: session.started_at ?? null,
+            ended_at: session.ended_at ?? null,
+            planned_minutes: session.planned_minutes ?? null,
+            break_minutes: session.break_minutes ?? null,
         })
         .select()
         .single();
@@ -538,14 +575,132 @@ export const updateStudySession = async (id: string, updates: Partial<StudySessi
 };
 
 export const deleteStudySession = async (id: string) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('study_sessions')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .maybeSingle();
 
     if (error) {
         console.error('Error deleting study session:', error.message);
         throw error;
+    }
+    return data as StudySession | null;
+};
+
+// ==================== STUDY GOALS ====================
+
+export const getUserStudyGoal = async (): Promise<StudyGoal> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data, error } = await supabase
+        .from('study_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error fetching study goal:', error.message);
+    }
+
+    return (data as StudyGoal | null) ?? {
+        user_id: user.id,
+        daily_goal_minutes: 60,
+        weekly_goal_minutes: 300,
+    };
+};
+
+export const upsertStudyGoal = async (goal: Partial<StudyGoal> & { user_id?: string }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const payload = {
+        user_id: user.id,
+        daily_goal_minutes: goal.daily_goal_minutes ?? 60,
+        weekly_goal_minutes: goal.weekly_goal_minutes ?? 300,
+        updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+        .from('study_goals')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error saving study goal:', error.message);
+        throw error;
+    }
+    return data as StudyGoal;
+};
+
+// ==================== STUDY HISTORY ====================
+
+export const getUserStudyHistory = async (startDate?: string, endDate?: string): Promise<StudyHistory[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    let query = supabase
+        .from('study_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('history_date', { ascending: false });
+
+    if (startDate) query = query.gte('history_date', startDate);
+    if (endDate) query = query.lte('history_date', endDate);
+
+    const { data, error } = await query;
+    if (error) {
+        console.error('Error fetching study history:', error.message);
+        return [];
+    }
+    return (data ?? []) as StudyHistory[];
+};
+
+export const recomputeStudyHistory = async (date: string): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+        .from('study_sessions')
+        .select('duration_minutes, session_type')
+        .eq('user_id', user.id)
+        .eq('session_date', date);
+
+    if (error) {
+        console.error('Error reading sessions for history:', error.message);
+        return;
+    }
+
+    const rows = data ?? [];
+    const studyMinutes = rows
+        .filter((row: { session_type?: string }) => row.session_type !== 'break')
+        .reduce((sum: number, row: { duration_minutes: number }) => sum + (row.duration_minutes || 0), 0);
+    const breakMinutes = rows
+        .filter((row: { session_type?: string }) => row.session_type === 'break')
+        .reduce((sum: number, row: { duration_minutes: number }) => sum + (row.duration_minutes || 0), 0);
+    const count = rows.length;
+    const avg = count > 0 ? Math.round(((studyMinutes + breakMinutes) / count) * 10) / 10 : 0;
+
+    const { error: upsertError } = await supabase
+        .from('study_history')
+        .upsert(
+            {
+                user_id: user.id,
+                history_date: date,
+                total_study_minutes: studyMinutes,
+                total_break_minutes: breakMinutes,
+                session_count: count,
+                average_session_length: avg,
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id,history_date' },
+        );
+
+    if (upsertError) {
+        console.error('Error recomputing study history:', upsertError.message);
     }
 };
 

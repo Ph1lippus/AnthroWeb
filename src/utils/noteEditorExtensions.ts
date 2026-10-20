@@ -4,7 +4,22 @@ import { Fragment } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
+import { TaskItem as BaseTaskItem } from '@tiptap/extension-task-item';
+
+/**
+ * A to-do that holds exactly one paragraph.
+ *
+ * The stock `TaskItem` allows `paragraph+` (or `paragraph block*` when nested),
+ * so a single to-do can quietly accumulate several paragraphs -- which is exactly
+ * what happens after an Enter followed by a Backspace/Delete: the stray empty
+ * paragraph stays inside the item and adds a blank line, making that row taller
+ * than its neighbours. Restricting the content to a single paragraph means Enter
+ * always splits into a new item and Backspace merges cleanly, so no stray
+ * paragraph can accumulate.
+ */
+const TaskItem = BaseTaskItem.extend({
+    content: 'paragraph',
+});
 import Image from '@tiptap/extension-image';
 import CharacterCount from '@tiptap/extension-character-count';
 import Highlight from '@tiptap/extension-highlight';
@@ -965,19 +980,19 @@ export const buildNoteExtensions = ({
     }),
     TaskList,
     TaskItem.configure({
-        // Deliberately not `nested: true`. That option widens a to-do's content
-        // from `paragraph+` to `paragraph block*`, and splitListItem respects it:
-        // Enter at the end of a to-do then adds a second paragraph *inside the
-        // same checkbox* instead of a new checkbox. The result is that a to-do
-        // list cannot be left from the keyboard at all -- every Enter lands
-        // inside the last row, which is exactly the "I can't write after a to-do"
-        // dead end.
+        // A to-do holds a single paragraph. `nested: true` would widen it to
+        // `paragraph block*`, and splitListItem respects that: Enter at the end
+        // of a to-do then adds a second paragraph *inside the same checkbox*
+        // instead of a new checkbox. That is the "I can't write after a to-do"
+        // dead end, and it is also what left some to-dos with an extra blank
+        // line and uneven spacing between rows -- the second paragraph inherited
+        // the prose's paragraph margin while the first was reset to zero.
         //
-        // With `paragraph+`, Enter makes a fresh checkbox and ExitEmptyListItem
-        // handles the blank one. The cost is that Tab no longer nests a to-do
-        // inside another to-do, which is the right trade: nested checkboxes read
-        // as a broken list far more often than as structure.
-        nested: true,
+        // With `paragraph` only, Enter makes a fresh checkbox and ExitEmptyListItem
+        // handles the blank one. Tab no longer nests a to-do inside another
+        // to-do, which is the right trade: nested checkboxes read as a broken
+        // list far more often than as structure.
+        nested: false,
     }),
     Callout,
     InlineMath,

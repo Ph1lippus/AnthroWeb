@@ -94,6 +94,8 @@ interface EngineState {
      */
     acknowledged: boolean;
     alert: TimerAlert;
+    /** Unique id for the current run, used to dedupe saved study sessions. */
+    runId: string | null;
 }
 
 const IDLE: EngineState = {
@@ -107,13 +109,14 @@ const IDLE: EngineState = {
     laps: [],
     acknowledged: true,
     alert: null,
+    runId: null,
 };
 
 const STORAGE_KEY = 'anthroweb:timer:v1';
 
 /** The fields worth keeping across a reload. `alert` deliberately is not one. */
 type PersistedState = Pick<EngineState,
-    'mode' | 'deadline' | 'elapsedBefore' | 'totalMs' | 'intervalConfig' | 'legStartedAt' | 'laps'>;
+    'mode' | 'deadline' | 'elapsedBefore' | 'totalMs' | 'intervalConfig' | 'legStartedAt' | 'laps' | 'runId'>;
 
 /**
  * Reconstruct the running state from what was persisted.
@@ -213,6 +216,7 @@ function persist(state: EngineState): void {
         intervalConfig: state.intervalConfig,
         legStartedAt: state.legStartedAt,
         laps: state.laps,
+        runId: state.runId,
     };
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -265,6 +269,8 @@ export interface EngineApi {
     reset: () => void;
     /** Stopwatch splits in order. Persisted, so a reload does not lose them. */
     laps: number[];
+    /** Unique id for the current run, for deduping saved sessions. */
+    runId: string | null;
     /** Re-arm from a finished state, which is the overlay's "Restart". */
     restart: () => void;
     /**
@@ -917,10 +923,11 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     running: true,
                     legStartedAt: at,
                     deadline: prev.deadline === null || expired ? at + total : prev.deadline,
+                    runId: (prev.deadline !== null && !expired) ? prev.runId : (prev.runId ?? crypto.randomUUID()),
                 };
             }
             if (prev.mode === 'stopwatch') {
-                return { ...prev, acknowledged: false, running: true, legStartedAt: at, deadline: null };
+                return { ...prev, acknowledged: false, running: true, legStartedAt: at, deadline: null, runId: prev.elapsedBefore > 0 ? prev.runId : (prev.runId ?? crypto.randomUUID()) };
             }
             // `elapsedBefore` is already the elapsed as of the last pause, so
             // starting a leg from it is what makes resume exact rather than
@@ -963,9 +970,10 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     running: true,
                     legStartedAt: at,
                     intervalConfig: startPhase ? { ...prev.intervalConfig, startPhase } : prev.intervalConfig,
+                    runId: (prev.elapsedBefore > 0 && !finished) ? prev.runId : (prev.runId ?? crypto.randomUUID()),
                 };
             }
-            return { ...prev, acknowledged: false, running: true, legStartedAt: at };
+            return { ...prev, acknowledged: false, running: true, legStartedAt: at, runId: prev.runId ?? crypto.randomUUID() };
         });
     }, []);
 
@@ -1011,6 +1019,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             elapsedBefore: 0,
             laps: [],
             alert: null,
+            runId: null,
             intervalConfig: { ...prev.intervalConfig, startAt: null },
         }));
         stopChime();
@@ -1096,7 +1105,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             // neither converts into the other, so switching abandons the loaded
             // configuration. That is the honest thing to do -- but it is only
             // reachable while stopped, where it costs nothing.
-            return { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null };
+            return { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null, runId: null };
         });
     }, []);
 
@@ -1196,6 +1205,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         totalMs: state.totalMs,
         intervalConfig: state.intervalConfig,
         laps: state.laps,
+        runId: state.runId,
         alert,
         remaining,
         elapsed,
@@ -1222,7 +1232,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         testAlert,
         raiseAlarm,
     }), [
-        state.mode, active, state.deadline, state.totalMs, state.intervalConfig, state.laps, alert,
+        state.mode, state.runId, active, state.deadline, state.totalMs, state.intervalConfig, state.laps, alert,
         remaining, elapsed, progress, phase, startDueAt, scheduledFor, untilStartMs,
         setMode, setDuration, setIntervalConfigCb, start, startPhaseAlias, startWork, startRest, startLongRest,
         pause, reset, restart, addLap, clearLaps, addMinutes, dismissAlert, testAlert, raiseAlarm,

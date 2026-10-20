@@ -1,0 +1,169 @@
+NOTES — WORK & FUNCTIONALITY AUDIT
+==================================
+Generated from investigation of src/Components/Notes/* and src/utils/note*.
+
+------------------------------------------------------------
+1. DRAG HANDLE (block grip) — src/Components/Notes/NoteEditor.tsx
+------------------------------------------------------------
+- [FIXED] Handle was vertically centered across the whole block instead of the
+  first line. Root cause: @tiptap/extension-drag-handle positions against a
+  virtual element, so state.elements.reference had no getComputedStyle. Fixed by
+  tracking the real block DOM node in handleElementRef (updated in onNodeChange)
+  and reading lineHeight/fontSize from it.
+- [TUNE] Horizontal gutter offset changed -14 -> -20 and vertical nudge -2px
+  for a bit more breathing room. May need further tuning per block type.
+- [OPEN] Nested blocks (list items) use a different reference element in the
+  plugin's update() path (getOuterDomNode) than in mousemove; handleElementRef
+  can be stale there, causing slight misalignment after doc changes while the
+  handle is visible.
+- [OPEN] Handle is hidden on mobile (CSS 7583); no alternative affordance
+  beyond the header button, which only opens against the caret's block.
+
+------------------------------------------------------------
+2. TO-DO / TASK LIST SPACING — src/utils/noteEditorExtensions.ts, src/index.css
+------------------------------------------------------------
+- [ROOT CAUSE] TaskItem content is `paragraph+` (or `paragraph block*` when
+  nested), so a single to-do can accumulate several paragraphs. Enter then
+  Backspace/Delete leaves a stray empty paragraph inside the item, adding a
+  blank line and making that row taller than its neighbours ("nested above and
+  below but not together").
+- [CONFIG MISMATCH] Comment said "deliberately not nested: true" but code set
+  `nested: true`. Changed to false, but this alone does not stop stray empty
+  paragraphs (content is still paragraph+).
+- [RISK] My attempt to force `content: 'paragraph'` (single) broke
+  toggleTaskList / Enter (schema errors on zero-paragraph items). REVERT and
+  keep `paragraph+`; clean up stray empties at runtime instead.
+- [CSS] `.note-prose ul[data-type='taskList']` forced to flex column caused
+  layout side effects. Revert to block display; keep spacing via li margins +
+  adjacent-list margin collapse.
+- [OPEN] Adjacent task lists (item lifted out of a list) render as separate
+  <ul> with doubled margins. Fix: `.taskList + .taskList { margin-top: 0 }`.
+- [OPEN] Empty paragraph collapse safeguard
+  (`p:has(> br:only-child):not(:only-child) { display: none }`) depends on
+  :has support and ProseMirror's <p><br></p> rendering; verify in target
+  browsers.
+- [OPEN] Load-time normalizer re-serialized the whole document via DOMParser,
+  risking HTML changes. Move cleanup to a runtime appendTransaction plugin and
+  drop the broad normalizer.
+
+------------------------------------------------------------
+3. LIST / BLOCK BEHAVIOUR
+------------------------------------------------------------
+- ExitEmptyListItem (Enter on blank item exits list) handles single-item and
+  multi-item cases; verify it still works with nested:false.
+- Tab no longer nests todos (intended trade-off); documented but may surprise.
+- Bulleted/ordered lists share paragraph+ content; same stray-empty-paragraph
+  issue may apply, though less reported.
+- Move up/down on first/last item inside a toggle lifts out (intended).
+- Delete on last line inside a toggle removes the whole toggle (intended).
+
+------------------------------------------------------------
+4. EDITOR CORE — src/Components/Notes/NoteEditor.tsx
+------------------------------------------------------------
+- Uncontrolled editor; parent owns stored HTML, reconciled once on mount.
+  Autosave debounce lives in parent (NoteEditorPane) — verify no lost updates
+  on fast navigation/unmount.
+- StrictMode double-mount: editor destroyed between mounts; code guards with
+  isDestroyed. Check for leaked plugins/listeners.
+- Block menu placement is hand-rolled (no floating-ui); scroll closes it.
+  Selection-based menu cannot hold focus (keys forwarded via ProseMirror).
+- Drag handle hidden on mobile; header button is the only entry there.
+- Focus mode dims non-caret blocks via CSS has-focus; verify with nested
+  blocks.
+- TrailingNode is off; deleting last block handled by deleteBlocks, but other
+  paths (e.g. Backspace) may leave an empty document.
+
+------------------------------------------------------------
+5. CONTENT NORMALIZATION — src/utils/noteContent.ts
+------------------------------------------------------------
+- normalizeLegacyCheckboxes migrates old <input type="checkbox"> markup; verify
+  it doesn't corrupt modern task lists (isTaskListCheckbox guard).
+- normalizeLegacyToggles moves first body block into empty summary; verify on
+  old notes.
+- normalizeNoteHtml round-trip can alter whitespace/attribute order; keep
+  repairs minimal and guarded.
+
+------------------------------------------------------------
+6. PASTE / IMPORT
+------------------------------------------------------------
+- handleMarkdownPaste converts pasted markdown; verify table/code/math handling.
+- Image insertion only via URL prompt (no upload); allowBase64 false.
+
+------------------------------------------------------------
+7. EXPORT — src/utils/noteExport.ts (not audited here)
+------------------------------------------------------------
+- Copy as Markdown path; verify nested lists/todos/tables serialize correctly.
+- Word count regex-based; may miscount entities.
+
+------------------------------------------------------------
+8. BLOCK MENU / SLASH COMMANDS
+------------------------------------------------------------
+- SlashCommandExtension "preserve selection on slash" moves caret to end of
+  selection; verify with multi-block selection.
+- Favourites persisted in localStorage; corrupt storage handled.
+- Block menu opened on selection cannot hold focus; arrow keys forwarded.
+- "Turn into" panel width assumptions (SPLIT_MIN_WIDTH 560).
+
+------------------------------------------------------------
+9. TABLES
+------------------------------------------------------------
+- TableKit resizable; allowTableNodeSelection true. Verify overflow in 740px
+  column (CSS added).
+- Table cell content `block+`; empty cells backfilled.
+
+------------------------------------------------------------
+10. TOGGLES / DETAILS
+------------------------------------------------------------
+- persist: true keeps open state; unwrapDetails on Backspace.
+- ExitEmptyListItem does not apply to toggle body lists? Verify.
+- Toggle heading level stored as toggleLevel.
+
+------------------------------------------------------------
+11. CALLOUTS / MATH / CODE
+------------------------------------------------------------
+- Callout types info/tip/warning/danger.
+- Code block tab indentation enabled; Shift-Tab outdent.
+- Math (KaTeX) requires CSS import (done).
+- Inline/block math prompts.
+
+------------------------------------------------------------
+12. OUTLINE / TOC
+------------------------------------------------------------
+- TableOfContents onUpdate; outline only when >= TOC_MIN_HEADINGS (3).
+- Heading levels 1-3 only.
+
+------------------------------------------------------------
+13. STYLING / CSS — src/index.css
+------------------------------------------------------------
+- Task list checkbox alignment: margin-top calc((1.75em - 16px)/2) assumes
+  1.75em line height; verify if prose size changes.
+- `.note-prose p { margin: 0.4rem 0 }`; li margin 0.2rem. Task li reset to 0
+  in my change (revert? keep consistent).
+- Empty first block placeholder: `p.is-editor-empty:first-child::before`.
+- Focus dimming relies on has-focus class + CSS.
+- Mobile breakpoints hide drag handle and adjust layout.
+
+------------------------------------------------------------
+14. DATA / SYNC
+------------------------------------------------------------
+- Notes stored via noteService; verify autosave debounce and conflict handling.
+- Note pinning / unlock / recovery flows.
+- Sidebar search/filter and quick switcher.
+
+------------------------------------------------------------
+15. ACCESSIBILITY
+------------------------------------------------------------
+- Drag handle button has aria-label and focus ring.
+- Task checkbox has aria-label via a11y option (default).
+- Menu keyboard navigation via forwarded keys.
+
+------------------------------------------------------------
+RECOMMENDED NEXT STEPS
+------------------------------------------------------------
+A. Revert TaskItem content override; keep nested:false.
+B. Implement runtime appendTransaction cleanup for stray empty paragraphs.
+C. Revert ul flex display; keep margin-based spacing.
+D. Re-run full manual test: create todo, Enter, Delete, toggle type, drag
+   handle alignment across paragraph/heading/list/callout/code.
+E. Add tests for normalize* functions and task list spacing.
+F. Audit noteService autosave and unmount handling.

@@ -12,6 +12,10 @@ import {
     createStudySession,
     updateStudySession,
     deleteStudySession,
+    getUserStudyGoal,
+    upsertStudyGoal,
+    getUserStudyHistory,
+    recomputeStudyHistory,
     getUserAcademicCourses,
     createAcademicCourse,
     updateAcademicCourse,
@@ -28,7 +32,7 @@ import {
     deleteGpaScale,
 } from '../services/academicService';
 import type { AcademicCourse, AcademicItem, GpaScale, GpaBand } from '../utils/academicGpa';
-import type { AcademicSemester, AcademicGoal, StudySession } from '../services/academicService';
+import type { AcademicSemester, AcademicGoal, StudySession, StudyGoal } from '../services/academicService';
 import { queryKeys } from '../utils/queryKeys';
 
 export const useAcademicSemesters = () =>
@@ -264,8 +268,11 @@ export const useSaveSession = (onDone?: () => void) => {
     return useMutation({
         mutationFn: (session: StudySession) =>
             session.id ? updateStudySession(session.id, session) : createStudySession(session),
-        onSuccess: () => {
+        onSuccess: (_data, variables) => {
             qc.invalidateQueries({ queryKey: queryKeys.studySessions });
+            void recomputeStudyHistory(variables.session_date).then(() => {
+                qc.invalidateQueries({ queryKey: queryKeys.studyHistory });
+            });
             onDone?.();
         },
     });
@@ -275,9 +282,39 @@ export const useDeleteSession = (onDone?: () => void) => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => deleteStudySession(id),
-        onSuccess: () => {
+        onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: queryKeys.studySessions });
+            if (data?.session_date) {
+                void recomputeStudyHistory(data.session_date).then(() => {
+                    qc.invalidateQueries({ queryKey: queryKeys.studyHistory });
+                });
+            }
             onDone?.();
         },
     });
 };
+
+// ==================== STUDY GOALS / HISTORY ====================
+
+export const useStudyGoal = () =>
+    useQuery({
+        queryKey: queryKeys.studyGoal,
+        queryFn: getUserStudyGoal,
+    });
+
+export const useSaveStudyGoal = (onDone?: () => void) => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (goal: Partial<StudyGoal>) => upsertStudyGoal(goal),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.studyGoal });
+            onDone?.();
+        },
+    });
+};
+
+export const useStudyHistory = (startDate?: string, endDate?: string) =>
+    useQuery({
+        queryKey: [...queryKeys.studyHistory, startDate ?? null, endDate ?? null] as const,
+        queryFn: () => getUserStudyHistory(startDate, endDate),
+    });

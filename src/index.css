@@ -5973,7 +5973,40 @@ textarea.form-control {
 .note-prose ul[data-type='taskList'] {
   list-style: none;
   padding-left: 0.25rem;
+  /* Task lists are blocks like any other: their own margin comes from the
+     surrounding prose, not from the browser's default list margin, which is
+     what left a list sitting further from its neighbours than a paragraph. */
+  margin: 0.4rem 0;
+  /* Consistent, predictable gaps between rows: the gap lives on the list, not
+     on each item, so a row that happens to contain two paragraphs (or that was
+     created by Enter then had its text deleted) cannot pull the rows apart. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
+.note-prose ul[data-type='taskList'] > li {
+  /* The row's own margin is reset: the list's gap is the single source of
+     spacing between to-dos, which is what keeps them "together" instead of
+     drifting apart after an Enter/Delete. */
+  margin: 0;
+}
+.note-prose ul[data-type='taskList'] > li > div > * {
+  margin: 0;
+}
+/* Two to-do lists created one after the other (e.g. when an item is lifted out
+   of a list) must not double their margins and create a visibly larger gap. */
+.note-prose ul[data-type='taskList'] + ul[data-type='taskList'] {
+  margin-top: 0;
+}
+/* A stray empty paragraph left inside a to-do (Enter then Delete) renders as a
+   blank line and makes that row taller than its neighbours. Collapse it when it
+   is not the item's only paragraph, so a genuinely blank to-do keeps its caret
+   line while a leftover empty one stops adding height. ProseMirror renders an
+   empty paragraph as <p><br></p>. */
+.note-prose ul[data-type='taskList'] > li > div > p:has(> br:only-child):not(:only-child) {
+  display: none;
+}
+
 .note-prose ul[data-type='taskList'] > li {
   /* The row: box on the left, text beside it. Without this the two are block
      boxes and stack. */

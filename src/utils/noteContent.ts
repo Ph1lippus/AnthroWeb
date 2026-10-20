@@ -221,9 +221,46 @@ export const normalizeLegacyToggles = (html: string): string => {
     return repaired ? doc.body.innerHTML : html;
 };
 
+/**
+ * Collapse stray empty paragraphs left inside to-do items.
+ *
+ * Even a to-do that only ever held one line can end up with a second, empty
+ * paragraph after an Enter followed by a Backspace/Delete: the empty paragraph
+ * stays inside the item and renders as a blank line, making that row taller
+ * than its neighbours. Each item keeps its first paragraph and loses any
+ * trailing empty ones, so a genuinely blank to-do still has a line to type in.
+ */
+export const normalizeTaskItems = (html: string): string => {
+    if (!html || !html.includes('taskItem')) return html;
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const items = Array.from(doc.body.querySelectorAll('li[data-type="taskItem"]'));
+    let changed = false;
+
+    for (const item of items) {
+        const content =
+            item.querySelector(':scope > div') ?? item;
+        const paragraphs = Array.from(content.querySelectorAll(':scope > p'));
+        if (paragraphs.length <= 1) continue;
+
+        // Keep the first paragraph; drop trailing empty ones.
+        for (let i = paragraphs.length - 1; i >= 1; i--) {
+            const p = paragraphs[i];
+            if ((p.textContent ?? '').trim() === '' && p.querySelectorAll('img,table,hr,br').length <= 1) {
+                p.remove();
+                changed = true;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return changed ? doc.body.innerHTML : html;
+};
+
 /** Every load-time repair to stored note HTML, in one call. */
 export const normalizeNoteHtml = (html: string): string =>
-    normalizeLegacyToggles(normalizeLegacyCheckboxes(html));
+    normalizeTaskItems(normalizeLegacyToggles(normalizeLegacyCheckboxes(html)));
 
 /** True when a note has nothing in it yet: no text and no embedded media. */
 export const isBlankNote = (html?: string | null): boolean => {

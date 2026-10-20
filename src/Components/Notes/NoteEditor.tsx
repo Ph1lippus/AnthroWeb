@@ -190,7 +190,6 @@ const submenuSideFor = (mainLeft: number, mainWidth: number): 'right' | 'left' =
 type HandlePositionConfig = NonNullable<
     ComponentProps<typeof DragHandle>['computePositionConfig']
 >;
-type HandleMiddleware = NonNullable<HandlePositionConfig['middleware']>[number];
 
 /**
  * Nudges the drag handle down so its dots line up with the block's first line.
@@ -211,29 +210,15 @@ type HandleMiddleware = NonNullable<HandlePositionConfig['middleware']>[number];
  * -- a `<ul>`, a flex row -- report `normal`, which does not parse as a number,
  * and fall back to the element's own height.
  */
-const centreOnFirstLine: HandleMiddleware = {
-    name: 'centreOnFirstLine',
-    fn: state => {
-        const handle = state.elements.floating;
-        if (!(handle instanceof HTMLElement)) return {};
-        const reference = state.rects.reference;
-        const element = state.elements.reference;
-        const declared =
-            element instanceof Element ? parseFloat(getComputedStyle(element).lineHeight) : NaN;
-        // `line-height: normal` (lists, flex rows, ...) does not parse, so the
-        // old fallback took the whole block's height and centered the handle in
-        // the middle of a multi-line block. Estimate the first line from the
-        // font size instead, which is what `normal` resolves to anyway.
-        const fontSize =
-            element instanceof Element ? parseFloat(getComputedStyle(element).fontSize) : NaN;
-        const fallbackLine = Number.isFinite(fontSize) ? fontSize * 1.5 : reference.height;
-        const firstLine = Math.min(
-            reference.height,
-            Number.isFinite(declared) ? declared : fallbackLine,
-        );
-        return { y: state.y + (firstLine - handle.offsetHeight) / 2 };
-    },
-};
+// The drag handle's vertical alignment middleware is built inside the component,
+// because it needs the actual DOM element of the block it is being drawn beside:
+// `@tiptap/extension-drag-handle` positions the handle against a *virtual*
+// element whose `getBoundingClientRect` comes from the block, so
+// `state.elements.reference` is that virtual element rather than a real node, and
+// reading `getComputedStyle` on it always fails -- which is what left the handle
+// vertically centred across the whole block. The element is tracked in a ref that
+// is updated by the drag handle's `onNodeChange` callback, and read here at
+// positioning time.
 
 /**
  * The rectangle a text selection covers on screen.
@@ -339,6 +324,10 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
     // mouse move across the document, and re-rendering the editor that often
     // would be a lot of work for nothing.
     const handlePosRef = useRef(-1);
+    // The DOM node of the block the drag handle is currently drawn beside. Tracked
+    // here so the vertical-alignment middleware can read its real computed
+    // `line-height` instead of the virtual element's (which has none).
+    const handleElementRef = useRef<HTMLElement | null>(null);
     const nextMenuIdRef = useRef(0);
     const placedMenuIdRef = useRef(-1);
     // Mirrors of the open menu, readable from ProseMirror's transaction handler
@@ -643,12 +632,38 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
         () => ({
             placement: 'left-start',
             strategy: 'absolute',
-            offset: -14,
+            offset: -20,
             // floating-ui runs these after the placement is computed, which is
             // where the vertical correction belongs. Its own `flip` and `shift`
             // are deliberately absent: the grip belongs beside its block, even
             // where that means sitting over the margin.
-            middleware: [centreOnFirstLine],
+            middleware: [
+                {
+                    name: 'centreOnFirstLine',
+                    fn: state => {
+                        const handle = state.elements.floating;
+                        if (!(handle instanceof HTMLElement)) return {};
+                        const reference = state.rects.reference;
+                        const element = handleElementRef.current;
+                        const declared =
+                            element instanceof HTMLElement
+                                ? parseFloat(getComputedStyle(element).lineHeight)
+                                : NaN;
+                        const fontSize =
+                            element instanceof HTMLElement
+                                ? parseFloat(getComputedStyle(element).fontSize)
+                                : NaN;
+                        const fallbackLine = Number.isFinite(fontSize)
+                            ? fontSize * 1.5
+                            : reference.height;
+                        const firstLine = Math.min(
+                            reference.height,
+                            Number.isFinite(declared) ? declared : fallbackLine,
+                        );
+                        return { y: state.y + (firstLine - handle.offsetHeight) / 2 - 2 };
+                    },
+                },
+            ],
         }),
         [],
     );
@@ -682,6 +697,16 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 nested
                 onNodeChange={({ node, pos }) => {
                     handlePosRef.current = node ? pos : -1;
+                    // Keep the real DOM node of the block the handle sits beside, so
+                    // the vertical-alignment middleware can read its computed
+                    // line-height. `nodeDOM` returns the element the block renders
+                    // as, which is the one whose style we want.
+                    if (node && pos >= 0 && editor && !editor.isDestroyed) {
+                        const dom = editor.view.nodeDOM(pos);
+                        handleElementRef.current = dom instanceof HTMLElement ? dom : null;
+                    } else {
+                        handleElementRef.current = null;
+                    }
                 }}
             >
                 <button

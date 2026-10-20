@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coffee, Flag, Maximize2, Minimize2, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
 import Title from '../Components/Title';
@@ -9,6 +9,8 @@ import TimeUpOverlay from '../Components/Timer/TimeUpOverlay';
 import AlarmsPanel from '../Components/Timer/AlarmsPanel';
 import IntervalEditor from '../Components/Timer/IntervalEditor';
 import { useTimer, type TimerMode } from '../hooks/useTimerEngine';
+import { useSaveSession } from '../hooks/useAcademic';
+import StudyPanel from '../Components/Study/StudyPanel';
 import { useTimerDocumentTitle } from '../hooks/useTimerDocumentTitle';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
@@ -175,6 +177,7 @@ const TimerPage: React.FC = () => {
 
     const alarmsQuery = useQuery({ queryKey: queryKeys.timerAlarms, queryFn: getTimerAlarms });
 
+
     /**
      * Whether there is anything to resume.
      *
@@ -253,6 +256,12 @@ const TimerPage: React.FC = () => {
         onSuccess: () => { void queryClient.invalidateQueries({ queryKey: queryKeys.timerAlarms }); },
     });
 
+    const saveSession = useSaveSession();
+ 
+    // saveCurrentSession is defined after notify below.
+
+    // (moved below, after `notify` is declared)
+
     /**
      * Turning an alarm on and off is an edit, not a different verb.
      *
@@ -311,6 +320,99 @@ const TimerPage: React.FC = () => {
     const showToast = useCallback((type: 'success' | 'error' | 'info', message: string) => {
         notify(type, message);
     }, [notify]);
+
+    const saveCurrentSession = useCallback(() => {
+        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : 0;
+        if (elapsedMs <= 0) return;
+        const endedAt = new Date();
+        const minutes = Math.max(1, Math.round(elapsedMs / 60000));
+        saveSession.mutate({
+            user_id: '',
+            session_date: endedAt.toISOString().slice(0, 10),
+            duration_minutes: minutes,
+            session_type: 'study',
+            notes: `${engine.mode} run (manual save)`,
+            mode: engine.mode,
+            source: 'timer',
+            run_key: `${engine.runId ?? 'manual'}:${Date.now()}`,
+            started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
+            ended_at: endedAt.toISOString(),
+            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+        }, {
+            onSuccess: () => notify('success', 'Study session saved'),
+        });
+    }, [engine, notify, saveSession]);
+
+    // Auto-save a finished timer run as a study session (once per run).
+    const savedRunsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        if (engine.alert?.kind !== 'timeup') return;
+        const runId = engine.runId;
+        if (!runId || savedRunsRef.current.has(runId)) return;
+        savedRunsRef.current.add(runId);
+
+        const endedAt = new Date();
+        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
+        const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
+        const startedAt = new Date(endedAt.getTime() - elapsedMs);
+
+        if (engine.mode === 'interval') {
+            const cfg = engine.intervalConfig;
+            const rounds = cfg.totalRounds > 0
+                ? cfg.totalRounds
+                : Math.max(1, Math.round(elapsedMs / ((cfg.workSec + cfg.restSec) * 1000)));
+            const workMinutes = Math.max(1, Math.round((rounds * cfg.workSec) / 60));
+            const breakMinutes = Math.max(0, Math.round((elapsedMs / 1000 - rounds * cfg.workSec) / 60));
+            saveSession.mutate({
+                user_id: '',
+                session_date: endedAt.toISOString().slice(0, 10),
+                duration_minutes: workMinutes,
+                session_type: 'study',
+                notes: `Interval run: ${workMinutes}m focus, ${breakMinutes}m break`,
+                mode: 'interval',
+                source: 'timer',
+                run_key: runId,
+                started_at: startedAt.toISOString(),
+                ended_at: endedAt.toISOString(),
+                planned_minutes: Math.round(engine.totalMs / 60000),
+                break_minutes: breakMinutes,
+            }, {
+                onSuccess: () => notify('success', 'Study session saved'),
+                onError: () => savedRunsRef.current.delete(runId),
+            });
+            if (breakMinutes > 0) {
+                saveSession.mutate({
+                    user_id: '',
+                    session_date: endedAt.toISOString().slice(0, 10),
+                    duration_minutes: breakMinutes,
+                    session_type: 'break',
+                    notes: `Interval run break`,
+                    mode: 'interval',
+                    source: 'timer',
+                    run_key: `${runId}:break`,
+                    started_at: startedAt.toISOString(),
+                    ended_at: endedAt.toISOString(),
+                });
+            }
+        } else {
+            saveSession.mutate({
+                user_id: '',
+                session_date: endedAt.toISOString().slice(0, 10),
+                duration_minutes: elapsedMinutes,
+                session_type: 'study',
+                notes: `${engine.mode === 'countdown' ? 'Countdown' : 'Stopwatch'} run`,
+                mode: engine.mode,
+                source: 'timer',
+                run_key: runId,
+                started_at: startedAt.toISOString(),
+                ended_at: endedAt.toISOString(),
+                planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+            }, {
+                onSuccess: () => notify('success', 'Study session saved'),
+                onError: () => savedRunsRef.current.delete(runId),
+            });
+        }
+    }, [engine.alert, engine.runId, engine.elapsed, engine.totalMs, engine.mode, engine.intervalConfig, notify, saveSession]);
 
     // ==================== ALARMS + WAKE LOCK ====================
 
@@ -663,6 +765,18 @@ const TimerPage: React.FC = () => {
                                         </button>
                                     )}
 
+                                    {engine.elapsed > 0 && (
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={tap(saveCurrentSession)}
+                                        data-tip="Save session"
+                                        aria-label="Save the current run as a study session"
+                                    >
+                                        Save
+                                    </button>
+                                    )}
+
                                     {canResume && (
                                     <button
                                         type="button"
@@ -866,6 +980,11 @@ const TimerPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* ==================== STUDY SESSIONS ==================== */}
+            <div style={{ marginTop: '1rem' }}>
+                <StudyPanel />
             </div>
 
             {/* ==================== OVERLAYS ==================== */}

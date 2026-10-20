@@ -360,6 +360,13 @@ CREATE TABLE public.study_sessions (
   duration_minutes integer NOT NULL,
   session_type text DEFAULT 'study'::text CHECK (session_type = ANY (ARRAY['study'::text, 'break'::text])),
   notes text,
+  mode text CHECK (mode = ANY (ARRAY['countdown'::text, 'stopwatch'::text, 'interval'::text])),
+  source text DEFAULT 'manual'::text CHECK (source = ANY (ARRAY['timer'::text, 'manual'::text])),
+  run_key text,
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
+  planned_minutes integer,
+  break_minutes integer,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT study_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT study_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
@@ -739,6 +746,7 @@ CREATE TABLE public.timer_settings (
 -- `position`, and created_at alone reorders anything added in the same second.
 CREATE INDEX IF NOT EXISTS timer_presets_user_position_idx ON public.timer_presets (user_id, position);
 CREATE INDEX IF NOT EXISTS timer_alarms_user_position_idx ON public.timer_alarms (user_id, position);
+CREATE UNIQUE INDEX IF NOT EXISTS study_sessions_user_run_key_idx ON public.study_sessions (user_id, run_key) WHERE run_key IS NOT NULL;
 
 
 INDEXES.
