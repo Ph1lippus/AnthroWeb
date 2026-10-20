@@ -854,7 +854,7 @@ const TimerPage: React.FC = () => {
                                     label={MODE_LABEL.countdown}
                                     active={engine.mode === 'countdown' && !worldClockInUse}
                                     running={engine.running}
-                                    onSelect={tap(() => engine.setMode('countdown'))}
+                                    onSelect={tap(() => { engine.setMode('countdown'); setWorldClockInUse(false); })}
                                 >
                                     <DurationPad
                                         value={engine.totalMs}
@@ -883,7 +883,7 @@ const TimerPage: React.FC = () => {
                                     label={MODE_LABEL.stopwatch}
                                     active={engine.mode === 'stopwatch' && !worldClockInUse}
                                     running={engine.running}
-                                    onSelect={tap(() => engine.setMode('stopwatch'))}
+                                    onSelect={tap(() => { engine.setMode('stopwatch'); setWorldClockInUse(false); })}
                                 >
                                     <p className="timer-empty-hint" style={{ textAlign: 'left' }}>
                                         Counts up from zero and runs until you stop it.
@@ -980,7 +980,7 @@ const TimerPage: React.FC = () => {
                                     label={MODE_LABEL.interval}
                                     active={engine.mode === 'interval' && !worldClockInUse}
                                     running={engine.running}
-                                    onSelect={tap(() => engine.setMode('interval'))}
+                                    onSelect={tap(() => { engine.setMode('interval'); setWorldClockInUse(false); })}
                                 >
                                     <IntervalEditor
                                         config={engine.intervalConfig}
