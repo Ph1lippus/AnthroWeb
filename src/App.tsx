@@ -33,6 +33,7 @@ const AbstinencePage = lazy(pageLoaders['/Abstinence']);
 const AcademicPage = lazy(pageLoaders['/Academic']);
 const TimerPage = lazy(pageLoaders['/Timer']);
 const NotesPage = lazy(pageLoaders['/Notes']);
+import SettingsLayout from './Components/Settings/SettingsLayout';
 const SettingsPage = lazy(pageLoaders['/Settings']);
 const AppPage = lazy(pageLoaders['/Settings/App']);
 const AccountPage = lazy(pageLoaders['/Settings/Account']);
@@ -288,10 +289,12 @@ const AuthenticatedApp: React.FC = () => {
                 {/* Same workspace, a different page open. The route parameter selects it,
                     which keeps notes deep-linkable and gives Back a step to return to. */}
                 <Route path="/Notes/:id" element={<NotesPage />} />
-                <Route path="/Settings" element={<SettingsPage />} />
-                <Route path="/Settings/App" element={<AppPage />} />
-                <Route path="/Settings/Account" element={<AccountPage />} />
-                <Route path="/Settings/Security" element={<SecurityPage />} />
+                <Route path="/Settings" element={<SettingsLayout />}>
+                    <Route index element={<SettingsPage />} />
+                    <Route path="App" element={<AppPage />} />
+                    <Route path="Account" element={<AccountPage />} />
+                    <Route path="Security" element={<SecurityPage />} />
+                </Route>
                 <Route path="/Profile" element={<ProfilePage />} />
                 <Route path="/Profile/Edit" element={<EditProfilePage />} />
                 <Route path="*" element={<DefaultRoute />} />

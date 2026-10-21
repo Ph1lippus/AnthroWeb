@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Title from '../Components/Title';
-import SettingsShell from '../Components/Settings/SettingsShell';
+
 import ConfirmModal from '../Components/ConfirmModal';
 import { getCurrentUser, signOutUser } from '../services/profileService';
 import LoadingSpinner from '../Components/LoadingSpinner';
@@ -56,32 +56,26 @@ const AccountPage: React.FC = () => {
     return (
         <>
             <Title title="Account" />
-            <SettingsShell>
-                <div className="settings-container">
-                    <div className="settings-header">
-                        <h1 className="settings-title">
-                            <LogOut />
-                            Account
-                        </h1>
-                        <p className="settings-subtitle">
-                            {loading ? <LoadingSpinner inline label="Loading account" /> : email}
-                        </p>
-                    </div>
-
-                    <div className="settings-list">
-                        <button className="settings-item" onClick={() => setConfirmOpen(true)}>
-                            <LogOut />
-                            <div className="settings-item-content">
-                                <span className="settings-item-title">Sign Out</span>
-                                <span className="settings-item-description">Sign out of AnthroWeb on this device</span>
-                            </div>
-                            <div className="settings-item-arrow">
-                                <ChevronRight />
-                            </div>
-                        </button>
-                    </div>
+            <div className="settings-container">
+                <div className="settings-header">
+                    <p className="settings-subtitle">
+                        {loading ? <LoadingSpinner inline label="Loading account" /> : email}
+                    </p>
                 </div>
-            </SettingsShell>
+
+                <div className="settings-list">
+                    <button className="settings-item" onClick={() => setConfirmOpen(true)}>
+                        <LogOut />
+                        <div className="settings-item-content">
+                            <span className="settings-item-title">Sign Out</span>
+                            <span className="settings-item-description">Sign out of AnthroWeb on this device</span>
+                        </div>
+                        <div className="settings-item-arrow">
+                            <ChevronRight />
+                        </div>
+                    </button>
+                </div>
+            </div>
 
             <ConfirmModal
                 open={confirmOpen}

@@ -1,6 +1,5 @@
 import React from 'react';
 import Title from '../Components/Title';
-import SettingsShell from '../Components/Settings/SettingsShell';
 import SecuritySettings from '../Components/Security/SecuritySettings';
 
 /**
@@ -14,9 +13,9 @@ import SecuritySettings from '../Components/Security/SecuritySettings';
 const SecurityPage: React.FC = () => (
     <>
         <Title title="Security" />
-        <SettingsShell title="Security">
+        <div className="settings-container">
             <SecuritySettings />
-        </SettingsShell>
+        </div>
     </>
 );
 

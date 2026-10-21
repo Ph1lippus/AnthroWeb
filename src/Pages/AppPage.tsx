@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Title from '../Components/Title';
-import SettingsShell from '../Components/Settings/SettingsShell';
 import { getNightThemeOverride, setNightThemeOverride, type ThemeOverride } from '../hooks/useNightTheme';
-import { Package, RotateCw, Download, Info, ChevronRight } from 'lucide-react';
+import { RotateCw, Download, Info, ChevronRight } from 'lucide-react';
 import { checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp } from '../services/updateService';
 import type { UpdateInfo } from '../services/updateService';
 import { useInlineError } from '../Components/Feedback/useNotice';
@@ -98,13 +97,8 @@ const AppPage: React.FC = () => {
     return (
         <>
             <Title title="App" />
-            <SettingsShell>
-                <div className="settings-container">
+            <div className="settings-container">
                     <div className="settings-header">
-                        <h1 className="settings-title">
-                            <Package />
-                            App
-                        </h1>
                         <p className="settings-subtitle">AnthroWeb {versionLabel}</p>
                     </div>
 
@@ -175,7 +169,6 @@ const AppPage: React.FC = () => {
                         <p className="settings-version">AnthroWeb {versionLabel}</p>
                     </div>
                 </div>
-            </SettingsShell>
         </>
     );
 };
