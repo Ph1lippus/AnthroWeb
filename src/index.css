@@ -10695,7 +10695,12 @@ select.form-control option {
   font-size: clamp(3.5rem, 11vw, 9rem);
 }
 .timer-page-wrapper {
-  transition: all 0.3s ease;
+  transition: padding 0.35s ease;
+}
+.timer-stage,
+.timer-display,
+.timer-digits {
+  transition: width 0.35s ease, max-width 0.35s ease, font-size 0.35s ease;
 }
 
 /* --- the three mode cards ------------------------------------------------ */
