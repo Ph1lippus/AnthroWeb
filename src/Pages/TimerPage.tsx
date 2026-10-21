@@ -17,7 +17,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
-import { buildLaps, formatAlarmTime, formatTimer, nextAlarmFire } from '../utils/timerMath';
+import { buildLaps, completedBreakMs, formatAlarmTime, formatTimer, nextAlarmFire, phaseAt } from '../utils/timerMath';
 import { unlockAudio } from '../utils/timerChime';
 import { requestNotificationPermission } from '../utils/timerNotification';
 import {
@@ -137,6 +137,15 @@ const writeFocusMode = (on: boolean): void => {
 const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
+
+    /**
+     * A break that was in progress when a new run was started (or the run was
+     * reset) leaves a partial break behind. Its elapsed minutes are carried
+     * forward and added to the next session that is saved, so the time is not
+     * lost. Cleared once consumed.
+     */
+    const [pendingBreakMinutes, setPendingBreakMinutes] = useState<number>(0);
+    const lastRunRef = useRef<{ runId: string | null; elapsed: number; config: typeof engine.intervalConfig } | null>(null);
 
     const [deleteAlarm, setDeleteAlarm] = useState<TimerAlarm | null>(null);
 
@@ -341,11 +350,31 @@ const TimerPage: React.FC = () => {
         notify(type, message);
     }, [notify]);
 
+    // Capture a break that was in progress when the run changes, so its elapsed
+    // minutes can be rolled into the next session rather than dropped.
+    useEffect(() => {
+        const prev = lastRunRef.current;
+        if (prev && prev.runId && prev.runId !== engine.runId && engine.runId) {
+            const phase = phaseAt(prev.elapsed, prev.config);
+            if (phase && (phase.kind === 'rest' || phase.kind === 'long')) {
+                const elapsedIntoBreak = phase.phaseMs - phase.remainingMs;
+                setPendingBreakMinutes(prev => prev + Math.max(0, Math.round(elapsedIntoBreak / 60000)));
+            }
+        }
+        lastRunRef.current = { runId: engine.runId, elapsed: engine.elapsed, config: engine.intervalConfig };
+    }, [engine.runId, engine.elapsed, engine.intervalConfig]);
+
     const saveCurrentSession = useCallback(() => {
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : 0;
         if (elapsedMs <= 0) return;
         const endedAt = new Date();
         const minutes = Math.max(1, Math.round(elapsedMs / 60000));
+        // Only breaks that fully completed count; a break cut short is carried
+        // forward as pending instead of being recorded here.
+        const completed = engine.mode === 'interval'
+            ? Math.round(completedBreakMs(engine.elapsed, engine.intervalConfig) / 60000)
+            : 0;
+        const breakMinutes = completed + pendingBreakMinutes;
         saveSession.mutate({
             user_id: '',
             session_date: endedAt.toISOString().slice(0, 10),
@@ -358,10 +387,14 @@ const TimerPage: React.FC = () => {
             started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
             ended_at: endedAt.toISOString(),
             planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+            break_minutes: breakMinutes > 0 ? breakMinutes : undefined,
         }, {
-            onSuccess: () => notify('success', 'Study session saved'),
+            onSuccess: () => {
+                setPendingBreakMinutes(0);
+                notify('success', 'Study session saved');
+            },
         });
-    }, [engine, notify, saveSession]);
+    }, [engine, notify, pendingBreakMinutes, saveSession]);
 
     // Auto-save a finished timer run as a study session (once per run).
     const savedRunsRef = useRef<Set<string>>(new Set());
@@ -382,30 +415,40 @@ const TimerPage: React.FC = () => {
                 ? cfg.totalRounds
                 : Math.max(1, Math.round(elapsedMs / ((cfg.workSec + cfg.restSec) * 1000)));
             const roundsBeforeLong = cfg.roundsBeforeLong > 0 ? cfg.roundsBeforeLong : 4;
+            // A break only exists between two rounds, so the last round carries no
+            // break. The pending break from a previous run that was cut short is
+            // rolled into the first round.
             for (let i = 0; i < rounds; i++) {
+                const isLast = i === rounds - 1;
                 const isLong = (i + 1) % roundsBeforeLong === 0 && cfg.longRestSec > 0;
                 const breakSec = isLong ? cfg.longRestSec : cfg.restSec;
                 const workMinutes = Math.max(1, Math.round(cfg.workSec / 60));
-                const breakMinutes = Math.max(0, Math.round(breakSec / 60));
+                const breakMinutes = isLast ? 0 : Math.max(0, Math.round(breakSec / 60));
+                const rolledBreak = i === 0 ? pendingBreakMinutes : 0;
+                const totalBreak = breakMinutes + rolledBreak;
                 saveSession.mutate({
                     user_id: '',
                     session_date: endedAt.toISOString().slice(0, 10),
                     duration_minutes: workMinutes,
                     session_type: 'study',
-                    notes: `Interval round ${i + 1}: ${workMinutes}m focus, ${breakMinutes}m break`,
+                    notes: `Interval round ${i + 1}: ${workMinutes}m focus, ${totalBreak}m break`,
                     mode: 'interval',
                     source: 'timer',
                     run_key: `${runId}:${i}`,
                     started_at: startedAt.toISOString(),
                     ended_at: endedAt.toISOString(),
                     planned_minutes: Math.round(cfg.workSec / 60),
-                    break_minutes: breakMinutes,
+                    break_minutes: totalBreak > 0 ? totalBreak : undefined,
                 }, {
-                    onSuccess: () => notify('success', 'Study session saved'),
+                    onSuccess: () => {
+                        if (i === 0) setPendingBreakMinutes(0);
+                        notify('success', 'Study session saved');
+                    },
                     onError: () => savedRunsRef.current.delete(runId),
                 });
             }
         } else {
+            const rolledBreak = pendingBreakMinutes;
             saveSession.mutate({
                 user_id: '',
                 session_date: endedAt.toISOString().slice(0, 10),
@@ -418,12 +461,16 @@ const TimerPage: React.FC = () => {
                 started_at: startedAt.toISOString(),
                 ended_at: endedAt.toISOString(),
                 planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+                break_minutes: rolledBreak > 0 ? rolledBreak : undefined,
             }, {
-                onSuccess: () => notify('success', 'Study session saved'),
+                onSuccess: () => {
+                    setPendingBreakMinutes(0);
+                    notify('success', 'Study session saved');
+                },
                 onError: () => savedRunsRef.current.delete(runId),
             });
         }
-    }, [engine.alert, engine.runId, engine.elapsed, engine.totalMs, engine.mode, engine.intervalConfig, notify, saveSession]);
+    }, [engine.alert, engine.runId, engine.elapsed, engine.totalMs, engine.mode, engine.intervalConfig, notify, pendingBreakMinutes, saveSession]);
 
     // ==================== ALARMS + WAKE LOCK ====================
 

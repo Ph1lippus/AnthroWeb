@@ -353,6 +353,48 @@ export function phaseRemainingMs(elapsedMs: number, config: IntervalConfig): num
     return phaseAt(elapsedMs, config)?.remainingMs ?? 0;
 }
 
+/**
+ * Total milliseconds of *fully completed* breaks up to `elapsedMs`.
+ *
+ * A break only counts once its whole duration has elapsed; a break that is still
+ * in progress (or one that has not started yet) contributes nothing. This is the
+ * rule the session log follows: a break that was cut short is not recorded as a
+ * completed break, and its elapsed time is instead rolled into the next session.
+ */
+export function completedBreakMs(elapsedMs: number, config: IntervalConfig): number {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) elapsedMs = 0;
+    const workMs = config.workSec * SECOND;
+    const restMs = config.restSec * SECOND;
+    const longMs = config.longRestSec * SECOND;
+    if (workMs <= 0) return 0;
+
+    const maxRounds = config.totalRounds > 0 ? config.totalRounds : 500;
+    let t = 0;
+    let total = 0;
+
+    for (let round = 1; round <= maxRounds; round++) {
+        // This round's work has not finished yet, so nothing after it counts.
+        if (elapsedMs < t + workMs) break;
+        t += workMs;
+
+        // The last round has no trailing break.
+        if (config.totalRounds > 0 && round === config.totalRounds) break;
+
+        const isLong = isLongRestRound(config, round);
+        const duration = isLong ? longMs : restMs;
+
+        // Break fully completed: count it and move on.
+        if (elapsedMs >= t + duration) {
+            total += duration;
+            t += duration;
+            continue;
+        }
+        // Break in progress or not yet reached: stop counting.
+        break;
+    }
+    return total;
+}
+
 // ============================================================================
 // ALARMS
 // ============================================================================
