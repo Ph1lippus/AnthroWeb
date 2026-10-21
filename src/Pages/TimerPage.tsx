@@ -18,6 +18,7 @@ import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
 import { buildLaps, completedBreakMs, formatAlarmTime, formatTimer, nextAlarmFire, phaseAt } from '../utils/timerMath';
+import { toDateString } from '../utils/dates';
 import { unlockAudio } from '../utils/timerChime';
 import { requestNotificationPermission } from '../utils/timerNotification';
 import {
@@ -377,13 +378,13 @@ const TimerPage: React.FC = () => {
         const breakMinutes = completed + pendingBreakMinutes;
         saveSession.mutate({
             user_id: '',
-            session_date: endedAt.toISOString().slice(0, 10),
+            session_date: toDateString(endedAt),
             duration_minutes: minutes,
             session_type: 'study',
-            notes: `${engine.mode} run (manual save)`,
+            notes: `${engine.mode} run`,
             mode: engine.mode,
             source: 'timer',
-            run_key: `${engine.runId ?? 'manual'}:${Date.now()}`,
+            run_key: `${engine.runId ?? 'session'}:${Date.now()}`,
             started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
             ended_at: endedAt.toISOString(),
             planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
@@ -398,14 +399,11 @@ const TimerPage: React.FC = () => {
 
     // Auto-save a finished timer run as a study session (once per run).
     const savedRunsRef = useRef<Set<string>>(new Set());
-    useEffect(() => {
-        if (engine.alert?.kind !== 'timeup') return;
-        const runId = engine.runId;
-        if (!runId || savedRunsRef.current.has(runId)) return;
-        savedRunsRef.current.add(runId);
 
+    const saveRun = useCallback((runId: string) => {
         const endedAt = new Date();
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
+        if (elapsedMs <= 0) return;
         const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
         const startedAt = new Date(endedAt.getTime() - elapsedMs);
 
@@ -428,7 +426,7 @@ const TimerPage: React.FC = () => {
                 const totalBreak = breakMinutes + rolledBreak;
                 saveSession.mutate({
                     user_id: '',
-                    session_date: endedAt.toISOString().slice(0, 10),
+                    session_date: toDateString(endedAt),
                     duration_minutes: workMinutes,
                     session_type: 'study',
                     notes: `Interval round ${i + 1}: ${workMinutes}m focus, ${totalBreak}m break`,
@@ -451,7 +449,7 @@ const TimerPage: React.FC = () => {
             const rolledBreak = pendingBreakMinutes;
             saveSession.mutate({
                 user_id: '',
-                session_date: endedAt.toISOString().slice(0, 10),
+                session_date: toDateString(endedAt),
                 duration_minutes: elapsedMinutes,
                 session_type: 'study',
                 notes: `${engine.mode === 'countdown' ? 'Countdown' : 'Stopwatch'} run`,
@@ -470,7 +468,26 @@ const TimerPage: React.FC = () => {
                 onError: () => savedRunsRef.current.delete(runId),
             });
         }
-    }, [engine.alert, engine.runId, engine.elapsed, engine.totalMs, engine.mode, engine.intervalConfig, notify, pendingBreakMinutes, saveSession]);
+    }, [engine, notify, pendingBreakMinutes, saveSession]);
+
+    const finishRun = useCallback(() => {
+        const runId = engine.runId;
+        if (!runId || savedRunsRef.current.has(runId)) return;
+        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
+        if (elapsedMs <= 0) return;
+        savedRunsRef.current.add(runId);
+        saveRun(runId);
+    }, [engine.runId, engine.elapsed, engine.totalMs, saveRun]);
+
+    const handleReset = useCallback(() => {
+        finishRun();
+        engine.reset();
+    }, [finishRun, engine]);
+
+    useEffect(() => {
+        if (engine.alert?.kind !== 'timeup') return;
+        finishRun();
+    }, [engine.alert, finishRun]);
 
     // ==================== ALARMS + WAKE LOCK ====================
 
@@ -672,14 +689,14 @@ const TimerPage: React.FC = () => {
                 if (engine.running) engine.pause();
                 else engine.start();
             } else if (event.key === 'r' || event.key === 'R') {
-                if (!engine.running) engine.reset();
+                if (!engine.running) handleReset();
             } else if (event.key === 'l' || event.key === 'L') {
                 if (engine.mode === 'stopwatch' && engine.running) engine.addLap();
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [engine, prepareToRun]);
+    }, [engine, prepareToRun, handleReset]);
 
     // ==================== RENDER ====================
 
@@ -744,7 +761,7 @@ const TimerPage: React.FC = () => {
                                 })()}
 
                                 <div className="timer-controls">
-                                    {!worldClockTz && (<> 
+                                    {!worldClockInUse && (<>
                                     <button
                                         type="button"
                                         className="timer-btn timer-btn--primary"
@@ -831,7 +848,7 @@ const TimerPage: React.FC = () => {
                                     <button
                                         type="button"
                                         className="timer-btn"
-                                        onClick={tap(engine.reset)}
+                                        onClick={handleReset}
                                         data-tip="Reset"
                                         aria-label="Reset the timer"
                                     >

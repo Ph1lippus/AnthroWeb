@@ -195,7 +195,7 @@ const StudySessions: React.FC = () => {
                 <div className="academic-empty" style={{ padding: '1rem 0' }}>
                     <span className="academic-empty__title">No sessions logged</span>
                     <span className="academic-empty__text">
-                        Finish a timer run or add one manually.
+                        Finish a timer run and it will be logged here.
                     </span>
                 </div>
             ) : (
@@ -207,7 +207,6 @@ const StudySessions: React.FC = () => {
                                     <span className="course-title">{formatMinutes(session.duration_minutes)}</span>
                                     <span className="course-sub">
                                         {session.mode ? session.mode : ''}
-                                        {session.source ? ` · ${session.source}` : ''}
                                     </span>
                                     {session.notes && (
                                         <span className="course-empty-note" style={{ marginTop: 0.3 }}>

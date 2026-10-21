@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { AlarmClock, Check, Play, Plus } from 'lucide-react';
+import { Check, Play, Plus } from 'lucide-react';
 import type { TimerAlert } from '../../hooks/useTimerEngine';
 
 interface TimeUpOverlayProps {
@@ -68,9 +68,11 @@ const TimeUpOverlay: React.FC<TimeUpOverlayProps> = ({ alert, onDismiss, onResta
                 aria-modal="true"
                 aria-label={isAlarm ? 'Alarm' : 'Time’s up'}
             >
+                {isAlarm ? null : (
                 <div className="timer-up__icon" aria-hidden="true">
-                    {isAlarm ? <AlarmClock /> : <Check />}
+                    <Check />
                 </div>
+                )}
 
                 <span className="timer-up__title">
                     {isAlarm ? 'Alarm' : 'Time’s up'}
