@@ -8282,7 +8282,7 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   }
 }
 /* Responsive: single column of cards */
-@media (max-width: 768px) {
+@media (max-width: 768px), (orientation: portrait) {
   .daily-log-puzzle {
     grid-template-columns: 1fr;
   }
@@ -10756,7 +10756,7 @@ select.form-control option {
   flex: 1;
   min-height: 0;
 }
-@media (min-width: 900px) {
+@media (min-width: 900px) and (orientation: landscape) {
   .timer-body {
     grid-template-columns: minmax(22rem, 26rem) minmax(0, 1fr);
     align-items: start;
