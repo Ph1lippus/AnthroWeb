@@ -78,24 +78,24 @@
      looked like the moment you clicked into it. */
   color-scheme: dark;
 
-  --color-primary: #00e5a0;
-  --color-primary-dark: #00b87a;
-  --color-danger: #9f1239;
-  --color-danger-dark: #4a0f1a;
+  --color-primary: #22c55e;
+  --color-primary-dark: #16a34a;
+  --color-danger: #f43f5e;
+  --color-danger-dark: #9f1239;
   --color-dark: #343434;
   /* True white, not the old near-white #fffbfb: max contrast against the
      background ramp in bright rooms. */
   --color-light: #ffffff;
   /* Chart series palette. One place to retune every dashboard graph so a new
      chart can never introduce a colour that clashes with the existing set. */
-  --chart-primary: #00e5a0;
-  --chart-green: #00b87a;
+  --chart-primary: #22c55e;
+  --chart-green: #16a34a;
   --chart-blue: #4da6ff;
   --chart-amber: #ffb84d;
   --chart-pink: #ff7ba9;
   --chart-purple: #b48dff;
   --chart-cyan: #4dd8e0;
-  --chart-red: #ff4d6d;
+  --chart-red: #f43f5e;
   --chart-grid: rgba(255, 255, 255, 0.075);
   --chart-axis: rgba(255, 255, 255, 0.55);
   /* Tooltip surface, shared by every chart. Recharts takes these inline, so they
@@ -141,9 +141,9 @@
   --bg: #fffbfb;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
-  --accent: #00e5a0;
-  --accent-bg: rgba(0, 229, 160, 0.1);
-  --accent-border: rgba(0, 229, 160, 0.5);
+  --accent: #22c55e;
+  --accent-bg: rgba(34, 197, 94, 0.1);
+  --accent-border: rgba(34, 197, 94, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
   --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
   /* --sans / --heading / --mono are intentionally NOT redeclared here. They
@@ -169,12 +169,12 @@
 /* Night theme (18:00-09:00). Toggled by useNightTheme on <html>. Only the
    accent and the background gradient move; the graphite base stays. */
 html.night {
-  --color-primary: #9f1239;
-  --color-primary-dark: #7a0f2a;
-  --accent: #9f1239;
-  --accent-bg: rgba(159, 18, 57, 0.1);
-  --accent-border: rgba(159, 18, 57, 0.5);
-  --chart-primary: #9f1239;
+  --color-primary: #f43f5e;
+  --color-primary-dark: #9f1239;
+  --accent: #f43f5e;
+  --accent-bg: rgba(244, 63, 94, 0.1);
+  --accent-border: rgba(244, 63, 94, 0.5);
+  --chart-primary: #f43f5e;
 }
 
 html.night body::before {
