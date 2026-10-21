@@ -9193,12 +9193,12 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
 .notice--error {
   background: color-mix(in srgb, var(--color-danger-dark) 88%, transparent);
   border-color: color-mix(in srgb, var(--color-danger) 42%, transparent);
-  color: #ffb4b6;
+  color: var(--color-light);
 }
 .notice--success {
   background: var(--accent-bg);
   border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
-  color: var(--color-primary);
+  color: var(--color-light);
 }
 .notice--info {
   background: rgba(20, 20, 24, 0.92);
