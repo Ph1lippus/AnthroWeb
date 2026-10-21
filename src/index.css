@@ -70,6 +70,13 @@
   }
 }
 
+html {
+  /* Reserve scrollbar space so switching between short/long settings pages
+     does not shift the whole layout (and the left rail) sideways. */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 :root {
   /* Tells the browser to render the controls it draws itself -- the date
      picker's calendar, the select's dropdown list, scrollbars, the autofill
