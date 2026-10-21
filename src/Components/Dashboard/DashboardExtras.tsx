@@ -39,6 +39,7 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
         const overdueItems = openItems.filter(item => isPastDeadline(item));
         const studyMinutes = studySessions
             .filter(session => session.session_type !== 'break')
+            .filter(session => !session.mode || session.mode === 'interval')
             .reduce((total, session) => total + session.duration_minutes, 0);
         const activeGoal = abstinenceGoals
             .slice()

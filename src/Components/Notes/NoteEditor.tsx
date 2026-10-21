@@ -64,6 +64,8 @@ export interface NoteEditorProps {
  */
 export interface NoteEditorHandle {
     openBlockMenu: (anchor: DOMRect) => void;
+    /** Apply (or remove, when url is null/empty) a link to the current selection. */
+    setLink: (url: string | null) => void;
 }
 
 /** Everything the block menu needs, resolved once at the moment it opens. */
@@ -295,6 +297,19 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
                 spellcheck: 'true',
             },
             handlePaste: (view, event) => handleMarkdownPaste(view, event),
+            handleClick: (_view, _pos, event) => {
+                // Links are not opened on a plain click (that would fight editing
+                // the text), but Ctrl/Cmd+click opens them in a new tab, the way
+                // most editors handle it.
+                const target = event.target as HTMLElement | null;
+                const anchor = target?.closest?.('a') as HTMLAnchorElement | null;
+                if (anchor && (event.metaKey || event.ctrlKey)) {
+                    const href = anchor.getAttribute('href');
+                    if (href) window.open(href, '_blank', 'noopener,noreferrer');
+                    return true;
+                }
+                return false;
+            },
         },
         // Reported on every document change so the parent can debounce, rather
         // than saving inside this component, so autosave stays in one place.
@@ -682,6 +697,31 @@ const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEd
             openBlockMenu: anchor => {
                 // No handle position, so the menu resolves the caret's own block.
                 if (editor && !editor.isDestroyed) openMenu(editor, anchor, -1, 'handle');
+            },
+            setLink: url => {
+                if (!editor || editor.isDestroyed) return;
+                const trimmed = url?.trim() ?? '';
+                if (!trimmed) {
+                    editor.chain().focus().unsetLink().run();
+                    return;
+                }
+                // With a collapsed selection, apply the link as a stored mark so
+                // the next typed text is linked; with a selection, wrap it.
+                if (editor.state.selection.empty) {
+                    editor
+                        .chain()
+                        .focus()
+                        .insertContent([
+                            {
+                                type: 'text',
+                                text: trimmed,
+                                marks: [{ type: 'link', attrs: { href: trimmed } }],
+                            },
+                        ])
+                        .run();
+                } else {
+                    editor.chain().focus().setLink({ href: trimmed }).run();
+                }
             },
         }),
         [editor, openMenu],

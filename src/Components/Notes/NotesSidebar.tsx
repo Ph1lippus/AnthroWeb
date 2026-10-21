@@ -304,6 +304,12 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                                         setDragging(null);
                                         setHover(null);
                                     }}
+                                    onContextMenu={event => {
+                                        // Right-clicking a page opens the same action menu as the
+                                        // "three dots" button, instead of the browser menu.
+                                        event.preventDefault();
+                                        setMenuFor(id);
+                                    }}
                                 >
                                     {/* Only drawn on a page that has children. A leaf still gets the slot, filled
                                         with an empty box, so every title starts at the same x and
@@ -364,6 +370,15 @@ const NotesSidebar: React.FC<NotesSidebarProps> = ({
                                                 isActive ? ' notes-rail-item--active' : ''
                                             }${!note.title?.trim() && !locked ? ' notes-rail-item--untitled' : ''}`}
                                             onClick={() => onSelect(id)}
+                                            onAuxClick={event => {
+                                                if (event.button !== 1) return;
+                                                event.preventDefault();
+                                                window.open(`/Notes/${encodeURIComponent(id)}`, '_blank', 'noopener,noreferrer');
+                                            }}
+                                            onMouseDown={event => {
+                                                // Prevent the browser's middle-click autoscroll on the title.
+                                                if (event.button === 1) event.preventDefault();
+                                            }}
                                             // A locked page is renamed through the
                                             // editor, never from the rail: the
                                             // rename field would put the title back

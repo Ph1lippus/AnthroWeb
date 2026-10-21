@@ -5,6 +5,7 @@ import {
     Download,
     Eye,
     Keyboard,
+    Link2,
     ListTree,
     Lock,
     PanelLeft,
@@ -138,7 +139,25 @@ const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     const [newTag, setNewTag] = useState('');
     const [showExport, setShowExport] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
-    const [focusMode, setFocusMode] = useState(false);
+    // Focus mode survives a page change even though this pane remounts for
+    // every note: the value is mirrored to localStorage, and the initial state
+    // is read back from it on mount. Without that, switching pages would reset
+    // the toggle to off and the dimming would drop out mid-read.
+    const [focusMode, setFocusMode] = useState(() => {
+        try {
+            return window.localStorage.getItem('notes:focusMode') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem('notes:focusMode', String(focusMode));
+        } catch {
+            // Private browsing or a full quota: the mode still works this visit.
+        }
+    }, [focusMode]);
     const [showToc, setShowToc] = useState(false);
     const [tocItems, setTocItems] = useState<TableOfContentData>([]);
 
@@ -432,6 +451,20 @@ return (
                         aria-pressed={focusMode}
                     >
                         <Eye size={14} />
+                    </button>
+
+                    <button
+                        type="button"
+                        className="note-action-btn"
+                        onClick={() => {
+                            const url = window.prompt('Link URL', 'https://');
+                            if (url === null) return;
+                            editorRef.current?.setLink(url);
+                        }}
+                        data-tip="Add a link to the selection (Ctrl/Cmd+click to open)"
+                        aria-label="Add link"
+                    >
+                        <Link2 size={14} />
                     </button>
 
                     {/* The block menu's only way in on a phone. The grip it opens

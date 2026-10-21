@@ -7037,6 +7037,22 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   transition: opacity 0.2s ease;
 }
 
+/* While focus mode is on, hovering the notes rail brings just that rail -- the
+   list of page titles -- back to full strength, so a page can be picked without
+   dropping out of focus mode. Only the rail is affected: the rest of the page
+   stays dimmed. */
+.notes-workspace:has(.note-editor-shell--focus) .notes-rail:hover {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* Same treatment for the site's own sidebar: hovering it brings just that
+   sidebar back to full strength while focus mode keeps the rest dimmed. */
+body:has(.note-editor-shell--focus) .sidebar-nav:hover {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
 /* ---------- drag handles ---------- */
 /* Position comes from the plugin's own Floating UI pass and is written inline,
    so left/top are not set here; the gutter gap is the negative offset passed as
@@ -9347,6 +9363,26 @@ body:has(.note-editor-shell--focus) :is(.sidebar-nav, .mobile-navbar) {
   color: var(--color-light);
   opacity: 0.8;
   font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* Confirm modal: keep it centered, readable and consistently spaced even when a
+   caller forgets to pass a description (a fallback is rendered by the component). */
+.confirm-modal-card {
+  max-width: 420px;
+  text-align: center;
+  padding: 1.5rem 1.25rem 1.25rem;
+}
+.confirm-modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.confirm-modal-description {
+  margin: 0 0 1.25rem;
+  color: var(--color-light);
+  opacity: 0.8;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 /* Analysis Badges */

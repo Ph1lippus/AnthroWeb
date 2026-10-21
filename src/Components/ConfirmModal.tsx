@@ -36,7 +36,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <h3 className="confirm-modal-title">{title}</h3>
-                {description && <p className="confirm-modal-description">{description}</p>}
+                <p className="confirm-modal-description">
+                    {description?.trim() ? description : 'Are you sure you want to continue?'}
+                </p>
                 <div className="flex gap-2 justify-center mt-4">
                     <button
                         type="button"

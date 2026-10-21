@@ -366,6 +366,8 @@ const TimerPage: React.FC = () => {
     }, [engine.runId, engine.elapsed, engine.intervalConfig]);
 
     const saveCurrentSession = useCallback(() => {
+        // Only interval runs count towards study sessions.
+        if (engine.mode !== 'interval') return;
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : 0;
         if (elapsedMs <= 0) return;
         const endedAt = new Date();
@@ -387,7 +389,7 @@ const TimerPage: React.FC = () => {
             run_key: `${engine.runId ?? 'session'}:${Date.now()}`,
             started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
             ended_at: endedAt.toISOString(),
-            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+            planned_minutes: undefined,
             break_minutes: breakMinutes > 0 ? breakMinutes : undefined,
         }, {
             onSuccess: () => {
@@ -401,6 +403,8 @@ const TimerPage: React.FC = () => {
     const savedRunsRef = useRef<Set<string>>(new Set());
 
     const saveRun = useCallback((runId: string) => {
+        // Only interval runs count towards study sessions.
+        if (engine.mode !== 'interval') return;
         const endedAt = new Date();
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
         if (elapsedMs <= 0) return;

@@ -18,6 +18,8 @@ const StudyChart: React.FC<StudyChartProps> = ({ range }) => {
         const studyMinutesByDate = new Map<string, number>();
         for (const session of sessions ?? []) {
             if (session.session_type === 'break') continue;
+            // Only interval runs (and manually logged sessions) count.
+            if (session.mode && session.mode !== 'interval') continue;
             studyMinutesByDate.set(
                 session.session_date,
                 (studyMinutesByDate.get(session.session_date) ?? 0) + session.duration_minutes,

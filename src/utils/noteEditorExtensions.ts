@@ -692,6 +692,38 @@ export const SLASH_COMMANDS: SlashCommand[] = [
             if (url) editor.chain().focus().setImage({ src: url }).run();
         },
     },
+    {
+        id: 'link',
+        title: 'Link',
+        hint: 'Turn text into a link',
+        icon: 'Link',
+        group: 'Insert',
+        keywords: ['link', 'url', 'href', 'hyperlink', 'website'],
+        run: editor => {
+            const url = window.prompt('Link URL', 'https://');
+            if (url === null) return;
+            const trimmed = url.trim();
+            if (!trimmed) {
+                editor.chain().focus().unsetLink().run();
+                return;
+            }
+            if (editor.state.selection.empty) {
+                editor
+                    .chain()
+                    .focus()
+                    .insertContent([
+                        {
+                            type: 'text',
+                            text: trimmed,
+                            marks: [{ type: 'link', attrs: { href: trimmed } }],
+                        },
+                    ])
+                    .run();
+            } else {
+                editor.chain().focus().setLink({ href: trimmed }).run();
+            }
+        },
+    },
 ];
 
 export const SLASH_GROUP_ORDER: SlashGroup[] = [
