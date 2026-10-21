@@ -36,7 +36,7 @@
  * update into a container that has gone with it.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, Info, X } from 'lucide-react';
+import { AlertTriangle, Info, X } from 'lucide-react';
 
 export type { Notice, NoticeApi, NoticeKind } from './noticeContext';
 import { NoticeContext, type Notice, type NoticeApi, type NoticeKind } from './noticeContext';
@@ -131,7 +131,7 @@ const NoticeStack: React.FC<{ notices: Notice[]; onDismiss: (id: number) => void
                             {notice.kind === 'error'
                                 ? <AlertTriangle size={15} />
                                 : notice.kind === 'success'
-                                    ? <Check size={15} />
+                                    ? null
                                     : <Info size={15} />}
                         </span>
                         <span className="notice-text">{notice.message}</span>
