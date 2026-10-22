@@ -1680,7 +1680,7 @@ input[type='number']::-webkit-inner-spin-button {
    long form had no surface of its own and read as loose text floating on the
    starfield. */
 .auth-card {
-  background: linear-gradient(160deg, #ffffff0d, #ffffff05);
+  background: #111;
   border-radius: 25px;
   width: 100%;
   max-width: 640px;

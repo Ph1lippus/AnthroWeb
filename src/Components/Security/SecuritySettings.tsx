@@ -226,7 +226,7 @@ const SecuritySettings: React.FC = () => {
                             type="password"
                             className="form-control"
                             value={pin}
-                            onChange={e => setPin(e.target.value)}
+                            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
                             autoComplete="new-password"
                             inputMode="numeric"
                         />
@@ -243,7 +243,7 @@ const SecuritySettings: React.FC = () => {
                             type="password"
                             className="form-control"
                             value={confirmPin}
-                            onChange={e => setConfirmPin(e.target.value)}
+                            onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                             autoComplete="new-password"
                             inputMode="numeric"
                         />
@@ -395,7 +395,7 @@ const SecuritySettings: React.FC = () => {
                                     type="password"
                                     className="form-control"
                                     value={currentPin}
-                                    onChange={e => { setCurrentPin(e.target.value); clearError(); }}
+                                    onChange={e => { setCurrentPin(e.target.value.replace(/\D/g, '')); clearError(); }}
                                     autoComplete="current-password"
                                     inputMode="numeric"
                                 />
@@ -405,7 +405,7 @@ const SecuritySettings: React.FC = () => {
                                     type="password"
                                     className="form-control"
                                     value={pin}
-                                    onChange={e => setPin(e.target.value)}
+                                    onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
                                     autoComplete="new-password"
                                     inputMode="numeric"
                                 />
@@ -415,7 +415,7 @@ const SecuritySettings: React.FC = () => {
                                     type="password"
                                     className="form-control"
                                     value={confirmPin}
-                                    onChange={e => setConfirmPin(e.target.value)}
+                                    onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                                     autoComplete="new-password"
                                     inputMode="numeric"
                                 />

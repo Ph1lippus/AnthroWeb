@@ -139,9 +139,10 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
                                 inputMode="numeric"
                                 autoComplete="new-password"
                                 aria-autocomplete="none"
+                                maxLength={MIN_NOTE_PIN_LENGTH}
                                 placeholder={`At least ${MIN_NOTE_PIN_LENGTH} digits`}
                                 value={pin}
-                                onChange={e => setPin(e.target.value)}
+                                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, MIN_NOTE_PIN_LENGTH))}
                                 autoFocus
                             />
                         </div>
@@ -156,9 +157,10 @@ const NotePinDialog: React.FC<NotePinDialogProps> = ({
                                 autoComplete="new-password"
                                 aria-autocomplete="none"
                                 aria-invalid={Boolean(pin && confirm && pin !== confirm)}
+                                maxLength={MIN_NOTE_PIN_LENGTH}
                                 placeholder="Type it again"
                                 value={confirm}
-                                onChange={e => setConfirm(e.target.value)}
+                                onChange={e => setConfirm(e.target.value.replace(/\D/g, '').slice(0, MIN_NOTE_PIN_LENGTH))}
                             />
                             {pin && confirm && pin !== confirm && (
                                 <p className="t-error-msg">Those do not match.</p>
