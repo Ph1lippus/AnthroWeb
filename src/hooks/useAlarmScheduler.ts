@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { nextAlarmFire } from '../utils/timerMath';
 import type { TimerAlarm } from '../services/timerService';
 
 /**
@@ -32,8 +31,50 @@ import type { TimerAlarm } from '../services/timerService';
  * ring again tomorrow. So the memo records the last day each alarm fired on and
  * only suppresses a repeat within that same day. Keying on the id alone would
  * silence it for good; keying on nothing would make it a machine-gun.
+ *
+ * The memo is also persisted, so a tab that is closed and reopened does not
+ * re-ring an alarm that already rang today. Without that, every open of the
+ * page would re-trigger every overdue alarm, which is exactly the "the clock
+ * chimes every time I open the site" failure.
  */
 const CHECK_MS = 15_000;
+
+const FIRED_STORAGE_KEY = 'anthroweb:timer:alarms-fired:v1';
+
+function loadFired(): Map<string, string> {
+    if (typeof localStorage === 'undefined') return new Map();
+    try {
+        const raw = localStorage.getItem(FIRED_STORAGE_KEY);
+        if (!raw) return new Map();
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return new Map();
+        const map = new Map<string, string>();
+        for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === 'string') map.set(key, value);
+        }
+        return map;
+    } catch {
+        return new Map();
+    }
+}
+
+function saveFired(map: Map<string, string>): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        const obj: Record<string, string> = {};
+        for (const [key, value] of map) obj[key] = value;
+        localStorage.setItem(FIRED_STORAGE_KEY, JSON.stringify(obj));
+    } catch {
+        // Private mode, or the quota is full. The alarm still rings this session;
+        // it may re-ring on the next open, which is the safe failure.
+    }
+}
+
+/** A stable key for an alarm's current schedule, so a time change re-arms it. */
+function alarmKey(alarm: TimerAlarm): string {
+    const days = (alarm.days_of_week ?? []).join(',');
+    return `${alarm.id}:${alarm.hour}:${alarm.minute}:${days}`;
+}
 
 export interface AlarmSchedulerOptions {
     alarms: TimerAlarm[];
@@ -50,8 +91,11 @@ export function useAlarmScheduler({ alarms, onFire, enabled }: AlarmSchedulerOpt
      * wall-clock statement -- "07:30, every weekday" -- and which occurrences of
      * that exist is a calendar question, not a duration one. The same reasoning
      * as `dates.ts`, which exists for the same reason.
+     *
+     * Persisted, so a closed-and-reopened tab does not re-ring an alarm that
+     * already rang today.
      */
-    const firedRef = useRef<Map<string, string>>(new Map());
+    const firedRef = useRef<Map<string, string>>(loadFired());
 
     /**
      * Held in a ref so the interval below is not rebuilt every render.
@@ -79,18 +123,27 @@ export function useAlarmScheduler({ alarms, onFire, enabled }: AlarmSchedulerOpt
             for (const alarm of alarms) {
                 if (!alarm.enabled) continue;
 
-                // Already rang today. Checked before the fire test as well as
-                // after, so a disabled-then-re-enabled alarm in the same day does
-                // not immediately re-ring from a stale memo.
-                if (fired.get(alarm.id) === today) continue;
+                const key = alarmKey(alarm);
 
-                const next = nextAlarmFire(
-                    { hour: alarm.hour, minute: alarm.minute, days: alarm.days_of_week },
-                    now,
+                // Already rang today (under this schedule). Checked before the
+                // fire test, so a disabled-then-re-enabled alarm in the same day
+                // does not immediately re-ring from a stale memo.
+                if (fired.get(key) === today) continue;
+
+                // An alarm whose weekday filter does not include today is not due
+                // today at all, however far past its clock time we are.
+                const days = alarm.days_of_week ?? [];
+                const occurrence = new Date(
+                    now.getFullYear(), now.getMonth(), now.getDate(),
+                    alarm.hour, alarm.minute, 0, 0,
                 );
-                if (next.getTime() > now.getTime()) continue;
+                if (days.length > 0 && !days.includes(occurrence.getDay())) continue;
 
-                fired.set(alarm.id, today);
+                // Not due yet today.
+                if (occurrence.getTime() > now.getTime()) continue;
+
+                fired.set(key, today);
+                saveFired(fired);
                 onFireRef.current(alarm);
             }
         };
@@ -114,16 +167,19 @@ export function useAlarmScheduler({ alarms, onFire, enabled }: AlarmSchedulerOpt
     }, [alarms, enabled]);
 
     /**
-     * A deleted alarm must not keep its memo.
+     * A deleted or re-scheduled alarm must not keep its memo.
      *
      * Without this the map grows for the life of the session and -- worse -- an
      * alarm deleted and recreated within the same day would inherit the old
-     * one's "already fired" and stay silent for the rest of it.
+     * one's "already fired" and stay silent for the rest of it. A changed
+     * schedule (different time or days) gets a new key, so the old entry is
+     * simply orphaned and is swept here.
      */
     useEffect(() => {
-        const live = new Set(alarms.map(alarm => alarm.id));
-        for (const id of Array.from(firedRef.current.keys())) {
-            if (!live.has(id)) firedRef.current.delete(id);
+        const live = new Set(alarms.map(alarmKey));
+        for (const key of Array.from(firedRef.current.keys())) {
+            if (!live.has(key)) firedRef.current.delete(key);
         }
+        saveFired(firedRef.current);
     }, [alarms]);
 }

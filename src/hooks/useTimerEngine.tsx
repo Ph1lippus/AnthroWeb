@@ -93,6 +93,8 @@ interface EngineState {
      * anything that starts a new run.
      */
     acknowledged: boolean;
+    /** Whether the alert for the current finished run has already sounded. */
+    alerted: boolean;
     alert: TimerAlert;
     /** Unique id for the current run, used to dedupe saved study sessions. */
     runId: string | null;
@@ -108,6 +110,7 @@ const IDLE: EngineState = {
     intervalConfig: DEFAULT_INTERVAL,
     laps: [],
     acknowledged: true,
+    alerted: true,
     alert: null,
     runId: null,
 };
@@ -116,7 +119,7 @@ const STORAGE_KEY = 'anthroweb:timer:v1';
 
 /** The fields worth keeping across a reload. `alert` deliberately is not one. */
 type PersistedState = Pick<EngineState,
-    'mode' | 'deadline' | 'elapsedBefore' | 'totalMs' | 'intervalConfig' | 'legStartedAt' | 'laps' | 'runId'>;
+    'mode' | 'deadline' | 'elapsedBefore' | 'totalMs' | 'intervalConfig' | 'legStartedAt' | 'laps' | 'runId' | 'acknowledged' | 'alerted'>;
 
 /**
  * Reconstruct the running state from what was persisted.
@@ -195,9 +198,12 @@ function loadPersisted(): RestoredState {
             // Restoring rather than persisting, so the flag cannot outlive the
             // deadline it was derived from. See `restoreRunning`.
             running: restoreRunning(restored, Date.now()),
-            // Nothing has been seen ending yet, so a restored run that turns out to
-            // be over alerts on its first tick.
-            acknowledged: false,
+            // A run that was dismissed stays dismissed across a reload; one that
+            // ended while the app was shut has not been seen yet.
+            acknowledged: parsed.acknowledged === true,
+            // Whether the alert has already sounded for this finished run. Old
+            // blobs lack it, so they chime once on the next open and then stop.
+            alerted: parsed.alerted === true,
         };
     } catch {
         // Corrupt or unreadable. Starting over costs one click, which is not worth
@@ -217,6 +223,8 @@ function persist(state: EngineState): void {
         legStartedAt: state.legStartedAt,
         laps: state.laps,
         runId: state.runId,
+        acknowledged: state.acknowledged,
+        alerted: state.alerted,
     };
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -618,8 +626,14 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const key = `${finishedReason.kind}:${finishedReason.label ?? ''}`;
         if (alertedRef.current === key) return;
         alertedRef.current = key;
+        // A finished run that already chimed (on an earlier open, or before a
+        // reload) must not chime again: the overlay stays until it is dismissed,
+        // but the sound and notification fire once per run.
+        if (state.alerted) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setState(prev => ({ ...prev, alerted: true }));
         fireAlert(finishedReason);
-    }, [finishedReason, fireAlert]);
+    }, [finishedReason, fireAlert, state.alerted]);
 
     /**
      * A sound at every phase boundary, not only at the end of the run.
@@ -852,6 +866,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 return {
                     ...prev,
                     acknowledged: false,
+                    alerted: false,
                     running: true,
                     legStartedAt: Date.now(),
                     elapsedBefore: initialElapsed,
@@ -920,6 +935,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     ...prev,
                     totalMs: total,
                     acknowledged: false,
+                    alerted: false,
                     running: true,
                     legStartedAt: at,
                     deadline: prev.deadline === null || expired ? at + total : prev.deadline,
@@ -927,7 +943,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 };
             }
             if (prev.mode === 'stopwatch') {
-                return { ...prev, acknowledged: false, running: true, legStartedAt: at, deadline: null, runId: prev.elapsedBefore > 0 ? prev.runId : (prev.runId ?? crypto.randomUUID()) };
+                return { ...prev, acknowledged: false, alerted: false, running: true, legStartedAt: at, deadline: null, runId: prev.elapsedBefore > 0 ? prev.runId : (prev.runId ?? crypto.randomUUID()) };
             }
             // `elapsedBefore` is already the elapsed as of the last pause, so
             // starting a leg from it is what makes resume exact rather than
@@ -966,6 +982,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 return {
                     ...prev,
                     acknowledged: false,
+                    alerted: false,
                     elapsedBefore: initialElapsed,
                     running: true,
                     legStartedAt: at,
@@ -973,7 +990,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     runId: (prev.elapsedBefore > 0 && !finished) ? prev.runId : (prev.runId ?? crypto.randomUUID()),
                 };
             }
-            return { ...prev, acknowledged: false, running: true, legStartedAt: at, runId: prev.runId ?? crypto.randomUUID() };
+            return { ...prev, acknowledged: false, alerted: false, running: true, legStartedAt: at, runId: prev.runId ?? crypto.randomUUID() };
         });
     }, []);
 
@@ -1019,6 +1036,8 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             elapsedBefore: 0,
             laps: [],
             alert: null,
+            acknowledged: true,
+            alerted: true,
             runId: null,
             intervalConfig: { ...prev.intervalConfig, startAt: null },
         }));
@@ -1060,6 +1079,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 ...prev,
                 alert: null,
                 acknowledged: false,
+                alerted: false,
                 elapsedBefore: prev.mode === 'interval' ? initialElapsed : 0,
                 running: true,
                 legStartedAt: at,
@@ -1105,7 +1125,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
             // neither converts into the other, so switching abandons the loaded
             // configuration. That is the honest thing to do -- but it is only
             // reachable while stopped, where it costs nothing.
-            return { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null, runId: null };
+            return { ...prev, mode, running: false, deadline: null, legStartedAt: null, elapsedBefore: 0, laps: [], alert: null, acknowledged: true, alerted: true, runId: null };
         });
     }, []);
 
@@ -1153,7 +1173,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
      * page checks the deadline rather than just this flag.
      */
     const dismissAlert = useCallback(() => {
-        setState(prev => ({ ...prev, acknowledged: true, alert: null }));
+        setState(prev => ({ ...prev, acknowledged: true, alerted: true, alert: null }));
         stopChime();
     }, []);
 
