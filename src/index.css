@@ -3711,7 +3711,7 @@ textarea.form-control {
   backdrop-filter: blur(4px);
 }
 .import-modal-card {
-  background: #111;
+  background: #1c1c1c;
   border-radius: 20px;
   max-width: 500px;
   width: 100%;
@@ -6562,7 +6562,7 @@ textarea.form-control {
 
 /* ---------- per-day goals ---------- */
 .day-goals-card {
-  max-width: 560px !important;
+  max-width: 550px !important;
   width: 92vw;
   text-align: left;
 }
