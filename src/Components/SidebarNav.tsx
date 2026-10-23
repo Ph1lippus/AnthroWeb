@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Settings } from 'lucide-react';
+import { Download, LogOut, Menu, Settings } from 'lucide-react';
 import { navItems, isNavItemActive } from '../utils/navItems';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { supabase } from '../services/supabaseClient';
 import AcademicAlertBanner from './AcademicAlertBanner';
 import ConfirmModal from './ConfirmModal';
+import ExportRangeModal from './ExportRangeModal';
 import TimerBadge from './Timer/TimerBadge';
 import { preloadRoute } from '../utils/routePreloaders';
 
@@ -96,6 +97,7 @@ const SidebarNav: React.FC = () => {
 
     const [menuOpen, setMenuOpen] = useState(false);
     const [logoutConfirm, setLogoutConfirm] = useState(false);
+    const [exportOpen, setExportOpen] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -268,6 +270,18 @@ const SidebarNav: React.FC = () => {
                             className="sidebar-menu-item"
                             onClick={() => {
                                 setMenuOpen(false);
+                                setExportOpen(true);
+                            }}
+                        >
+                            <Download size={15} aria-hidden="true" />
+                            Export Data
+                        </button>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-menu-item"
+                            onClick={() => {
+                                setMenuOpen(false);
                                 navigate('/Settings');
                             }}
                         >
@@ -311,6 +325,7 @@ const SidebarNav: React.FC = () => {
                 onCancel={() => setLogoutConfirm(false)}
                 busy={signingOut}
             />
+            <ExportRangeModal open={exportOpen} onClose={() => setExportOpen(false)} />
         </>
     );
 };

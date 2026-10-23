@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, Menu, Settings } from 'lucide-react';
+import { Download, LogOut, Menu, Settings } from 'lucide-react';
 import { navItems, isNavItemActive } from '../utils/navItems';
 import TimerBadge from './Timer/TimerBadge';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { useAcademicAlerts } from '../hooks/useAcademicAlerts';
 import { supabase } from '../services/supabaseClient';
 import ConfirmModal from './ConfirmModal';
+import ExportRangeModal from './ExportRangeModal';
 import { preloadRoute } from '../utils/routePreloaders';
 
 // The five most-used sections get a dedicated icon; everything else lives in
@@ -39,6 +40,7 @@ const MobileNavbar: React.FC = () => {
     // of pages -- so without these two a phone could not reach its own settings
     // or sign out at all.
     const [logoutConfirm, setLogoutConfirm] = useState(false);
+    const [exportOpen, setExportOpen] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
 
     const doSignOut = async () => {
@@ -134,6 +136,17 @@ const MobileNavbar: React.FC = () => {
                             <button
                                 type="button"
                                 className="mobile-more-link"
+                                onClick={() => {
+                                    closeMore();
+                                    setExportOpen(true);
+                                }}
+                            >
+                                <Download className="mobile-more-icon" aria-hidden="true" />
+                                Export Data
+                            </button>
+                            <button
+                                type="button"
+                                className="mobile-more-link"
                                 onClick={() => goTo('/Settings')}
                             >
                                 <Settings className="mobile-more-icon" aria-hidden="true" />
@@ -164,6 +177,7 @@ const MobileNavbar: React.FC = () => {
                 onCancel={() => setLogoutConfirm(false)}
                 busy={signingOut}
             />
+            <ExportRangeModal open={exportOpen} onClose={() => setExportOpen(false)} />
         </>
     );
 };

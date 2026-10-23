@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useDeferredValue, useEffect } from 'react';
 import SidebarNav from './Components/SidebarNav'
+import ProtectedRoute from './Components/ProtectedRoute'
 import TipLayer from './Components/TooltipLayer'
 import MobileNavbar from './Components/MobileNavbar'
 import UpdateModal from './Components/UpdateModal'
@@ -39,6 +40,7 @@ const AppPage = lazy(pageLoaders['/Settings/App']);
 const AccountPage = lazy(pageLoaders['/Settings/Account']);
 const SecurityPage = lazy(pageLoaders['/Settings/Security']);
 const ProfilePage = lazy(pageLoaders['/Profile']);
+const ResetPasswordPage = lazy(() => import('./Pages/ResetPasswordPage'));
 const EditProfilePage = lazy(pageLoaders['/Profile/Edit']);
 const CreditsPage = lazy(pageLoaders['/credits']);
 const PrivacyPolicyPage = lazy(pageLoaders['/privacy-policy']);
@@ -229,20 +231,21 @@ const AuthenticatedApp: React.FC = () => {
                 <Route path="/login" element={<Navigate to="/" replace />} />
                 <Route path="/register" element={<Navigate to="/" replace />} />
                 <Route path="/forgot-password" element={<Navigate to="/" replace />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/credits" element={<CreditsPage />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-                <Route path="/Dashboard" element={<DashboardPage />} />
-                <Route path="/Daily-Log/Setup" element={<DailyLogGoalSetupPage />} />
-                <Route path="/Daily-Log" element={<DailyLogPage />} />
-                <Route path="/Daily-Log/Edit/:id" element={<DailyLogPage />} />
-                <Route path="/Daily-Log/History" element={<DailyLogHistoryPage />} />
-                <Route path="/Journal" element={<JournalPage />} />
-                <Route path="/Journal/Edit/:id" element={<JournalEditPage />} />
-                <Route path="/Mind-Charts" element={<MindChartsPage />} />
-                <Route path="/Measurements" element={<MeasurementsPage />} />
-                <Route path="/Books" element={<BooksPage />} />
-                <Route path="/Workouts" element={<WorkoutsPage />} />
+                <Route path="/Dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+                <Route path="/Daily-Log/Setup" element={<ProtectedRoute><DailyLogGoalSetupPage /></ProtectedRoute>} />
+                <Route path="/Daily-Log" element={<ProtectedRoute><DailyLogPage /></ProtectedRoute>} />
+                <Route path="/Daily-Log/Edit/:id" element={<ProtectedRoute><DailyLogPage /></ProtectedRoute>} />
+                <Route path="/Daily-Log/History" element={<ProtectedRoute><DailyLogHistoryPage /></ProtectedRoute>} />
+                <Route path="/Journal" element={<ProtectedRoute><JournalPage /></ProtectedRoute>} />
+                <Route path="/Journal/Edit/:id" element={<ProtectedRoute><JournalEditPage /></ProtectedRoute>} />
+                <Route path="/Mind-Charts" element={<ProtectedRoute><MindChartsPage /></ProtectedRoute>} />
+                <Route path="/Measurements" element={<ProtectedRoute><MeasurementsPage /></ProtectedRoute>} />
+                <Route path="/Books" element={<ProtectedRoute><BooksPage /></ProtectedRoute>} />
+                <Route path="/Workouts" element={<ProtectedRoute><WorkoutsPage /></ProtectedRoute>} />
                 {/* Workouts is one page. These used to be pages of their own; their
                     routes now carry a query value across so an old bookmark, a
                     notification or the daily log's own links land on the right
@@ -274,10 +277,10 @@ const AuthenticatedApp: React.FC = () => {
                     element={<WorkoutLegacyRedirect to="/" />}
                 />
                 <Route path="/Workouts/PRs" element={<WorkoutLegacyRedirect to="/" />} />
-                <Route path="/Projects" element={<ProjectsPage />} />
-                <Route path="/Abstinence" element={<AbstinencePage />} />
-                <Route path="/Academic" element={<AcademicPage />} />
-                <Route path="/Timer" element={<TimerPage />} />
+                <Route path="/Projects" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
+                <Route path="/Abstinence" element={<ProtectedRoute><AbstinencePage /></ProtectedRoute>} />
+                <Route path="/Academic" element={<ProtectedRoute><AcademicPage /></ProtectedRoute>} />
+                <Route path="/Timer" element={<ProtectedRoute><TimerPage /></ProtectedRoute>} />
                 {/* The timer page started as a "Study Timer" placeholder and grew
                     into a clock: countdown, stopwatch, intervals, alarms and a world
                     clock. The route moved with it so the name matches what the page
@@ -285,18 +288,18 @@ const AuthenticatedApp: React.FC = () => {
                     points at the old path onto it. `replace` so Back does not bounce
                     forward into the redirect again. */}
                 <Route path="/Study-Timer" element={<Navigate to="/Timer" replace />} />
-                <Route path="/Notes" element={<NotesPage />} />
+                <Route path="/Notes" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
                 {/* Same workspace, a different page open. The route parameter selects it,
                     which keeps notes deep-linkable and gives Back a step to return to. */}
-                <Route path="/Notes/:id" element={<NotesPage />} />
-                <Route path="/Settings" element={<SettingsLayout />}>
+                <Route path="/Notes/:id" element={<ProtectedRoute><NotesPage /></ProtectedRoute>} />
+                <Route path="/Settings" element={<ProtectedRoute><SettingsLayout /></ProtectedRoute>}>
                     <Route index element={<SettingsPage />} />
                     <Route path="App" element={<AppPage />} />
                     <Route path="Account" element={<AccountPage />} />
                     <Route path="Security" element={<SecurityPage />} />
                 </Route>
-                <Route path="/Profile" element={<ProfilePage />} />
-                <Route path="/Profile/Edit" element={<EditProfilePage />} />
+                <Route path="/Profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+                <Route path="/Profile/Edit" element={<ProtectedRoute><EditProfilePage /></ProtectedRoute>} />
                 <Route path="*" element={<DefaultRoute />} />
             </Routes>
             </Suspense>

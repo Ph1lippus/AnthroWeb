@@ -17,7 +17,7 @@ import {
     Line,
     Bar,
 } from 'recharts';
-import { Maximize2, X } from 'lucide-react';
+import { Copy, Download, Maximize2, X } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
 import type { UserSettings } from '../../services/profileService';
@@ -29,6 +29,8 @@ import { BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { moodFor } from '../../utils/moodSeries';
 import { addDays } from '../../utils/dates';
+import { copyCsvToClipboard, downloadCsv } from '../../utils/exportFiles';
+import { useNotice } from '../../Components/Feedback/useNotice';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
 import { useViewportHeight } from '../../hooks/useViewportHeight';
@@ -50,7 +52,6 @@ const C = {
 
 const fmtDate = (d: string): string =>
     new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
 const inRange = (date: string, days: number | null): boolean => {
     if (days === null) return true;
     const diff = Math.floor((Date.now() - new Date(date + 'T00:00:00').getTime()) / 86400000);
@@ -86,7 +87,6 @@ const clockToHours = (value: string | null | undefined): number | null => {
  */
 const lateNight = (hours: number | null): number | null =>
     hours === null ? null : (hours < 4 ? hours + 24 : hours);
-
 
 const hoursToClock = (hours: number | null): string => {
     if (hours === null) return '--';
@@ -267,7 +267,6 @@ const AXIS_TICK = {
 };
 
 const ChartGrid: React.FC = () => <CartesianGrid stroke="var(--chart-grid)" vertical={false} />;
-
 const ChartX: React.FC = () => (
     <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'rgba(255, 255, 255, 0.12)' }} minTickGap={36} interval="preserveStartEnd" />
 );
@@ -417,7 +416,6 @@ const GoalSegments: React.FC<{
     }, [points, dataKey]);
 
     if (!segments.length) return null;
-
     // Recharts 3 dropped the multi-segment `segments` prop in favour of a single
     // `segment` tuple, so one <ReferenceLine> per run. The label rides the last
     // run only, otherwise a goal edited three times prints "Goal" three times.
@@ -444,7 +442,6 @@ const GoalSegments: React.FC<{
 };
 
 const AVG_STROKE = 'rgba(255, 255, 255, 0.55)';
-
 const AvgLine: React.FC<{ y: number | null; stroke?: string }> = ({ y, stroke }) => {
     if (y == null) return null;
     return (
@@ -478,6 +475,8 @@ interface ChartCardProps {
     height?: number;
     expandHeight?: number;
     onExpand?: (expanded: ExpandedChart) => void;
+    onExport?: () => void;
+    onCopy?: () => void;
     empty?: boolean;
     /** Span the whole row instead of sitting in a 2-up column. */
     fullWidth?: boolean;
@@ -517,7 +516,6 @@ const subscribeOpenChart = (listener: () => void): (() => void) => {
 };
 
 const getOpenChart = (): ExpandedChart | null => openChartSnapshot;
-
 const setOpenChart = (next: ExpandedChart | null): void => {
     if (next === openChartSnapshot) return;
     openChartSnapshot = next;
@@ -526,7 +524,6 @@ const setOpenChart = (next: ExpandedChart | null): void => {
 
 /** Stable identity, so it can be handed to the memoized dialog as a prop. */
 const closeChart = (): void => setOpenChart(null);
-
 /**
  * One chart, in a card.
  *
@@ -549,23 +546,49 @@ const ChartCard: React.FC<ChartCardProps> = ({
     height = 150,
     expandHeight,
     onExpand,
+    onExport,
+    onCopy,
     empty,
     fullWidth,
 }) => (
     <div className={`metrics-chart-card${fullWidth ? ' metrics-chart-card--full' : ''}`}>
         <div className="metrics-chart-head">
             <h3>{title}</h3>
-            {!empty && onExpand && chart && (
-                <button
-                    type="button"
-                    className="metrics-chart-expand"
-                    aria-label={`Enlarge ${title} chart`}
-                    data-tip="Enlarge chart"
-                    onClick={() => onExpand({ title, chart, height: expandHeight ?? 560 })}
-                >
-                    <Maximize2 size={14} />
-                </button>
-            )}
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                {!empty && onCopy && (
+                    <button
+                        type="button"
+                        className="metrics-chart-expand"
+                        aria-label={`Copy ${title} chart data`}
+                        data-tip="Copy chart data"
+                        onClick={onCopy}
+                    >
+                        <Copy size={14} />
+                    </button>
+                )}
+                {!empty && onExport && (
+                    <button
+                        type="button"
+                        className="metrics-chart-expand"
+                        aria-label={`Export ${title} chart data`}
+                        data-tip="Export chart data"
+                        onClick={onExport}
+                    >
+                        <Download size={14} />
+                    </button>
+                )}
+                {!empty && onExpand && chart && (
+                    <button
+                        type="button"
+                        className="metrics-chart-expand"
+                        aria-label={`Enlarge ${title} chart`}
+                        data-tip="Enlarge chart"
+                        onClick={() => onExpand({ title, chart, height: expandHeight ?? 560 })}
+                    >
+                        <Maximize2 size={14} />
+                    </button>
+                )}
+            </div>
         </div>
         {empty ? (
             <ChartEmpty />
@@ -704,8 +727,14 @@ export interface MetricsChartsProps {
 
 /** One row per date for the body charts, labelled for the chart's category axis. */
 type BodyPoint = BodyReading & { label: string };
-
 const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, settings, range, measurements }) => {
+    const { notify } = useNotice();
+    const copyChart = (title: string, rows: Record<string, unknown>[]) => {
+        void copyCsvToClipboard(rows).then(ok => {
+            if (ok) notify('success', `${title} copied to clipboard`);
+            else notify('error', 'Could not copy to clipboard');
+        });
+    };
     // Every chart on the page covers the same window, so the range is stamped on
     // here rather than threaded down through sixteen cards just for the enlarged
     // view to say what window it is showing.
@@ -835,7 +864,6 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
 
     const hasBodyData = (key: 'weight' | 'bodyFat'): boolean =>
         bodyData.some(p => p[key] != null);
-
     // Averages run over the measurements only. The start point is the origin of
     // the trend rather than a reading inside the window, so folding it in would
     // drag the average towards a number that may be years old.
@@ -1037,6 +1065,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         title="Score"
                         height={180}
                         onExpand={openChart}
+                        onExport={() => downloadCsv(`anthroweb-score-${range.label}.csv`, chartData.map(d => ({ date: d.date, score: d.score })))}
+                        onCopy={() => copyChart('Score', chartData.map(d => ({ date: d.date, score: d.score })))}
                         chart={
                             <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                 <defs>
@@ -1062,6 +1092,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Sleep Duration"
                             empty={!hasAny('sleepDuration')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-sleep-duration-${range.label}.csv`, chartData.map(d => ({ date: d.date, sleepDuration: d.sleepDuration })))}
+                            onCopy={() => copyChart('Sleep Duration', chartData.map(d => ({ date: d.date, sleepDuration: d.sleepDuration })))}
                             chart={
                                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <defs>
@@ -1087,6 +1119,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Sleep Quality"
                             empty={!hasAny('sleepQuality')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-sleep-quality-${range.label}.csv`, chartData.map(d => ({ date: d.date, sleepQuality: d.sleepQuality })))}
+                            onCopy={() => copyChart('Sleep Quality', chartData.map(d => ({ date: d.date, sleepQuality: d.sleepQuality })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1114,6 +1148,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             empty={!hasAny('bedtime', 'wakeTime')}
                             height={230}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-bedtime-wake-${range.label}.csv`, chartData.map(d => ({ date: d.date, bedtime: d.bedtime, wakeTime: d.wakeTime })))}
+                            onCopy={() => copyChart('Bedtime & Wake Time', chartData.map(d => ({ date: d.date, bedtime: d.bedtime, wakeTime: d.wakeTime })))}
                             chart={
                                 <ComposedChart data={clockData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1187,6 +1223,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Systolic"
                             empty={!hasAny('morningSystolic', 'eveningSystolic')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-systolic-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningSystolic: d.morningSystolic, eveningSystolic: d.eveningSystolic })))}
+                            onCopy={() => copyChart('Systolic', chartData.map(d => ({ date: d.date, morningSystolic: d.morningSystolic, eveningSystolic: d.eveningSystolic })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1206,6 +1244,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Diastolic"
                             empty={!hasAny('morningDiastolic', 'eveningDiastolic')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-diastolic-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningDiastolic: d.morningDiastolic, eveningDiastolic: d.eveningDiastolic })))}
+                            onCopy={() => copyChart('Diastolic', chartData.map(d => ({ date: d.date, morningDiastolic: d.morningDiastolic, eveningDiastolic: d.eveningDiastolic })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1225,6 +1265,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Heart Rate"
                             empty={!hasAny('morningBpm', 'eveningBpm')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-heart-rate-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningBpm: d.morningBpm, eveningBpm: d.eveningBpm })))}
+                            onCopy={() => copyChart('Heart Rate', chartData.map(d => ({ date: d.date, morningBpm: d.morningBpm, eveningBpm: d.eveningBpm })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1248,6 +1290,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Calories"
                             empty={!hasAny('calories')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-calories-${range.label}.csv`, chartData.map(d => ({ date: d.date, calories: d.calories })))}
+                            onCopy={() => copyChart('Calories', chartData.map(d => ({ date: d.date, calories: d.calories })))}
                             chart={
                                 <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1264,6 +1308,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Water"
                             empty={!hasAny('water')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-water-${range.label}.csv`, chartData.map(d => ({ date: d.date, water: d.water })))}
+                            onCopy={() => copyChart('Water', chartData.map(d => ({ date: d.date, water: d.water })))}
                             chart={
                                 <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1285,18 +1331,24 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Protein"
                             empty={!hasAny('protein')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-protein-${range.label}.csv`, chartData.map(d => ({ date: d.date, protein: d.protein })))}
+                            onCopy={() => copyChart('Protein', chartData.map(d => ({ date: d.date, protein: d.protein })))}
                             chart={macroChart('protein', 'goalProtein', 'Protein', C.blue)}
                         />
                         <ChartCard
                             title="Carbs"
                             empty={!hasAny('carbs')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-carbs-${range.label}.csv`, chartData.map(d => ({ date: d.date, carbs: d.carbs })))}
+                            onCopy={() => copyChart('Carbs', chartData.map(d => ({ date: d.date, carbs: d.carbs })))}
                             chart={macroChart('carbs', 'goalCarbs', 'Carbs', C.purple)}
                         />
                         <ChartCard
                             title="Fat"
                             empty={!hasAny('fat')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-fat-${range.label}.csv`, chartData.map(d => ({ date: d.date, fat: d.fat })))}
+                            onCopy={() => copyChart('Fat', chartData.map(d => ({ date: d.date, fat: d.fat })))}
                             chart={macroChart('fat', 'goalFat', 'Fat', C.amber)}
                         />
                     </div>
@@ -1308,6 +1360,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Weight"
                             empty={!hasBodyData('weight')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-weight-${range.label}.csv`, bodyData.map(d => ({ date: d.date || 'Start', weight: d.weight })))}
+                            onCopy={() => copyChart('Weight', bodyData.map(d => ({ date: d.date || 'Start', weight: d.weight })))}
                             chart={
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1325,6 +1379,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Body Fat"
                             empty={!hasBodyData('bodyFat')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-body-fat-${range.label}.csv`, bodyData.map(d => ({ date: d.date || 'Start', bodyFat: d.bodyFat })))}
+                            onCopy={() => copyChart('Body Fat', bodyData.map(d => ({ date: d.date || 'Start', bodyFat: d.bodyFat })))}
                             chart={
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1348,6 +1404,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Mood"
                             empty={!hasAny('morningMood') && !hasAny('eveningMood')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-mood-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningMood: d.morningMood, eveningMood: d.eveningMood })))}
+                            onCopy={() => copyChart('Mood', chartData.map(d => ({ date: d.date, morningMood: d.morningMood, eveningMood: d.eveningMood })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1370,6 +1428,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Habit Completion"
                             empty={!hasAny('habitPct')}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-habit-completion-${range.label}.csv`, chartData.map(d => ({ date: d.date, habitPct: d.habitPct })))}
+                            onCopy={() => copyChart('Habit Completion', chartData.map(d => ({ date: d.date, habitPct: d.habitPct })))}
                             chart={
                                 <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <defs>
@@ -1399,6 +1459,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             height={habitChartHeight}
                             expandHeight={habitExpandHeight}
                             onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-custom-habit-completion-${range.label}.csv`, customHabitData.map(d => ({ name: d.name, pct: d.pct })))}
+                            onCopy={() => copyChart('Custom Habit Completion', customHabitData.map(d => ({ name: d.name, pct: d.pct })))}
                             chart={
                                 <BarChart data={customHabitData} layout="vertical" margin={{ top: 2, right: 16, left: 0, bottom: 0 }}>
                                     <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />

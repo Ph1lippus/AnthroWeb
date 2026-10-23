@@ -4,6 +4,7 @@ import { ShieldAlert, Copy, Check, TriangleAlert } from 'lucide-react';
 import { enableVault, changePin, changePinWithAccountPassword, disableVault, lock } from '../../hooks/useAppLock';
 import { MIN_PIN_LENGTH } from '../../services/vault/keyring';
 import { sealAllExistingRows } from '../../services/vault/seal';
+import MfaEnrollModal from './MfaEnrollModal';
 import type { SealProgress } from '../../services/vault/seal';
 
 /**
@@ -33,6 +34,7 @@ const SecuritySettings: React.FC = () => {
     const [busy, setBusy] = useState(false);
     const [copied, setCopied] = useState(false);
     const [progress, setProgress] = useState<SealProgress | null>(null);
+    const [mfaOpen, setMfaOpen] = useState(false);
 
     // PIN-change flow. Kept apart from the account-recovery section below,
     // which has its own password field for a different purpose: that one
@@ -454,6 +456,16 @@ const SecuritySettings: React.FC = () => {
                     </div>
                 )}
             </section>
+            <section className="vault-settings-section">
+                <h2 className="vault-settings-heading">Two-factor authentication</h2>
+                <p className="vault-settings-blurb">
+                    Add an authenticator app so signing in requires a code in addition to your password.
+                </p>
+                <button type="button" className="btn-primary" onClick={() => setMfaOpen(true)}>
+                    Configure two-factor authentication
+                </button>
+            </section>
+            <MfaEnrollModal open={mfaOpen} onClose={() => setMfaOpen(false)} />
         </div>
     );
 };

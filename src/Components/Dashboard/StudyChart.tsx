@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+import { Copy, Download } from 'lucide-react';
+import { copyCsvToClipboard, downloadCsv } from '../../utils/exportFiles';
+import { useNotice } from '../../Components/Feedback/useNotice';
 import { useStudySessions, useStudyGoal } from '../../hooks/useAcademic';
 import type { DateRange } from './dateRange';
 import { todayString, addDays } from '../../utils/dates';
@@ -9,6 +12,7 @@ interface StudyChartProps {
 }
 
 const StudyChart: React.FC<StudyChartProps> = ({ range }) => {
+    const { notify } = useNotice();
     const { data: sessions, isLoading } = useStudySessions();
     const { data: goal } = useStudyGoal();
 
@@ -31,6 +35,7 @@ const StudyChart: React.FC<StudyChartProps> = ({ range }) => {
                 .sort()
                 .map(date => ({
                     date: date.slice(5),
+                    fullDate: date,
                     minutes: studyMinutesByDate.get(date) ?? 0,
                 }));
         }
@@ -41,6 +46,7 @@ const StudyChart: React.FC<StudyChartProps> = ({ range }) => {
             const date = addDays(today, -i);
             data.push({
                 date: date.slice(5),
+                fullDate: date,
                 minutes: studyMinutesByDate.get(date) ?? 0,
             });
         }
@@ -53,6 +59,33 @@ const StudyChart: React.FC<StudyChartProps> = ({ range }) => {
         <div className="metrics-chart-card" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
             <div className="metrics-chart-head">
                 <h3>Study time</h3>
+                {hasData && (
+                    <>
+                        <button
+                            type="button"
+                            className="metrics-chart-expand"
+                            aria-label="Copy Study time chart data"
+                            data-tip="Copy chart data"
+                            onClick={() => {
+                                void copyCsvToClipboard(chartData.map(d => ({ date: (d as { fullDate?: string }).fullDate ?? d.date, minutes: d.minutes }))).then(ok => {
+                                    if (ok) notify('success', 'Study time copied to clipboard');
+                                    else notify('error', 'Could not copy to clipboard');
+                                });
+                            }}
+                        >
+                            <Copy size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            className="metrics-chart-expand"
+                            aria-label="Export Study time chart data"
+                            data-tip="Export chart data"
+                            onClick={() => downloadCsv(`anthroweb-study-time-${range.label}.csv`, chartData.map(d => ({ date: (d as { fullDate?: string }).fullDate ?? d.date, minutes: d.minutes })))}
+                        >
+                            <Download size={14} />
+                        </button>
+                    </>
+                )}
             </div>
             {isLoading ? (
                 <div className="metrics-chart-empty">Loading study sessions…</div>

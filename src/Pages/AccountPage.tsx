@@ -58,9 +58,9 @@ const AccountPage: React.FC = () => {
             <Title title="Account" />
             <div className="settings-container">
                 <div className="settings-header">
-                    <p className="settings-subtitle">
+                    <div className="settings-subtitle">
                         {loading ? <LoadingSpinner inline label="Loading account" /> : email}
-                    </p>
+                    </div>
                 </div>
 
                 <div className="settings-list">

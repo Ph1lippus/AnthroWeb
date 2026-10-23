@@ -2,6 +2,7 @@ import { useInlineError } from './Feedback/useNotice';
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmail, getUserSettings } from '../services/profileService';
+import { supabase } from '../services/supabaseClient';
 import { showBootTransition, dismissBootScreenImmediate } from '../services/bootScreen';
 import { REGISTRATION_ENABLED } from '../utils/appConfig';
 import { EyeOff, Eye } from 'lucide-react';
@@ -18,6 +19,10 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
     const [loading, setLoading] = useState(false);
     const [, raiseError, clearError] = useInlineError();
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+    const [awaitingMfa, setAwaitingMfa] = useState(false);
+    const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+    const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
+    const [mfaCode, setMfaCode] = useState('');
     const [shakingField, setShakingField] = useState<string | null>(null);
 
     const triggerShake = useCallback((field: string) => {
@@ -42,6 +47,20 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
         setLoading(true);
         try {
             await signInWithEmail(email, password);
+            const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+            if (aal?.currentLevel === 'aal1' && aal?.nextLevel === 'aal2') {
+                const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
+                if (fErr) throw fErr;
+                const totp = (factors?.totp ?? []).find(f => f.status === 'verified');
+                if (!totp) throw new Error('MFA is required but no verified authenticator was found.');
+                const { data: challenge, error: cErr } = await supabase.auth.mfa.challenge({ factorId: totp.id });
+                if (cErr) throw cErr;
+                setMfaFactorId(totp.id);
+                setMfaChallengeId(challenge.id);
+                setAwaitingMfa(true);
+                setLoading(false);
+                return;
+            }
             // Cover the route change with the splash: the landing page's own
             // queries are still in flight when we navigate, and without this
             // the footer and an empty page flash before the data lands.
@@ -63,6 +82,40 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
         }
     };
 
+    const handleVerifyMfa = async (e: React.FormEvent) => {
+        e.preventDefault();
+        clearError();
+        if (!mfaFactorId || !mfaChallengeId) return;
+        if (mfaCode.length !== 6) {
+            raiseError('Enter the 6-digit code.');
+            return;
+        }
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.mfa.verify({
+                factorId: mfaFactorId,
+                challengeId: mfaChallengeId,
+                code: mfaCode,
+            });
+            if (error) throw error;
+            showBootTransition('Signing you in');
+            const settings = await getUserSettings();
+            if (!settings) navigate('/profile/edit');
+            else navigate('/Daily-Log');
+        } catch (err) {
+            const anyErr = err as { message?: string; error_description?: string; msg?: string };
+            const message = (err instanceof Error && err.message)
+                || anyErr?.message
+                || anyErr?.error_description
+                || anyErr?.msg
+                || 'Invalid code.';
+            console.error('MFA verify error:', err);
+            raiseError(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const clearFieldError = (field: 'email' | 'password') => {
         setFieldErrors((prev) => {
             const next = { ...prev };
@@ -73,6 +126,35 @@ const LoginForm: React.FC<{ idPrefix?: string; onForgotPassword?: () => void }> 
 
     const emailId = `${idPrefix}-email`;
     const passwordId = `${idPrefix}-password`;
+
+    if (awaitingMfa) {
+        return (
+            <>
+                <form onSubmit={handleVerifyMfa} noValidate>
+                    <div className="mb-3 text-start">
+                        <label htmlFor={`${idPrefix}-mfa`} className="form-label">Authentication code</label>
+                        <div className="t-input-wrap">
+                            <div className="t-input">
+                                <input
+                                    className="form-control"
+                                    id={`${idPrefix}-mfa`}
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    placeholder="6-digit code"
+                                    value={mfaCode}
+                                    onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" className="btn-primary w-100" disabled={loading || mfaCode.length !== 6}>
+                        {loading ? 'Verifying...' : 'Verify'}
+                    </button>
+                </form>
+            </>
+        );
+    }
 
     return (
         <>
