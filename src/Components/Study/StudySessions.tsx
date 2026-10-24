@@ -53,6 +53,7 @@ const StudySessions: React.FC = () => {
         const breakMins = breakMinutes.trim() === '' ? undefined : Number(breakMinutes);
         if (breakMins !== undefined && (Number.isNaN(breakMins) || breakMins < 0)) return;
 
+        const nowIso = new Date().toISOString();
         saveSession.mutate(
             {
                 id: editing?.id,
@@ -63,6 +64,8 @@ const StudySessions: React.FC = () => {
                 notes: notes.trim(),
                 source: editing?.source ?? 'manual',
                 break_minutes: breakMins,
+                started_at: editing?.started_at ?? nowIso,
+                ended_at: editing?.ended_at ?? nowIso,
             },
             { onSuccess: () => setShowForm(false) },
         );
@@ -207,7 +210,7 @@ const StudySessions: React.FC = () => {
                     </span>
                 </div>
             ) : (
-                <div className="academic-scroll" style={{ maxHeight: 260 }}>
+                <div className="academic-scroll" style={{ maxHeight: 420 }}>
                     {daySessions.map(session => (
                         <div key={session.id} className="course-row">
                             <div className="course-head">

@@ -519,7 +519,8 @@ export const getUserStudySessions = async (): Promise<StudySession[]> => {
         .from('study_sessions')
         .select('*')
         .eq('user_id', user.id)
-        .order('session_date', { ascending: false });
+        .order('session_date', { ascending: false })
+        .order('created_at', { ascending: false });
 
     if (error) {
         console.error('Error fetching study sessions:', error.message);
