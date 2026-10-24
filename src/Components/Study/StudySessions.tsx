@@ -25,12 +25,14 @@ const StudySessions: React.FC = () => {
 
     const [sessionDate, setSessionDate] = useState(todayString());
     const [duration, setDuration] = useState('25');
+    const [breakMinutes, setBreakMinutes] = useState('');
     const [notes, setNotes] = useState('');
 
     const openCreate = () => {
         setEditing(null);
         setSessionDate(selectedDate);
         setDuration('25');
+        setBreakMinutes('');
         setNotes('');
         setShowForm(true);
     };
@@ -39,6 +41,7 @@ const StudySessions: React.FC = () => {
         setEditing(session);
         setSessionDate(session.session_date);
         setDuration(String(session.duration_minutes));
+        setBreakMinutes(session.break_minutes ? String(session.break_minutes) : '');
         setNotes(session.notes ?? '');
         setShowForm(true);
     };
@@ -47,6 +50,8 @@ const StudySessions: React.FC = () => {
         event.preventDefault();
         const minutes = Number(duration);
         if (Number.isNaN(minutes) || minutes <= 0) return;
+        const breakMins = breakMinutes.trim() === '' ? undefined : Number(breakMinutes);
+        if (breakMins !== undefined && (Number.isNaN(breakMins) || breakMins < 0)) return;
 
         saveSession.mutate(
             {
@@ -57,6 +62,7 @@ const StudySessions: React.FC = () => {
                 session_type: 'study',
                 notes: notes.trim(),
                 source: editing?.source ?? 'manual',
+                break_minutes: breakMins,
             },
             { onSuccess: () => setShowForm(false) },
         );
@@ -85,18 +91,31 @@ const StudySessions: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="mb-4">
-                        <label className="form-label">Duration (minutes)</label>
-                        <input
-                            type="number"
-                            step="any"
-                            min={1}
-                            value={duration}
-                            onChange={event => setDuration(event.target.value)}
-                            className="form-control"
-                            required
-                            autoFocus
-                        />
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="form-label">Duration (minutes)</label>
+                            <input
+                                type="number"
+                                step="any"
+                                min={1}
+                                value={duration}
+                                onChange={event => setDuration(event.target.value)}
+                                className="form-control"
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <div>
+                            <label className="form-label">Break (minutes)</label>
+                            <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                value={breakMinutes}
+                                onChange={event => setBreakMinutes(event.target.value)}
+                                className="form-control"
+                            />
+                        </div>
                     </div>
 
                     <div className="mb-4">
