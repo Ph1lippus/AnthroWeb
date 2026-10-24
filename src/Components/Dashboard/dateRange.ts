@@ -16,4 +16,4 @@ export const RANGES: DateRange[] = [
     { label: 'All Time', days: null },
 ];
 
-export const DEFAULT_RANGE: DateRange = RANGES.find(r => r.days === 7) ?? RANGES[0];
+export const DEFAULT_RANGE: DateRange = RANGES.find(r => r.days === 30) ?? RANGES[0];

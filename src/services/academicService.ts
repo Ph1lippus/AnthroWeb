@@ -665,7 +665,7 @@ export const recomputeStudyHistory = async (date: string): Promise<void> => {
 
     const { data, error } = await supabase
         .from('study_sessions')
-        .select('duration_minutes, session_type')
+        .select('duration_minutes, session_type, break_minutes')
         .eq('user_id', user.id)
         .eq('session_date', date);
 
@@ -674,13 +674,11 @@ export const recomputeStudyHistory = async (date: string): Promise<void> => {
         return;
     }
 
-    const rows = data ?? [];
+    const rows = (data ?? []) as any[];
     const studyMinutes = rows
-        .filter((row: { session_type?: string }) => row.session_type !== 'break')
         .reduce((sum: number, row: { duration_minutes: number }) => sum + (row.duration_minutes || 0), 0);
     const breakMinutes = rows
-        .filter((row: { session_type?: string }) => row.session_type === 'break')
-        .reduce((sum: number, row: { duration_minutes: number }) => sum + (row.duration_minutes || 0), 0);
+        .reduce((sum: number, row: { break_minutes?: number | null }) => sum + (row.break_minutes || 0), 0);
     const count = rows.length;
     const avg = count > 0 ? Math.round(((studyMinutes + breakMinutes) / count) * 10) / 10 : 0;
 

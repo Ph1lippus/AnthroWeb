@@ -8,7 +8,7 @@ interface HabitEditorModalProps {
     /** Set when the last save was refused, e.g. the name is already taken. */
     error?: string | null;
     onClose: () => void;
-    onSave: (updates: { name: string; description: string | null }) => void;
+    onSave: (updates: { name: string; description: string | null; priority?: 'high' | 'medium' | 'low'; is_negative?: boolean; schedule_days?: number[] | null }) => void;
 }
 
 /**
@@ -36,13 +36,22 @@ const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
 }) => {
     const [name, setName] = useState(habit?.name ?? '');
     const [description, setDescription] = useState(habit?.description ?? '');
+    const [priority, setPriority] = useState<'high' | 'medium' | 'low'>(habit?.priority ?? 'medium');
+    const [negative, setNegative] = useState<boolean>(habit?.is_negative ?? false);
+    const [schedule, setSchedule] = useState<number[]>(habit?.schedule_days ?? [0, 1, 2, 3, 4, 5, 6]);
 
     if (!habit) return null;
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
         if (!name.trim() || busy) return;
-        onSave({ name: name.trim(), description: description.trim() || null });
+        onSave({
+            name: name.trim(),
+            description: description.trim() || null,
+            priority,
+            is_negative: negative,
+            schedule_days: schedule.length === 7 ? null : schedule,
+        });
     };
 
     return (
@@ -84,6 +93,48 @@ const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
                             maxLength={100}
                             placeholder="What this habit is, or when"
                         />
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="form-label" htmlFor="habit-priority">Priority</label>
+                        <select
+                            id="habit-priority"
+                            value={priority}
+                            onChange={event => setPriority(event.target.value as 'high' | 'medium' | 'low')}
+                            className="form-control"
+                        >
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="checkbox-label">
+                            <input type="checkbox" checked={negative} onChange={event => setNegative(event.target.checked)} className="checkbox-input" />
+                            <span className="text-sm">Negative habit (avoid it)</span>
+                        </label>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="form-label">Schedule days</label>
+                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                                <label key={d} className="checkbox-label" style={{ fontSize: '0.75rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={schedule.includes(i)}
+                                        onChange={event => {
+                                            setSchedule(prev =>
+                                                event.target.checked ? [...prev, i] : prev.filter(x => x !== i)
+                                            );
+                                        }}
+                                        className="checkbox-input"
+                                    />
+                                    {d}
+                                </label>
+                            ))}
+                        </div>
                     </div>
 
                     {/* On the name, because the only thing that can be refused is a

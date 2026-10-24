@@ -96,6 +96,7 @@ export interface UserSettings {
      */
     cheat_days_allowed?: number | null;
     cheat_days_period?: 'week' | 'month';
+    habit_settings?: Record<string, { priority?: 'high' | 'medium' | 'low'; schedule_days?: number[] | null; is_negative?: boolean }> | null;
     created_at?: string;
     updated_at?: string;
 

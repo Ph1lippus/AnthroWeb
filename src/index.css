@@ -88,7 +88,7 @@ html {
   --color-primary: #22c55e;
   --color-primary-dark: #16a34a;
   --color-danger: #f43f5e;
-  --color-danger-dark: #9f1239;
+  --color-danger-dark: #7f1d1d;
   --color-dark: #343434;
   /* True white, not the old near-white #fffbfb: max contrast against the
      background ramp in bright rooms. */
@@ -923,7 +923,7 @@ input[type='number']::-webkit-inner-spin-button {
    positioned panel inside it would be clipped. */
 .sidebar-alert-panel {
   position: fixed;
-  z-index: 200;
+  z-index: 2147483647;
   min-width: 15rem;
   max-width: 22rem;
   padding: 0.4rem;
@@ -9158,7 +9158,7 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   top: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000;
+  z-index: 2147483647;
   pointer-events: none;
   /* Bounded so a stack of long messages cannot run off the side of a phone. */
   width: min(28rem, calc(100vw - 2rem));
@@ -9970,6 +9970,7 @@ select.form-control option {
 .daily-score-breakdown--open {
   grid-template-rows: 1fr;
   opacity: 1;
+  margin-top: 0.75rem;
 }
 .daily-score-breakdown__inner {
   display: grid;

@@ -31,15 +31,10 @@ const DomainStats: React.FC = () => {
     const { projects, books, abstinenceGoals, abstinenceHistory, pending } = useDomainStats();
 
     const stats = useMemo<Stat[]>(() => {
-        const active = projects.filter(p => p.status === 'active');
-        const completed = projects.filter(p => p.status === 'completed');
-        const maintenance = projects.filter(p => p.status === 'maintenance');
-        const highPriority = active.filter(p => p.priority === 'high');
+        const activeProjects = projects.filter(p => p.status === 'active');
+        const maintenanceProjects = projects.filter(p => p.status === 'maintenance');
 
         const pagesRead = books.reduce((sum, b) => sum + b.current_page, 0);
-        const booksFinished = books.filter(b => b.total_pages > 0 && b.current_page >= b.total_pages);
-        const reading = books.filter(b => b.status === 'reading');
-        const libraryPct = books.length > 0 ? Math.round((booksFinished.length / books.length) * 100) : 0;
 
         const withTarget = abstinenceGoals.filter(g => g.target_days != null);
         const longest = abstinenceGoals.length > 0
@@ -49,74 +44,34 @@ const DomainStats: React.FC = () => {
             ? Math.max(...abstinenceHistory.map(h => h.duration_days))
             : null;
 
-        return [
-            {
-                key: 'projectsTotal',
-                label: 'Projects',
-                value: String(projects.length),
-                hint: `${active.length} active · ${completed.length} completed`,
-                icon: FolderKanban,
-                tone: 'flat',
-                pending: pending.projects,
-            },
-            {
+        const stats: Stat[] = [];
+
+        if (projects.length > 0) {
+            stats.push({
                 key: 'projectsActive',
-                label: 'Active Projects',
-                value: String(active.length),
-                hint: highPriority.length > 0 ? `${highPriority.length} high priority` : 'Nothing high priority',
+                label: 'Projects',
+                value: String(activeProjects.length),
+                hint: `${activeProjects.length} active + ${maintenanceProjects.length} in maintenance`,
                 icon: FolderKanban,
-                tone: active.length > 0 ? 'good' : 'flat',
+                tone: activeProjects.length > 0 ? 'good' : 'flat',
                 pending: pending.projects,
-            },
-            {
-                key: 'projectsCompleted',
-                label: 'Completed Projects',
-                value: String(completed.length),
-                hint: maintenance.length > 0 ? `${maintenance.length} in maintenance` : 'Nothing in maintenance',
-                icon: FolderKanban,
-                tone: completed.length > 0 ? 'good' : 'flat',
-                pending: pending.projects,
-            },
-            // Same rule as the Projects page: a tile that always reads 0 is noise.
-            ...(maintenance.length > 0
-                ? [{
-                    key: 'projectsMaintenance',
-                    label: 'In Maintenance',
-                    value: String(maintenance.length),
-                    hint: 'Still open',
-                    icon: FolderKanban,
-                    tone: 'flat' as const,
-                    pending: pending.projects,
-                }]
-                : []),
-            {
-                key: 'booksTotal',
-                label: 'Books',
-                value: String(books.length),
-                hint: `${reading.length} reading now`,
-                icon: BookOpen,
-                tone: 'flat',
-                pending: pending.books,
-            },
-            {
+            });
+        }
+
+        if (books.length > 0) {
+            stats.push({
                 key: 'booksPages',
                 label: 'Pages Read',
                 value: String(pagesRead),
-                hint: books.length > 0 ? `${booksFinished.length} of ${books.length} finished` : 'No books yet',
+                hint: `${pagesRead} pages read`,
                 icon: BookOpen,
                 tone: 'flat',
                 pending: pending.books,
-            },
-            {
-                key: 'booksCompleted',
-                label: 'Completed Books',
-                value: String(booksFinished.length),
-                hint: `${libraryPct}% of the library`,
-                icon: BookOpen,
-                tone: booksFinished.length > 0 ? 'good' : 'flat',
-                pending: pending.books,
-            },
-            {
+            });
+        }
+
+        if (abstinenceGoals.length > 0) {
+            stats.push({
                 key: 'abstinenceActive',
                 label: 'Active Streaks',
                 value: String(abstinenceGoals.length),
@@ -124,8 +79,8 @@ const DomainStats: React.FC = () => {
                 icon: ShieldCheck,
                 tone: abstinenceGoals.length > 0 ? 'good' : 'flat',
                 pending: pending.abstinenceGoals,
-            },
-            {
+            });
+            stats.push({
                 key: 'abstinenceLongest',
                 label: 'Longest Active',
                 value: longest === null ? '0d' : `${daysSince(longest.start_date)}d`,
@@ -133,8 +88,8 @@ const DomainStats: React.FC = () => {
                 icon: ShieldCheck,
                 tone: 'flat',
                 pending: pending.abstinenceGoals,
-            },
-            {
+            });
+            stats.push({
                 key: 'abstinenceBest',
                 label: 'Best Streak',
                 value: bestStreak === null ? '0d' : `${bestStreak}d`,
@@ -142,8 +97,10 @@ const DomainStats: React.FC = () => {
                 icon: ShieldCheck,
                 tone: bestStreak !== null && bestStreak > 0 ? 'good' : 'flat',
                 pending: pending.abstinenceHistory,
-            },
-        ];
+            });
+        }
+
+        return stats;
     }, [projects, books, abstinenceGoals, abstinenceHistory, pending]);
 
     if (stats.length === 0) return null;

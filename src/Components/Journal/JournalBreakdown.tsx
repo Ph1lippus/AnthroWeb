@@ -116,7 +116,7 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
     }
 
     return (
-        <div className="card journal-breakdown-card">
+        <div className="card daily-score-card journal-breakdown-card">
             <div className="card-header">
                 <h3 className="card-title">This entry</h3>
                 <span className="journal-breakdown-date">{dateLabel}</span>

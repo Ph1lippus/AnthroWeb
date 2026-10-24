@@ -85,6 +85,7 @@ const clockToHours = (value: string | null | undefined): number | null => {
  * previous evening, so they are drawn in the 24-28 stretch at the top - the
  * axis labels wrap back to 01:00-04:00 there, which is what they read on a clock.
  */
+
 const lateNight = (hours: number | null): number | null =>
     hours === null ? null : (hours < 4 ? hours + 24 : hours);
 
@@ -395,7 +396,8 @@ const GoalSegments: React.FC<{
     dataKey: keyof ChartPoint;
     stroke: string;
     label?: string;
-}> = ({ points, dataKey, stroke, label }) => {
+    format?: (v: number) => string;
+}> = ({ points, dataKey }) => {
     const segments = useMemo(() => {
         // Consecutive real days only: a day with no goal set breaks the line
         // rather than bridging it, so a stretch without a goal doesn't read as
@@ -424,15 +426,14 @@ const GoalSegments: React.FC<{
             {segments.map((run, runIndex) =>
                 run.slice(0, -1).map((p, i) => {
                     const q = run[i + 1];
-                    const isLast = runIndex === segments.length - 1 && i === run.length - 2;
                     return (
                         <ReferenceLine
                             key={`${runIndex}-${i}`}
                             segment={[{ x: p.x, y: p.y }, { x: q.x, y: q.y }]}
-                            stroke={stroke}
+                            stroke={C.primary}
                             strokeDasharray="4 4"
-                            strokeOpacity={0.5}
-                            label={label && isLast ? { value: label, position: 'insideTopRight', fill: stroke, fontSize: 10 } : undefined}
+                            strokeOpacity={1}
+                            label={undefined}
                         />
                     );
                 })
@@ -442,21 +443,16 @@ const GoalSegments: React.FC<{
 };
 
 const AVG_STROKE = 'rgba(255, 255, 255, 0.55)';
-const AvgLine: React.FC<{ y: number | null; stroke?: string }> = ({ y, stroke }) => {
+const AvgLine: React.FC<{ y: number | null; stroke?: string; clock?: boolean }> = ({ y, stroke }) => {
     if (y == null) return null;
     return (
         <ReferenceLine
             y={y}
-            stroke={stroke ?? AVG_STROKE}
+            stroke={stroke ?? C.primary}
             strokeDasharray="6 4"
-            strokeOpacity={0.85}
-            label={{
-                value: 'Avg',
-                position: 'insideBottomRight',
-                fill: stroke ?? AVG_STROKE,
-                fontSize: 10,
-                fontFamily: 'var(--font-mono)',
-            }}
+            strokeOpacity={1}
+            strokeWidth={2}
+            label={undefined}
         />
     );
 };
@@ -1146,7 +1142,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         <ChartCard
                             title="Bedtime & Wake Time"
                             empty={!hasAny('bedtime', 'wakeTime')}
-                            height={230}
+                            height={280}
                             onExpand={openChart}
                             onExport={() => downloadCsv(`anthroweb-bedtime-wake-${range.label}.csv`, chartData.map(d => ({ date: d.date, bedtime: d.bedtime, wakeTime: d.wakeTime })))}
                             onCopy={() => copyChart('Bedtime & Wake Time', chartData.map(d => ({ date: d.date, bedtime: d.bedtime, wakeTime: d.wakeTime })))}
@@ -1177,15 +1173,17 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         dataKey="goalBedtime"
                                         stroke={C.purple}
                                         label="Goal"
+                                        format={hoursToClock}
                                     />
                                     <GoalSegments
                                         points={chartData}
                                         dataKey="goalWakeTime"
                                         stroke={C.amber}
                                         label="Goal"
+                                        format={hoursToClock}
                                     />
-                                    <AvgLine y={averages.bedtime} stroke={C.purple} />
-                                    <AvgLine y={averages.wakeTime} stroke={C.amber} />
+                                    <AvgLine y={averages.bedtime} stroke={C.purple} clock />
+                                    <AvgLine y={averages.wakeTime} stroke={C.amber} clock />
                                     <Line
                                         type="monotone"
                                         dataKey="bedtime"
@@ -1229,7 +1227,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
-                                    <ChartY />
+                                    <ChartY domain={[90, Math.max(150, 0, ...chartData.map(d => Math.max(d.morningSystolic ?? 0, d.eveningSystolic ?? 0)))]} />
                                     <ChartTip />
                                     <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
                                     <ReferenceLine y={120} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
@@ -1250,7 +1248,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
-                                    <ChartY />
+                                    <ChartY domain={[50, Math.max(95, 0, ...chartData.map(d => Math.max(d.morningDiastolic ?? 0, d.eveningDiastolic ?? 0)))]} />
                                     <ChartTip />
                                     <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
                                     <ReferenceLine y={80} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} />
@@ -1261,26 +1259,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 </LineChart>
                             }
                         />
-                        <ChartCard
-                            title="Heart Rate"
-                            empty={!hasAny('morningBpm', 'eveningBpm')}
-                            onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-heart-rate-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningBpm: d.morningBpm, eveningBpm: d.eveningBpm })))}
-                            onCopy={() => copyChart('Heart Rate', chartData.map(d => ({ date: d.date, morningBpm: d.morningBpm, eveningBpm: d.eveningBpm })))}
-                            chart={
-                                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                                    <ChartGrid />
-                                    <ChartX />
-                                    <ChartY />
-                                    <ChartTip />
-                                    <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11, fontFamily: 'var(--font-mono)', paddingBottom: 4 }} />
-                                    <AvgLine y={averages.morningBpm} stroke={C.blue} />
-                                    <AvgLine y={averages.eveningBpm} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="morningBpm" name="AM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-                                    <Line type="monotone" dataKey="eveningBpm" name="PM Heart Rate" formatter={(v) => `${num(v)} bpm`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
-                                </LineChart>
-                            }
-                        />
+
                     </div>
 
                     {/* Nutrition: intake and hydration together; the macros sit

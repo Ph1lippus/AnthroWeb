@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Globe, Plus, X, Maximize2 } from 'lucide-react';
+import { Globe, Plus, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 
 const STORAGE_KEY = 'anthroweb:world-clocks';
@@ -56,10 +56,9 @@ interface WorldClockPanelProps {
     onSelect: (tz: string | null) => void;
     onSelectMain?: (tz: string | null) => void;
     onUse?: () => void;
-    onFullscreen: () => void;
 }
 
-const WorldClockPanel: React.FC<WorldClockPanelProps> = ({ activeTz, mainTz, inUse, onSelect, onSelectMain, onUse, onFullscreen }) => {
+const WorldClockPanel: React.FC<WorldClockPanelProps> = ({ activeTz, mainTz, inUse, onSelect, onSelectMain, onUse }) => {
     const [zones, setZones] = useState<string[]>(loadZones);
     const [newZone, setNewZone] = useState('');
     const [selectedZone, setSelectedZone] = useState('');
@@ -103,9 +102,6 @@ const WorldClockPanel: React.FC<WorldClockPanelProps> = ({ activeTz, mainTz, inU
                     <div className="daily-log-daynav" style={{ justifyContent: 'flex-end' }}>
                         <button type="button" className="daily-log-daynav-btn" onClick={() => onSelect(null)} data-tip="Back to list">
                             <X size={14} />
-                        </button>
-                        <button type="button" className="daily-log-daynav-btn" onClick={onFullscreen} data-tip="Fullscreen">
-                            <Maximize2 size={14} />
                         </button>
                     </div>
                 </div>

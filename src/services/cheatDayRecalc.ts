@@ -106,6 +106,16 @@ export const recalcCheatDayScores = async (options: {
         });
         const measurement = measurementByDate.get(log.log_date);
 
+        // Weighted habit score for this day, honoring priority tiers.
+        let habitTotalWeight = 0;
+        let habitDoneWeight = 0;
+        const completedCount = completedByDate.get(log.log_date) ?? 0;
+        // Custom habits: we only know how many completed, not which, so fall back
+        // to equal weighting for the stored recalculation path.
+        habitTotalWeight += customTotal * 2;
+        habitDoneWeight += completedCount * 2;
+        const habitScore = habitTotalWeight > 0 ? (habitDoneWeight / habitTotalWeight) * 100 : 0;
+
         const score = computeDailyScore(buildScoringInputFromLog(log, {
             goals,
             settings,
@@ -113,6 +123,7 @@ export const recalcCheatDayScores = async (options: {
             bodyFat: measurement?.body_fat ?? null,
             customCompleted: completedByDate.get(log.log_date) ?? 0,
             customTotal,
+            habitScore,
             cheatDayExempt: status.exempt,
             lastMeasurementDate,
         })).score;

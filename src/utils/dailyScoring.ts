@@ -5,6 +5,7 @@ export interface ActiveGoals {
         carbs: number | null;
         fat: number | null;
         water: number | null;
+        min_fat?: number | null;
     };
     sleep: {
         hours: number | null;
@@ -120,7 +121,7 @@ export const calculateMetricScore = (
             const cal = parseInt(value as string);
             if (isNaN(cal)) return { score: 0, logged: false };
             const targetCal = activeGoals?.nutrition?.calories;
-            if (!targetCal) return { score: 50, logged: true };
+            if (!targetCal) return { score: 0, logged: true };
 
             // Under-eating is NOT rewarded: penalise eating below a healthy floor
             const floor = targetCal * 0.5;
@@ -138,7 +139,7 @@ export const calculateMetricScore = (
             const p = parseFloat(value as string);
             if (isNaN(p)) return { score: 0, logged: false };
             const targetProtein = activeGoals?.nutrition?.protein;
-            if (!targetProtein) return { score: 50, logged: true };
+            if (!targetProtein) return { score: 0, logged: true };
             if (p >= targetProtein) return { score: 100, logged: true };
             const tolerance = targetProtein * 0.33;
             const diff = targetProtein - p;
@@ -149,7 +150,7 @@ export const calculateMetricScore = (
             const c = parseFloat(value as string);
             if (isNaN(c)) return { score: 0, logged: false };
             const targetCarbs = activeGoals?.nutrition?.carbs;
-            if (!targetCarbs) return { score: 50, logged: true };
+            if (!targetCarbs) return { score: 0, logged: true };
             const tolerance = targetCarbs * 0.375;
             const diff = Math.abs(c - targetCarbs);
             return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
@@ -159,7 +160,7 @@ export const calculateMetricScore = (
             const f = parseFloat(value as string);
             if (isNaN(f)) return { score: 0, logged: false };
             const targetFat = activeGoals?.nutrition?.fat;
-            if (!targetFat) return { score: 50, logged: true };
+            if (!targetFat) return { score: 0, logged: true };
             const tolerance = targetFat * 0.33;
             const diff = Math.abs(f - targetFat);
             return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
@@ -169,7 +170,7 @@ export const calculateMetricScore = (
             const w = parseFloat(value as string);
             if (isNaN(w)) return { score: 0, logged: false };
             const targetWater = activeGoals?.nutrition?.water;
-            if (!targetWater) return { score: 50, logged: true };
+            if (!targetWater) return { score: 0, logged: true };
             if (w >= targetWater) return { score: 100, logged: true };
             const tolerance = targetWater * 0.3;
             const diff = targetWater - w;
@@ -220,7 +221,7 @@ export const getInputScore = (
     switch (type) {
         case 'wakeTime': {
             const goal = activeGoals?.sleep?.wake_time || null;
-            if (!goal) return { score: 50, logged: true };
+            if (!goal) return { score: 0, logged: true };
             const analysis = analyzeTime(value as string, goal);
             if (analysis.status === 'On Time') return { score: 100, logged: true };
             if (analysis.status === 'Close') return { score: 70, logged: true };
@@ -228,7 +229,7 @@ export const getInputScore = (
         }
         case 'bedtime': {
             const goal = activeGoals?.sleep?.bedtime || null;
-            if (!goal) return { score: 50, logged: true };
+            if (!goal) return { score: 0, logged: true };
             const analysis = analyzeTime(value as string, goal);
             if (analysis.status === 'On Time') return { score: 100, logged: true };
             if (analysis.status === 'Close') return { score: 70, logged: true };
@@ -364,6 +365,12 @@ export interface DailyScoringInput {
     habits: Record<BuiltinHabitKey, boolean>;
     customCompleted: number;
     customTotal: number;
+    /**
+     * Optional precomputed habit score, used once habits carry per-habit weights
+     * (priority tiers, scheduling, negative habits). When present it overrides
+     * the built-in equal-weight habitGroupScore.
+     */
+    habitScore?: number | null;
     activeGoals: ActiveGoals | null | undefined;
     settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
     noSleep: boolean;
@@ -404,6 +411,33 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         return cheatDayExempt ? { score: 100, logged: true } : { score: 0, logged: true };
     };
 
+    // Fat and carbs are scored individually but constrained by their combined
+    // energy: fat*9 + carbs*4 must not exceed calories - protein*4. A minimum
+    // fat (configurable, default 50g) halves the fat score when breached.
+    const calorieGoal = activeGoals?.nutrition?.calories ?? null;
+    const proteinGoal = activeGoals?.nutrition?.protein ?? null;
+    const minFat = activeGoals?.nutrition?.min_fat ?? 50;
+
+    let carbMetric = calculateMetricScore('carbs', input.carbs, settings);
+    let fatMetric = calculateMetricScore('fat', input.fat, settings);
+
+    const fatValue = parseFloat(input.fat as string);
+    if (!isNaN(fatValue) && fatValue < minFat && fatMetric.logged) {
+        fatMetric = { score: Math.round(fatMetric.score * 0.5), logged: true };
+    }
+
+    const carbValue = parseFloat(input.carbs as string);
+    if (calorieGoal && proteinGoal && carbMetric.logged && fatMetric.logged &&
+        !isNaN(fatValue) && !isNaN(carbValue)) {
+        const remaining = calorieGoal - proteinGoal * 4;
+        const combined = fatValue * 9 + carbValue * 4;
+        if (remaining > 0 && combined > remaining) {
+            const scale = remaining / combined;
+            carbMetric = { score: Math.round(carbMetric.score * scale), logged: true };
+            fatMetric = { score: Math.round(fatMetric.score * scale), logged: true };
+        }
+    }
+
     const metrics: Record<string, MetricScore> = {
         wakeTime: sleep(getInputScore('wakeTime', input.wakeTime, activeGoals)),
         bedtime: sleep(getInputScore('bedtime', input.bedtime, activeGoals)),
@@ -417,11 +451,27 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         bodyTemperature: calculateMetricScore('bodyTemperature', input.bodyTemperature, settings),
         calories: macro(calculateMetricScore('calories', input.calories, settings)),
         protein: macro(calculateMetricScore('protein', input.protein, settings)),
-        carbs: macro(calculateMetricScore('carbs', input.carbs, settings)),
-        fat: macro(calculateMetricScore('fat', input.fat, settings)),
+        carbs: macro(carbMetric),
+        fat: macro(fatMetric),
         water: calculateMetricScore('water', input.water, settings),
-        weight: calculateMetricScore('weight', input.weight, settings),
-        bodyFat: calculateMetricScore('bodyFat', input.bodyFat, settings),
+        // Weight and body fat now carry the measurement recency themselves, so a
+        // stale measurement colours and counts as a stale score instead of a
+        // flat 100. Falls back to a full score when a value is present but no
+        // recency date is known, so a freshly typed reading is never punished.
+        weight: (() => {
+            if (input.weight === null || input.weight === undefined || input.weight === '') {
+                return { score: 0, logged: false };
+            }
+            const recency = calculateMeasurementRecency(input.lastMeasurementDate);
+            return recency.logged ? recency : { score: 100, logged: true };
+        })(),
+        bodyFat: (() => {
+            if (input.bodyFat === null || input.bodyFat === undefined || input.bodyFat === '') {
+                return { score: 0, logged: false };
+            }
+            const recency = calculateMeasurementRecency(input.lastMeasurementDate);
+            return recency.logged ? recency : { score: 100, logged: true };
+        })(),
         measurementRecency: calculateMeasurementRecency(input.lastMeasurementDate),
         // One metric, not two, and this is the one judgement call in the split
         // of `mood` into morning and evening. The ring's denominator is
@@ -437,18 +487,38 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         // mind graph, the dashboard's two series -- it is read directly from
         // `utils/moodSeries`, not through here.
         mood: moodMetricScore(input.morningMood, input.eveningMood),
-        habits: habitGroupScore(input.habits, input.customCompleted, input.customTotal),
+        habits: input.habitScore != null
+            ? { score: Math.round(input.habitScore), logged: true }
+            : habitGroupScore(input.habits, input.customCompleted, input.customTotal),
     };
 
-    const metricValues = Object.values(metrics);
-    const loggedMetrics = metricValues.filter(m => m.logged);
-    const loggedCount = loggedMetrics.length;
-    const totalMetrics = metricValues.length;
+    // Blood pressure and heart rate are optional and never affect the score, and
+    // the old hidden measurement-recency slot has been folded into the weight and
+    // body-fat chips. Everything else is a scoring metric. Missing metrics count
+    // as zero rather than being dropped, so a single good input can no longer
+    // inflate the whole day's score -- each part only moves its own part.
+    const NON_SCORING_METRICS = new Set([
+        'morningSystolic',
+        'morningDiastolic',
+        'morningBpm',
+        'eveningSystolic',
+        'eveningDiastolic',
+        'eveningBpm',
+        'bodyTemperature',
+        'mood',
+        'sleepQuality',
+        'weight',
+        'bodyFat',
+    ]);
+    const scoringEntries = Object.entries(metrics).filter(([key]) => !NON_SCORING_METRICS.has(key));
+    const scoringMetrics = scoringEntries.map(([, m]) => m);
+    const loggedCount = scoringMetrics.filter(m => m.logged).length;
+    const totalMetrics = scoringMetrics.length;
 
-    if (loggedCount === 0) {
+    if (totalMetrics === 0) {
         return { score: 0, loggedCount: 0, totalMetrics, metrics };
     }
 
-    const avg = loggedMetrics.reduce((a, m) => a + m.score, 0) / loggedCount;
+    const avg = scoringMetrics.reduce((a, m) => a + (m.logged ? m.score : 0), 0) / totalMetrics;
     return { score: Math.round(avg), loggedCount, totalMetrics, metrics };
 };

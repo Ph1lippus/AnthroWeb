@@ -1,5 +1,7 @@
 import React from 'react';
 import { computeBodyCalculations } from '../../utils/measurementCalculations';
+import { calculateMeasurementRecency } from '../../utils/dailyScoring';
+
 
 /**
  * The twenty derived body metrics.
@@ -90,8 +92,36 @@ const formatValue = (value: number | null, unit: string): string =>
         ? `${Number.isInteger(value) ? value : (Math.floor(value * 10) / 10).toFixed(1)}${unit ? ` ${unit}` : ''}`
         : '—';
 
-const DerivedMetrics: React.FC<{ values: BodyCalculations; expanded: boolean }> = ({ values, expanded }) => {
-    const groups = DERIVED_GROUPS.map(group => {
+const DerivedMetrics: React.FC<{ values: BodyCalculations; expanded: boolean; latestWeight?: number | null; latestBodyFat?: number | null; latestDate?: string | null; targetWeight?: number | null; targetBodyFat?: number | null }> = ({ values, expanded, latestWeight, latestBodyFat, latestDate, targetWeight, targetBodyFat }) => {
+    const recency = calculateMeasurementRecency(latestDate ?? null);
+
+    const weightProgress = targetWeight && latestWeight != null
+        ? Math.max(0, Math.min(100, 100 - (Math.abs(latestWeight - targetWeight) / targetWeight) * 100))
+        : null;
+    const bfProgress = targetBodyFat && latestBodyFat != null
+        ? Math.max(0, Math.min(100, 100 - (Math.abs(latestBodyFat - targetBodyFat) / targetBodyFat) * 100))
+        : null;
+
+    const bodyScoreRows = [
+        { key: 'weight_progress' as any, label: 'Weight progress', unit: '/100', value: weightProgress },
+        { key: 'bf_progress' as any, label: 'BF progress', unit: '/100', value: bfProgress },
+        { key: 'measurement_recency' as any, label: 'Measurement recency', unit: '/100', value: recency.score },
+    ].filter(r => r.value != null);
+
+    const bodyScoreGroup = bodyScoreRows.length ? [{
+        key: 'body_score',
+        title: 'Body score',
+        count: `${bodyScoreRows.length}/3`,
+        rows: bodyScoreRows.map(r => ({
+            key: r.key,
+            label: r.label,
+            unit: r.unit,
+            value: r.value,
+            shown: r.value != null ? `${Math.round(r.value)} ${r.unit}`.trim() : '—',
+        })),
+    }] : [];
+
+    const groups = [...bodyScoreGroup, ...DERIVED_GROUPS.map(group => {
         const available = group.rows.filter(row => values[row.key] != null).length;
         return {
             ...group,
@@ -102,7 +132,7 @@ const DerivedMetrics: React.FC<{ values: BodyCalculations; expanded: boolean }> 
                 shown: formatValue(values[row.key], row.unit),
             })),
         };
-    });
+    })];
 
     return (
         <div className="daily-score-card measurement-derived measurement-derived--rail">

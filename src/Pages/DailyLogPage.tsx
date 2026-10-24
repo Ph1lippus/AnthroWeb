@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
-import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Rows3, Trash2 } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Plus, Rows3, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, setDailyLogHabit, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import type { DailyLog, DailyLogHabitColumn } from '../services/dailyLogService';
@@ -20,7 +20,7 @@ import { moodFor, meanMood } from '../utils/moodSeries';
 import { MoodReadout } from '../Components/Journal/Mood';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
-import { useLatestMeasurement, useBodyMeasurementByDate, useLogBodyComposition } from '../hooks/useMeasurements';
+import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
@@ -214,75 +214,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const setGym = useSetGymForDate();
     const [gym, setGymLocal] = useState(false);
 
-    // Weight and body fat live in body_measurements, not in the daily log -- one
-    // record per date, written from here or from the Measurements page. These two
-    // boxes are the second door onto it, not a second copy of it.
-    //
-    // Prefilled from that day's measurement and saved back to it, so they show
-    // what is already on record for the date rather than starting blank.
-    const { data: dayMeasurement } = useBodyMeasurementByDate(logDate, !!logDate);
-    const logComposition = useLogBodyComposition();
-    const [weight, setWeight] = useState('');
-    const [bodyFat, setBodyFat] = useState('');
-    const [weightTouched, setWeightTouched] = useState(false);
-    const [bodyFatTouched, setBodyFatTouched] = useState(false);
-
-    /**
-     * What the boxes show, and what the score reads.
-     *
-     * A box shows what is already on record for the date until it is touched,
-     * then it shows what was typed -- including nothing. That is the part that
-     * makes a reading removable: with the stored figure always winning, emptying
-     * the box would put the old number straight back and there would be no way
-     * to clear a mistyped weight from here.
-     *
-     * Derived rather than copied into state on load, because an effect writing
-     * state on every arrival of the day's row would overwrite a fresh keystroke.
-     */
-    const parsed = (typed: string): number | null => {
-        const value = parseFloat(typed);
-        return Number.isNaN(value) ? null : value;
-    };
-    const measuredWeight = !weightTouched && weight === ''
-        ? dayMeasurement?.weight ?? null
-        : parsed(weight);
-    const measuredBodyFat = !bodyFatTouched && bodyFat === ''
-        ? dayMeasurement?.body_fat ?? null
-        : parsed(bodyFat);
-    const weightValue = weightTouched ? weight : measuredWeight != null ? String(measuredWeight) : '';
-    const bodyFatValue = bodyFatTouched ? bodyFat : measuredBodyFat != null ? String(measuredBodyFat) : '';
-
-    /**
-     * Writes to that day's measurement.
-     *
-     * Only the field that changed is sent, as `undefined` or `null`: an untouched
-     * field is left out entirely so the circumferences recorded for the same date
-     * survive, and an emptied one is sent as null so it actually clears. These are
-     * the same rules every other optional field in this form follows.
-     */
-    const saveComposition = useCallback((fields: {
-        weight?: number | null;
-        body_fat?: number | null;
-        body_fat_method?: 'manual' | null;
-    }) => {
-        if (!logDate) return;
-        logComposition.mutate({ measure_date: logDate, ...fields });
-    }, [logDate, logComposition]);
-
-    const onWeightBlur = useCallback(() => {
-        if (!weightTouched) return;
-        saveComposition({ weight: measuredWeight });
-    }, [weightTouched, measuredWeight, saveComposition]);
-
-    const onBodyFatBlur = useCallback(() => {
-        if (!bodyFatTouched) return;
-        saveComposition({
-            body_fat: measuredBodyFat,
-            // `manual` because it was typed here; the Measurements page derives its
-            // own from the tape fields instead, and leaves the method null.
-            body_fat_method: measuredBodyFat === null ? null : 'manual',
-        });
-    }, [bodyFatTouched, measuredBodyFat, saveComposition]);
 
     const toggleGym = async () => {
         const next = !gym;
@@ -295,7 +226,12 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         }
     };
 
-    const [showCustomHabit, setShowCustomHabit] = useState(false);
+    const [showHabitCreateModal, setShowHabitCreateModal] = useState(false);
+    const [customHabitPriority, setCustomHabitPriority] = useState<'high' | 'medium' | 'low'>('medium');
+    const [customHabitNegative, setCustomHabitNegative] = useState(false);
+    const [customHabitSchedule, setCustomHabitSchedule] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+    const [priorityTarget, setPriorityTarget] = useState<Habit | null>(null);
+    const [builtinPriorityTarget, setBuiltinPriorityTarget] = useState<string | null>(null);
     const [customHabitName, setCustomHabitName] = useState('');
     const [customHabitDesc, setCustomHabitDesc] = useState('');
     const [addingHabit, setAddingHabit] = useState(false);
@@ -375,6 +311,28 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             id: 'rename',
             label: 'Rename…',
             icon: PenLine,
+            onSelect: () => {
+                setHabitEditError(null);
+                setEditingHabit(habit);
+            },
+        },
+        {
+            id: 'priority',
+            label: 'Set priority…',
+            onSelect: () => setPriorityTarget(habit),
+        },
+        {
+            id: 'negative',
+            label: habit.is_negative ? 'Mark as positive' : 'Mark as negative',
+            onSelect: async () => {
+                if (!habit.id) return;
+                const updated = await updateHabit.mutateAsync({ id: habit.id, updates: { is_negative: !habit.is_negative } });
+                setHabits(prev => prev.map(h => (h.id === habit.id ? { ...h, ...updated } : h)));
+            },
+        },
+        {
+            id: 'schedule',
+            label: 'Schedule…',
             onSelect: () => {
                 setHabitEditError(null);
                 setEditingHabit(habit);
@@ -643,6 +601,50 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const cheatOverBudget = cheatDay && !cheatStatus.exempt;
     const cheatPeriodLabel = (settings?.cheat_days_period ?? 'week') === 'month' ? 'month' : 'week';
 
+    // --- Weighted habit score (priority tiers, negatives, scheduling) ---
+    const habitScore = useMemo(() => {
+        const priorityWeight = (p?: string | null) => (p === 'high' ? 3 : p === 'low' ? 1 : 2);
+
+        const dayOfWeek = new Date(logDate + 'T00:00:00').getDay();
+
+        const habitSetting = (key: string) => settings?.habit_settings?.[key] ?? {};
+
+        const builtinHabits = [
+            { key: 'gym', done: gym, baseWeight: 3 },
+            { key: 'fruitServing', done: fruitServing, baseWeight: 2 },
+            { key: 'studied', done: studied, baseWeight: 3 },
+            { key: 'journal', done: journal, baseWeight: 2 },
+            { key: 'stretching', done: stretching, baseWeight: 1 },
+            { key: 'reading', done: reading, baseWeight: 2 },
+            { key: 'projectWorkDone', done: projectWorkDone, baseWeight: 3 },
+        ];
+
+        let totalWeight = 0;
+        let doneWeight = 0;
+        for (const h of builtinHabits) {
+            const cfg = habitSetting(h.key);
+            const priorityWeight = cfg.priority === 'high' ? 3 : cfg.priority === 'low' ? 1 : 2;
+            const w = priorityWeight;
+            const scheduled = !cfg.schedule_days || cfg.schedule_days.includes(dayOfWeek);
+            if (!scheduled) continue;
+            totalWeight += w;
+            const isNegative = cfg.is_negative ?? false;
+            const countsAsDone = isNegative ? !h.done : h.done;
+            if (countsAsDone) doneWeight += w;
+        }
+        for (const habit of habits) {
+            if (!habit.is_active) continue;
+            if (habit.schedule_days && habit.schedule_days.length > 0 && !habit.schedule_days.includes(dayOfWeek)) continue;
+            const w = priorityWeight(habit.priority);
+            totalWeight += w;
+            const completed = completedHabits.has(habit.id!);
+            const countsAsDone = habit.is_negative ? !completed : completed;
+            if (countsAsDone) doneWeight += w;
+        }
+        if (totalWeight === 0) return 0;
+        return (doneWeight / totalWeight) * 100;
+    }, [fruitServing, studied, journal, stretching, reading, projectWorkDone, gym, habits, completedHabits, logDate, settings]);
+
     // --- Scoring (fair, grouped) ---
     const scoreResult = useMemo(() => computeDailyScore({
         wakeTime,
@@ -660,8 +662,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         carbs,
         fat,
         water,
-        weight: measuredWeight,
-        bodyFat: measuredBodyFat,
+        weight: null,
+        bodyFat: null,
         // Read straight off the stored log rather than through form state, so the
         // score ring picks up a rating made on the journal page the next time this
         // day is opened -- even though this page cannot itself change it.
@@ -670,13 +672,14 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym },
         customCompleted: completedHabits.size,
         customTotal: habits.length,
+        habitScore,
         activeGoals,
         settings: effectiveSettings,
         noSleep,
         cheatDay,
         cheatDayExempt: cheatStatus.exempt,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, measuredWeight, measuredBodyFat, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate, habitScore]);
 
     const calculatedScore = scoreResult.score;
     // The day's average rating, for the mood card's header. Null rather than zero
@@ -1056,23 +1059,24 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             await createHabit({
                 name: customHabitName.trim(),
                 description: customHabitDesc.trim() || undefined,
+                priority: customHabitPriority,
+                is_negative: customHabitNegative,
+                schedule_days: customHabitSchedule.length === 7 ? null : customHabitSchedule,
             });
             const userHabits = await getUserHabits();
             setHabits(userHabits);
             queryClient.invalidateQueries({ queryKey: queryKeys.habits });
-            closeCustomHabitForm();
+            setCustomHabitName('');
+            setCustomHabitDesc('');
+            setCustomHabitPriority('medium');
+            setCustomHabitNegative(false);
+            setCustomHabitSchedule([0, 1, 2, 3, 4, 5, 6]);
+            setShowHabitCreateModal(false);
         } catch (err) {
             console.error('Error creating habit:', err);
         } finally {
             setAddingHabit(false);
         }
-    };
-
-    // Reset custom-habit form fields
-    const closeCustomHabitForm = () => {
-        setCustomHabitName('');
-        setCustomHabitDesc('');
-        setShowCustomHabit(false);
     };
 
     /**
@@ -1424,9 +1428,16 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         checked: boolean,
         column: DailyLogHabitColumn,
         setValue: (next: boolean) => void,
-        label: string
+        label: string,
+        builtinKey?: string
     ) => (
-        <label className="checkbox-label">
+        <label
+            className="checkbox-label"
+            onContextMenu={builtinKey ? (event) => {
+                event.preventDefault();
+                setBuiltinPriorityTarget(builtinKey);
+            } : undefined}
+        >
             <input
                 type="checkbox"
                 checked={checked}
@@ -1442,7 +1453,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // only setting a flag. Kept separate from habitCheckbox so that difference
     // is visible rather than hidden behind an identical-looking control.
     const gymCheckbox = (
-        <label className="checkbox-label daily-log-habits__gym">
+        <label className="checkbox-label daily-log-habits__gym" onContextMenu={(event) => { event.preventDefault(); setBuiltinPriorityTarget('gym'); }}>
             <input
                 type="checkbox"
                 checked={gym}
@@ -1584,33 +1595,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                 </div>
                             </div>
 
-                            {/* Left column of the second row: body metrics stacked
-                                one field per row. */}
+                            {/* Mood is rated on the journal page; show it here now that
+                                body metrics have moved to the Measurements page. */}
                             <div className="card puzzle-card">
                                 <div className="card-header">
-                                    <h3 className="card-title">Body Metrics</h3>
+                                    <h3 className="card-title">Mood</h3>
+                                    {dayMeanMood !== null && (
+                                        <span className="text-sm opacity-70 ml-2">avg {Math.round(dayMeanMood * 10) / 10}/10</span>
+                                    )}
                                 </div>
                                 <div className="card-body">
-                                    <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={weightValue}
-                                            {...seriesHandlers([v => { setWeightTouched(true); setWeight(v); }, (v) => { setBodyFatTouched(true); setBodyFat(v); }], 0)}
-                                            onChange={(e) => {
-                                                setWeightTouched(true);
-                                                setWeight(e.target.value);
-                                            }} onBlur={onWeightBlur} className={"scored-input" + (weightValue ? '' : ' scored-input--empty')} placeholder=" " style={weightValue ? { borderColor: getScoreColor(scoreOf('weight')! ?? 0) } : undefined} />
-                                        <label className="scored-input-label">Weight (kg) <span className="scored-input-goal-inline">{settings?.target_weight || '--'}kg</span></label>
-                                    </div>
-                                    <div className="scored-input-wrap">
-                                        <input type="number" step="0.1" value={bodyFatValue}
-                                            {...seriesHandlers([(v) => { setWeightTouched(true); setWeight(v); }, (v) => { setBodyFatTouched(true); setBodyFat(v); }], 1)}
-                                            onChange={(e) => {
-                                                setBodyFatTouched(true);
-                                                setBodyFat(e.target.value);
-                                            }} onBlur={onBodyFatBlur} className={"scored-input" + (bodyFatValue ? '' : ' scored-input--empty')} placeholder=" " style={bodyFatValue ? { borderColor: getScoreColor(scoreOf('bodyFat')! ?? 0) } : undefined} />
-                                        <label className="scored-input-label">Body Fat (%) <span className="scored-input-goal-inline">{settings?.target_bodyfat || '--'}%</span></label>
-                                    </div>
+                                    <MoodReadout log={existingLog} linkTo={`/Journal?date=${logDate}`} />
                                 </div>
-                                </div>
+                            </div>
                             </div>
 
                             <div className="daily-log-col">
@@ -1695,26 +1692,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                             </div>
 
 
-                                {/* Mood is rated on the journal page -- one slider above each half of
-                                    the day's writing -- because that is where the morning and the
-                                    evening actually happen. This card only reads them back.
-
-                                    Two badges rather than one averaged number: the gap between a day
-                                    that opened well and closed badly is the reading worth having,
-                                    and a mean would flatten exactly that. Not an interactive
-                                    control, because a control here that silently loses its value to
-                                    the journal page's autosave is worse than no control at all. */}
-                            <div className="card puzzle-card">
-                                <div className="card-header">
-                                    <h3 className="card-title">Mood</h3>
-                                    {dayMeanMood !== null && (
-                                        <span className="text-sm opacity-70 ml-2">avg {Math.round(dayMeanMood * 10) / 10}/10</span>
-                                    )}
-                                </div>
-                                <div className="card-body">
-                                    <MoodReadout log={existingLog} linkTo={`/Journal?date=${logDate}`} />
-                                </div>
-                            </div>
 
                             </div>
                         </div>
@@ -1794,33 +1771,38 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                         {/* Habits occupies its own right-hand column, outside column 2. */}
                         <div className="daily-log-habits">
                             <div className="card puzzle-card">
-                                <div className="card-header">
+                                <div className="card-header" style={{ justifyContent: 'space-between', width: '100%' }}>
                                     <h3 className="card-title">Habits</h3>
-                                    <span className="text-xs opacity-60 ml-auto flex items-center gap-2" aria-live="polite">
-                                        {/* Says out loud whether the last habit write
-                                        has landed. A tick that is still in flight
-                                        looks identical to one that is safe, and a
-                                        refresh in between used to throw it away. */}
-                                        {habitSaveState === 'saving' && <span>Saving…</span>}
-                                        {habitSaveState === 'saved' && <span>Saved</span>}
-                                        <span>{builtinHabitDone + completedHabits.size}/{habitTotal}</span>
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs opacity-60 flex items-center gap-2" aria-live="polite">
+                                            {habitSaveState === 'saving' && <span>Saving…</span>}
+                                            {habitSaveState === 'saved' && <span>Saved</span>}
+                                            <span>{builtinHabitDone + completedHabits.size}/{habitTotal}</span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowHabitCreateModal(true)}
+                                            className="book-action-btn"
+                                            aria-label="Add custom habit"
+                                            data-tip="Add a custom habit"
+                                        >
+                                            <Plus size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="card-body">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(morningRoutine, 'morning_routine', setMorningRoutine, 'Morning Routine')}
-                                            {habitCheckbox(eveningRoutine, 'evening_routine', setEveningRoutine, 'Evening Routine')}
-                                            {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'Fruit Serving')}
-                                            {habitCheckbox(studied, 'studied', setStudied, 'Studied')}
-                                            {habitCheckbox(journal, 'journal', setJournal, 'Journaled')}
-                                            {habitCheckbox(stretching, 'stretching', setStretching, 'Stretching')}
-                                            {habitCheckbox(reading, 'reading', setReading, 'Reading')}
+                                            {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'Fruit Serving', 'fruitServing')}
+                                            {habitCheckbox(studied, 'studied', setStudied, 'Studied', 'studied')}
+                                            {habitCheckbox(journal, 'journal', setJournal, 'Journaled', 'journal')}
+                                            {habitCheckbox(stretching, 'stretching', setStretching, 'Stretching', 'stretching')}
+                                            {habitCheckbox(reading, 'reading', setReading, 'Reading', 'reading')}
                                             {gymCheckbox}
                                         </div>
 
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(projectWorkDone, 'project_work_done', setProjectWorkDone, 'Projects')}
+                                            {habitCheckbox(projectWorkDone, 'project_work_done', setProjectWorkDone, 'Projects', 'projectWorkDone')}
 
                                             {projectWorkDone && (
                                                 <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
@@ -1961,22 +1943,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                     )}
 
                                     <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {!showCustomHabit ? (
-                                            <button type="button" onClick={() => setShowCustomHabit(true)} className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100">
-                                                + Add Custom Habit
-                                            </button>
-                                        ) : (
-                                            <div className="flex flex-col gap-2">
-                                                <input type="text" value={customHabitName} onChange={(e) => setCustomHabitName(e.target.value)} className="form-control text-sm" placeholder="Habit name" maxLength={50} />
-                                                <textarea value={customHabitDesc} onChange={(e) => setCustomHabitDesc(e.target.value)} className="form-control text-sm" placeholder="Description (optional)" rows={1} maxLength={100} />
-                                                <div className="flex gap-2">
-                                                    <button type="button" onClick={handleAddCustomHabit} disabled={addingHabit || !customHabitName.trim()} className="btn-form-submit text-xs px-2 py-1">
-                                                        {addingHabit ? 'Adding...' : 'Add'}
-                                                    </button>
-                                                    <button type="button" onClick={closeCustomHabitForm} className="btn-form-cancel text-xs px-2 py-1">Cancel</button>
-                                                </div>
-                                            </div>
-                                        )}
+                                        <p className="text-xs opacity-50">Right-click a habit to rename, prioritise, schedule or remove it.</p>
                                     </div>
                                 </div>
                             </div>
@@ -1984,6 +1951,90 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                     </div>
                 </div>
             </div>
+
+            {showHabitCreateModal && (
+                <div className="import-modal-overlay" onClick={() => { if (!addingHabit) setShowHabitCreateModal(false); }}>
+                    <div className="import-modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Add custom habit" onClick={event => event.stopPropagation()}>
+                        <h3>Add custom habit</h3>
+                        <form onSubmit={event => { event.preventDefault(); void handleAddCustomHabit(); }}>
+                            <div className="mb-4">
+                                <label className="form-label" htmlFor="new-habit-name">Name</label>
+                                <input
+                                    id="new-habit-name"
+                                    type="text"
+                                    value={customHabitName}
+                                    onChange={event => setCustomHabitName(event.target.value)}
+                                    className="form-control"
+                                    placeholder="Habit name"
+                                    maxLength={50}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="form-label" htmlFor="new-habit-description">
+                                    Description <span className="form-label__optional">optional</span>
+                                </label>
+                                <textarea
+                                    id="new-habit-description"
+                                    value={customHabitDesc}
+                                    onChange={event => setCustomHabitDesc(event.target.value)}
+                                    className="form-control"
+                                    rows={2}
+                                    maxLength={100}
+                                    placeholder="What this habit is, or when"
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className="form-label">Priority</label>
+                                <select
+                                    value={customHabitPriority}
+                                    onChange={e => setCustomHabitPriority(e.target.value as 'high' | 'medium' | 'low')}
+                                    className="form-control"
+                                >
+                                    <option value="high">High</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="low">Low</option>
+                                </select>
+                            </div>
+                            <div className="mb-4">
+                                <label className="checkbox-label">
+                                    <input type="checkbox" checked={customHabitNegative} onChange={e => setCustomHabitNegative(e.target.checked)} className="checkbox-input" />
+                                    <span className="text-sm">Negative habit (avoid it)</span>
+                                </label>
+                            </div>
+                            <div className="mb-4">
+                                <label className="form-label">Schedule days</label>
+                                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
+                                        <label key={d} className="checkbox-label" style={{ fontSize: '0.75rem' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={customHabitSchedule.includes(i)}
+                                                onChange={e => {
+                                                    setCustomHabitSchedule(prev =>
+                                                        e.target.checked ? [...prev, i] : prev.filter(x => x !== i)
+                                                    );
+                                                }}
+                                                className="checkbox-input"
+                                            />
+                                            {d}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex gap-2 justify-end mt-5">
+                                <button type="button" className="btn-form-cancel" onClick={() => { setCustomHabitName(''); setCustomHabitDesc(''); setCustomHabitPriority('medium'); setCustomHabitNegative(false); setCustomHabitSchedule([0,1,2,3,4,5,6]); setShowHabitCreateModal(false); }} disabled={addingHabit}>
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn-form-submit" disabled={addingHabit || !customHabitName.trim()}>
+                                    {addingHabit ? 'Adding...' : 'Add'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             <DayGoalsEditor
                 open={showGoalsEditor}
@@ -2033,6 +2084,71 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                         }
                     }}
                 />
+            )}
+
+            {priorityTarget && (
+                <div className="import-modal-overlay" onClick={() => setPriorityTarget(null)}>
+                    <div className="import-modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Set priority" onClick={event => event.stopPropagation()}>
+                        <h3>Set priority</h3>
+                        <div className="flex flex-col gap-2">
+                            {(['high', 'medium', 'low'] as const).map(p => (
+                                <button
+                                    key={p}
+                                    type="button"
+                                    className="btn-form-submit"
+                                    onClick={async () => {
+                                        if (!priorityTarget.id) return;
+                                        const updated = await updateHabit.mutateAsync({ id: priorityTarget.id, updates: { priority: p } });
+                                        setHabits(prev => prev.map(h => (h.id === priorityTarget.id ? { ...h, ...updated } : h)));
+                                        setPriorityTarget(null);
+                                    }}
+                                >
+                                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 justify-end mt-5">
+                            <button type="button" className="btn-form-cancel" onClick={() => setPriorityTarget(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {builtinPriorityTarget && (
+                <div className="import-modal-overlay" onClick={() => setBuiltinPriorityTarget(null)}>
+                    <div className="import-modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Set priority" onClick={event => event.stopPropagation()}>
+                        <h3>Set priority</h3>
+                        <div className="flex flex-col gap-2">
+                            {(['high', 'medium', 'low'] as const).map(p => (
+                                <button
+                                    key={p}
+                                    type="button"
+                                    className="btn-form-submit"
+                                    onClick={async () => {
+                                        const updated = {
+                                            ...settings,
+                                            habit_settings: {
+                                                ...(settings?.habit_settings ?? {}),
+                                                [builtinPriorityTarget]: {
+                                                    ...(settings?.habit_settings?.[builtinPriorityTarget] ?? {}),
+                                                    priority: p,
+                                                },
+                                            },
+                                        } as any;
+                                        await updateUserSettings(updated);
+                                        queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
+                                        setBuiltinPriorityTarget(null);
+                                    }}
+                                >
+                                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 justify-end mt-5">
+                            <button type="button" className="btn-form-cancel" onClick={() => setBuiltinPriorityTarget(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <ConfirmModal

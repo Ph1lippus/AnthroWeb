@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Moon, Utensils, Droplets, Scale, HeartPulse, Smile } from 'lucide-react';
+import { Moon, Utensils, Droplets, Scale, Smile } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DailyLog } from '../../services/dailyLogService';
 import type { Habit, DailyHabitLog } from '../../services/habitService';
@@ -26,6 +26,7 @@ interface Stat {
     unit?: string;
     hint: string;
     icon: LucideIcon;
+    color?: string;
     /** Positive means the metric moved in a direction that is good. */
     tone: 'good' | 'warn' | 'flat';
 }
@@ -96,11 +97,6 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
 
         const scoped = logs.filter(l => inRange(l.log_date, range.days));
         const sorted = scoped.slice().sort((a, b) => a.log_date.localeCompare(b.log_date));
-        const half = Math.floor(sorted.length / 2);
-        const first = sorted.slice(0, half);
-        const second = sorted.slice(half);
-        const pick = (list: typeof sorted, key: keyof DailyLog) => list.map(l => l[key] as number | null | undefined);
-
         const measurementsInRange = (measurements ?? [])
             .filter(m => m.measure_date && inRange(m.measure_date, range.days))
             .slice()
@@ -108,38 +104,45 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
 
         const out: Stat[] = [];
 
-        // 1. Sleep - duration and quality together, since one is meaningless without the other.
+        // 1. Sleep - duration, bedtime, wake time.
+        const parseClock = (t?: string | null): number | null => {
+            if (!t) return null;
+            const [h, m] = t.split(':').map(Number);
+            if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+            return h + m / 60;
+        };
         const duration = mean(sorted.map(l => l.sleep_duration));
-        const quality = mean(sorted.map(l => l.sleep_quality));
+        const bedtimes = sorted.map(l => parseClock(l.bedtime)).filter((v): v is number => v !== null);
+        const wakes = sorted.map(l => parseClock(l.wake_time)).filter((v): v is number => v !== null);
+        const avgBed = bedtimes.length ? bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length : null;
+        const avgWake = wakes.length ? wakes.reduce((a, b) => a + b, 0) / wakes.length : null;
+        const fmtClock = (h: number | null) => h === null ? '--' : `${String(Math.floor(h % 24)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
         out.push({
-            key: 'sleep',
-            label: 'Sleep',
+            key: 'sleepDuration',
+            label: 'Duration',
             value: fmtDuration(duration),
-            hint: `Quality ${fmt(quality, '/10')}`,
+            hint: `Quality ${fmt(mean(sorted.map(l => l.sleep_quality)), '/10')}`,
             icon: Moon,
+            color: '#a78bfa',
             tone: duration !== null && duration >= 7 ? 'good' : duration === null ? 'flat' : 'warn',
         });
-
-        // 2. Nutrition - calories against the goal, with protein adherence.
-        //
-        // Mean intake is compared against the mean of each day's own goal, so a
-        // window spanning a goal change isn't judged by a target most of it was
-        // never aiming at.
-        const calories = mean(sorted.map(l => l.calories));
-        const calGoals = sorted.map(l => goalsOn(l.log_date)?.nutrition?.calories ?? null);
-        const calGoal = mean(calGoals);
-        const calDelta = calories !== null && calGoal ? calories - calGoal : null;
         out.push({
-            key: 'nutrition',
-            label: 'Nutrition',
-            value: fmt(calories, ' kcal', 0),
-            hint: calGoal
-                ? `${calDelta === null ? 'No data' : `${calDelta > 0 ? '+' : ''}${Math.round(calDelta)} vs. goal`}`
-                : 'No calorie goal set',
-            icon: Utensils,
-            tone: calDelta === null || calGoal === null
-                ? 'flat'
-                : Math.abs(calDelta) <= Math.max(150, calGoal * 0.1) ? 'good' : 'warn',
+            key: 'bedtime',
+            label: 'Bedtime',
+            value: fmtClock(avgBed),
+            hint: 'Average bedtime',
+            icon: Moon,
+            color: '#a78bfa',
+            tone: 'flat',
+        });
+        out.push({
+            key: 'wakeTime',
+            label: 'Wake time',
+            value: fmtClock(avgWake),
+            hint: 'Average wake time',
+            icon: Moon,
+            color: '#a78bfa',
+            tone: 'flat',
         });
 
         // 3. Hydration.
@@ -163,8 +166,36 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
                 ? 'No water goal set'
                 : waterAttainment !== null ? `${waterAttainment}% of daily goal` : 'No data',
             icon: Droplets,
+            color: '#38bdf8',
             tone: water === null ? 'flat' : waterAttainment === null ? 'flat' : waterAttainment >= 90 ? 'good' : 'warn',
         });
+
+        // Macros: average intake and attainment against per-day goals.
+        const macroDefs = [
+            { key: 'calories', label: 'Calories', field: 'calories' as const, goalKey: 'calories' as const, suffix: ' kcal', icon: Utensils },
+            { key: 'protein', label: 'Protein', field: 'protein' as const, goalKey: 'protein' as const, suffix: ' g', icon: Utensils },
+            { key: 'carbs', label: 'Carbs', field: 'carbs' as const, goalKey: 'carbs' as const, suffix: ' g', icon: Utensils },
+            { key: 'fat', label: 'Fat', field: 'fat' as const, goalKey: 'fat' as const, suffix: ' g', icon: Utensils },
+        ];
+        for (const m of macroDefs) {
+            const vals = sorted.map(l => l[m.field] as number | null);
+            const avg = mean(vals);
+            const goal = mean(sorted.map(l => goalsOn(l.log_date)?.nutrition?.[m.goalKey] ?? null));
+            const delta = avg !== null && goal !== null ? avg - goal : null;
+            out.push({
+                key: m.key,
+                label: m.label,
+                value: fmt(avg, m.suffix, 0),
+                hint: goal === null
+                    ? 'No goal set'
+                    : delta === null ? 'No data' : `${delta > 0 ? '+' : ''}${Math.round(delta)} vs. goal`,
+                icon: m.icon,
+                color: '#22c55e',
+                tone: delta === null || goal === null
+                    ? 'flat'
+                    : Math.abs(delta) <= Math.max(1, goal * 0.1) ? 'good' : 'warn',
+            });
+        }
 
         // 4. Body - latest weight plus movement across the window. Read from
         // body_measurements rather than the daily log, which no longer has the
@@ -185,27 +216,28 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             value: fmt(latestWeight, ' kg'),
             hint: latestWeight === null ? 'No measurements' : weightTrend.text,
             icon: Scale,
+            color: '#f59e0b',
             tone: latestWeight === null ? 'flat' : weightTrend.tone,
         });
 
-        // 5. Vitals - resting heart rate is the most actionable single number.
-        const hr = mean([...sorted.map(l => l.morning_bpm), ...sorted.map(l => l.evening_bpm)]);
-        const hrTrend = trend(mean(pick(second, 'morning_bpm')), mean(pick(first, 'morning_bpm')), true);
-        out.push({
-            key: 'vitals',
-            label: 'Resting HR',
-            value: fmt(hr, ' bpm', 0),
-            hint: hr === null ? 'No readings' : hrTrend.text,
-            icon: HeartPulse,
-            tone: hr === null ? 'flat' : hrTrend.tone,
-        });
-
-        // 6. Mood and habit adherence travel together as a consistency signal.
+        // 5. Mood and habit adherence as separate cards.
         // Mean of per-day means across both ratings, so a day rated twice is not
         // double-weighted against one rated once. This card is the only place on
         // the dashboard that collapses the pair into one number -- the charts
         // below it plot the two separately, which is where the split is legible.
         const mood = meanMoodAcross(sorted);
+        if (mood !== null) {
+            out.push({
+                key: 'mood',
+                label: 'Mood',
+                value: fmt(mood, '/10'),
+                hint: 'Average across the range',
+                icon: Smile,
+                color: '#ec4899',
+                tone: mood >= 7 ? 'good' : 'warn',
+            });
+        }
+
         const completedByDate = new Map<string, number>();
         if (habitLogs) {
             for (const h of habitLogs) {
@@ -225,17 +257,17 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
                 }, 0) / (sorted.length * habitTotal)) * 100
             )
             : null;
-        out.push({
-            // Named for what the tile shows rather than for the column behind it,
-            // so this id can never be mistaken for a daily_logs field. This tile
-            // combines mood with habit adherence and has done so for some time.
-            key: 'moodAndHabits',
-            label: 'Mood & Habits',
-            value: fmt(mood, '/10'),
-            hint: habitPct === null ? 'No data' : `${habitPct}% habit completion`,
-            icon: Smile,
-            tone: mood === null ? 'flat' : mood >= 7 ? 'good' : 'warn',
-        });
+        if (habitPct !== null) {
+            out.push({
+                key: 'habits',
+                label: 'Habits',
+                value: `${habitPct}%`,
+                hint: 'Completion across the range',
+                icon: Smile,
+                color: '#ec4899',
+                tone: habitPct >= 70 ? 'good' : 'warn',
+            });
+        }
 
         return out;
     }, [logs, habits, habitLogs, goalsOn, range.days, measurements]);
@@ -249,7 +281,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
                 return (
                     <div key={s.key} className={`analysis-card analysis-card--${s.tone}`}>
                         <div className="analysis-card-head">
-                            <Icon className="analysis-card-icon" size={15} aria-hidden="true" />
+                            <Icon className="analysis-card-icon" size={15} aria-hidden="true" style={s.color ? { color: s.color } : undefined} />
                             <span className="analysis-card-label">{s.label}</span>
                         </div>
                         <div className="analysis-card-value">

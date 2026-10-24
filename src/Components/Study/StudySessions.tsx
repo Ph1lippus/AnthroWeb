@@ -25,14 +25,12 @@ const StudySessions: React.FC = () => {
 
     const [sessionDate, setSessionDate] = useState(todayString());
     const [duration, setDuration] = useState('25');
-    const [sessionType, setSessionType] = useState<'study' | 'break'>('study');
     const [notes, setNotes] = useState('');
 
     const openCreate = () => {
         setEditing(null);
         setSessionDate(selectedDate);
         setDuration('25');
-        setSessionType('study');
         setNotes('');
         setShowForm(true);
     };
@@ -41,7 +39,6 @@ const StudySessions: React.FC = () => {
         setEditing(session);
         setSessionDate(session.session_date);
         setDuration(String(session.duration_minutes));
-        setSessionType(session.session_type ?? 'study');
         setNotes(session.notes ?? '');
         setShowForm(true);
     };
@@ -57,7 +54,7 @@ const StudySessions: React.FC = () => {
                 user_id: editing?.user_id ?? '',
                 session_date: sessionDate,
                 duration_minutes: minutes,
-                session_type: sessionType,
+                session_type: 'study',
                 notes: notes.trim(),
                 source: editing?.source ?? 'manual',
             },
@@ -65,7 +62,7 @@ const StudySessions: React.FC = () => {
         );
     };
 
-    const daySessions = (sessions ?? []).filter(session => session.session_date === selectedDate);
+    const daySessions = (sessions ?? []).filter(session => session.session_date === selectedDate && session.session_type !== 'break');
 
     const renderForm = () => (
         <div className="import-modal-overlay" onClick={() => { if (!saveSession.isPending) setShowForm(false); }}>
@@ -83,16 +80,8 @@ const StudySessions: React.FC = () => {
                                 required
                             />
                         </div>
-                        <div>
-                            <label className="form-label">Type</label>
-                            <select
-                                value={sessionType}
-                                onChange={event => setSessionType(event.target.value as 'study' | 'break')}
-                                className="form-select"
-                            >
-                                <option value="study">Study</option>
-                                <option value="break">Break</option>
-                            </select>
+                        <div style={{ display: 'none' }}>
+                            <input type="hidden" value="study" />
                         </div>
                     </div>
 
@@ -208,6 +197,11 @@ const StudySessions: React.FC = () => {
                                     <span className="course-sub">
                                         {session.mode ? session.mode : ''}
                                     </span>
+                                    {session.break_minutes ? (
+                                        <span className="course-sub">
+                                            {formatMinutes(session.break_minutes)} break
+                                        </span>
+                                    ) : null}
                                     {session.notes && (
                                         <span className="course-empty-note" style={{ marginTop: 0.3 }}>
                                             {session.notes}

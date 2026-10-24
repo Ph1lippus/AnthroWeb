@@ -5,7 +5,7 @@ import type { BreakdownGroup } from './BreakdownPanel';
 import { getScoreColor } from '../../utils/dailyScoring';
 import type { MetricScore } from '../../utils/dailyScoring';
 
-type Category = 'sleep' | 'vitals' | 'nutrition' | 'body' | 'mood' | 'habits';
+type Category = 'sleep' | 'nutrition' | 'body' | 'habits';
 
 interface ScoreMetricMeta {
     key: string;
@@ -30,34 +30,22 @@ interface ScoreCardProps {
 
 const CATEGORY_LABELS: Record<Category, string> = {
     sleep: 'Sleep',
-    vitals: 'Vitals & BP',
     nutrition: 'Nutrition',
     body: 'Body Metrics',
-    mood: 'Mood',
     habits: 'Habits',
 };
 
-const CATEGORY_ORDER: Category[] = ['sleep', 'vitals', 'nutrition', 'body', 'mood', 'habits'];
+const CATEGORY_ORDER: Category[] = ['sleep', 'nutrition', 'body', 'habits'];
 
 const METRIC_META: ScoreMetricMeta[] = [
     { key: 'wakeTime', label: 'Wake Time', cat: 'sleep' },
     { key: 'bedtime', label: 'Bedtime', cat: 'sleep' },
-    { key: 'sleepQuality', label: 'Sleep Quality', cat: 'sleep' },
-    { key: 'morningSystolic', label: 'Morning Systolic', cat: 'vitals' },
-    { key: 'morningDiastolic', label: 'Morning Diastolic', cat: 'vitals' },
-    { key: 'morningBpm', label: 'Morning BPM', cat: 'vitals' },
-    { key: 'eveningSystolic', label: 'Evening Systolic', cat: 'vitals' },
-    { key: 'eveningDiastolic', label: 'Evening Diastolic', cat: 'vitals' },
-    { key: 'eveningBpm', label: 'Evening BPM', cat: 'vitals' },
-    { key: 'bodyTemperature', label: 'Body Temp', cat: 'vitals' },
     { key: 'calories', label: 'Calories', cat: 'nutrition' },
     { key: 'protein', label: 'Protein', cat: 'nutrition' },
     { key: 'carbs', label: 'Carbs', cat: 'nutrition' },
     { key: 'fat', label: 'Fat', cat: 'nutrition' },
     { key: 'water', label: 'Water', cat: 'nutrition' },
-    { key: 'weight', label: 'Weight', cat: 'body' },
-    { key: 'bodyFat', label: 'Body Fat', cat: 'body' },
-    { key: 'mood', label: 'Mood', cat: 'mood' },
+    { key: 'measurementRecency', label: 'Measurement Recency', cat: 'body' },
     { key: 'habits', label: 'Habits', cat: 'habits' },
 ];
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coffee, Flag, Maximize2, Minimize2, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
+import { Coffee, Flag, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import DurationPad from '../Components/Timer/DurationPad';
@@ -98,43 +98,6 @@ const ModeCard: React.FC<{
     </section>
 );
 
-/**
- * Where the focus-mode flag lives, and why it is its own key.
- *
- * Separate from the engine's `anthroweb:timer:v1` because that blob is the *run*:
- * it is rewritten on every state change, holds a deadline, and is read before the
- * page has even rendered. Folding a view preference into it would mean a page
- * preference competing for space with state that has to be correct, and would put
- * a display choice inside the record of what the timer actually did.
- *
- * `'on'` rather than JSON, because the flag has two states and one of them is the
- * absence of the key -- so turning focus mode off is a removal, and anything that
- * has never heard of the setting reads `null` and starts off, which is the correct
- * default rather than an error.
- */
-const FOCUS_KEY = 'anthroweb:timer:focus';
-
-/** Focus mode as it was left. Never throws: storage can be unavailable or full. */
-const readFocusMode = (): boolean => {
-    if (typeof localStorage === 'undefined') return false;
-    try {
-        return localStorage.getItem(FOCUS_KEY) === 'on';
-    } catch {
-        // Private mode, or storage disabled. Focus mode simply starts off.
-        return false;
-    }
-};
-
-const writeFocusMode = (on: boolean): void => {
-    if (typeof localStorage === 'undefined') return;
-    try {
-        if (on) localStorage.setItem(FOCUS_KEY, 'on');
-        else localStorage.removeItem(FOCUS_KEY);
-    } catch {
-        // The same. The page works, it just forgets where it was on reload.
-    }
-};
-
 const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
@@ -165,20 +128,6 @@ const TimerPage: React.FC = () => {
      * and it is what the lazy initialiser used.
      */
     const [panelNow, setPanelNow] = useState(() => Date.now());
-    const [focusMode, setFocusMode] = useState(readFocusMode);
-    /**
-     * Focus mode survives a reload.
-     *
-     * Written from an effect rather than inside the toggle, for the same reason the
-     * engine persists its deadline from one: the state setter is where the value
-     * is decided, and the write is the side effect of having decided it. It also
-     * means the stored value can never disagree with what is on screen -- there is
-     * one source of truth, and this keeps a copy of it.
-     *
-     * `readFocusMode` is the lazy initialiser, so a refresh paints the clock
-     * centred on the first frame rather than laying the page out, then flipping it.
-     */
-    useEffect(() => { writeFocusMode(focusMode); }, [focusMode]);
     useEffect(() => {
         const id = window.setInterval(() => setPanelNow(Date.now()), 1000);
         return () => window.clearInterval(id);
@@ -372,12 +321,14 @@ const TimerPage: React.FC = () => {
         if (elapsedMs <= 0) return;
         const endedAt = new Date();
         const minutes = Math.max(1, Math.round(elapsedMs / 60000));
-        // Only breaks that fully completed count; a break cut short is carried
-        // forward as pending instead of being recorded here.
+        // Breaks are only recorded for interval runs, where each round carries
+        // its own rest. A full (countdown/stopwatch) session records none.
         const completed = engine.mode === 'interval'
             ? Math.round(completedBreakMs(engine.elapsed, engine.intervalConfig) / 60000)
             : 0;
-        const breakMinutes = completed + pendingBreakMinutes;
+        const breakMinutes = engine.mode === 'interval'
+            ? completed + pendingBreakMinutes
+            : 0;
         saveSession.mutate({
             user_id: '',
             session_date: toDateString(endedAt),
@@ -403,8 +354,6 @@ const TimerPage: React.FC = () => {
     const savedRunsRef = useRef<Set<string>>(new Set());
 
     const saveRun = useCallback((runId: string) => {
-        // Only interval runs count towards study sessions.
-        if (engine.mode !== 'interval') return;
         const endedAt = new Date();
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
         if (elapsedMs <= 0) return;
@@ -450,7 +399,6 @@ const TimerPage: React.FC = () => {
                 });
             }
         } else {
-            const rolledBreak = pendingBreakMinutes;
             saveSession.mutate({
                 user_id: '',
                 session_date: toDateString(endedAt),
@@ -463,10 +411,8 @@ const TimerPage: React.FC = () => {
                 started_at: startedAt.toISOString(),
                 ended_at: endedAt.toISOString(),
                 planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
-                break_minutes: rolledBreak > 0 ? rolledBreak : undefined,
             }, {
                 onSuccess: () => {
-                    setPendingBreakMinutes(0);
                     notify('success', 'Study session saved');
                 },
                 onError: () => savedRunsRef.current.delete(runId),
@@ -710,7 +656,7 @@ const TimerPage: React.FC = () => {
         <>
             <Title title="Timer" />
 
-            <div className={`timer-page-wrapper${focusMode ? ' timer-page-wrapper--focus' : ''}`}>
+            <div className="timer-page-wrapper">
                 <div className="dashboard-section timer-section">
                     <div className="timer-card">
                         {/* No header bar.
@@ -860,15 +806,6 @@ const TimerPage: React.FC = () => {
                                     </button>
                                     )}
                                     </>)}
-                                    <button
-                                        type="button"
-                                        className="timer-btn"
-                                        onClick={() => setFocusMode(v => !v)}
-                                        aria-pressed={focusMode}
-                                        data-tip={focusMode ? 'Exit focus' : 'Focus mode'}
-                                    >
-                                        {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                                    </button>
                                 </div>
 
 
@@ -1066,7 +1003,6 @@ const TimerPage: React.FC = () => {
                                     onSelect={setWorldClockActive}
                                     onSelectMain={setWorldClockTz}
                                     onUse={() => setWorldClockInUse(v => !v)}
-                                    onFullscreen={() => setFocusMode(true)}
                                 />
 
                                 {anyLoading && (

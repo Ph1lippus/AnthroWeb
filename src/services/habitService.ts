@@ -6,6 +6,11 @@ export interface Habit {
     name: string;
     description?: string;
     is_active: boolean;
+    priority?: 'high' | 'medium' | 'low';
+    schedule_days?: number[] | null;
+    is_negative?: boolean;
+    system_key?: string | null;
+    is_system?: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -78,7 +83,7 @@ export const toggleHabitForDate = async (habitId: string, logDate: string): Prom
 };
 
 // Create a new habit
-export const createHabit = async (habit: { name: string; description?: string }) => {
+export const createHabit = async (habit: { name: string; description?: string; priority?: 'high' | 'medium' | 'low'; schedule_days?: number[] | null; is_negative?: boolean; system_key?: string | null; is_system?: boolean }) => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('No user found');
 
@@ -123,6 +128,11 @@ export const createHabit = async (habit: { name: string; description?: string })
             name,
             description: habit.description,
             is_active: true,
+            priority: habit.priority ?? 'medium',
+            schedule_days: habit.schedule_days ?? null,
+            is_negative: habit.is_negative ?? false,
+            system_key: habit.system_key ?? null,
+            is_system: habit.is_system ?? false,
         })
         .select()
         .single();
@@ -151,6 +161,9 @@ export const deleteHabit = async (id: string) => {
 export interface HabitUpdate {
     name?: string;
     description?: string | null;
+    priority?: 'high' | 'medium' | 'low';
+    schedule_days?: number[] | null;
+    is_negative?: boolean;
 }
 
 /**
@@ -201,6 +214,9 @@ export const updateHabit = async (id: string, updates: HabitUpdate): Promise<Hab
             ...(updates.description !== undefined
                 ? { description: updates.description }
                 : {}),
+            ...(updates.priority !== undefined ? { priority: updates.priority } : {}),
+            ...(updates.schedule_days !== undefined ? { schedule_days: updates.schedule_days } : {}),
+            ...(updates.is_negative !== undefined ? { is_negative: updates.is_negative } : {}),
             updated_at: new Date().toISOString(),
         })
         .eq('id', id)

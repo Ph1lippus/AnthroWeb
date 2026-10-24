@@ -8,7 +8,9 @@ import { usePRHistory } from '../hooks/useWorkouts';
 import { ageFromDob, measureDateToInput, computeBodyCalculations } from '../utils/measurementCalculations';
 import { addDays, formatDayLabel, isDateString } from '../utils/dates';
 import { ChevronLeft, ChevronRight, Calendar, CalendarCheck2, Rows3 } from 'lucide-react';
+
 import LoadingSpinner from '../Components/LoadingSpinner';
+
 import { useBootHold } from '../services/bootScreen';
 
 const toDateString = measureDateToInput;
@@ -179,7 +181,8 @@ const MeasurementsPage: React.FC = () => {
                                      live as they are typed rather than read back off a
                                      saved snapshot: a number you can watch move is more
                                      use than one you have to look up. */}
-                                <DerivedMetrics values={derived} expanded={breakdownOpen} />
+                                
+<DerivedMetrics values={derived} expanded={breakdownOpen} latestWeight={records.length ? records[records.length - 1]?.weight : null} latestBodyFat={records.length ? records[records.length - 1]?.body_fat : null} latestDate={records.length ? records[records.length - 1]?.measure_date : null} targetWeight={settings?.target_weight ?? null} targetBodyFat={settings?.target_bodyfat ?? null} />
 
                         </aside>
 

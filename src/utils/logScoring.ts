@@ -55,6 +55,7 @@ export interface LogScoringContext {
     bodyFat: number | null;
     customCompleted: number;
     customTotal: number;
+    habitScore?: number | null;
     cheatDayExempt: boolean;
     lastMeasurementDate?: string | null;
 }
@@ -108,6 +109,7 @@ export const buildScoringInputFromLog = (
         },
         customCompleted: context.customCompleted,
         customTotal: context.customTotal,
+        habitScore: context.habitScore ?? null,
         activeGoals: context.goals,
         settings,
         noSleep: flag(log.no_sleep),
