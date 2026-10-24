@@ -560,9 +560,10 @@ export const createStudySession = async (session: StudySession) => {
 };
 
 export const updateStudySession = async (id: string, updates: Partial<StudySession>) => {
+    const payload = { ...updates, updated_at: new Date().toISOString() };
     const { data, error } = await supabase
         .from('study_sessions')
-        .update(updates)
+        .update(payload)
         .eq('id', id)
         .select()
         .single();

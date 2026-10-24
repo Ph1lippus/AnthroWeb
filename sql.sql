@@ -368,6 +368,7 @@ CREATE TABLE public.study_sessions (
   planned_minutes integer,
   break_minutes integer,
   created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT study_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT study_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
