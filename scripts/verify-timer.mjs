@@ -31,7 +31,7 @@ const {
     formatClock, formatTimer, formatHumanDuration, formatUntil, formatAlarmTime,
     splitDuration, joinDuration, clampDuration, remainingMs, progressFraction,
     phaseAt, intervalTotalMs, isLongRestRound, nextAlarmFire, nextStartAt, describeAlarmDays,
-    buildLaps, normalizeIntervalConfig,
+    buildLaps, normalizeIntervalConfig, completedWorkRounds, workPhaseBounds, breakAfterRoundMs,
     DEFAULT_INTERVAL, ALERT_VOLUME, CHIMES, MAX_DURATION_MS, SECOND, MINUTE, HOUR,
 } = await import('../src/utils/timerMath.ts');
 
@@ -334,6 +334,100 @@ check('but still takes its long rest after the fourth round',
 // long session, not where it ends.
 check('which is a separate setting from the number of rounds',
     DEFAULT_INTERVAL.roundsBeforeLong === 4 && DEFAULT_INTERVAL.totalRounds === 0);
+
+// ============================================================================
+// FOCUS BLOCKS
+// ============================================================================
+
+console.log('\n== focus blocks ==');
+
+// A study session records one focus block. The page saves each block the moment
+// it finishes, so the boundary has to be exact in the same way the phase
+// boundary is: at 25:00 the work is done and the block exists.
+check('no focus block has finished at zero', completedWorkRounds(0, pomodoro) === 0);
+check('nor one millisecond before the first work block ends',
+    completedWorkRounds(W - 1, pomodoro) === 0);
+check('exactly at the end of a work block, it has',
+    completedWorkRounds(W, pomodoro) === 1);
+check('a rest is not itself a completed block',
+    completedWorkRounds(W + R - 1, pomodoro) === 1);
+check('the second block counts after its own work, not before',
+    completedWorkRounds(W + R + W, pomodoro) === 2);
+check('four rounds end with four blocks and no trailing rest',
+    completedWorkRounds(4 * W + 3 * R, pomodoro) === 4);
+check('the last block is not announced before it is over',
+    completedWorkRounds(4 * W + 3 * R - 1, pomodoro) === 3);
+check('a negative elapsed has no completed blocks',
+    completedWorkRounds(-5000, pomodoro) === 0);
+check('zero-length work has no blocks rather than looping',
+    completedWorkRounds(10 * HOUR, { ...pomodoro, workSec: 0 }) === 0);
+
+// The count must be a pure function of elapsed for the same reason `phaseAt` is:
+// a backgrounded tab that slept through three boundaries has to be able to report
+// all three when it wakes, not just the one it happens to be looking at.
+check('the count comes from elapsed time, not from ticks', (() => {
+    const at = 2 * W + 2 * R + 7; // inside round three's work block
+    const answers = new Set();
+    for (let i = 0; i < 1_000; i++) answers.add(completedWorkRounds(at, pomodoro));
+    return answers.size === 1 && answers.has(2);
+})());
+
+check('an unbounded run keeps counting', completedWorkRounds(10 * HOUR, { ...pomodoro, totalRounds: 0 }) > 4);
+check('and never claims the work block it is inside', (() => {
+    const open = { ...pomodoro, totalRounds: 0 };
+    const bounds = workPhaseBounds(open, 12);
+    return bounds !== null
+        && completedWorkRounds(bounds.endMs - 1, open) === 11
+        && completedWorkRounds(bounds.endMs, open) === 12;
+})());
+
+// Where each block sits on the run's own elapsed timeline. The page subtracts
+// `elapsed - bounds.endMs` from the wall clock to recover when the block ended,
+// which is only right if these are elapsed values and not wall-clock instants.
+const first = workPhaseBounds(pomodoro, 1);
+const second = workPhaseBounds(pomodoro, 2);
+const fourth = workPhaseBounds(pomodoro, 4);
+check('the first block starts at zero and is one work phase long',
+    first?.startMs === 0 && first?.endMs === W);
+check('the second starts after the first rest',
+    second?.startMs === W + R && second?.endMs === W + R + W);
+check('the fourth starts after three work/rest pairs',
+    fourth?.startMs === 3 * W + 3 * R && fourth?.endMs === 3 * W + 3 * R + W);
+check('the last block ends at the run\'s total', fourth?.endMs === intervalTotalMs(pomodoro));
+check('a round the config does not contain has no bounds',
+    workPhaseBounds(pomodoro, 5) === null);
+check('a fractional round is refused', workPhaseBounds(pomodoro, 1.5) === null);
+check('a negative round is refused', workPhaseBounds(pomodoro, 0) === null);
+check('zero-length work has no bounds', workPhaseBounds({ ...pomodoro, workSec: 0 }, 1) === null);
+check('with eight rounds the fifth block exists again',
+    workPhaseBounds({ ...pomodoro, totalRounds: 8 }, 5)?.startMs === BLOCK_WITH_LONG);
+
+// Every block's bounds must agree with `phaseAt`, or the page would timestamp a
+// session against a work phase it was not looking at.
+check('every bound lands on the work phase it names', [1, 2, 3, 4].every(round => {
+    const bounds = workPhaseBounds(pomodoro, round);
+    if (!bounds) return false;
+    return phaseAt(bounds.startMs, pomodoro)?.kind === 'work'
+        && phaseAt(bounds.startMs, pomodoro)?.round === round
+        && phaseAt(bounds.endMs - 1, pomodoro)?.kind === 'work'
+        && phaseAt(bounds.endMs - 1, pomodoro)?.round === round
+        && phaseAt(bounds.endMs, pomodoro)?.kind !== 'work';
+}));
+
+// The break planned after a block. Recorded on the session as it is written, not
+// carried forward: the break belongs to the focus block before it.
+check('rounds 1-3 plan a short break', [1, 2, 3].every(r => breakAfterRoundMs(pomodoro, r) === R));
+check('the last round of a bounded run plans no break',
+    breakAfterRoundMs(pomodoro, 4) === 0);
+check('with eight rounds the fourth plans the long break',
+    breakAfterRoundMs({ ...pomodoro, totalRounds: 8 }, 4) === LR);
+check('and the eighth still plans none',
+    breakAfterRoundMs({ ...pomodoro, totalRounds: 8 }, 8) === 0);
+check('an unbounded run plans a break after every round',
+    breakAfterRoundMs({ ...pomodoro, totalRounds: 0 }, 4) === LR
+    && breakAfterRoundMs({ ...pomodoro, totalRounds: 0 }, 5) === R);
+check('no configured rest plans nothing',
+    breakAfterRoundMs({ ...pomodoro, restSec: 0, longRestSec: 0 }, 1) === 0);
 
 // ============================================================================
 // SCHEDULED START

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
-import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Plus, Rows3, Trash2 } from 'lucide-react';
+import { AlertTriangle, Calendar, CalendarCheck2, ChevronLeft, ChevronRight, History, MoreVertical, Pencil, PenLine, Plus, Rows3 } from 'lucide-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { createDailyLog, updateDailyLog, setDailyLogHabit, getDailyLogByDate, getDailyLogById, saveDailyLogProjects, getDailyLogProjects } from '../services/dailyLogService';
 import type { DailyLog, DailyLogHabitColumn } from '../services/dailyLogService';
@@ -27,6 +27,7 @@ import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
 import type { CheatDayBudget } from '../Components/DailyLog/DayGoalsEditor';
 import HabitEditorModal from '../Components/DailyLog/HabitEditorModal';
+import type { HabitEditorUpdates, HabitEditorValue } from '../Components/DailyLog/HabitEditorModal';
 import ConfirmModal from '../Components/ConfirmModal';
 import ContextMenu from '../Components/ContextMenu';
 import type { ContextMenuItem } from '../Components/ContextMenu';
@@ -41,6 +42,33 @@ const getScoreColor = (score: number): string => {
     if (score >= 60) return '#a8e600';
     if (score >= 30) return '#ffa500';
     return 'var(--color-danger)';
+};
+
+/**
+ * The built-in habits this page draws, and the label they ship with.
+ *
+ * Morning and evening routine remain in the scorer for historical rows, but they
+ * have no checkbox on this page, so they are not editable here. The key is the
+ * one `user_settings.habit_settings` stores overrides under; the label is only a
+ * fallback for when no override exists.
+ */
+type EditableBuiltinHabitKey =
+    | 'fruitServing'
+    | 'studied'
+    | 'journal'
+    | 'stretching'
+    | 'reading'
+    | 'projectWorkDone'
+    | 'gym';
+
+const BUILTIN_HABIT_LABELS: Record<EditableBuiltinHabitKey, string> = {
+    fruitServing: 'Fruit Serving',
+    studied: 'Studied',
+    journal: 'Journaled',
+    stretching: 'Stretching',
+    reading: 'Reading',
+    projectWorkDone: 'Projects',
+    gym: 'Gym',
 };
 
 const DailyLogPage: React.FC = () => {
@@ -230,123 +258,72 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [customHabitPriority, setCustomHabitPriority] = useState<'high' | 'medium' | 'low'>('medium');
     const [customHabitNegative, setCustomHabitNegative] = useState(false);
     const [customHabitSchedule, setCustomHabitSchedule] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-    const [priorityTarget, setPriorityTarget] = useState<Habit | null>(null);
-    const [builtinPriorityTarget, setBuiltinPriorityTarget] = useState<string | null>(null);
     const [customHabitName, setCustomHabitName] = useState('');
     const [customHabitDesc, setCustomHabitDesc] = useState('');
     const [addingHabit, setAddingHabit] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<Habit | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
     const [deletingHabit, setDeletingHabit] = useState(false);
     const updateHabit = useUpdateHabit();
+    const [savingBuiltinHabit, setSavingBuiltinHabit] = useState(false);
 
     /**
-     * Renaming a custom habit, two ways.
+     * The single editor, for both kinds of habit.
      *
-     * A double click on the name is the quick one: the name becomes a field in
-     * place and Enter keeps it. It cannot be the only way, because it is not
-     * reachable on a touch screen and it has nowhere to put a description --
-     * which is what the right click's "Rename" opens for.
-     *
-     * `renameId` rather than the habit itself, because the row is drawn from the
-     * list and the list changes under an open edit. The id is the thing both the
-     * field and the modal need, and looking it up each render means an edit left
-     * open while the list refreshes keeps working.
+     * Custom habits are `habits` rows; built-ins live in
+     * `user_settings.habit_settings`. The editor value carries both cases so the
+     * rest of the page does not need to know which storage it is about to write.
      */
-    const [renameId, setRenameId] = useState<string | null>(null);
-    const [renameValue, setRenameValue] = useState('');
-    const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+    const [editingHabit, setEditingHabit] = useState<HabitEditorValue | null>(null);
     const [habitEditError, setHabitEditError] = useState<string | null>(null);
-    // One rename per habit, so a blur cannot save twice: the first call clears the
-    // id and the second finds nothing to do.
-    const renameCommittedRef = useRef(false);
     const habitMenu = useContextMenu();
 
-    const beginRename = (habit: Habit) => {
-        renameCommittedRef.current = false;
-        setRenameValue(habit.name ?? '');
-        setRenameId(habit.id ?? null);
-    };
+    const builtinHabitSetting = useCallback((key: EditableBuiltinHabitKey) =>
+        settings?.habit_settings?.[key] ?? {}, [settings]);
 
-    const saveHabitName = async (id: string, name: string) => {
-        try {
-            const updated = await updateHabit.mutateAsync({ id, updates: { name } });
-            // Patched in place as well as invalidated, so the row takes the new name
-            // on this commit rather than a round trip later.
-            setHabits(prev => prev.map(habit => (habit.id === id ? { ...habit, ...updated } : habit)));
-            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
-        } catch (err) {
-            console.error('Error renaming habit:', err);
-        }
-    };
-
-    /** Saves whatever the quick field is holding. The name only -- there is nowhere in one line to put more. */
-    const commitRename = async () => {
-        if (!renameId || renameCommittedRef.current) return;
-        renameCommittedRef.current = true;
-        const id = renameId;
-        const name = renameValue.trim();
-        setRenameId(null);
-        // An empty name is the placeholder, not a value: renaming to nothing would
-        // take the habit's only label away, and the row would read "Untitled".
-        if (!name) return;
-        await saveHabitName(id, name);
-    };
-
-    const cancelRename = () => {
-        renameCommittedRef.current = true;
-        setRenameId(null);
-    };
+    const builtinHabitLabel = useCallback((key: EditableBuiltinHabitKey) =>
+        builtinHabitSetting(key).name?.trim() || BUILTIN_HABIT_LABELS[key],
+    [builtinHabitSetting]);
 
     /**
-     * What the right click offers on a habit.
+     * What the right click offers: one Edit, whatever kind of habit it is.
      *
-     * Rename first and remove after a hairline, in the order things are done to a
-     * list. Remove is the one that cannot be taken back, so it is drawn in the
-     * destructive colour and it still asks -- the menu only chooses what is on
-     * offer, and the confirmation is what stands between a misclick and a habit
-     * that is suddenly gone from every day it was ticked.
+     * The menu used to be the only route to priority, polarity, schedule and
+     * removal, which meant five little actions whose consequences were explained
+     * nowhere. The editor shows all of them together, and the menu is just the way
+     * to open it.
      */
-    const habitMenuItems = (habit: Habit): ContextMenuItem[] => [
-        {
-            id: 'rename',
-            label: 'Rename…',
-            icon: PenLine,
-            onSelect: () => {
-                setHabitEditError(null);
-                setEditingHabit(habit);
-            },
-        },
-        {
-            id: 'priority',
-            label: 'Set priority…',
-            onSelect: () => setPriorityTarget(habit),
-        },
-        {
-            id: 'negative',
-            label: habit.is_negative ? 'Mark as positive' : 'Mark as negative',
-            onSelect: async () => {
-                if (!habit.id) return;
-                const updated = await updateHabit.mutateAsync({ id: habit.id, updates: { is_negative: !habit.is_negative } });
-                setHabits(prev => prev.map(h => (h.id === habit.id ? { ...h, ...updated } : h)));
-            },
-        },
-        {
-            id: 'schedule',
-            label: 'Schedule…',
-            onSelect: () => {
-                setHabitEditError(null);
-                setEditingHabit(habit);
-            },
-        },
-        {
-            id: 'remove',
-            label: 'Remove habit',
-            icon: Trash2,
-            danger: true,
-            separatorBefore: true,
-            onSelect: () => setDeleteTarget(habit),
-        },
-    ];
+    const openHabitEditor = useCallback((habit: HabitEditorValue) => {
+        setHabitEditError(null);
+        setEditingHabit(habit);
+    }, []);
+
+    const editMenuItem = useCallback((habit: HabitEditorValue): ContextMenuItem => ({
+        id: 'edit',
+        label: 'Edit',
+        icon: PenLine,
+        onSelect: () => openHabitEditor(habit),
+    }), [openHabitEditor]);
+
+    const openBuiltinHabitEditor = useCallback((key: EditableBuiltinHabitKey) => {
+        const cfg = builtinHabitSetting(key);
+        openHabitEditor({
+            builtIn: true,
+            builtInKey: key,
+            id: null,
+            name: cfg.name?.trim() || BUILTIN_HABIT_LABELS[key],
+            description: cfg.description ?? null,
+            priority: cfg.priority ?? 'medium',
+            is_negative: cfg.is_negative ?? false,
+            schedule_days: cfg.schedule_days ?? null,
+        });
+    }, [builtinHabitSetting, openHabitEditor]);
+
+    const builtinHabitMenu = useCallback((key: EditableBuiltinHabitKey): ContextMenuItem[] => [{
+        id: 'edit',
+        label: 'Edit',
+        icon: PenLine,
+        onSelect: () => openBuiltinHabitEditor(key),
+    }], [openBuiltinHabitEditor]);
 
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
@@ -625,7 +602,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             const cfg = habitSetting(h.key);
             const priorityWeight = cfg.priority === 'high' ? 3 : cfg.priority === 'low' ? 1 : 2;
             const w = priorityWeight;
-            const scheduled = !cfg.schedule_days || cfg.schedule_days.includes(dayOfWeek);
+            const scheduled = !cfg.schedule_days || cfg.schedule_days.length === 0
+                || cfg.schedule_days.includes(dayOfWeek);
             if (!scheduled) continue;
             totalWeight += w;
             const isNegative = cfg.is_negative ?? false;
@@ -1178,6 +1156,67 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setShowGoalsEditor(false);
     };
 
+    /**
+     * Save whichever habit the one editor is showing.
+     *
+     * A custom habit is one row in `habits`; a built-in is one entry in
+     * `user_settings.habit_settings`. Both arrive here as the same set of fields,
+     * which is what makes "edit any habit" one action rather than two.
+     */
+    const handleHabitEditorSave = async (updates: HabitEditorUpdates) => {
+        const target = editingHabit;
+        if (!target) return;
+        setHabitEditError(null);
+
+        if (target.builtIn && target.builtInKey) {
+            if (!settings) return;
+            setSavingBuiltinHabit(true);
+            try {
+                const key = target.builtInKey;
+                const next: UserSettings = {
+                    ...settings,
+                    habit_settings: {
+                        ...(settings.habit_settings ?? {}),
+                        [key]: {
+                            ...(settings.habit_settings?.[key] ?? {}),
+                            ...updates,
+                        },
+                    },
+                };
+                const saved = await updateUserSettings(next);
+                queryClient.setQueryData(queryKeys.userSettings, saved);
+                queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
+                setEditingHabit(null);
+            } catch (err) {
+                console.error('Error editing built-in habit:', err);
+                setHabitEditError(
+                    err instanceof Error ? err.message : 'Could not save the habit.',
+                );
+            } finally {
+                setSavingBuiltinHabit(false);
+            }
+            return;
+        }
+
+        if (!target.id) return;
+        try {
+            const updated = await updateHabit.mutateAsync({ id: target.id, updates });
+            setHabits(prev =>
+                prev.map(habit => (habit.id === target.id ? { ...habit, ...updated } : habit)),
+            );
+            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
+            setEditingHabit(null);
+        } catch (err) {
+            // The only refusal a custom habit edit can get is a name already
+            // taken, and it is worth saying which one -- so the dialog stays open
+            // with the typed text still in it.
+            console.error('Error editing habit:', err);
+            setHabitEditError(
+                err instanceof Error ? err.message : 'Could not save the habit.',
+            );
+        }
+    };
+
     const handleDeleteHabit = async (id: string) => {
         setDeletingHabit(true);
         try {
@@ -1423,58 +1462,98 @@ const [breakdownOpen, setBreakdownOpen] = useState(
 
     // Takes the column and the setter rather than a finished handler, so the write
     // is wired up where the checkbox is drawn and every call site names the habit it
-    // writes.
+    // writes. Built-ins carry their stable key so the same row can be right-clicked
+    // into the one editor, and so touch screens get an explicit way in.
     const habitCheckbox = (
         checked: boolean,
         column: DailyLogHabitColumn,
         setValue: (next: boolean) => void,
-        label: string,
-        builtinKey?: string
-    ) => (
-        <label
-            className="checkbox-label"
-            onContextMenu={builtinKey ? (event) => {
-                event.preventDefault();
-                setBuiltinPriorityTarget(builtinKey);
-            } : undefined}
-        >
-            <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => saveBuiltinHabit(column, e.target.checked, setValue)}
-                className="checkbox-input"
-            />
-            <span className="text-sm opacity-90">{label}</span>
-        </label>
-    );
+        builtinKey: EditableBuiltinHabitKey
+    ) => {
+        const label = builtinHabitLabel(builtinKey);
+        return (
+            <div
+                className="habit-row"
+                onContextMenu={event =>
+                    habitMenu.openFromEvent(
+                        event,
+                        `${label} actions`,
+                        builtinHabitMenu(builtinKey),
+                    )
+                }
+            >
+                <label className="checkbox-label flex-1 min-w-0">
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => saveBuiltinHabit(column, e.target.checked, setValue)}
+                        className="checkbox-input"
+                    />
+                    <span className="text-sm opacity-90 truncate">{label}</span>
+                </label>
+                <button
+                    type="button"
+                    className="habit-row-more"
+                    data-tip={`Edit ${label}`}
+                    aria-label={`Edit ${label}`}
+                    onClick={() => openBuiltinHabitEditor(builtinKey)}
+                >
+                    <MoreVertical size={14} />
+                </button>
+            </div>
+        );
+    };
 
     // Gym is different from the others: the tick writes a workout session, so
     // it is async, it can fail, and marking it opens a real session rather than
     // only setting a flag. Kept separate from habitCheckbox so that difference
     // is visible rather than hidden behind an identical-looking control.
-    const gymCheckbox = (
-        <label className="checkbox-label daily-log-habits__gym" onContextMenu={(event) => { event.preventDefault(); setBuiltinPriorityTarget('gym'); }}>
-            <input
-                type="checkbox"
-                checked={gym}
-                onChange={toggleGym}
-                disabled={setGym.isPending}
-                className="checkbox-input"
-            />
-            <span className="daily-log-habits__gym-label">
-                <span>Gym</span>
-                {gym && (
-                    <Link
-                        className="daily-log-habits__gym-link"
-                        to={`/Workouts?day=${logDate}`}
-                        onClick={event => event.stopPropagation()}
-                    >
-                        View session
-                    </Link>
-                )}
-            </span>
-        </label>
-    );
+    const gymCheckbox = (() => {
+        const label = builtinHabitLabel('gym');
+        return (
+            <div
+                className="habit-row"
+                onContextMenu={event =>
+                    habitMenu.openFromEvent(
+                        event,
+                        `${label} actions`,
+                        builtinHabitMenu('gym'),
+                    )
+                }
+            >
+                <label className="checkbox-label daily-log-habits__gym flex-1 min-w-0">
+                    <input
+                        type="checkbox"
+                        checked={gym}
+                        onChange={toggleGym}
+                        disabled={setGym.isPending}
+                        className="checkbox-input"
+                    />
+                    <span className="daily-log-habits__gym-label">
+                        <span>{label}</span>
+                        {gym && (
+                            <Link
+                                className="daily-log-habits__gym-link"
+                                to={`/Workouts?day=${logDate}`}
+                                onClick={event => event.stopPropagation()}
+                            >
+                                View session
+                            </Link>
+                        )}
+                    </span>
+                </label>
+                <button
+                    type="button"
+                    className="habit-row-more"
+                    data-tip={`Edit ${label}`}
+                    aria-label={`Edit ${label}`}
+                    onClick={() => openBuiltinHabitEditor('gym')}
+                >
+                    <MoreVertical size={14} />
+                </button>
+            </div>
+        );
+    })();
 
     return (
         <div className="daily-logs-page-wrapper">
@@ -1793,16 +1872,16 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                 <div className="card-body">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'Fruit Serving', 'fruitServing')}
-                                            {habitCheckbox(studied, 'studied', setStudied, 'Studied', 'studied')}
-                                            {habitCheckbox(journal, 'journal', setJournal, 'Journaled', 'journal')}
-                                            {habitCheckbox(stretching, 'stretching', setStretching, 'Stretching', 'stretching')}
-                                            {habitCheckbox(reading, 'reading', setReading, 'Reading', 'reading')}
+                                            {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'fruitServing')}
+                                            {habitCheckbox(studied, 'studied', setStudied, 'studied')}
+                                            {habitCheckbox(journal, 'journal', setJournal, 'journal')}
+                                            {habitCheckbox(stretching, 'stretching', setStretching, 'stretching')}
+                                            {habitCheckbox(reading, 'reading', setReading, 'reading')}
                                             {gymCheckbox}
                                         </div>
 
                                         <div className="flex flex-col gap-1">
-                                            {habitCheckbox(projectWorkDone, 'project_work_done', setProjectWorkDone, 'Projects', 'projectWorkDone')}
+                                            {habitCheckbox(projectWorkDone, 'project_work_done', setProjectWorkDone, 'projectWorkDone')}
 
                                             {projectWorkDone && (
                                                 <div className="border-t border-[rgba(255,255,255,0.1)] pt-2 mt-1">
@@ -1852,10 +1931,10 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                                             habitMenu.openFromEvent(
                                                                 event,
                                                                 `${habit.name} actions`,
-                                                                habitMenuItems(habit),
+                                                                [editMenuItem(habit)],
                                                             )
                                                         }
-                                                        onDoubleClick={() => beginRename(habit)}
+                                                        onDoubleClick={() => openHabitEditor(habit)}
                                                     >
                                                         <label className="checkbox-label flex-1 min-w-0">
                                                             <input
@@ -1886,55 +1965,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                                                 }}
                                                                 className="checkbox-input"
                                                             />
-                                                            {/* The name is a field while it is being renamed and a
-                                                                label the rest of the time -- swapped, not nested,
-                                                                because a text field inside this <label> would tick
-                                                                the checkbox as well as take the click. */}
-                                                            {renameId === habit.id ? (
-                                                                <input
-                                                                    type="text"
-                                                                    className="habit-row-edit"
-                                                                    value={renameValue}
-                                                                    autoFocus
-                                                                    maxLength={50}
-                                                                    aria-label={`Rename ${habit.name}`}
-                                                                    onChange={event => setRenameValue(event.target.value)}
-                                                                    onBlur={commitRename}
-                                                                    onKeyDown={event => {
-                                                                        if (event.key === 'Enter') {
-                                                                            event.preventDefault();
-                                                                            commitRename();
-                                                                        } else if (event.key === 'Escape') {
-                                                                            event.preventDefault();
-                                                                            cancelRename();
-                                                                        }
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <span className="text-sm opacity-90 truncate">{habit.name}</span>
-                                                            )}
+                                                            <span className="text-sm opacity-90 truncate">{habit.name}</span>
                                                         </label>
                                                         {/* The way in where there is no right click. Hidden
-                                                            wherever hovering works, because a menu you can only
-                                                            reach one way should not sit on the row as a
-                                                            permanent third option. */}
+                                                            wherever hovering works, because the menu already
+                                                            offers the one action this row has. */}
                                                         <button
                                                             type="button"
                                                             className="habit-row-more"
-                                                            data-tip={`${habit.name}: rename or remove`}
-                                                            aria-label={`More actions for ${habit.name}`}
-                                                            aria-haspopup="menu"
-                                                            onClick={event => {
-                                                                const rect = event.currentTarget.getBoundingClientRect();
-                                                                habitMenu.openAt(
-                                                                    rect.left,
-                                                                    rect.bottom + 4,
-                                                                    `${habit.name} actions`,
-                                                                    habitMenuItems(habit),
-                                                                );
-                                                            }}
+                                                            data-tip={`Edit ${habit.name}`}
+                                                            aria-label={`Edit ${habit.name}`}
+                                                            onClick={() => openHabitEditor(habit)}
                                                         >
-                                                            <MoreVertical size={14} />
+                                                            <PenLine size={14} />
                                                         </button>
                                                     </div>
                                                 ))}
@@ -1943,7 +1986,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                     )}
 
                                     <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <p className="text-xs opacity-50">Right-click a habit to rename, prioritise, schedule or remove it.</p>
+                                        <p className="text-xs opacity-50">Right-click any habit to edit it.</p>
                                     </div>
                                 </div>
                             </div>
@@ -2057,98 +2100,27 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 next one to open into. */}
             {editingHabit && (
                 <HabitEditorModal
-                    key={editingHabit.id}
+                    key={editingHabit.builtInKey ?? editingHabit.id ?? 'habit'}
                     habit={editingHabit}
-                    busy={updateHabit.isPending}
+                    busy={savingBuiltinHabit || updateHabit.isPending}
                     error={habitEditError}
-                    onClose={() => { if (!updateHabit.isPending) setEditingHabit(null); }}
-                    onSave={async updates => {
-                        const target = editingHabit;
-                        if (!target?.id) return;
-                        setHabitEditError(null);
-                        try {
-                            const updated = await updateHabit.mutateAsync({ id: target.id, updates });
-                            setHabits(prev =>
-                                prev.map(habit => (habit.id === target.id ? { ...habit, ...updated } : habit)),
-                            );
-                            queryClient.invalidateQueries({ queryKey: queryKeys.habits });
-                            setEditingHabit(null);
-                        } catch (err) {
-                            // The only refusal a rename can get is a name already taken,
-                            // and it is worth saying which one -- so the dialog stays open
-                            // with the typed text still in it.
-                            console.error('Error editing habit:', err);
-                            setHabitEditError(
-                                err instanceof Error ? err.message : 'Could not save the habit.',
-                            );
-                        }
+                    onClose={() => {
+                        if (savingBuiltinHabit || updateHabit.isPending) return;
+                        setEditingHabit(null);
                     }}
+                    onSave={handleHabitEditorSave}
+                    onDelete={
+                        !editingHabit.builtIn && editingHabit.id
+                            ? () => {
+                                  setDeleteTarget({
+                                      id: editingHabit.id!,
+                                      name: editingHabit.name,
+                                  });
+                                  setEditingHabit(null);
+                              }
+                            : undefined
+                    }
                 />
-            )}
-
-            {priorityTarget && (
-                <div className="import-modal-overlay" onClick={() => setPriorityTarget(null)}>
-                    <div className="import-modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Set priority" onClick={event => event.stopPropagation()}>
-                        <h3>Set priority</h3>
-                        <div className="flex flex-col gap-2">
-                            {(['high', 'medium', 'low'] as const).map(p => (
-                                <button
-                                    key={p}
-                                    type="button"
-                                    className="btn-form-submit"
-                                    onClick={async () => {
-                                        if (!priorityTarget.id) return;
-                                        const updated = await updateHabit.mutateAsync({ id: priorityTarget.id, updates: { priority: p } });
-                                        setHabits(prev => prev.map(h => (h.id === priorityTarget.id ? { ...h, ...updated } : h)));
-                                        setPriorityTarget(null);
-                                    }}
-                                >
-                                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex gap-2 justify-end mt-5">
-                            <button type="button" className="btn-form-cancel" onClick={() => setPriorityTarget(null)}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {builtinPriorityTarget && (
-                <div className="import-modal-overlay" onClick={() => setBuiltinPriorityTarget(null)}>
-                    <div className="import-modal-card edit-modal-card" role="dialog" aria-modal="true" aria-label="Set priority" onClick={event => event.stopPropagation()}>
-                        <h3>Set priority</h3>
-                        <div className="flex flex-col gap-2">
-                            {(['high', 'medium', 'low'] as const).map(p => (
-                                <button
-                                    key={p}
-                                    type="button"
-                                    className="btn-form-submit"
-                                    onClick={async () => {
-                                        const updated = {
-                                            ...settings,
-                                            habit_settings: {
-                                                ...(settings?.habit_settings ?? {}),
-                                                [builtinPriorityTarget]: {
-                                                    ...(settings?.habit_settings?.[builtinPriorityTarget] ?? {}),
-                                                    priority: p,
-                                                },
-                                            },
-                                        } as any;
-                                        await updateUserSettings(updated);
-                                        queryClient.invalidateQueries({ queryKey: queryKeys.userSettings });
-                                        setBuiltinPriorityTarget(null);
-                                    }}
-                                >
-                                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex gap-2 justify-end mt-5">
-                            <button type="button" className="btn-form-cancel" onClick={() => setBuiltinPriorityTarget(null)}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
             )}
 
             <ConfirmModal

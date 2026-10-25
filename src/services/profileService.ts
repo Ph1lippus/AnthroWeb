@@ -68,6 +68,22 @@ export const resetPassword = async (email: string) => {
     return data;
 };
 
+/**
+ * Per-habit overrides that live in `user_settings.habit_settings`.
+ *
+ * Built-in habits are not rows in `habits`, so everything about them that is
+ * editable -- including the label shown on the daily log -- has to live here.
+ * The key is the habit's stable `BuiltinHabitKey` rather than its column or
+ * label, so renaming a built-in never moves its settings.
+ */
+export interface HabitSetting {
+    name?: string;
+    description?: string | null;
+    priority?: 'high' | 'medium' | 'low';
+    schedule_days?: number[] | null;
+    is_negative?: boolean;
+}
+
 // User Settings types
 export interface UserSettings {
     id?: string;
@@ -96,7 +112,7 @@ export interface UserSettings {
      */
     cheat_days_allowed?: number | null;
     cheat_days_period?: 'week' | 'month';
-    habit_settings?: Record<string, { priority?: 'high' | 'medium' | 'low'; schedule_days?: number[] | null; is_negative?: boolean }> | null;
+    habit_settings?: Record<string, HabitSetting> | null;
     created_at?: string;
     updated_at?: string;
 
@@ -224,6 +240,7 @@ export const createUserSettings = async (settings: UserSettings) => {
             // explicit null still means "no limit" for callers that ask for it.
             cheat_days_allowed: settings.cheat_days_allowed !== undefined ? settings.cheat_days_allowed : 1,
             cheat_days_period: settings.cheat_days_period || 'week',
+            ...(settings.habit_settings !== undefined ? { habit_settings: settings.habit_settings } : {}),
         })
         .select()
         .single();
@@ -266,6 +283,13 @@ export const updateUserSettings = async (settings: UserSettings) => {
                 : {}),
             ...(settings.cheat_days_period !== undefined
                 ? { cheat_days_period: settings.cheat_days_period }
+                : {}),
+            // Also conditional, and for the same reason: most callers build a
+            // settings object for one screen and do not carry habits at all. An
+            // unconditional write here would erase every built-in habit override
+            // whenever somebody saved their profile.
+            ...(settings.habit_settings !== undefined
+                ? { habit_settings: settings.habit_settings }
                 : {}),
             updated_at: new Date().toISOString(),
         }, {

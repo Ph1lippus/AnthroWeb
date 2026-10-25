@@ -9048,25 +9048,23 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
     display: inline-flex;
   }
 }
-/* The rename field, drawn to be indistinguishable from the name it replaces.
-   Same treatment as the notes rail's own rename field, at this row's type size --
-   a field that looks like a field would make the row look broken for the second
-   it takes to rename a habit. */
-.habit-row-edit {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 0.15rem 0.3rem;
-  border: 1px solid var(--accent-border);
-  border-radius: 8px;
-  background: #ffffff08;
-  color: var(--color-light);
-  font-family: inherit;
-  font-size: 0.875rem;
-  outline: none;
+/* Remove, inside the editor. It is the one destructive action in a dialog whose
+   other buttons are safe, so it keeps the Cancel button's quiet shape and only
+   takes the danger colour on hover -- a red button sitting beside Save is a
+   misclick waiting to happen. */
+.habit-editor-remove {
+  color: var(--color-danger);
 }
-.habit-row-edit:focus {
-  border-color: var(--color-primary);
+.habit-editor-remove:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+/* The timer's session list. It used to borrow `.academic-scroll`, which is a
+   height-locked scrolling pane; here the list is meant to grow so every session
+   is visible, and the mosaic around it is what scrolls. */
+.study-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .checkbox-input {
   appearance: none;
@@ -10742,6 +10740,33 @@ select.form-control option {
 }
 .timer-page-wrapper {
   transition: padding 0.35s ease;
+}
+
+/* The way out, in the corner of focus mode. Focus hides the mosaic, so the
+   control row is the only other thing on screen; this is for the moment the
+   whole page is clock and the eye has not found that row yet. Fixed rather than
+   part of the stage so it does not move as the display grows. */
+.timer-focus-exit {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--color-light);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.timer-focus-exit:hover {
+  opacity: 1;
+  background: var(--accent-bg);
 }
 .timer-stage,
 .timer-display,

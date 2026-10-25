@@ -126,26 +126,26 @@ console.log('\n== the timer has no tabs ==');
         'a panel that can be unmounted is a panel that can be the reason the clock looks stopped');
 }
 
-console.log('\n== the world clock is just your own time ==');
+console.log('\n== the wall clock, and the world clock beside it ==');
 {
-    check('the panel is gone from the page', !/WorldClockPanel/.test(timer));
+    check('the world clock panel is on the page',
+        /<WorldClockPanel\b/.test(timer),
+        'the right column keeps it, beside the alarms');
+    check('and it is its own component, not inline markup',
+        existsSync(new URL('../src/Components/Timer/WorldClockPanel.tsx', import.meta.url)));
     check('the header shows a wall clock',
         /toLocaleTimeString\(undefined/.test(timer),
         'undefined locale, so the device\'s own region and 12/24-hour setting win');
-    // Tabular figures were checked against `.timer-header__now`, a rule for a header
-    // that no longer exists. The clock itself lives in the display column now, and
-    // the guarantee is asserted against the class actually in use -- see the "no
-    // rule across the top of the page" section below.
-    check('and the wall clock is marked up as a time',
-        /<time className="timer-clock__now"/.test(timer));
-
-    // Existence, not a read: the point is that the file is gone, and reading it
-    // to find that out throws instead of reporting.
-    check('the panel component is deleted',
-        !existsSync(new URL('../src/Components/Timer/WorldClockPanel.tsx', import.meta.url)));
-    check('and so is its city table',
-        !existsSync(new URL('../src/utils/worldClock.ts', import.meta.url)),
-        'left in place it would be a dozen cities and a zone converter with no caller');
+    // The wall clock lives inside the display now, passed to it as `now`, so the
+    // check is on the handover and on the element that renders it.
+    check('and the wall clock is handed to the display',
+        /now=\{idle \? undefined : nowText\}/.test(timer)
+        && /className="timer-display__now"/.test(code('src/Components/Timer/TimerDisplay.tsx')));
+    // The zone list is part of the panel now rather than a separate table. Its
+    // absence is not a failure; what matters is that the panel can still offer
+    // every zone the platform knows.
+    check('the zones come from the platform, not a hand-kept city list',
+        /supportedValuesOf\('timeZone'\)/.test(code('src/Components/Timer/WorldClockPanel.tsx')));
 }
 
 console.log('\n== the mosaic layout ==');
@@ -199,8 +199,7 @@ console.log('\n== focus mode survives a refresh ==');
     // first frame is already the centred clock -- the alternative is laying the
     // whole page out and then flipping it, which is the flash this is avoiding.
     check('it is seeded from what was left, not from a bare false',
-        /useState\(readFocusMode\)/.test(timer)
-        && !/useState\(false\)/.test(timer),
+        /const \[focusMode, setFocusMode\] = useState\(readFocusMode\)/.test(timer),
         'a refresh must not put the clock back in the corner');
     // And written back from an effect on the state, not from inside the click
     // handler. The setter is where the value is decided; the write is the side
@@ -326,20 +325,24 @@ console.log('\n== the four containers, in two columns ==');
     // what those two classes already mean. So the order that matters is the order
     // the containers appear in the file, and it has to be read out of the file to
     // be worth asserting.
+    //
+    // Left: the interval form, then the sessions it writes. Right: the two
+    // simpler clocks, then alarms, then the world clock. The sessions list comes
+    // before the clock column on purpose -- it is what the run produces, so it
+    // belongs under the form that produces it rather than across the page from it.
     const order = [];
-    for (const match of timer.matchAll(/<ModeCard\b[\s\S]*?mode="([a-z]+)"|<AlarmsPanel\b/g)) {
-        order.push(match[1] ?? 'alarms');
+    for (const match of timer.matchAll(/<ModeCard\b[\s\S]*?mode="([a-z]+)"|<AlarmsPanel\b|<StudySessions\b/g)) {
+        order.push(match[1] ?? (match[0].startsWith('<AlarmsPanel') ? 'alarms' : 'sessions'));
     }
-    check('countdown and stopwatch down the left, then alarms and intervals',
-        JSON.stringify(order) === JSON.stringify(['countdown', 'stopwatch', 'alarms', 'interval']),
+    check('intervals then sessions down the left, then both clocks and alarms',
+        JSON.stringify(order) === JSON.stringify(['interval', 'sessions', 'countdown', 'stopwatch', 'alarms']),
         order.join(' → '));
-    check('so the alarms are the next thing read after the stopwatch',
-        order[1] === 'stopwatch' && order[2] === 'alarms');
-    // Appended at the end of the file instead, this container would have landed
-    // under the countdown -- which is where it went wrong before.
-    check('and the column boundary is between the stopwatch and the alarms',
-        /<ModeCard\b[\s\S]*?mode="stopwatch"[\s\S]*?<\/ModeCard>[\s\S]*?<\/div>\s*(?:\{[\s\S]*?\})?\s*<div className="daily-log-col">[\s\S]*?<AlarmsPanel\b/.test(timer)
-        || timer.indexOf('</div>\n\n                                {/*') > timer.indexOf('mode="stopwatch"'));
+    check('so the sessions sit under the intervals that produce them', order[0] === 'interval' && order[1] === 'sessions');
+    // Appended at the end of the file instead, the second column would have
+    // landed under the countdown -- which is where it went wrong before.
+    check('and the column boundary is between the sessions and the countdown',
+        timer.indexOf('<StudySessions />') < timer.indexOf('mode="countdown"')
+        && timer.lastIndexOf('className="daily-log-col"') > timer.indexOf('<StudySessions />'));
 
     // The alarms card is not a mode card: an alarm is not a mode, so it has no
     // "Use" switch and is never dimmed.
@@ -559,12 +562,12 @@ console.log('\n== no rule across the top of the page ==');
     check('nothing else draws a border across the page either',
         !/\.timer-card \{[^}]*border-top/.test(journalCss));
 
-    // The clock it used to hold is not lost with it -- it lives in the display
-    // column now, which is where a running page has room for it.
+    // The clock it used to hold is not lost with it -- it lives inside the
+    // display now, which is where a running page has room for it.
     check('the wall clock moved rather than disappeared',
-        /<time className="timer-clock__now"/.test(timer));
+        /now=\{idle \? undefined : nowText\}/.test(timer));
     check('and still has tabular figures, so it does not twitch every minute',
-        /\.timer-clock__now \{[^}]*font-variant-numeric: tabular-nums/.test(journalCss));
+        /\.timer-display__now \{[^}]*font-variant-numeric: tabular-nums/.test(journalCss));
 }
 
 

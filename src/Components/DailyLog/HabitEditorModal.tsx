@@ -1,31 +1,60 @@
 import React, { useState } from 'react';
-import type { Habit } from '../../services/habitService';
+
+/**
+ * A habit as the editor sees it. Custom habits arrive as `Habit` rows; built-in
+ * habits arrive as an override-shaped object, because they have no row of their
+ * own to write to.
+ */
+export interface HabitEditorValue {
+    id?: string | null;
+    /** True for the habits that ship with the app (Gym, Reading, ...). */
+    builtIn?: boolean;
+    /** The stable key an override is stored under. Built-ins only. */
+    builtInKey?: string | null;
+    name: string;
+    description?: string | null;
+    priority?: 'high' | 'medium' | 'low';
+    schedule_days?: number[] | null;
+    is_negative?: boolean | null;
+}
+
+export interface HabitEditorUpdates {
+    name: string;
+    description: string | null;
+    priority: 'high' | 'medium' | 'low';
+    is_negative: boolean;
+    schedule_days: number[] | null;
+}
 
 interface HabitEditorModalProps {
     /** The habit being edited. Null means nothing is open. */
-    habit: Habit | null;
+    habit: HabitEditorValue | null;
     busy?: boolean;
     /** Set when the last save was refused, e.g. the name is already taken. */
     error?: string | null;
     onClose: () => void;
-    onSave: (updates: { name: string; description: string | null; priority?: 'high' | 'medium' | 'low'; is_negative?: boolean; schedule_days?: number[] | null }) => void;
+    onSave: (updates: HabitEditorUpdates) => void;
+    /**
+     * Removes a custom habit. Built-ins have no row to remove, so the button is
+     * not drawn for them. The confirmation still happens in the page's shared
+     * `ConfirmModal`; this only asks for it.
+     */
+    onDelete?: () => void;
 }
 
 /**
- * Rename a custom habit, or say what it is for.
+ * The one editor for every habit on the Daily Log.
  *
- * Both fields, because a habit's description is the one place to write what it
- * means, and the quick route into a rename -- double-clicking the name in the
- * list -- can only edit the name without a dialog in the way. So this is the full
- * edit, and the list keeps the one-field version for the one-word change.
+ * Custom habits and built-ins are different storage -- a `habits` row versus an
+ * override in `user_settings.habit_settings` -- but they are the same thing to
+ * the reader: a checkbox with a name, a description, a priority, a schedule and
+ * a polarity. Keeping one form for both is what stops the built-ins becoming a
+ * second-class set of rows that can only be prioritised from a menu.
  *
  * A `form`, so Enter submits from the name field and Escape reaches the dialog
- * through the browser rather than needing a handler. Kept in step with the add
- * form beside it: same fields, same limits, same wording, so the two are
- * recognisably the same thing done twice.
- *
- * Seeded from the habit once, on mount -- the caller unmounts it on close, which
- * is what stops a cancelled edit from reappearing in the fields next time.
+ * through the browser rather than needing a handler. Seeded from the habit once,
+ * on mount -- the caller unmounts it on close, which is what stops a cancelled
+ * edit from reappearing in the fields next time.
  */
 const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
     habit,
@@ -33,6 +62,7 @@ const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
     error = null,
     onClose,
     onSave,
+    onDelete,
 }) => {
     const [name, setName] = useState(habit?.name ?? '');
     const [description, setDescription] = useState(habit?.description ?? '');
@@ -135,6 +165,10 @@ const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
                                 </label>
                             ))}
                         </div>
+                        <p className="academic-field-hint">
+                            Off-schedule habits still appear on the log; they just do not count
+                            towards the habit score on those days.
+                        </p>
                     </div>
 
                     {/* On the name, because the only thing that can be refused is a
@@ -144,21 +178,31 @@ const HabitEditorModal: React.FC<HabitEditorModalProps> = ({
                         <p className="update-modal-error" role="alert">{error}</p>
                     )}
 
-                    {/* Says what renaming does and does not do, because it is the one
-                        edit here whose consequence is not obvious: nothing about
-                        past days moves. */}
                     <p className="academic-field-hint">
-                        Renaming changes the label everywhere from now on. Days already
-                        logged keep their ticks.
+                        {habit.builtIn
+                            ? 'This changes the built-in habit everywhere from now on. Days already logged keep their ticks.'
+                            : 'Renaming changes the label everywhere from now on. Days already logged keep their ticks.'}
                     </p>
 
-                    <div className="flex gap-2 justify-end mt-5">
-                        <button type="button" className="btn-form-cancel" onClick={onClose} disabled={busy}>
-                            Cancel
-                        </button>
-                        <button type="submit" className="btn-form-submit" disabled={busy || !name.trim()}>
-                            {busy ? 'Saving...' : 'Save'}
-                        </button>
+                    <div className="flex gap-2 justify-between items-center mt-5">
+                        {!habit.builtIn && onDelete ? (
+                            <button
+                                type="button"
+                                className="btn-form-cancel habit-editor-remove"
+                                onClick={onDelete}
+                                disabled={busy}
+                            >
+                                Remove habit
+                            </button>
+                        ) : <span />}
+                        <div className="flex gap-2">
+                            <button type="button" className="btn-form-cancel" onClick={onClose} disabled={busy}>
+                                Cancel
+                            </button>
+                            <button type="submit" className="btn-form-submit" disabled={busy || !name.trim()}>
+                                {busy ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

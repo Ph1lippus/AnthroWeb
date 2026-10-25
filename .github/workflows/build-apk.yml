@@ -14,6 +14,14 @@ on:
 permissions:
   contents: write
 
+# One release at a time. Two pushes landing together would otherwise both read
+# the same "latest" version, both bump to the same next patch, and one would lose
+# the push. `cancel-in-progress: false` because cancelling a build halfway
+# through an APK upload is worse than waiting for it.
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -117,7 +125,14 @@ jobs:
         run: echo "DEBUG_KEYSTORE=$GITHUB_WORKSPACE/android/debug.keystore" >> "$GITHUB_ENV"
 
       # Determine the version for the release: manual input, else auto-bump the
-      # patch from the latest existing release (or 1.0.0 if none).
+      # patch above every version that already exists.
+      #
+      # The base comes from both releases and remote tags, because a run can leave
+      # a tag without a release (or a release without a local tag): a `git tag`
+      # lookup alone sees only the tags this checkout fetched, which is why v1.0.71
+      # was bumped away from and then pushed into an already-existing tag. The
+      # remote is the authority, and `sort -V` is what orders 1.0.10 after 1.0.9
+      # correctly.
       - name: Determine version
         id: version
         env:
@@ -125,16 +140,22 @@ jobs:
         run: |
           VERSION="${{ github.event.inputs.version }}"
           if [ -z "$VERSION" ]; then
-            LATEST=$(gh release list --repo "${{ github.repository }}" --limit 5 --json tagName,isDraft --jq '.[] | select(.isDraft == false) | .tagName' | head -n 1)
+            RELEASES=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isDraft \
+              --jq '.[] | select(.isDraft == false) | .tagName' || true)
+            TAGS=$(git ls-remote --tags --refs origin 'v*' | awk '{print $2}' | sed 's#refs/tags/##' || true)
+            LATEST=$(printf '%s\n%s\n' "$RELEASES" "$TAGS" \
+              | sed 's/^v//' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V \
+              | tail -n 1 || true)
             if [ -z "$LATEST" ]; then
               VERSION="1.0.0"
             else
-              BASE="${LATEST#v}"
-              IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
               PATCH=$(( ${PATCH:-0} + 1 ))
-              VERSION="$MAJOR.$MINOR.$PATCH"
+              VERSION="$MAJOR.$MINOR.${PATCH}"
             fi
-            echo "Auto-bumped version to $VERSION"
+            echo "Auto-bumped version to $VERSION (from ${LATEST:-no previous version})"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
@@ -164,8 +185,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            echo "Tag v${VERSION} already exists, skipping."
+          # Ask the remote, not the checkout. `actions/checkout` does not fetch
+          # every tag, so `git rev-parse` here can confidently say a tag does not
+          # exist and then have the push rejected.
+          if git ls-remote --tags origin "refs/tags/v${VERSION}" | grep -q .; then
+            echo "Tag v${VERSION} already exists on origin, skipping."
           else
             git tag "v${VERSION}" "$GITHUB_SHA"
             git push origin "v${VERSION}"

@@ -354,6 +354,89 @@ export function phaseRemainingMs(elapsedMs: number, config: IntervalConfig): num
 }
 
 /**
+ * How many focus phases have fully finished by `elapsedMs`.
+ *
+ * A focus block is the unit a study session records, and it is written the moment
+ * it completes rather than when the whole run ends -- so the answer has to be a
+ * function of elapsed time, not of a render having happened to be looking at the
+ * right phase. If the tab slept through three boundaries, this still counts all
+ * three and the page can save them with the right timestamps.
+ *
+ * A break never counts: only the work before it does. The last round of a bounded
+ * sequence has no trailing break, which is why the loop stops there.
+ */
+export function completedWorkRounds(elapsedMs: number, config: IntervalConfig): number {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) elapsedMs = 0;
+    const workMs = config.workSec * SECOND;
+    const restMs = config.restSec * SECOND;
+    const longMs = config.longRestSec * SECOND;
+    if (workMs <= 0) return 0;
+
+    const maxRounds = config.totalRounds > 0 ? config.totalRounds : 500;
+    let t = 0;
+    let completed = 0;
+
+    for (let round = 1; round <= maxRounds; round++) {
+        const workEnd = t + workMs;
+        if (elapsedMs < workEnd) break;
+        completed = round;
+        t = workEnd;
+
+        if (config.totalRounds > 0 && round === config.totalRounds) break;
+        t += isLongRestRound(config, round) ? longMs : restMs;
+    }
+    return completed;
+}
+
+/**
+ * Where one focus phase starts and ends in the run's elapsed timeline.
+ *
+ * Both edges are elapsed values, not wall-clock instants: the elapsed timeline is
+ * the one that pauses when the run pauses, so subtracting
+ * `elapsed - bounds.endMs` from the current wall clock recovers the real instant
+ * the focus block ended even if it was paused in the middle.
+ *
+ * Null for a round the config does not contain.
+ */
+export function workPhaseBounds(
+    config: IntervalConfig,
+    round: number,
+): { startMs: number; endMs: number } | null {
+    const workMs = config.workSec * SECOND;
+    const restMs = config.restSec * SECOND;
+    const longMs = config.longRestSec * SECOND;
+    if (workMs <= 0 || !Number.isInteger(round) || round < 1) return null;
+
+    const maxRounds = config.totalRounds > 0 ? config.totalRounds : 500;
+    if (round > maxRounds) return null;
+
+    let t = 0;
+    for (let current = 1; current <= round; current++) {
+        const startMs = t;
+        const endMs = startMs + workMs;
+        if (current === round) return { startMs, endMs };
+        t = endMs;
+        if (config.totalRounds > 0 && current === config.totalRounds) return null;
+        t += isLongRestRound(config, current) ? longMs : restMs;
+    }
+    return null;
+}
+
+/**
+ * The break planned after a focus phase, in milliseconds.
+ *
+ * Zero for the last round of a bounded run, because the sequence ends with that
+ * focus block and there is no break to record. Recorded on the session the moment
+ * the focus finishes rather than waiting to see whether the break is actually
+ * taken: the break is part of the plan the session describes, and the next focus
+ * block's own start timestamp is what proves whether it was.
+ */
+export function breakAfterRoundMs(config: IntervalConfig, round: number): number {
+    if (config.totalRounds > 0 && round >= config.totalRounds) return 0;
+    return (isLongRestRound(config, round) ? config.longRestSec : config.restSec) * SECOND;
+}
+
+/**
  * Total milliseconds of *fully completed* breaks up to `elapsedMs`.
  *
  * A break only counts once its whole duration has elapsed; a break that is still

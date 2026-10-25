@@ -870,6 +870,9 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     running: true,
                     legStartedAt: Date.now(),
                     elapsedBefore: initialElapsed,
+                    // Only a run that begins here gets a key. Resuming a paused
+                    // run keeps the one its earlier focus blocks were saved under.
+                    runId: exhausted ? crypto.randomUUID() : (prev.runId ?? crypto.randomUUID()),
                     intervalConfig: { ...prev.intervalConfig, startAt: null },
                 };
             });
@@ -939,11 +942,11 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     running: true,
                     legStartedAt: at,
                     deadline: prev.deadline === null || expired ? at + total : prev.deadline,
-                    runId: (prev.deadline !== null && !expired) ? prev.runId : (prev.runId ?? crypto.randomUUID()),
+                    runId: (prev.deadline !== null && !expired) ? prev.runId : crypto.randomUUID(),
                 };
             }
             if (prev.mode === 'stopwatch') {
-                return { ...prev, acknowledged: false, alerted: false, running: true, legStartedAt: at, deadline: null, runId: prev.elapsedBefore > 0 ? prev.runId : (prev.runId ?? crypto.randomUUID()) };
+                return { ...prev, acknowledged: false, alerted: false, running: true, legStartedAt: at, deadline: null, runId: prev.elapsedBefore > 0 ? prev.runId : crypto.randomUUID() };
             }
             // `elapsedBefore` is already the elapsed as of the last pause, so
             // starting a leg from it is what makes resume exact rather than
@@ -987,7 +990,7 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                     running: true,
                     legStartedAt: at,
                     intervalConfig: startPhase ? { ...prev.intervalConfig, startPhase } : prev.intervalConfig,
-                    runId: (prev.elapsedBefore > 0 && !finished) ? prev.runId : (prev.runId ?? crypto.randomUUID()),
+                    runId: crypto.randomUUID(),
                 };
             }
             return { ...prev, acknowledged: false, alerted: false, running: true, legStartedAt: at, runId: prev.runId ?? crypto.randomUUID() };
@@ -1083,6 +1086,11 @@ export const TimerEngineProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 elapsedBefore: prev.mode === 'interval' ? initialElapsed : 0,
                 running: true,
                 legStartedAt: at,
+                // A restart is a new run by every definition that matters to the
+                // session log: its focus blocks start again at round one, so they
+                // need keys of their own rather than colliding with the ones the
+                // previous run already wrote.
+                runId: crypto.randomUUID(),
             };
             if (prev.mode === 'interval') return { ...base, deadline: null };
             if (prev.mode === 'stopwatch') return { ...base, deadline: null };

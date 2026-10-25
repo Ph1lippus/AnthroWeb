@@ -534,6 +534,28 @@ export const createStudySession = async (session: StudySession) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('No user found');
 
+    /**
+     * A timer-generated block carries a `run_key`, and the same block can be
+     * offered twice: the page saves each focus phase as it finishes, so a
+     * re-mount while a run is still going looks at the same completed rounds
+     * again. The unique index on `(user_id, run_key)` is the real guarantee, but
+     * returning the existing row here means a replay is a success rather than a
+     * 409 the page has to interpret.
+     */
+    const findByRunKey = async () => {
+        if (!session.run_key) return null;
+        const { data } = await supabase
+            .from('study_sessions')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('run_key', session.run_key)
+            .maybeSingle();
+        return (data as StudySession | null) ?? null;
+    };
+
+    const existing = await findByRunKey();
+    if (existing) return existing;
+
     const { data, error } = await supabase
         .from('study_sessions')
         .insert({
@@ -554,6 +576,13 @@ export const createStudySession = async (session: StudySession) => {
         .single();
 
     if (error) {
+        // Two saves of the same block can race between the lookup above and the
+        // insert. The unique index refuses the second one, and the row the first
+        // one wrote is the answer both callers wanted.
+        if (error.code === '23505' && session.run_key) {
+            const duplicate = await findByRunKey();
+            if (duplicate) return duplicate;
+        }
         console.error('Error creating study session:', error.message);
         throw error;
     }

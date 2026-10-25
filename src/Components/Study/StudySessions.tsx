@@ -13,6 +13,22 @@ const formatMinutes = (minutes: number): string => {
     return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 };
 
+/**
+ * Notes the timer used to write for us.
+ *
+ * Older sessions carry them, and they are not notes: they restate the duration,
+ * the mode and the round number already shown beside them, and they crowd out
+ * the one line a person might have written themselves. Hidden here rather than
+ * deleted from the rows, so the history stays intact and a real note on an old
+ * session still shows.
+ */
+const isGeneratedNote = (notes?: string): boolean => {
+    const text = notes?.trim();
+    if (!text) return false;
+    return /^interval round \d+:/i.test(text)
+        || /^(countdown|stopwatch|interval) run$/i.test(text);
+};
+
 const StudySessions: React.FC = () => {
     const { data: sessions, isLoading } = useStudySessions();
     const saveSession = useSaveSession();
@@ -206,26 +222,23 @@ const StudySessions: React.FC = () => {
                 <div className="academic-empty" style={{ padding: '1rem 0' }}>
                     <span className="academic-empty__title">No sessions logged</span>
                     <span className="academic-empty__text">
-                        Finish a timer run and it will be logged here.
+                        Finish a focus block and it will be logged here.
                     </span>
                 </div>
             ) : (
-                <div className="academic-scroll" style={{ maxHeight: 420 }}>
+                <div className="study-session-list">
                     {daySessions.map(session => (
                         <div key={session.id} className="course-row">
                             <div className="course-head">
                                 <div className="course-head__text">
                                     <span className="course-title">{formatMinutes(session.duration_minutes)}</span>
-                                    <span className="course-sub">
-                                        {session.mode ? session.mode : ''}
-                                    </span>
                                     {session.break_minutes ? (
                                         <span className="course-sub">
                                             {formatMinutes(session.break_minutes)} break
                                         </span>
                                     ) : null}
-                                    {session.notes && (
-                                        <span className="course-empty-note" style={{ marginTop: 0.3 }}>
+                                    {session.notes && !isGeneratedNote(session.notes) && (
+                                        <span className="course-empty-note" style={{ marginTop: '0.3rem' }}>
                                             {session.notes}
                                         </span>
                                     )}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Coffee, Flag, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
+import { Coffee, Flag, Maximize2, Minimize2, Moon, Play, RotateCcw, Square, Zap } from 'lucide-react';
 import Title from '../Components/Title';
 import ConfirmModal from '../Components/ConfirmModal';
 import DurationPad from '../Components/Timer/DurationPad';
@@ -17,7 +17,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { useNotice } from '../Components/Feedback/useNotice';
 import { useAlarmScheduler } from '../hooks/useAlarmScheduler';
 import { queryKeys } from '../utils/queryKeys';
-import { buildLaps, completedBreakMs, formatAlarmTime, formatTimer, nextAlarmFire, phaseAt } from '../utils/timerMath';
+import { buildLaps, breakAfterRoundMs, completedWorkRounds, formatAlarmTime, formatTimer, nextAlarmFire, workPhaseBounds } from '../utils/timerMath';
 import { toDateString } from '../utils/dates';
 import { unlockAudio } from '../utils/timerChime';
 import { requestNotificationPermission } from '../utils/timerNotification';
@@ -42,6 +42,37 @@ const MODE_LABEL: Record<TimerMode, string> = {
     countdown: 'Countdown',
     stopwatch: 'Stopwatch',
     interval: 'Intervals',
+};
+
+/**
+ * Where focus mode is remembered.
+ *
+ * Its own key, not a field in the engine's run blob: focus mode is a way of
+ * looking at the timer, not something the timer did, and folding a view
+ * preference into the record of a run would mean a display choice competing for
+ * space with the deadline. `'on'` and the absence of the key are the two states,
+ * so anything that has never heard of the setting starts with the mosaic showing.
+ */
+const FOCUS_KEY = 'anthroweb:timer:focus';
+
+const readFocusMode = (): boolean => {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+        return localStorage.getItem(FOCUS_KEY) === 'on';
+    } catch {
+        return false;
+    }
+};
+
+const writeFocusMode = (on: boolean): void => {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        if (on) localStorage.setItem(FOCUS_KEY, 'on');
+        else localStorage.removeItem(FOCUS_KEY);
+    } catch {
+        // Private mode, or storage disabled. The page works; it only forgets
+        // which view it was in on reload.
+    }
 };
 
 /**
@@ -102,16 +133,19 @@ const TimerPage: React.FC = () => {
     const queryClient = useQueryClient();
     const engine = useTimer();
 
-    /**
-     * A break that was in progress when a new run was started (or the run was
-     * reset) leaves a partial break behind. Its elapsed minutes are carried
-     * forward and added to the next session that is saved, so the time is not
-     * lost. Cleared once consumed.
-     */
-    const [pendingBreakMinutes, setPendingBreakMinutes] = useState<number>(0);
-    const lastRunRef = useRef<{ runId: string | null; elapsed: number; config: typeof engine.intervalConfig } | null>(null);
-
     const [deleteAlarm, setDeleteAlarm] = useState<TimerAlarm | null>(null);
+    const [confirmReset, setConfirmReset] = useState(false);
+    const [focusMode, setFocusMode] = useState(readFocusMode);
+
+    /**
+     * Focus mode survives a reload.
+     *
+     * The lazy initialiser is what paints the clock centred on the first frame,
+     * rather than laying out the whole page and then hiding it. Writing from an
+     * effect rather than from the toggle means the stored value is always a copy
+     * of what is on screen, never a second opinion that can drift.
+     */
+    useEffect(() => { writeFocusMode(focusMode); }, [focusMode]);
 
     /**
      * A clock for the things that are not the timer.
@@ -300,136 +334,191 @@ const TimerPage: React.FC = () => {
         notify(type, message);
     }, [notify]);
 
-    // Capture a break that was in progress when the run changes, so its elapsed
-    // minutes can be rolled into the next session rather than dropped.
-    useEffect(() => {
-        const prev = lastRunRef.current;
-        if (prev && prev.runId && prev.runId !== engine.runId && engine.runId) {
-            const phase = phaseAt(prev.elapsed, prev.config);
-            if (phase && (phase.kind === 'rest' || phase.kind === 'long')) {
-                const elapsedIntoBreak = phase.phaseMs - phase.remainingMs;
-                setPendingBreakMinutes(prev => prev + Math.max(0, Math.round(elapsedIntoBreak / 60000)));
-            }
-        }
-        lastRunRef.current = { runId: engine.runId, elapsed: engine.elapsed, config: engine.intervalConfig };
-    }, [engine.runId, engine.elapsed, engine.intervalConfig]);
+    /**
+     * Focus blocks already written for the current interval run.
+     *
+     * The page saves a block the moment it finishes, which means the same block
+     * can be offered again when this component remounts mid-run. The set is the
+     * in-memory guard against sending the same request twice; the unique
+     * `(user_id, run_key)` index and the service's lookup are the real guarantee,
+     * so a replay after a reload is harmless rather than a duplicate row.
+     */
+    const savedFocusRef = useRef<{ runId: string | null; rounds: Set<number> }>({
+        runId: null,
+        rounds: new Set(),
+    });
 
+    /**
+     * Where this run began on its own elapsed timeline.
+     *
+     * A run can start in a rest phase, in which case the first work block's end
+     * is already behind the starting point and must not be reported as work that
+     * happened. Captured once per run and never moved by pausing or resuming.
+     * On a remount the current elapsed is the best evidence available, and is
+     * why the blocks completed before the remount are not written a second time.
+     */
+    const focusBaselineRef = useRef<{ runId: string | null; elapsedMs: number }>({
+        runId: null,
+        elapsedMs: 0,
+    });
+
+    useEffect(() => {
+        if (engine.mode !== 'interval' || !engine.runId) {
+            focusBaselineRef.current = { runId: null, elapsedMs: 0 };
+            savedFocusRef.current = { runId: null, rounds: new Set() };
+            return;
+        }
+        if (focusBaselineRef.current.runId === engine.runId) return;
+        focusBaselineRef.current = { runId: engine.runId, elapsedMs: engine.elapsed };
+        savedFocusRef.current = { runId: engine.runId, rounds: new Set() };
+    }, [engine.mode, engine.runId, engine.elapsed]);
+
+    const completedFocusRounds = useMemo(
+        () => (engine.mode === 'interval'
+            ? completedWorkRounds(engine.elapsed, engine.intervalConfig)
+            : 0),
+        [engine.mode, engine.elapsed, engine.intervalConfig],
+    );
+
+    /**
+     * Write each focus block as it finishes.
+     *
+     * Derived from the elapsed timeline rather than from a transition callback,
+     * because the tab may have been asleep across more than one boundary: when it
+     * wakes, this sees every completed round and saves them all with the
+     * timestamps they actually ended at. A round only counts once its whole work
+     * phase is behind the clock, so resetting mid-focus discards it.
+     *
+     * The break that follows is recorded as planned on the same row. It is not
+     * carried forward or merged into the next session -- the break belongs to the
+     * focus block it follows, and the next block's own start says whether it was
+     * taken.
+     */
+    useEffect(() => {
+        if (engine.mode !== 'interval' || !engine.runId) return;
+
+        const saved = savedFocusRef.current;
+        if (saved.runId !== engine.runId) {
+            saved.runId = engine.runId;
+            saved.rounds = new Set();
+        }
+
+        const baseline = focusBaselineRef.current.runId === engine.runId
+            ? focusBaselineRef.current.elapsedMs
+            : 0;
+        const wallNow = Date.now();
+        const elapsed = engine.elapsed;
+
+        for (let round = 1; round <= completedFocusRounds; round++) {
+            if (saved.rounds.has(round)) continue;
+
+            const bounds = workPhaseBounds(engine.intervalConfig, round);
+            // Marked even when skipped: a round that ended before this run's
+            // baseline is not work this run did, and asking again next frame
+            // would only reach the same answer.
+            saved.rounds.add(round);
+            if (!bounds || bounds.endMs <= baseline) continue;
+
+            const endedAtMs = wallNow - (elapsed - bounds.endMs);
+            const endedAt = new Date(endedAtMs);
+            const focusMs = bounds.endMs - bounds.startMs;
+            const workMinutes = Math.max(1, Math.round(focusMs / 60000));
+            const breakMinutes = Math.max(0, Math.round(breakAfterRoundMs(engine.intervalConfig, round) / 60000));
+
+            saveSession.mutate({
+                user_id: '',
+                session_date: toDateString(endedAt),
+                duration_minutes: workMinutes,
+                session_type: 'study',
+                mode: 'interval',
+                source: 'timer',
+                // Stable per run and round. There is deliberately no timestamp
+                // here: a remount must produce the same key, or it writes a second
+                // copy of a block that never happened twice.
+                run_key: `${engine.runId}:${round}`,
+                started_at: new Date(endedAtMs - focusMs).toISOString(),
+                ended_at: endedAt.toISOString(),
+                planned_minutes: workMinutes,
+                break_minutes: breakMinutes > 0 ? breakMinutes : undefined,
+            }, {
+                onSuccess: () => notify('success', 'Study session saved'),
+                onError: () => saved.rounds.delete(round),
+            });
+        }
+    }, [engine.mode, engine.runId, engine.elapsed, engine.intervalConfig, completedFocusRounds, saveSession, notify]);
+
+    /**
+     * Save a countdown or stopwatch run by hand.
+     *
+     * Interval runs are written block by block above and have nothing left to
+     * save here; a partial focus block is not a session, and resetting discards
+     * it. No note is generated for any of them -- a note written by the timer
+     * would overwrite the one place a person writes what they actually studied.
+     */
     const saveCurrentSession = useCallback(() => {
-        // Only interval runs count towards study sessions.
-        if (engine.mode !== 'interval') return;
+        if (engine.mode === 'interval') return;
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : 0;
         if (elapsedMs <= 0) return;
         const endedAt = new Date();
         const minutes = Math.max(1, Math.round(elapsedMs / 60000));
-        // Breaks are only recorded for interval runs, where each round carries
-        // its own rest. A full (countdown/stopwatch) session records none.
-        const completed = engine.mode === 'interval'
-            ? Math.round(completedBreakMs(engine.elapsed, engine.intervalConfig) / 60000)
-            : 0;
-        const breakMinutes = engine.mode === 'interval'
-            ? completed + pendingBreakMinutes
-            : 0;
         saveSession.mutate({
             user_id: '',
             session_date: toDateString(endedAt),
             duration_minutes: minutes,
             session_type: 'study',
-            notes: `${engine.mode} run`,
             mode: engine.mode,
             source: 'timer',
-            run_key: `${engine.runId ?? 'session'}:${Date.now()}`,
+            run_key: `${engine.runId ?? 'session'}:manual:${Date.now()}`,
             started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
             ended_at: endedAt.toISOString(),
-            planned_minutes: undefined,
-            break_minutes: breakMinutes > 0 ? breakMinutes : undefined,
+            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
         }, {
-            onSuccess: () => {
-                setPendingBreakMinutes(0);
-                notify('success', 'Study session saved');
-            },
+            onSuccess: () => notify('success', 'Study session saved'),
         });
-    }, [engine, notify, pendingBreakMinutes, saveSession]);
+    }, [engine.mode, engine.elapsed, engine.runId, engine.totalMs, notify, saveSession]);
 
-    // Auto-save a finished timer run as a study session (once per run).
+    // Auto-save a finished countdown or stopwatch run (once per run).
     const savedRunsRef = useRef<Set<string>>(new Set());
 
     const saveRun = useCallback((runId: string) => {
+        // Interval runs are already written focus block by focus block.
+        if (engine.mode === 'interval') return;
         const endedAt = new Date();
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
         if (elapsedMs <= 0) return;
         const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
         const startedAt = new Date(endedAt.getTime() - elapsedMs);
 
-        if (engine.mode === 'interval') {
-            const cfg = engine.intervalConfig;
-            const rounds = cfg.totalRounds > 0
-                ? cfg.totalRounds
-                : Math.max(1, Math.round(elapsedMs / ((cfg.workSec + cfg.restSec) * 1000)));
-            const roundsBeforeLong = cfg.roundsBeforeLong > 0 ? cfg.roundsBeforeLong : 4;
-            // A break only exists between two rounds, so the last round carries no
-            // break. The pending break from a previous run that was cut short is
-            // rolled into the first round.
-            for (let i = 0; i < rounds; i++) {
-                const isLast = i === rounds - 1;
-                const isLong = (i + 1) % roundsBeforeLong === 0 && cfg.longRestSec > 0;
-                const breakSec = isLong ? cfg.longRestSec : cfg.restSec;
-                const workMinutes = Math.max(1, Math.round(cfg.workSec / 60));
-                const breakMinutes = isLast ? 0 : Math.max(0, Math.round(breakSec / 60));
-                const rolledBreak = i === 0 ? pendingBreakMinutes : 0;
-                const totalBreak = breakMinutes + rolledBreak;
-                saveSession.mutate({
-                    user_id: '',
-                    session_date: toDateString(endedAt),
-                    duration_minutes: workMinutes,
-                    session_type: 'study',
-                    notes: `Interval round ${i + 1}: ${workMinutes}m focus, ${totalBreak}m break`,
-                    mode: 'interval',
-                    source: 'timer',
-                    run_key: `${runId}:${i}`,
-                    started_at: startedAt.toISOString(),
-                    ended_at: endedAt.toISOString(),
-                    planned_minutes: Math.round(cfg.workSec / 60),
-                    break_minutes: totalBreak > 0 ? totalBreak : undefined,
-                }, {
-                    onSuccess: () => {
-                        if (i === 0) setPendingBreakMinutes(0);
-                        notify('success', 'Study session saved');
-                    },
-                    onError: () => savedRunsRef.current.delete(runId),
-                });
-            }
-        } else {
-            saveSession.mutate({
-                user_id: '',
-                session_date: toDateString(endedAt),
-                duration_minutes: elapsedMinutes,
-                session_type: 'study',
-                notes: `${engine.mode === 'countdown' ? 'Countdown' : 'Stopwatch'} run`,
-                mode: engine.mode,
-                source: 'timer',
-                run_key: runId,
-                started_at: startedAt.toISOString(),
-                ended_at: endedAt.toISOString(),
-                planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
-            }, {
-                onSuccess: () => {
-                    notify('success', 'Study session saved');
-                },
-                onError: () => savedRunsRef.current.delete(runId),
-            });
-        }
-    }, [engine, notify, pendingBreakMinutes, saveSession]);
+        saveSession.mutate({
+            user_id: '',
+            session_date: toDateString(endedAt),
+            duration_minutes: elapsedMinutes,
+            session_type: 'study',
+            mode: engine.mode,
+            source: 'timer',
+            run_key: runId,
+            started_at: startedAt.toISOString(),
+            ended_at: endedAt.toISOString(),
+            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
+        }, {
+            onSuccess: () => {
+                notify('success', 'Study session saved');
+            },
+            onError: () => savedRunsRef.current.delete(runId),
+        });
+    }, [engine, notify, saveSession]);
 
     const finishRun = useCallback(() => {
+        if (engine.mode === 'interval') return;
         const runId = engine.runId;
         if (!runId || savedRunsRef.current.has(runId)) return;
         const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
         if (elapsedMs <= 0) return;
         savedRunsRef.current.add(runId);
         saveRun(runId);
-    }, [engine.runId, engine.elapsed, engine.totalMs, saveRun]);
+    }, [engine.mode, engine.runId, engine.elapsed, engine.totalMs, saveRun]);
 
-    const handleReset = useCallback(() => {
+    const performReset = useCallback(() => {
         finishRun();
         engine.reset();
     }, [finishRun, engine]);
@@ -633,20 +722,23 @@ const TimerPage: React.FC = () => {
         const handler = (event: KeyboardEvent) => {
             const target = event.target as HTMLElement | null;
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-            if (event.code === 'Space') {
+            if (event.key === 'Escape' && focusMode) {
+                event.preventDefault();
+                setFocusMode(false);
+            } else if (event.code === 'Space') {
                 event.preventDefault();
                 prepareToRun();
                 if (engine.running) engine.pause();
                 else engine.start();
             } else if (event.key === 'r' || event.key === 'R') {
-                if (!engine.running) handleReset();
+                if (!engine.running) setConfirmReset(true);
             } else if (event.key === 'l' || event.key === 'L') {
                 if (engine.mode === 'stopwatch' && engine.running) engine.addLap();
             }
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [engine, prepareToRun, handleReset]);
+    }, [engine, prepareToRun, focusMode]);
 
     // ==================== RENDER ====================
 
@@ -656,7 +748,18 @@ const TimerPage: React.FC = () => {
         <>
             <Title title="Timer" />
 
-            <div className="timer-page-wrapper">
+            <div className={`timer-page-wrapper${focusMode ? ' timer-page-wrapper--focus' : ''}`}>
+                {focusMode && (
+                    <button
+                        type="button"
+                        className="timer-focus-exit"
+                        onClick={() => setFocusMode(false)}
+                        aria-label="Exit focus mode"
+                        data-tip="Exit focus mode (Esc)"
+                    >
+                        <Minimize2 size={16} />
+                    </button>
+                )}
                 <div className="dashboard-section timer-section">
                     <div className="timer-card">
                         {/* No header bar.
@@ -782,7 +885,7 @@ const TimerPage: React.FC = () => {
                                         </button>
                                     )}
 
-                                    {engine.elapsed > 0 && (
+                                    {engine.elapsed > 0 && engine.mode !== 'interval' && (
                                     <button
                                         type="button"
                                         className="timer-btn"
@@ -798,13 +901,24 @@ const TimerPage: React.FC = () => {
                                     <button
                                         type="button"
                                         className="timer-btn"
-                                        onClick={handleReset}
+                                        onClick={() => setConfirmReset(true)}
                                         data-tip="Reset"
                                         aria-label="Reset the timer"
                                     >
                                         <RotateCcw size={14} />
                                     </button>
                                     )}
+
+                                    <button
+                                        type="button"
+                                        className="timer-btn"
+                                        onClick={() => setFocusMode(value => !value)}
+                                        aria-pressed={focusMode}
+                                        aria-label={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+                                        data-tip={focusMode ? 'Exit focus mode (Esc)' : 'Focus mode'}
+                                    >
+                                        {focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                    </button>
                                     </>)}
                                 </div>
 
@@ -847,12 +961,46 @@ const TimerPage: React.FC = () => {
                                 their own fields, and dim when they are not the one
                                 the shared clock is running. */}
                             <div className="timer-mosaic daily-log-puzzle">
+                                {/*
+                                    Left column: the session shape first, then the
+                                    sessions it has written. Intervals is the form
+                                    that decides what a run will do, so it comes
+                                    before the log of what runs already did; the
+                                    log has no height cap, so it grows downwards
+                                    and the mosaic scrolls as one surface rather
+                                    than trapping the list in its own little
+                                    window.
+                                */}
                                 <div className="daily-log-col">
+                                {/* ==================== INTERVALS ==================== */}
+                                <ModeCard
+                                    mode="interval"
+                                    label={MODE_LABEL.interval}
+                                    active={engine.mode === 'interval' && !worldClockInUse}
+                                    running={engine.running}
+                                    onSelect={tap(() => { engine.setMode('interval'); setWorldClockInUse(false); })}
+                                >
+                                    <IntervalEditor
+                                        config={engine.intervalConfig}
+                                        onChange={engine.setIntervalConfig}
+                                        disabled={engine.running || engine.mode !== 'interval'}
+                                        dueAt={engine.startDueAt}
+                                    />
+                                </ModeCard>
+
                                 {/* ==================== STUDY SESSIONS ==================== */}
                                 <section className={`card puzzle-card timer-mosaic__cell dim-until-hover${worldClockInUse ? ' dimmed-by-world-clock' : ''}`}>
                                     <StudySessions />
                                 </section>
+                                </div>
 
+                                {/*
+                                    Right column: the two simpler clocks, then the
+                                    alarms, then the world clock. None of these
+                                    decides what a session records -- they are the
+                                    instruments around the session shape.
+                                */}
+                                <div className="daily-log-col">
                                 {/* ==================== COUNTDOWN ==================== */}
                                 <ModeCard
                                     mode="countdown"
@@ -943,26 +1091,7 @@ const TimerPage: React.FC = () => {
                                     )}
                                 </ModeCard>
 
-                                {/* Presets removed at user request. */}
-                                </div>
-
-                                {/*
-                                    Right column, and the alarms lead it -- which is
-                                    what makes them the next thing read after the
-                                    stopwatch rather than the fourth thing seen.
-
-                                    No `ModeCard`: an alarm is not a mode, so it has no
-                                    "Use" switch and is never dimmed. It takes the same
-                                    card anatomy directly, which is what makes the four
-                                    read as one mosaic rather than three modes and a
-                                    guest.
-
-                                    Above the intervals rather than under them because an
-                                    alarm is set once and forgotten, while the intervals
-                                    form is the tallest thing on the page -- underneath,
-                                    it would push the alarms off the screen.
-                                */}
-                                <div className="daily-log-col">
+                                {/* ==================== ALARMS ==================== */}
                                 <section className={`card puzzle-card timer-mosaic__cell dim-until-hover${worldClockInUse ? ' dimmed-by-world-clock' : ''}`}>
                                     <AlarmsPanel
                                         alarms={alarms}
@@ -978,22 +1107,6 @@ const TimerPage: React.FC = () => {
                                         now={panelNow}
                                     />
                                 </section>
-
-                                {/* ==================== INTERVALS ==================== */}
-                                <ModeCard
-                                    mode="interval"
-                                    label={MODE_LABEL.interval}
-                                    active={engine.mode === 'interval' && !worldClockInUse}
-                                    running={engine.running}
-                                    onSelect={tap(() => { engine.setMode('interval'); setWorldClockInUse(false); })}
-                                >
-                                    <IntervalEditor
-                                        config={engine.intervalConfig}
-                                        onChange={engine.setIntervalConfig}
-                                        disabled={engine.running || engine.mode !== 'interval'}
-                                        dueAt={engine.startDueAt}
-                                    />
-                                </ModeCard>
 
                                 {/* ==================== WORLD CLOCK ==================== */}
                                 <WorldClockPanel
@@ -1025,6 +1138,21 @@ const TimerPage: React.FC = () => {
                     engine.addMinutes(minutes);
                     engine.dismissAlert();
                 }}
+            />
+
+            <ConfirmModal
+                open={confirmReset}
+                title="Reset the timer?"
+                description={engine.mode === 'interval'
+                    ? 'Focus blocks that have already finished are saved. The block in progress will be discarded.'
+                    : 'The current run will be cleared.'}
+                confirmLabel="Reset"
+                danger
+                onConfirm={() => {
+                    setConfirmReset(false);
+                    performReset();
+                }}
+                onCancel={() => setConfirmReset(false)}
             />
 
             {/* Stays open until the delete actually succeeds. Clearing the target
