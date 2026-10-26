@@ -92,6 +92,7 @@ export interface UserSettings {
     height_cm: number | null;
     date_of_birth: string | null;
     goal: 'maintain' | 'lose' | 'gain' | '';
+    activity_level: 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive' | null;
     starting_weight: number | null;
     starting_bodyfat: number | null;
     target_weight: number | null;
@@ -234,6 +235,7 @@ export const createUserSettings = async (settings: UserSettings) => {
             height_cm: settings.height_cm,
             date_of_birth: settings.date_of_birth,
             goal: settings.goal,
+            activity_level: settings.activity_level,
             starting_weight: settings.starting_weight,
             starting_bodyfat: settings.starting_bodyfat,
             target_weight: settings.target_weight,
@@ -275,6 +277,7 @@ export const updateUserSettings = async (settings: UserSettings) => {
             height_cm: settings.height_cm,
             date_of_birth: settings.date_of_birth,
             goal: settings.goal,
+            activity_level: settings.activity_level,
             starting_weight: settings.starting_weight,
             starting_bodyfat: settings.starting_bodyfat,
             target_weight: settings.target_weight,

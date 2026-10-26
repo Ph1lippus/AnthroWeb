@@ -75,6 +75,7 @@ const EditProfilePage: React.FC = () => {
     const [targetBodyfat, setTargetBodyfat] = useState<number | ''>('');
     const [lastMeasurementDate, setLastMeasurementDate] = useState<string>('');
     const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
+    const [activityLevel, setActivityLevel] = useState<'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive' | null>(null);
 
     // Field errors and shake animation
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -104,6 +105,7 @@ const EditProfilePage: React.FC = () => {
                     setTargetBodyfat(existingSettings.target_bodyfat || '');
                     setLastMeasurementDate(convertToDisplayFormat(existingSettings.last_measurement_date || ''));
                     if (existingSettings.weight_unit) setWeightUnit(existingSettings.weight_unit);
+                    if (existingSettings.activity_level) setActivityLevel(existingSettings.activity_level);
                 }
                 
                 // Get username from Supabase auth user metadata
@@ -196,6 +198,7 @@ const validateForm = () => {
                 height_cm: typeof heightCm === 'number' ? heightCm : null,
                 date_of_birth: convertToStorageFormat(dateOfBirth) || null,
                 goal,
+                activity_level: activityLevel,
                 starting_weight: typeof startingWeight === 'number' ? startingWeight : null,
                 last_measurement_date: convertToStorageFormat(lastMeasurementDate) || null,
                 starting_bodyfat: typeof startingBodyfat === 'number' ? startingBodyfat : null,
@@ -364,6 +367,16 @@ const validateForm = () => {
                                 { value: 'kg', label: 'Kilograms (kg)' },
                                 { value: 'lbs', label: 'Pounds (lbs)' }
                             ], false, (v) => setWeightUnit(v as 'kg' | 'lbs'))}
+                        </div>
+
+                        <div className="form-grid">
+                            {renderSelect('activity_level', 'Activity Level', activityLevel, [
+                                { value: 'sedentary', label: 'Sedentary (little/no exercise)' },
+                                { value: 'light', label: 'Light (1-3 days/week)' },
+                                { value: 'moderate', label: 'Moderate (3-5 days/week)' },
+                                { value: 'active', label: 'Active (6-7 days/week)' },
+                                { value: 'veryActive', label: 'Very Active (physical job + exercise)' }
+                            ], false, (v) => setActivityLevel(v as any))}
                         </div>
 
                         <button type="submit" className="btn-primary w-100" disabled={loading}>

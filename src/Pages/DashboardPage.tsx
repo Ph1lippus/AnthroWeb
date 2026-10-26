@@ -15,6 +15,7 @@ import { useBodyMeasurements } from '../hooks/useMeasurements';
 import { useBootHold } from '../services/bootScreen';
 import MetricsCharts from '../Components/Dashboard/MetricsCharts';
 import StudyChart from '../Components/Dashboard/StudyChart';
+import WeightLossCards from '../Components/Dashboard/WeightLossCards';
 import LoadingBar from '../Components/LoadingBar';
 
 const DashboardPage: React.FC = () => {
@@ -121,6 +122,7 @@ const DashboardPage: React.FC = () => {
                             range={range}
                             measurements={measurements ?? null}
                         />
+                        <WeightLossCards range={range} />
                         {/* Lifetime totals moved off the Projects, Books and Abstinence
                             pages. Deliberately outside `ready`: each card fills itself
                             in when its own query lands, so a slow library query cannot
@@ -128,6 +130,7 @@ const DashboardPage: React.FC = () => {
                         <DomainStats />
                     </div>
                     <div className="dashboard-charts-enter dashboard-charts-enter--ready">
+                        
                         <MetricsCharts
                             logs={logs}
                             habits={habits}

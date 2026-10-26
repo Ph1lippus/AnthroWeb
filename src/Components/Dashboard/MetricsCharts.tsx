@@ -30,6 +30,8 @@ import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { moodFor } from '../../utils/moodSeries';
 import { addDays } from '../../utils/dates';
 import { copyCsvToClipboard, downloadCsv } from '../../utils/exportFiles';
+import { useWeightLoss } from '../../hooks/useWeightLoss';
+import { projectWeight, projectBodyFat } from '../../utils/weightLoss';
 import { useNotice } from '../../Components/Feedback/useNotice';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
@@ -731,6 +733,13 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             else notify('error', 'Could not copy to clipboard');
         });
     };
+    // Weight-loss projection: deficit, estimated weeks to goal, and target
+    // weight feed the projected line on the body charts.
+    const { calorieTarget, progress: weightProgress } = useWeightLoss(range.days);
+    const { deficitKcal, estimatedWeeks, targetWeight: projectedTargetWeight } = weightProgress;
+    const deficit = deficitKcal ?? null;
+    const weeksToGoal = estimatedWeeks ?? null;
+    const targetW = projectedTargetWeight ?? null;
     // Every chart on the page covers the same window, so the range is stamped on
     // here rather than threaded down through sixteen cards just for the enlarged
     // view to say what window it is showing.
@@ -835,6 +844,35 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     );
 
     /**
+     * Projected weight and body fat, extending the last actual reading
+     * forward to the estimated goal date based on the current daily deficit.
+     *
+     * The projection is appended to `bodyData` as real points so the line
+     * appears in both the weight and body-fat charts. It lives outside the
+     * start-point logic: the start is where the trend began, the projection is
+     * where it is heading.
+     */
+    const projectionPoints = useMemo<BodyPoint[]>(() => {
+        const last = bodySeries[bodySeries.length - 1];
+        if (!last || last.weight == null || !targetW || !deficit || deficit === 0)
+            return [];
+        const daysFromNow = weeksToGoal != null ? Math.round(weeksToGoal * 7) : 90;
+        const projectedW = projectWeight(last.weight, targetW, deficit, daysFromNow);
+        if (projectedW == null) return [];
+        const projectedBF = projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow);
+        const futureDate = new Date(last.date);
+        futureDate.setDate(futureDate.getDate() + daysFromNow);
+        const futureDateStr = futureDate.toISOString().slice(0, 10);
+        return [last, {
+            date: futureDateStr,
+            label: fmtDate(futureDateStr),
+            weight: projectedW,
+            bodyFat: projectedBF,
+            bodyFatMethod: null,
+        }];
+    }, [bodySeries, targetW, deficit, weeksToGoal]);
+
+    /**
      * The opening point: where the user started, read from `user_settings`.
      *
      * That row saves both ends of the journey - `starting_*` and `target_*` -
@@ -862,7 +900,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
         bodyData.some(p => p[key] != null);
     // Averages run over the measurements only. The start point is the origin of
     // the trend rather than a reading inside the window, so folding it in would
-    // drag the average towards a number that may be years old.
+    // drag the average towards a number that may be years old. The projection
+    // points are future estimates, not readings, so they are excluded too.
     const bodyAverage = (key: 'weight' | 'bodyFat'): number | null => {
         let sum = 0;
         let n = 0;
