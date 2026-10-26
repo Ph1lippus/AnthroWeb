@@ -735,9 +735,9 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     };
     // Weight-loss projection: deficit, estimated weeks to goal, and target
     // weight feed the projected line on the body charts.
-    const { calorieTarget, progress: weightProgress } = useWeightLoss(range.days);
-    const { deficitKcal, estimatedWeeks, targetWeight: projectedTargetWeight } = weightProgress;
-    const deficit = deficitKcal ?? null;
+    const { progress: weightProgress, calorieTarget } = useWeightLoss(range.days);
+    const { estimatedWeeks, targetWeight: projectedTargetWeight } = weightProgress;
+    const deficit = calorieTarget.deficitKcal ?? null;
     const weeksToGoal = estimatedWeeks ?? null;
     const targetW = projectedTargetWeight ?? null;
     // Every chart on the page covers the same window, so the range is stamped on
@@ -852,14 +852,14 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
      * start-point logic: the start is where the trend began, the projection is
      * where it is heading.
      */
-    const projectionPoints = useMemo<BodyPoint[]>(() => {
+    useMemo<BodyPoint[]>(() => {
         const last = bodySeries[bodySeries.length - 1];
         if (!last || last.weight == null || !targetW || !deficit || deficit === 0)
             return [];
         const daysFromNow = weeksToGoal != null ? Math.round(weeksToGoal * 7) : 90;
         const projectedW = projectWeight(last.weight, targetW, deficit, daysFromNow);
         if (projectedW == null) return [];
-        const projectedBF = projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow);
+        projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow);
         const futureDate = new Date(last.date);
         futureDate.setDate(futureDate.getDate() + daysFromNow);
         const futureDateStr = futureDate.toISOString().slice(0, 10);
@@ -867,7 +867,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             date: futureDateStr,
             label: fmtDate(futureDateStr),
             weight: projectedW,
-            bodyFat: projectedBF,
+            bodyFat: projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow),
             bodyFatMethod: null,
         }];
     }, [bodySeries, targetW, deficit, weeksToGoal]);

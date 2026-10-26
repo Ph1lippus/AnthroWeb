@@ -1,10 +1,8 @@
 import React, { useMemo } from 'react';
 import {
-  Flame,
   Scale,
   Target,
   TrendingDown,
-  Calendar,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useWeightLoss } from '../../hooks/useWeightLoss';
@@ -30,7 +28,7 @@ const WeightLossCards: React.FC<{ range: DateRange }> = ({ range }) => {
   const { calorieTarget, progress, avgTrackedKcal, daysTracked, isLoading } =
     useWeightLoss(range.days);
 
-  const { currentWeight, targetWeight, startingWeight, weightToChange, percentChanged, estimatedWeeks, onTrack } = progress;
+  const { currentWeight, targetWeight, startingWeight, weightToChange, percentChanged } = progress;
   const { targetKcal, deficitKcal, tdee, safe } = calorieTarget;
 
   const deficit = tdee != null && avgTrackedKcal != null

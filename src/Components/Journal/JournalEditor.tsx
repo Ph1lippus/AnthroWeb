@@ -66,7 +66,6 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                             label="Morning mood"
                             className="journal-entry-scale"
                         />
-                        <div className="journal-node-hint">What you hoped for this morning — intentions, dreams, the energy you want to carry</div>
                         <Editor
                             initialHtml={value.morning}
                             onChange={morning => onChange(current => ({ ...current, morning }))}
@@ -84,7 +83,6 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
                             label="Evening mood"
                             className="journal-entry-scale"
                         />
-                        <div className="journal-node-hint">How the day landed — what went well, what stuck with you, what you're carrying forward</div>
                         <Editor
                             initialHtml={value.evening}
                             onChange={evening => onChange(current => ({ ...current, evening }))}

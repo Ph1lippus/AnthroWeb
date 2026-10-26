@@ -13,15 +13,14 @@ import {
   estimateWeeksToGoal,
   averageCalories,
 } from '../utils/weightLoss';
-import type { UserSettings } from '../services/profileService';
 import type { BodyMeasurement } from '../services/measurementService';
-import type { DailyLog } from '../services/dailyLogService';
 
 /** Latest measurement that carries a weight. */
-const latestWeight = (measurements: BodyMeasurement[] | null): number | null => {
+const latestWeight = (measurements: BodyMeasurement[] | null | undefined): number | null => {
   if (!measurements || measurements.length === 0) return null;
   for (let i = measurements.length - 1; i >= 0; i--) {
-    if (typeof measurements[i].weight === 'number') return measurements[i].weight;
+    const w = measurements[i].weight;
+    if (typeof w === 'number') return w;
   }
   return null;
 };
@@ -49,14 +48,15 @@ export const useWeightLoss = (days: number | null): UseWeightLossResult => {
   const { settings, isLoading: settingsLoading } = useUserSettings();
   const { logs = [], isLoading: logsLoading } = useDailyLogs();
 
-  const weight = latestWeight(measurements);
+  const weight = latestWeight(measurements as BodyMeasurement[] | null);
+
   const startingWeight = settings?.starting_weight ?? null;
   const targetWeight = settings?.target_weight ?? null;
 
   const context: WeightLossContext = useMemo(() => ({
     gender: settings?.gender ?? '',
     height_cm: settings?.height_cm ?? null,
-    weight_kg: weight,
+    weight_kg: weight ?? null,
     date_of_birth: settings?.date_of_birth ?? null,
     activity_level: settings?.activity_level ?? null,
     goal: settings?.goal ?? '',
@@ -75,12 +75,13 @@ export const useWeightLoss = (days: number | null): UseWeightLossResult => {
       const diff = Math.floor((Date.now() - new Date(date + 'T00:00:00').getTime()) / 86400000);
       return diff >= 0 && diff < days;
     };
-    return logs.filter(l => inRange(l.log_date, days));
+    const logList = logs ?? [];
+    return logList.filter(l => inRange(l.log_date, days));
   }, [logs, days]);
 
-  const kcalValues = tracked.map(l => l.calories).filter((v): v is number => typeof v === 'number');
+  const kcalValues = (tracked ?? []).map(l => l.calories).filter((v): v is number => typeof v === 'number');
   const avgTrackedKcal = useMemo(() => averageCalories(kcalValues), [kcalValues]);
-  const daysTracked = tracked.length;
+  const daysTracked = tracked?.length ?? 0;
 
   // Estimated weeks at the current average deficit vs TDEE.
   const estimatedWeeks = useMemo(() => {
@@ -107,4 +108,4 @@ export const useWeightLoss = (days: number | null): UseWeightLossResult => {
 };
 
 export type { WeightLossContext, CalorieTarget, WeightProgress };
-export type { ActivityLevel };
+export type { ActivityLevel } from '../utils/weightLoss';

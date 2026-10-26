@@ -370,7 +370,7 @@ const validateForm = () => {
                         </div>
 
                         <div className="form-grid">
-                            {renderSelect('activity_level', 'Activity Level', activityLevel, [
+                            {renderSelect('activity_level', 'Activity Level', activityLevel ?? '', [
                                 { value: 'sedentary', label: 'Sedentary (little/no exercise)' },
                                 { value: 'light', label: 'Light (1-3 days/week)' },
                                 { value: 'moderate', label: 'Moderate (3-5 days/week)' },
