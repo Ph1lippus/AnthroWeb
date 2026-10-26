@@ -38,14 +38,14 @@ const JournalPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [setSaving] = useState(false);
+    // const [setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [setLastSaved] = useState<Date | null>(null);
+    // const [setLastSaved] = useState<Date | null>(null);
 
     const [journalDocument, setJournalDocument] = useState<JournalDocument>(parseJournalDocument());
     /**
