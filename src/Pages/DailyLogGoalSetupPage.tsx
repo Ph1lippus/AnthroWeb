@@ -60,6 +60,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
     // "1" here.
     const [cheatAllowed, setCheatAllowed] = useState('');
     const [cheatPeriod, setCheatPeriod] = useState<'week' | 'month'>('week');
+    const [cheatMaintenance, setCheatMaintenance] = useState('');
+    const [cheatCeiling, setCheatCeiling] = useState('');
     const [studyDaily, setStudyDaily] = useState('');
     const [studyWeekly, setStudyWeekly] = useState('');
 
@@ -121,6 +123,16 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         : ''
                 );
                 setCheatPeriod(userSettings?.cheat_days_period === 'month' ? 'month' : 'week');
+                setCheatMaintenance(
+                    userSettings?.cheat_maintenance_calories != null
+                        ? String(userSettings.cheat_maintenance_calories)
+                        : ''
+                );
+                setCheatCeiling(
+                    userSettings?.cheat_calorie_ceiling != null
+                        ? String(userSettings.cheat_calorie_ceiling)
+                        : ''
+                );
                 try {
                     const studyGoal = await getUserStudyGoal();
                     setStudyDaily(studyGoal.daily_goal_minutes != null ? String(studyGoal.daily_goal_minutes) : '');
@@ -155,6 +167,26 @@ const DailyLogGoalSetupPage: React.FC = () => {
         if (cheatAllowedValue !== null && (Number.isNaN(cheatAllowedValue) || cheatAllowedValue < 0)) {
             notify('error', 'Cheat days must be a whole number of 0 or more, or left blank for no limit.');
             notify('error', 'Enter a valid cheat-day allowance');
+            return;
+        }
+
+        const cheatMaintenanceValue = cheatMaintenance.trim() === '' ? null : parseInt(cheatMaintenance, 10);
+        if (cheatMaintenanceValue !== null && (Number.isNaN(cheatMaintenanceValue) || cheatMaintenanceValue <= 0)) {
+            notify('error', 'Maintenance calories must be a whole number above 0, or left blank.');
+            notify('error', 'Enter valid maintenance calories');
+            return;
+        }
+
+        const cheatCeilingValue = cheatCeiling.trim() === '' ? null : parseInt(cheatCeiling, 10);
+        if (cheatCeilingValue !== null && (Number.isNaN(cheatCeilingValue) || cheatCeilingValue <= 0)) {
+            notify('error', 'Calorie ceiling must be a whole number above 0, or left blank.');
+            notify('error', 'Enter a valid calorie ceiling');
+            return;
+        }
+
+        if (cheatMaintenanceValue !== null && cheatCeilingValue !== null && cheatCeilingValue <= cheatMaintenanceValue) {
+            notify('error', 'The calorie ceiling must be above maintenance calories.');
+            notify('error', 'Ceiling must be above maintenance');
             return;
         }
 
@@ -195,6 +227,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 // scored against, so it is not stamped into goal_history.
                 cheat_days_allowed: cheatAllowedValue,
                 cheat_days_period: cheatPeriod,
+                cheat_maintenance_calories: cheatMaintenanceValue,
+                cheat_calorie_ceiling: cheatCeilingValue,
             };
             await updateUserSettings(updatedSettings);
             // Study goals live in their own table, but they are edited here
@@ -349,9 +383,14 @@ const DailyLogGoalSetupPage: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        <div className="form-grid">
+                            {renderInput('cheatMaintenance', 'Cheat Maintenance Calories', cheatMaintenance, setCheatMaintenance, 'number', 'e.g. 2800')}
+                            {renderInput('cheatCeiling', 'Cheat Calorie Ceiling', cheatCeiling, setCheatCeiling, 'number', 'e.g. 3100')}
+                        </div>
                         <p className="auth-text" style={{ marginBottom: '1.5rem' }}>
-                            The first cheat days within the allowance score their food macros 100 for the day.
-                            Past the allowance those macros score 0.
+                            On a cheat day, calories are scored against your maintenance target: at or below it scores 100,
+                            above the ceiling scores 0, graded between. If you don't enter calories, they score 0.
+                            Protein and water always score normally against their own goals.
                         </p>
 
                         <div style={{ marginTop: '1.5rem' }}>

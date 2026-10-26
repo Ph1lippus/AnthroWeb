@@ -1707,13 +1707,13 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         <span
                                             className="text-sm opacity-60"
                                             data-tip={cheatStatus.allowed === null
-                                                ? "Food macros score 100 today. Water still counts."
+                                                ? "Cheat day: calories scored against your maintenance target. At or below maintenance = 100, above your ceiling = 0, graded between. Calories not entered = 0. Protein and water score normally."
                                                 : cheatOverBudget
-                                                    ? `Over your cheat-day allowance (${cheatStatus.allowed} per ${cheatPeriodLabel}). The food macros score 0 today.`
-                                                    : `Within your cheat-day allowance. Up to ${cheatStatus.allowed} per ${cheatPeriodLabel}; the first ${cheatStatus.allowed} cheat days score the food macros 100. Water still counts.`}
+                                                    ? `Over your cheat-day allowance (${cheatStatus.allowed} per ${cheatPeriodLabel}). Calories score normally today.`
+                                                    : `Within your cheat-day allowance. Up to ${cheatStatus.allowed} per ${cheatPeriodLabel}; calories scored against your maintenance target. Protein and water score normally.`}
                                         >
                                             {cheatStatus.allowed === null
-                                                ? '(macros 100)'
+                                                ? '(maintenance rule)'
                                                 : `(${cheatStatus.used}/${cheatStatus.allowed} this ${cheatPeriodLabel})`}
                                         </span>
                                     </label>

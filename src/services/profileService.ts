@@ -112,6 +112,10 @@ export interface UserSettings {
      */
     cheat_days_allowed?: number | null;
     cheat_days_period?: 'week' | 'month';
+    /** Maintenance calorie target used to score cheat-day calories. User-chosen. */
+    cheat_maintenance_calories?: number | null;
+    /** Calorie ceiling above which cheat-day calories score zero. User-chosen. */
+    cheat_calorie_ceiling?: number | null;
     habit_settings?: Record<string, HabitSetting> | null;
     created_at?: string;
     updated_at?: string;
@@ -240,6 +244,12 @@ export const createUserSettings = async (settings: UserSettings) => {
             // explicit null still means "no limit" for callers that ask for it.
             cheat_days_allowed: settings.cheat_days_allowed !== undefined ? settings.cheat_days_allowed : 1,
             cheat_days_period: settings.cheat_days_period || 'week',
+            ...(settings.cheat_maintenance_calories !== undefined
+                ? { cheat_maintenance_calories: settings.cheat_maintenance_calories }
+                : {}),
+            ...(settings.cheat_calorie_ceiling !== undefined
+                ? { cheat_calorie_ceiling: settings.cheat_calorie_ceiling }
+                : {}),
             ...(settings.habit_settings !== undefined ? { habit_settings: settings.habit_settings } : {}),
         })
         .select()
@@ -283,6 +293,12 @@ export const updateUserSettings = async (settings: UserSettings) => {
                 : {}),
             ...(settings.cheat_days_period !== undefined
                 ? { cheat_days_period: settings.cheat_days_period }
+                : {}),
+            ...(settings.cheat_maintenance_calories !== undefined
+                ? { cheat_maintenance_calories: settings.cheat_maintenance_calories }
+                : {}),
+            ...(settings.cheat_calorie_ceiling !== undefined
+                ? { cheat_calorie_ceiling: settings.cheat_calorie_ceiling }
                 : {}),
             // Also conditional, and for the same reason: most callers build a
             // settings object for one screen and do not carry habits at all. An

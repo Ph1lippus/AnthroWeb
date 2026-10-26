@@ -50,7 +50,7 @@ export interface LogScoringContext {
     /** Goals resolved for this day (snapshot / history), as the page resolves them. */
     goals: ActiveGoals | null;
     /** Body targets and settings the scorer reads. */
-    settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
+    settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null; cheat_maintenance_calories?: number | null; cheat_calorie_ceiling?: number | null } | null;
     weight: number | null;
     bodyFat: number | null;
     customCompleted: number;

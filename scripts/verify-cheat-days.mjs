@@ -119,7 +119,7 @@ const unmarked = cheat.cheatDayStatus({
 check('used counts earlier cheat days even when this one is not a cheat day',
     unmarked.used === 2 && unmarked.exempt === true, JSON.stringify(unmarked));
 
-console.log('\n== what "exempt" does to the food macros ==');
+console.log('\n== what "exempt" does to calories on a cheat day ==');
 const HABITS = {
     morningRoutine: false, eveningRoutine: false, fruitServing: false, studied: false,
     journal: false, stretching: false, reading: false, projectWorkDone: false, gym: false,
@@ -133,21 +133,81 @@ const scoreInput = (over = {}) => ({
     habits: HABITS, customCompleted: 0, customTotal: 0,
     activeGoals: null, settings: null, noSleep: false, cheatDay: false, ...over,
 });
+const FOOD_GOALS = {
+    nutrition: { calories: 1900, protein: 160, carbs: 200, fat: 65, water: 2500 },
+};
+const CHEAT_SETTINGS = { cheat_maintenance_calories: 2800, cheat_calorie_ceiling: 3100, active_goals: FOOD_GOALS };
 
-const FOOD = ['calories', 'protein', 'carbs', 'fat'];
-const free = scoring.computeDailyScore(scoreInput({ cheatDay: true, cheatDayExempt: true }));
-check('a covered cheat day scores all four food macros 100',
-    FOOD.every(k => free.metrics[k].score === 100 && free.metrics[k].logged === true),
-    JSON.stringify(FOOD.map(k => free.metrics[k])));
+// Calories at/below maintenance score 100 on an exempt cheat day.
+const atMaintenance = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, settings: CHEAT_SETTINGS, calories: '2800',
+}));
+check('cheat-day calories at maintenance score 100',
+    atMaintenance.metrics.calories.score === 100 && atMaintenance.metrics.calories.logged === true,
+    JSON.stringify(atMaintenance.metrics.calories));
 
-const penalised = scoring.computeDailyScore(scoreInput({ cheatDay: true, cheatDayExempt: false }));
-check('an over-budget cheat day scores all four food macros 0 and counts them',
-    FOOD.every(k => penalised.metrics[k].score === 0 && penalised.metrics[k].logged === true),
-    JSON.stringify(FOOD.map(k => penalised.metrics[k])));
+// Calories between maintenance and ceiling are graded linearly.
+const mid = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, settings: CHEAT_SETTINGS, calories: '2950',
+}));
+check('cheat-day calories between maintenance and ceiling are graded',
+    mid.metrics.calories.score === 50 && mid.metrics.calories.logged === true,
+    JSON.stringify(mid.metrics.calories));
 
-const normal = scoring.computeDailyScore(scoreInput());
+// Calories above the ceiling score 0 on an exempt cheat day.
+const overCeiling = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, settings: CHEAT_SETTINGS, calories: '3200',
+}));
+check('cheat-day calories above ceiling score 0',
+    overCeiling.metrics.calories.score === 0 && overCeiling.metrics.calories.logged === true,
+    JSON.stringify(overCeiling.metrics.calories));
+
+// Unmeasured calories on a cheat day score 0 and are logged.
+const unmeasured = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, settings: CHEAT_SETTINGS, calories: '',
+}));
+check('unmeasured cheat-day calories score 0 and are logged',
+    unmeasured.metrics.calories.score === 0 && unmeasured.metrics.calories.logged === true,
+    JSON.stringify(unmeasured.metrics.calories));
+
+// Protein scores normally on a cheat day: no exception.
+const normalProtein = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, activeGoals: FOOD_GOALS, settings: CHEAT_SETTINGS, protein: '160',
+}));
+check('cheat-day protein scores normally against target',
+    normalProtein.metrics.protein.score === 100 && normalProtein.metrics.protein.logged === true,
+    JSON.stringify(normalProtein.metrics.protein));
+
+// Protein below 50% of target (under 80g for a 160g target) scores 0.
+const missedProtein = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, activeGoals: FOOD_GOALS, settings: CHEAT_SETTINGS, protein: '79',
+}));
+check('protein below 50% of target scores 0 on a cheat day',
+    missedProtein.metrics.protein.score === 0 && missedProtein.metrics.protein.logged === true,
+    JSON.stringify(missedProtein.metrics.protein));
+
+// Water scores normally on a cheat day: no exception.
+const normalWater = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: true, activeGoals: FOOD_GOALS, settings: CHEAT_SETTINGS, water: '2500',
+}));
+check('cheat-day water scores normally against target',
+    normalWater.metrics.water.score === 100 && normalWater.metrics.water.logged === true,
+    JSON.stringify(normalWater.metrics.water));
+
+// Non-exempt cheat day: calories score normally, not zeroed for being over budget.
+const nonExempt = scoring.computeDailyScore(scoreInput({
+    cheatDay: true, cheatDayExempt: false, activeGoals: FOOD_GOALS, settings: CHEAT_SETTINGS, calories: '2000',
+}));
+check('non-exempt cheat day scores calories normally against goal',
+    nonExempt.metrics.calories.score === 79 && nonExempt.metrics.calories.logged === true,
+    JSON.stringify(nonExempt.metrics.calories));
+
+// Normal day: calories score against the goal, not the cheat rule.
+const normal = scoring.computeDailyScore(scoreInput({
+    activeGoals: FOOD_GOALS, settings: CHEAT_SETTINGS,
+}));
 check('a normal day still scores food against its goal, not the cheat rule',
-    normal.metrics.calories.score === 50 && normal.metrics.calories.logged === true,
+    normal.metrics.calories.score === 79 && normal.metrics.calories.logged === true,
     JSON.stringify(normal.metrics.calories));
 
 console.log(fail === 0 ? `\nALL PASS: ${pass} passed, 0 failed` : `\nFAILURES: ${pass} passed, ${fail} failed`);

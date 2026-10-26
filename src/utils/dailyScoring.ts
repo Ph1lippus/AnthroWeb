@@ -141,6 +141,8 @@ export const calculateMetricScore = (
             const targetProtein = activeGoals?.nutrition?.protein;
             if (!targetProtein) return { score: 0, logged: true };
             if (p >= targetProtein) return { score: 100, logged: true };
+            // Below half the target is a missed meal, not partial progress.
+            if (p < targetProtein * 0.5) return { score: 0, logged: true };
             const tolerance = targetProtein * 0.33;
             const diff = targetProtein - p;
             return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
@@ -372,7 +374,7 @@ export interface DailyScoringInput {
      */
     habitScore?: number | null;
     activeGoals: ActiveGoals | null | undefined;
-    settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null } | null;
+    settings: { active_goals?: unknown; target_weight?: number | null; target_bodyfat?: number | null; cheat_maintenance_calories?: number | null; cheat_calorie_ceiling?: number | null } | null;
     noSleep: boolean;
     /**
      * A day the food plan was deliberately broken. Within the user's cheat-day
@@ -400,15 +402,46 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
     const noSleepMetric: MetricScore = { score: 0, logged: true };
     const sleep = (metric: MetricScore): MetricScore => (noSleep ? noSleepMetric : metric);
 
-    // Cheat day, two ways. Within the allowance the macros score a full 100 *and*
-    // stay logged, so a planned break reads as a good day rather than a hole in
-    // the ring. Past the allowance the same macros are pinned to 0 *and* logged,
-    // so an extra day off the plan drags the ring down instead of being waved
-    // through. Water is unwrapped in both cases -- drinking is the one nutrition
-    // habit a day off does not excuse.
-    const macro = (metric: MetricScore): MetricScore => {
-        if (!cheatDay) return metric;
-        return cheatDayExempt ? { score: 100, logged: true } : { score: 0, logged: true };
+    // Cheat day: calories are scored against the user's maintenance target with
+    // a ceiling, not against the daily calorie goal. Protein, water, carbs and
+    // fat always score normally against their own goals -- a cheat day only
+    // changes how calories are judged. An unmeasured calorie entry on a cheat
+    // day scores 0 and counts; a non-exempt cheat day scores calories normally.
+    // One metric's failure never zeros another.
+    const scoreCheatDayCalories = (): MetricScore => {
+        const cal = parseInt(input.calories as string);
+        if (isNaN(cal)) {
+            // Not measured: on a cheat day this counts as 0 and is logged.
+            if (cheatDay) return { score: 0, logged: true };
+            return { score: 0, logged: false };
+        }
+
+        const maintenance = settings?.cheat_maintenance_calories ?? null;
+        const ceiling = settings?.cheat_calorie_ceiling ?? null;
+
+        if (cheatDay && cheatDayExempt && maintenance != null && ceiling != null) {
+            if (cal <= maintenance) return { score: 100, logged: true };
+            if (cal > ceiling) return { score: 0, logged: true };
+            // Graded linearly between maintenance and ceiling.
+            const range = ceiling - maintenance;
+            const over = cal - maintenance;
+            return { score: Math.max(0, Math.round(100 - (over / range) * 100)), logged: true };
+        }
+
+        // Not a cheat day (or not exempt / maintenance not set): score normally.
+        const targetCal = activeGoals?.nutrition?.calories;
+        if (!targetCal) return { score: 0, logged: true };
+
+        // Under-eating is NOT rewarded: penalise eating below a healthy floor
+        const floor = targetCal * 0.5;
+        if (cal < floor) {
+            return { score: Math.max(0, Math.round((cal / floor) * 100)), logged: true };
+        }
+        if (cal <= targetCal) return { score: 100, logged: true };
+
+        const tolerance = targetCal * 0.25;
+        const diff = cal - targetCal;
+        return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
     };
 
     // Fat and carbs are scored individually but constrained by their combined
@@ -449,10 +482,10 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         eveningDiastolic: calculateMetricScore('eveningDiastolic', input.eveningDiastolic, settings),
         eveningBpm: calculateMetricScore('eveningBpm', input.eveningBpm, settings),
         bodyTemperature: calculateMetricScore('bodyTemperature', input.bodyTemperature, settings),
-        calories: macro(calculateMetricScore('calories', input.calories, settings)),
-        protein: macro(calculateMetricScore('protein', input.protein, settings)),
-        carbs: macro(carbMetric),
-        fat: macro(fatMetric),
+        calories: scoreCheatDayCalories(),
+        protein: calculateMetricScore('protein', input.protein, settings),
+        carbs: carbMetric,
+        fat: fatMetric,
         water: calculateMetricScore('water', input.water, settings),
         // Weight and body fat now carry the measurement recency themselves, so a
         // stale measurement colours and counts as a stale score instead of a
