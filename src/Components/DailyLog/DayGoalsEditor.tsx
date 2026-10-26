@@ -202,13 +202,13 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                     </div>
                 </div>
 
-                <div className="flex gap-2 justify-end mt-4">
-                    <button type="button" className="btn-form-cancel" onClick={onClose} disabled={saving}>
+                <div className="flex w-full gap-2 mt-3" style={{ marginTop: '0.75rem' }}>
+                    <button type="button" className="btn-form-cancel flex-1 justify-center" onClick={onClose} disabled={saving}>
                         Cancel
                     </button>
                     <button
                         type="button"
-                        className="btn-form-submit"
+                        className="btn-form-submit flex-1 justify-center"
                         onClick={handleSave}
                         disabled={saving}
                     >

@@ -71,30 +71,19 @@
 }
 
 html {
-  /* Reserve scrollbar space so switching between short/long settings pages
-     does not shift the whole layout (and the left rail) sideways. */
   scrollbar-gutter: stable;
   overflow-y: scroll;
 }
 
 :root {
-  /* Tells the browser to render the controls it draws itself -- the date
-     picker's calendar, the select's dropdown list, scrollbars, the autofill
-     highlight -- against a dark surface. Without it every one of those arrives
-     in the browser's light default, which is what a `<input type="date">`
-     looked like the moment you clicked into it. */
-  color-scheme: dark;
 
-  --color-primary: #22c55e;
-  --color-primary-dark: #16a34a;
-  --color-danger: #f43f5e;
-  --color-danger-dark: #7f1d1d;
+  color-scheme: dark;
+  --color-primary: #17ec65;
+  --color-primary-dark: #31a15a;
+  --color-danger: #e63d59;
+  --color-danger-dark: #852828;
   --color-dark: #343434;
-  /* True white, not the old near-white #fffbfb: max contrast against the
-     background ramp in bright rooms. */
   --color-light: #ffffff;
-  /* Chart series palette. One place to retune every dashboard graph so a new
-     chart can never introduce a colour that clashes with the existing set. */
   --chart-primary: #22c55e;
   --chart-green: #16a34a;
   --chart-blue: #4da6ff;
@@ -1680,10 +1669,10 @@ input[type='number']::-webkit-inner-spin-button {
    long form had no surface of its own and read as loose text floating on the
    starfield. */
 .auth-card {
-  background: #111;
-  border-radius: 25px;
+  background: #1c1c1c;
+  border-radius: 50px;
   width: 100%;
-  max-width: 640px;
+  max-width: 800px;
   padding: 2rem;
   text-align: center;
   box-shadow: none;
@@ -3649,15 +3638,16 @@ textarea.form-control {
   align-items: center;
   padding: 0.5rem 1rem;
   border-radius: 25px;
-  background: transparent;
-  color: var(--color-light);
+  background: var(--color-danger);
+  color: black;
   font-family: var(--font-mono);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
+  transition: background 0.2s ease;
 }
 .btn-form-cancel:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-danger-dark);
 }
 .btn-form-submit {
   display: inline-flex;
@@ -3670,6 +3660,7 @@ textarea.form-control {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s ease;
 }
 .btn-form-submit:hover {
   background: var(--color-primary-dark);
@@ -6562,7 +6553,9 @@ textarea.form-control {
 
 /* ---------- per-day goals ---------- */
 .day-goals-card {
-  max-width: 550px !important;
+  border-radius: 50px;
+  padding: 2rem;
+  max-width: 600px !important;
   width: 92vw;
   text-align: left;
 }
@@ -7900,12 +7893,14 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
    MOOD SCALE - 1-10 segmented rating
    ============================================ */
 /* Wrapper. Its only job is to own the vertical rhythm so the scale and its
-   caption stay together when they are dropped into a card that also has other
+   buttons stay together when they are dropped into a card that also has other
    controls below them -- the journal's two editor cards each hold a scale above
    a TipTap surface, and without this the caption drifts away from the buttons. */
 .mood-scale-wrap {
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
 }
 .mood-scale {
   display: grid;
@@ -7916,10 +7911,10 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   height: 1.65rem;
   min-width: 1.65rem;
   padding: 0;
-  background: #ffffff0a;
+  background: #ffffff17;
   color: var(--color-light);
+  border-radius: 50px;
   border: none;
-  border-radius: 20px;
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -7929,6 +7924,7 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
 .mood-scale-btn:hover {
   opacity: 1;
 }
+
 /* The filled run, tinted by the rating's own tone.
    `--mood-color` is set on `.mood-scale` by the component from the shared
    palette in utils/moodSeries, so this rule is the only place that colour is
@@ -7943,14 +7939,30 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   border-color: var(--mood-color, var(--color-primary));
 }
 
-.mood-scale-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.4rem;
-  margin-top: 0.35rem;
-  color: var(--color-light);
-  font-size: 0.58rem;
-  opacity: 0.45;
+/* Journal entry scale — larger targets, tinted button background, sits on top
+   of each writing half inside the journal's own card. */
+.journal-entry-scale .mood-scale-btn {
+  height: 2rem;
+  min-width: 2rem;
+  border-radius: 20px;
+}
+.journal-entry-scale .mood-scale-btn:hover:not(.mood-scale-btn--active) {
+  background: #ffffff22;
+}
+.journal-entry-scale .mood-scale-btn--active {
+  background: var(--mood-color, var(--color-primary));
+  border-color: var(--mood-color, var(--color-primary));
+}
+
+/* Notes entry scale — transparent background, no tint on buttons. */
+.notes-entry-scale .mood-scale-btn {
+  height: 2rem;
+  min-width: 2rem;
+  border-radius: 20px;
+  background: transparent;
+}
+.notes-entry-scale .mood-scale-btn:hover:not(.mood-scale-btn--active) {
+  background: rgba(255, 255, 255, 0.05);
 }
 /* ============================================
    MOOD READOUT - read-only AM/PM badges
@@ -8476,11 +8488,10 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
    makes between its score card and its fields. */
 .journal-logs-card {
   width: 100%;
-  text-align: left;
+  text-align: center;
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  align-items: start;
 }
 /* The Daily Log's split, at the same breakpoint and with the same left column.
    Reusing the proportions rather than inventing new ones is what makes the two
@@ -8508,7 +8519,6 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
 }
 .journal-log-form {
   min-width: 0;
@@ -8575,6 +8585,11 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   font-size: 0.85rem;
   letter-spacing: 0.01em;
 }
+.card-title-words {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  font-weight: 400;
+}
 /* One tint per half of the day, on the border only. It was the whole way the two
    surfaces were told apart when the page had no cards; now the titles and the
    icons carry that, and the border keeps it -- sunrise green against evening
@@ -8591,10 +8606,10 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
    card would otherwise be a few lines tall and the pair would look like a form
    rather than a page to write on. */
 .journal-node .note-prose {
-  height: 75vh;
-  padding: 1rem 1.55rem;
-  background: rgba(255, 255, 255, 0.035);
-  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.05);
+  height: 80vh;
+  padding: 1rem 2rem ;
+  border-radius: 20px;
 }
 .journal-node .note-prose ul,
 .journal-node .note-prose ol {
@@ -8610,9 +8625,9 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
 .journal-node-hint {
   color: var(--color-light);
   opacity: 0.45;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   line-height: 1.4;
-  margin: 0.65rem 0 0.5rem;
+  margin: 0rem 0 0.5rem;
   padding: 0 0.15rem;
 }
 /* A compact cross-page action, matching the pill controls used elsewhere. */
@@ -8681,13 +8696,7 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   flex-wrap: nowrap;
   overflow: hidden;
 }
-.journal-top-bar__controls .daily-log-daynav {
-  gap: 0.1rem;
-  flex: 0 0 auto;
-}
-.journal-top-bar__controls .daily-log-daynav-btn {
-  border-radius: 0.35rem;
-}
+
 .journal-top-bar .daily-log-daynav-label {
   flex: 0 0 8rem;
   width: 8rem;
@@ -8867,13 +8876,13 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   display: flex;
   align-items: baseline;
   gap: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.75rem;
+  justify-content: center;
 }
 /* Big, but not a ring. A score can be a ring because a score is a single
    judgement out of a fixed scale; a word count is a measurement that can be any
    number at all, and drawing it as one would imply a target. */
 .journal-breakdown-total-value {
-  font-size: 2rem;
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -9797,35 +9806,15 @@ select.form-control option {
   line-height: 1.3;
   text-align: left;
 }
-/* The day controls span the panel rather than sitting in a centred cluster the
-   width of their own contents, so the arrows anchor to the edges and the date
-   gets the room between them. `nowrap` because a row that can break is a row whose
-   buttons move; the label is what gives way instead, and it does so by ellipsis.
 
-   Six fixed controls share this row: prev, the date, pick, next, back-to-today (only
-   off today) and the goals pencil -- plus the breakdown toggle, which is fixed too
-   but is not a day control, so it sits first and outside the sequence. */
 .daily-log-daynav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: nowrap;
   width: 100%;
   gap: 0.35rem;
 }
-/* Only in the split layout. There the score panel is a fixed 18rem (288px), and
-   that width is this row's arithmetic rather than a share of the page: left at
-   their roomier size, six controls at 1.9rem plus 0.35rem gaps take 216px of it,
-   leaving the date roughly 60px. That is within a pixel of what "Mon, Sep 29"
-   needs, so the circles give up a little here rather than the date losing a
-   character every day of the year. The breakdown toggle was the seventh, and at
-   those sizes it took the date back down to 59px -- one pixel under the mark,
-   which truncates "Mon, Sep 29" to "Mon, Sep 2…". So the circles give up a little
-   more: 1.6rem and a 0.2rem gap bring seven of them to 202px and the date back to
-   about 86px of the 288px panel.
 
-   Below the split the panel is the full page width, so the controls stay at the
-   larger size -- which is also where they are being touched rather than clicked. */
 @media (min-width: 1280px) {
   .daily-log-daynav {
     gap: 0.2rem;
@@ -12707,9 +12696,7 @@ body {
 .settings-title { font-size: 1.3rem; }
 .auth-title,
 .profile-name {
-  font-family: var(--font-logo);
-  font-weight: 200;
-  letter-spacing: 0.03em;
+  font-family: var(--font-mono);
 }
 .auth-title { font-size: 1.1rem; }
 .profile-name { font-size: 1rem; }

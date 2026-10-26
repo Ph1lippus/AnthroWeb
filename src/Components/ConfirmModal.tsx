@@ -39,7 +39,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 <p className="confirm-modal-description">
                     {description?.trim() ? description : 'Are you sure you want to continue?'}
                 </p>
-                <div className="flex gap-2 justify-center mt-4">
+                <div className="flex gap-2 w-full mt-4">
                     <button
                         type="button"
                         onClick={() => { if (!busy) onCancel(); }}

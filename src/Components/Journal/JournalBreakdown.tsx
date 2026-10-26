@@ -118,20 +118,11 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
     return (
         <div className="card daily-score-card journal-breakdown-card">
             <div className="card-header">
-                <h3 className="card-title">This entry</h3>
-                <span className="journal-breakdown-date">{dateLabel}</span>
+                <h3 className="card-title">
+                    {dateLabel} <span className="card-title-words">{total} {total === 1 ? 'word' : 'words'}</span>
+                </h3>
             </div>
             <div className="card-body">
-                {/* The headline figure. The ring on the Daily Log is a score; this
-                    is a length, and pretending otherwise would imply the writing
-                    has a right answer. */}
-                <div className="journal-breakdown-total">
-                    <span className="journal-breakdown-total-value">{total}</span>
-                    <span className="journal-breakdown-total-label">
-                        {total === 1 ? 'word' : 'words'}
-                    </span>
-                </div>
-
                 {/* `moodLabel` rather than a hand-written "7/10", so the figure here
                     is spelled the same way it is in every tooltip and aria label
                     elsewhere in the app. Two spellings of one value is how a number

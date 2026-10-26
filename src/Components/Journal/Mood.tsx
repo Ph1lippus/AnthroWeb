@@ -26,6 +26,8 @@ interface MoodScaleProps {
     onChange: (value: number | null) => void;
     /** Names the half of the day on screen; also the accessible group name. */
     label: string;
+    /** Optional class for per-page styling (journal vs notes). */
+    className?: string;
 }
 
 /**
@@ -41,12 +43,12 @@ interface MoodScaleProps {
  * to withdraw is otherwise impossible, and "not rated" is a real answer here --
  * it is excluded from the averages rather than counted as a zero.
  */
-export const MoodScale: React.FC<MoodScaleProps> = ({ slot, value, onChange, label }) => {
+export const MoodScale: React.FC<MoodScaleProps> = ({ slot, value, onChange, label, className }) => {
     const active = value == null ? 0 : value;
     const color = moodColor(value);
 
     return (
-        <div className="mood-scale-wrap">
+        <div className={`mood-scale-wrap${className ? ' ' + className : ''}`}>
             <div
                 className="mood-scale"
                 role="group"
@@ -75,11 +77,7 @@ export const MoodScale: React.FC<MoodScaleProps> = ({ slot, value, onChange, lab
                     );
                 })}
             </div>
-            <span className="mood-scale-caption">
-                <span>1 - rough</span>
-                <span>goal 8+</span>
-                <span>10 - great</span>
-            </span>
+
             {/* Stated for anyone not looking at the colours, and for a screen
                 reader, which gets the same sentence as everyone else. */}
             <span className="sr-only" aria-live="polite">

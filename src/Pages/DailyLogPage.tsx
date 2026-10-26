@@ -2066,7 +2066,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                     ))}
                                 </div>
                             </div>
-                            <div className="flex gap-2 justify-end mt-5">
+                            <div className="flex gap-2 w-full mt-4">
                                 <button type="button" className="btn-form-cancel" onClick={() => { setCustomHabitName(''); setCustomHabitDesc(''); setCustomHabitPriority('medium'); setCustomHabitNegative(false); setCustomHabitSchedule([0,1,2,3,4,5,6]); setShowHabitCreateModal(false); }} disabled={addingHabit}>
                                     Cancel
                                 </button>

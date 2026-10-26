@@ -107,7 +107,7 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({
                         </p>
                     )}
 
-                    <div className="flex gap-2 justify-end mt-5">
+                    <div className="flex gap-2 w-full mt-4">
                         {editing && onTrackAsPRs && exerciseCount > 0 && (
                             <button
                                 type="button"

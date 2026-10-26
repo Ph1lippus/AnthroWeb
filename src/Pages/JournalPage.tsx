@@ -6,7 +6,7 @@ import { createDailyLog, updateDailyLog, getDailyLogByDate } from '../services/d
 import { getUserSettings } from '../services/profileService';
 import type { DailyLog } from '../services/dailyLogService';
 import type { UserSettings } from '../services/profileService';
-import { Lightbulb, X, RotateCw, Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye, Rows3 } from 'lucide-react';
+import { Sparkles, Calendar, ChevronLeft, ChevronRight, CalendarCheck2, Eye } from 'lucide-react';
 import { todayString, addDays, isDateString, formatDayLabel } from '../utils/dates';
 import { journalHabitFor } from '../utils/journalHabit';
 import { useBootHold } from '../services/bootScreen';
@@ -38,14 +38,14 @@ const JournalPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [saving, setSaving] = useState(false);
+    const [setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [settings, setSettings] = useState<UserSettings | null>(null);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [setLastSaved] = useState<Date | null>(null);
 
     const [journalDocument, setJournalDocument] = useState<JournalDocument>(parseJournalDocument());
     /**
@@ -58,7 +58,6 @@ const JournalPage: React.FC = () => {
      */
     const [morningMood, setMorningMood] = useState<number | null>(null);
     const [eveningMood, setEveningMood] = useState<number | null>(null);
-    const [showTips, setShowTips] = useState(true);
     const [focusMode, setFocusMode] = useState(false);
 
     const dateParam = searchParams.get('date');
@@ -75,40 +74,40 @@ const JournalPage: React.FC = () => {
         }, { replace: true });
     }, [setSearchParams]);
 
-    const journalTips = [
-        "What's one thing you're grateful for today?",
-        "Describe a challenge you faced and how you handled it.",
-        "What did you learn about yourself today?",
-        "Write about a moment that made you smile.",
-        "What would you do differently tomorrow?",
-        "Describe your energy levels throughout the day.",
-        "What are you looking forward to tomorrow?",
-        "Did you stick to your habits? What helped or hindered you?",
-        "Write about your meals - what did you enjoy most?",
-        "How did your body feel today? Any aches, pains, or improvements?",
-        "What's one small win you had today?",
-        "Describe your sleep quality in detail.",
-        "Did you have any interesting dreams?",
-        "How did you manage stress today?",
-        "What's on your mind right now?",
-        "What would make today feel meaningful, even if it is small?",
-        "Which upcoming event deserves your best energy?",
-        "What is one habit you want to protect today?",
-        "What did your dreams seem to be telling you?",
-        "Where did your energy rise, and what caused it?",
-        "What boundary would make the rest of the day easier?",
-        "Which task are you avoiding, and what is the smallest first step?",
-        "Who helped you today, and how could you acknowledge it?",
-        "What friction kept repeating today?",
-        "What did you handle better than you would have last month?",
-        "What quote, idea, or conversation stayed with you?",
-        "What can you release before going to sleep?",
-        "What deserves gratitude even though it was difficult?",
-        "What should your future self remember about today?",
-    ];
+    // const journalTips = [
+    //     "What's one thing you're grateful for today?",
+    //     "Describe a challenge you faced and how you handled it.",
+    //     "What did you learn about yourself today?",
+    //     "Write about a moment that made you smile.",
+    //     "What would you do differently tomorrow?",
+    //     "Describe your energy levels throughout the day.",
+    //     "What are you looking forward to tomorrow?",
+    //     "Did you stick to your habits? What helped or hindered you?",
+    //     "Write about your meals - what did you enjoy most?",
+    //     "How did your body feel today? Any aches, pains, or improvements?",
+    //     "What's one small win you had today?",
+    //     "Describe your sleep quality in detail.",
+    //     "Did you have any interesting dreams?",
+    //     "How did you manage stress today?",
+    //     "What's on your mind right now?",
+    //     "What would make today feel meaningful, even if it is small?",
+    //     "Which upcoming event deserves your best energy?",
+    //     "What is one habit you want to protect today?",
+    //     "What did your dreams seem to be telling you?",
+    //     "Where did your energy rise, and what caused it?",
+    //     "What boundary would make the rest of the day easier?",
+    //     "Which task are you avoiding, and what is the smallest first step?",
+    //     "Who helped you today, and how could you acknowledge it?",
+    //     "What friction kept repeating today?",
+    //     "What did you handle better than you would have last month?",
+    //     "What quote, idea, or conversation stayed with you?",
+    //     "What can you release before going to sleep?",
+    //     "What deserves gratitude even though it was difficult?",
+    //     "What should your future self remember about today?",
+    // ];
 
-    const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
-    const [randomTip, setRandomTip] = useState(getRandomTip);
+    // const getRandomTip = () => journalTips[Math.floor(Math.random() * journalTips.length)];
+    // const [setRandomTip] = useState(getRandomTip);
 
     /**
      * Whether the day's breakdown is expanded.
@@ -118,13 +117,13 @@ const JournalPage: React.FC = () => {
      * editors there and there is room for it; closed on a phone, where it would
      * push both writing surfaces below the fold.
      */
-    const [breakdownOpen, setBreakdownOpen] = useState(
+    const [breakdownOpen] = useState(
         () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
     );
 
-    const refreshTip = () => {
-        setRandomTip(getRandomTip());
-    };
+    // const refreshTip = () => {
+    //     setRandomTip(getRandomTip());
+    // };
 
     // Load user settings
     useEffect(() => {
@@ -213,7 +212,7 @@ const JournalPage: React.FC = () => {
         }
         // A different day is a different entry, so the tip from last night's
         // writing is not this morning's prompt.
-        setShowTips(true);
+        
     }, [dayLog, dayLogPlaceholder, dayLogFetching, logDate]);
 
     // Follow the calendar day forward when the tab is brought back to the
@@ -284,7 +283,7 @@ const JournalPage: React.FC = () => {
         const hasRating = morningMood !== null || eveningMood !== null;
         if (!isEditing && !journalText && !hasRating) return;
 
-        setSaving(true);
+        // setSaving(true);
         setSaveError(null);
         try {
             const logData: Omit<DailyLog, 'id' | 'created_at' | 'updated_at'> = {
@@ -329,7 +328,7 @@ const JournalPage: React.FC = () => {
                             setIsEditing(true);
                         }
                     }
-                    setLastSaved(new Date());
+                    // setLastSaved(new Date());
                 }));
 
             // The daily log's own score card reads this row's mood, and the
@@ -342,7 +341,7 @@ const JournalPage: React.FC = () => {
             setSaveError(message);
             console.error('Auto-save error:', err);
         } finally {
-            setSaving(false);
+            // setSaving(false);
         }
     }, [settings, logDate, appliedDate, journalDocument, morningMood, eveningMood, isEditing, existingLog, queryClient]);
 
@@ -468,16 +467,7 @@ const JournalPage: React.FC = () => {
                                             one control in this row that does not act
                                             on the day. Everything after it either
                                             picks a day or acts on what is written. */}
-                                        <button
-                                            type="button"
-                                            className={`daily-log-daynav-btn${breakdownOpen ? ' daily-log-daynav-btn--on' : ''}`}
-                                            onClick={() => setBreakdownOpen(open => !open)}
-                                            data-tip={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
-                                            aria-label={breakdownOpen ? 'Hide breakdown' : 'Show breakdown'}
-                                            aria-pressed={breakdownOpen}
-                                        >
-                                            <Rows3 size={14} aria-hidden="true" />
-                                        </button>
+                                        
                                         <button
                                             type="button"
                                             className="daily-log-daynav-btn"
@@ -487,9 +477,9 @@ const JournalPage: React.FC = () => {
                                         >
                                             <ChevronLeft size={15} />
                                         </button>
-                                        <span className="daily-log-daynav-label" aria-live="polite">
+                                        {/* <span className="daily-log-daynav-label" aria-live="polite">
                                             {formatDayLabel(logDate)}
-                                        </span>
+                                        </span> */}
                                         <label className="daily-log-daynav-btn" data-tip="Pick a day">
                                             <Calendar size={14} aria-hidden="true" />
                                             <span className="sr-only">Pick a day</span>
@@ -525,7 +515,7 @@ const JournalPage: React.FC = () => {
                                             </button>
                                         )}
                                     </div>
-                                    {showTips && (
+                                    {/* {showTips && (
                                         <div className="journal-tip-card">
                                             <Lightbulb className="journal-tip-icon" aria-hidden="true" />
                                             <span className="journal-tip-text">{randomTip}</span>
@@ -541,12 +531,12 @@ const JournalPage: React.FC = () => {
                                         <button type="button" onClick={() => { setShowTips(true); refreshTip(); }} className="journal-show-tips">
                                             <Lightbulb className="mr-1" />Show tip
                                         </button>
-                                    )}
+                                    )} */}
                                 </div>
                                 <div className="journal-top-bar__status">
                                     <button
                                         type="button"
-                                        className={`btn-action journal-focus-btn${focusMode ? ' journal-focus-btn--active' : ''}`}
+                                        className={`daily-log-daynav-btn journal-focus-btn${focusMode ? ' journal-focus-btn--active' : ''}`}
                                         onClick={() => setFocusMode(value => !value)}
                                         aria-label="Focus mode"
                                         aria-pressed={focusMode}
@@ -554,19 +544,9 @@ const JournalPage: React.FC = () => {
                                     >
                                         <Eye size={14} />
                                     </button>
-                                    <button type="button" className="btn-action journal-charts-link" onClick={() => navigate('/Mind-Charts')}>
-                                        <Sparkles size={14} /> Neural network
+                                    <button type="button" className="daily-log-daynav-btn journal-charts-link" onClick={() => navigate('/Mind-Charts')}>
+                                        <Sparkles size={14} />
                                     </button>
-                                    <div className="journal-autosave">
-                                        {saveError && <span className="journal-save-error" role="status">{saveError}</span>}
-                                        {saving ? (
-                                            <span>Saving...</span>
-                                        ) : lastSaved ? (
-                                            <span>Saved {lastSaved.toLocaleTimeString()}</span>
-                                        ) : (
-                                            <span>Auto-saves as you type</span>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
 
