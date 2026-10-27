@@ -10342,6 +10342,15 @@ select.form-control option {
   opacity: 0.45;
   text-align: center;
 }
+.metrics-chart-caption {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-light);
+  opacity: 0.65;
+  text-align: left;
+  padding: 0 0.5rem;
+}
 .chart-tooltip {
   background: #151515;
   border: 1px solid #ffffff1f;

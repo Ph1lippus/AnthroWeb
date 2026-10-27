@@ -31,7 +31,7 @@ import { moodFor } from '../../utils/moodSeries';
 import { addDays } from '../../utils/dates';
 import { copyCsvToClipboard, downloadCsv } from '../../utils/exportFiles';
 import { useWeightLoss } from '../../hooks/useWeightLoss';
-import { projectWeight, projectBodyFat } from '../../utils/weightLoss';
+import { KCAL_PER_KG } from '../../utils/weightLoss';
 import { useNotice } from '../../Components/Feedback/useNotice';
 import type { DateRange } from './dateRange';
 import LoadingSpinner from '../../Components/LoadingSpinner';
@@ -478,6 +478,8 @@ interface ChartCardProps {
     empty?: boolean;
     /** Span the whole row instead of sitting in a 2-up column. */
     fullWidth?: boolean;
+    /** Small note printed under the plot, e.g. the projection's daily math. */
+    caption?: string | null;
 }
 
 /* ---------- the enlarged view's state ----------
@@ -548,6 +550,7 @@ const ChartCard: React.FC<ChartCardProps> = ({
     onCopy,
     empty,
     fullWidth,
+    caption,
 }) => (
     <div className={`metrics-chart-card${fullWidth ? ' metrics-chart-card--full' : ''}`}>
         <div className="metrics-chart-head">
@@ -603,6 +606,7 @@ const ChartCard: React.FC<ChartCardProps> = ({
                 <ResponsiveContainer width="100%" height={height}>
                     {chart}
                 </ResponsiveContainer>
+                {caption && <div className="metrics-chart-caption">{caption}</div>}
             </div>
         )}
     </div>
@@ -735,11 +739,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     };
     // Weight-loss projection: deficit, estimated weeks to goal, and target
     // weight feed the projected line on the body charts.
-    const { progress: weightProgress, calorieTarget } = useWeightLoss(range.days);
-    const { estimatedWeeks, targetWeight: projectedTargetWeight } = weightProgress;
-    const deficit = calorieTarget.deficitKcal ?? null;
-    const weeksToGoal = estimatedWeeks ?? null;
-    const targetW = projectedTargetWeight ?? null;
+    const { calorieTarget, avgTrackedKcal } = useWeightLoss(range.days);
     // Every chart on the page covers the same window, so the range is stamped on
     // here rather than threaded down through sixteen cards just for the enlarged
     // view to say what window it is showing.
@@ -852,25 +852,61 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
      * start-point logic: the start is where the trend began, the projection is
      * where it is heading.
      */
-    useMemo<BodyPoint[]>(() => {
+    /**
+     * Projected weight and body fat, extending the last actual measurement
+     * forward by twice the chosen window (a 7-day view shows a 14-day lookahead,
+     * "All Time" shows 14 days).
+     *
+     * The daily energy balance uses TDEE - BMR × activity factor, which already
+     * folds in the user's chosen activity level - minus the calories the user
+     * actually logged on the chosen days. A positive balance is a deficit
+     * (weight trends down), zero is maintenance (flat line), and a negative
+     * balance is a surplus (weight trends up). Falls back to the goal-based
+     * target deficit when nothing was tracked in range.
+     */
+    const projection = useMemo<BodyPoint[]>(() => {
         const last = bodySeries[bodySeries.length - 1];
-        if (!last || last.weight == null || !targetW || !deficit || deficit === 0)
+        const tdee = calorieTarget.tdee ?? null;
+        const avgIntake = avgTrackedKcal ?? null;
+        const effectiveDeficit =
+            tdee != null && avgIntake != null ? tdee - avgIntake : calorieTarget.deficitKcal ?? null;
+        const lastWeight = last?.weight ?? null;
+        const lastFat = last?.bodyFat ?? null;
+        if (!last || lastWeight == null || tdee == null || effectiveDeficit == null)
             return [];
-        const daysFromNow = weeksToGoal != null ? Math.round(weeksToGoal * 7) : 90;
-        const projectedW = projectWeight(last.weight, targetW, deficit, daysFromNow);
-        if (projectedW == null) return [];
-        projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow);
-        const futureDate = new Date(last.date);
-        futureDate.setDate(futureDate.getDate() + daysFromNow);
-        const futureDateStr = futureDate.toISOString().slice(0, 10);
-        return [last, {
-            date: futureDateStr,
-            label: fmtDate(futureDateStr),
-            weight: projectedW,
-            bodyFat: projectBodyFat(last.weight, last.bodyFat, targetW, deficit, daysFromNow),
-            bodyFatMethod: null,
-        }];
-    }, [bodySeries, targetW, deficit, weeksToGoal]);
+        const lookahead = range.days != null ? range.days * 2 : 14;
+        const leanMass = lastWeight * (1 - (lastFat ?? 0) / 100);
+        const out: BodyPoint[] = [];
+        for (let d = 1; d <= lookahead; d++) {
+            const date = addDays(last.date, d);
+            const weight = lastWeight - (effectiveDeficit * d) / KCAL_PER_KG;
+            const bodyFat =
+                lastFat == null || weight <= 0
+                    ? null
+                    : (Math.max(0, weight - leanMass) / weight) * 100;
+            out.push({
+                date,
+                label: fmtDate(date),
+                weight,
+                bodyFat,
+                bodyFatMethod: null,
+                projected: true,
+            });
+        }
+        return out;
+    }, [bodySeries, calorieTarget, avgTrackedKcal, range.days]);
+
+    /** TDEE minus the calories the user actually logged on the chosen days. */
+    const dailyBalance = useMemo(() => {
+        const tdee = calorieTarget.tdee ?? null;
+        const avgIntake = avgTrackedKcal ?? null;
+        return tdee != null && avgIntake != null ? tdee - avgIntake : calorieTarget.deficitKcal ?? null;
+    }, [calorieTarget, avgTrackedKcal]);
+
+    const projectionCaption =
+        dailyBalance != null
+            ? `Projection: ${dailyBalance > 0 ? '−' : dailyBalance < 0 ? '+' : '≈'} ${Math.abs(dailyBalance).toFixed(0)} kcal/day  (TDEE − avg intake)`
+            : null;
 
     /**
      * The opening point: where the user started, read from `user_settings`.
@@ -892,9 +928,21 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
     );
 
     const bodyData = useMemo<BodyPoint[]>(
-        () => (startPoint ? [startPoint, ...bodySeries] : bodySeries),
-        [startPoint, bodySeries],
+        () => (startPoint ? [startPoint, ...bodySeries, ...projection] : [...bodySeries, ...projection]),
+        [startPoint, bodySeries, projection],
     );
+
+    /** Real (non-projected) points, used for the solid measurement line. */
+    const realBody = useMemo<BodyPoint[]>(() => bodyData.filter(p => !p.projected), [bodyData]);
+    /** Last real reading, used to anchor the projection line so it stays connected. */
+    const lastRealBody = useMemo<BodyPoint | null>(() => bodySeries[bodySeries.length - 1] ?? null, [
+        bodySeries,
+    ]);
+    /** Projection series anchored at the last real reading so the two traces join up. */
+    const projectionBody = useMemo<BodyPoint[]>(() => {
+        const proj = bodyData.filter(p => p.projected);
+        return lastRealBody ? [lastRealBody, ...proj] : proj;
+    }, [bodyData, lastRealBody]);
 
     const hasBodyData = (key: 'weight' | 'bodyFat'): boolean =>
         bodyData.some(p => p[key] != null);
@@ -1378,8 +1426,27 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Weight"
                             empty={!hasBodyData('weight')}
                             onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-weight-${range.label}.csv`, bodyData.map(d => ({ date: d.date || 'Start', weight: d.weight })))}
-                            onCopy={() => copyChart('Weight', bodyData.map(d => ({ date: d.date || 'Start', weight: d.weight })))}
+                            onExport={() =>
+                                downloadCsv(
+                                    `anthroweb-weight-${range.label}.csv`,
+                                    bodyData.map(d => ({
+                                        date: d.date || 'Start',
+                                        weight: d.weight,
+                                        projected: d.projected ?? false,
+                                    })),
+                                )
+                            }
+                            onCopy={() =>
+                                copyChart(
+                                    'Weight',
+                                    bodyData.map(d => ({
+                                        date: d.date || 'Start',
+                                        weight: d.weight,
+                                        projected: d.projected ?? false,
+                                    })),
+                                )
+                            }
+                            caption={projectionCaption}
                             chart={
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1389,7 +1456,22 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     {startWeight != null && <ReferenceLine y={startWeight} stroke={C.primary} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetWeight != null && <ReferenceLine y={targetWeight} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={bodyAverage('weight')} />
-                                    <Line type="monotone" dataKey="weight" name="Weight" formatter={(v) => `${num(v, 2)} kg`} stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" data={realBody} dataKey="weight" name="Weight" formatter={(v) => `${num(v, 2)} kg`} stroke={C.primary} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    {projectionBody.length > 0 && (
+                                        <Line
+                                            type="monotone"
+                                            data={projectionBody}
+                                            dataKey="weight"
+                                            name="Projection"
+                                            formatter={(v) => `${num(v, 2)} kg`}
+                                            stroke={C.cyan}
+                                            strokeWidth={2}
+                                            strokeDasharray="6 4"
+                                            dot={false}
+                                            connectNulls
+                                            isAnimationActive={false}
+                                        />
+                                    )}
                                 </LineChart>
                             }
                         />
@@ -1397,8 +1479,27 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             title="Body Fat"
                             empty={!hasBodyData('bodyFat')}
                             onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-body-fat-${range.label}.csv`, bodyData.map(d => ({ date: d.date || 'Start', bodyFat: d.bodyFat })))}
-                            onCopy={() => copyChart('Body Fat', bodyData.map(d => ({ date: d.date || 'Start', bodyFat: d.bodyFat })))}
+                            onExport={() =>
+                                downloadCsv(
+                                    `anthroweb-body-fat-${range.label}.csv`,
+                                    bodyData.map(d => ({
+                                        date: d.date || 'Start',
+                                        bodyFat: d.bodyFat,
+                                        projected: d.projected ?? false,
+                                    })),
+                                )
+                            }
+                            onCopy={() =>
+                                copyChart(
+                                    'Body Fat',
+                                    bodyData.map(d => ({
+                                        date: d.date || 'Start',
+                                        bodyFat: d.bodyFat,
+                                        projected: d.projected ?? false,
+                                    })),
+                                )
+                            }
+                            caption={projectionCaption}
                             chart={
                                 <LineChart data={bodyData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
@@ -1408,7 +1509,22 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     {startBodyFat != null && <ReferenceLine y={startBodyFat} stroke={C.pink} strokeDasharray="2 3" strokeOpacity={0.45} label="Start" />}
                                     {targetBodyFat != null && <ReferenceLine y={targetBodyFat} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Target" />}
                                     <AvgLine y={bodyAverage('bodyFat')} stroke={C.pink} />
-                                    <Line type="monotone" dataKey="bodyFat" name="Body Fat" formatter={(v) => `${num(v)}%`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <Line type="monotone" data={realBody} dataKey="bodyFat" name="Body Fat" formatter={(v) => `${num(v)}%`} stroke={C.pink} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    {projectionBody.length > 0 && (
+                                        <Line
+                                            type="monotone"
+                                            data={projectionBody}
+                                            dataKey="bodyFat"
+                                            name="Projection"
+                                            formatter={(v) => `${num(v)}%`}
+                                            stroke={C.cyan}
+                                            strokeWidth={2}
+                                            strokeDasharray="6 4"
+                                            dot={false}
+                                            connectNulls
+                                            isAnimationActive={false}
+                                        />
+                                    )}
                                 </LineChart>
                             }
                         />

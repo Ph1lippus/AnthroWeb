@@ -6,6 +6,8 @@ export interface BodyReading {
     bodyFat: number | null;
     /** How `bodyFat` was arrived at, or null when unknown. */
     bodyFatMethod: string | null;
+    /** True when the row is a forward projection rather than a real measurement. */
+    projected?: boolean;
 }
 
 export interface BodySeriesInput {
