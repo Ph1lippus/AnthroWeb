@@ -84,6 +84,10 @@ html {
   --color-danger-dark: #852828;
   --color-dark: #343434;
   --color-light: #ffffff;
+  /* Semantic states that must not flip with the theme. Green is good, red is
+     bad, even in night mode when --color-primary turns ember red. */
+  --color-good: #17ec65;
+  --color-bad: #ffa2a2;
   --chart-primary: #22c55e;
   --chart-green: #16a34a;
   --chart-blue: #4da6ff;
@@ -10121,23 +10125,33 @@ select.form-control option {
   opacity: 0.5;
 }
 .analysis-card-hint {
-  display: block;
-  text-align: center;
-  margin-top: 0.3rem;
-  font-size: 0.7rem;
-  color: var(--color-light);
-  opacity: 0.55;
-  line-height: 1.35;
+    display: block;
+    text-align: center;
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+    color: var(--color-light);
+    opacity: 0.55;
+    line-height: 1.35;
 }
+/* The icon and the hint below it share one tone, so a card can never show a green
+   icon over a red "+923 vs. goal" -- which is what happened while the icon kept a
+   fixed accent per card and only the hint reached the tone class. Both now draw
+   from the same flag.
+   The red itself is a saturated crimson rather than the previous muted rose:
+   #f43f5e passes AA on the graphite background but reads as coral, and at the
+   hint's 0.55 base opacity it was easy to dismiss as decoration. The new value
+   is closer to a pure red, and a text-shadow keeps the edges from bleeding into
+   the card's own background tint. */
 .analysis-card--good .analysis-card-icon,
 .analysis-card--good .analysis-card-hint {
-  color: var(--color-primary);
-  opacity: 0.8;
+    color: var(--color-good);
+    opacity: 1;
 }
 .analysis-card--warn .analysis-card-icon,
 .analysis-card--warn .analysis-card-hint {
-  color: #ffb84d;
-  opacity: 0.9;
+    color: var(--color-bad);
+    opacity: 1;
+    text-shadow: 0 0 4px rgba(239, 68, 68, 0.55);
 }
 @media (max-width: 480px) {
   .analysis-grid {
@@ -12487,61 +12501,19 @@ body {
   white-space: nowrap;
 }
 .measurement-derived__value {
-  color: var(--color-primary);
+  color: var(--color-light);
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
 }
+.measurement-derived__value--good { color: var(--color-good); }
+.measurement-derived__value--warn { color: var(--color-bad); }
 /* No formula ran, so there is nothing to colour -- an accent-coloured dash would
    read as a reading of zero. */
 .measurement-derived__value[data-empty="true"] {
   color: var(--color-light);
   opacity: 0.35;
   font-weight: 400;
-}
-/* Autosave state. Sits in the actions row where the Save button used to be, so
-   the row still has something to say after the button went. */
-.measurement-save-state {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.02em;
-  color: var(--color-light);
-  opacity: 0.6;
-  min-width: 3.5rem;
-}
-
-/* Actions */
-.measurement-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-  flex-wrap: wrap;
-}
-.btn-danger-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: 1px solid rgba(255, 111, 97, 0.5);
-  background: transparent;
-  color: var(--color-danger);
-  border-radius: 8px;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.btn-danger-inline:hover {
-  background: rgba(255, 111, 97, 0.12);
-}
-.measurement-delete-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.measurement-delete-confirm__text {
-  font-size: 0.82rem;
-  opacity: 0.8;
 }
 
 /* Charts */
@@ -13343,8 +13315,8 @@ body {
   letter-spacing: 0.3px;
   white-space: nowrap;
 }
-.score-block__delta--good { color: var(--color-primary); }
-.score-block__delta--warn { color: #ffb84d; }
+.score-block__delta--good { color: var(--color-good); }
+.score-block__delta--warn { color: var(--color-bad); }
 .score-block__letter {
   font-family: var(--font-mono);
   font-size: 0.6rem;

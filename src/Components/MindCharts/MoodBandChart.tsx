@@ -123,7 +123,7 @@ const MoodBandChart: React.FC<{ logs: DailyLog[]; range: DateRange; height?: num
                     />
                     {/* The goal line, at 8. The scale's caption calls 8 the goal and
                         a chart with no line at it leaves that claim unshown. */}
-                    <ReferenceArea y1={8} y2={10} fill="var(--color-primary)" fillOpacity={0.05} />
+                    <ReferenceArea y1={8} y2={10} fill="var(--color-good)" fillOpacity={0.05} />
                     {/* Band from the low series up to the high one, so the shaded
                         span between them is the day's swing. */}
                     <Area

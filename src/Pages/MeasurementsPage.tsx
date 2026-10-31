@@ -182,7 +182,7 @@ const MeasurementsPage: React.FC = () => {
                                      saved snapshot: a number you can watch move is more
                                      use than one you have to look up. */}
                                 
-<DerivedMetrics values={derived} expanded={breakdownOpen} latestWeight={records.length ? records[records.length - 1]?.weight : null} latestBodyFat={records.length ? records[records.length - 1]?.body_fat : null} latestDate={records.length ? records[records.length - 1]?.measure_date : null} targetWeight={settings?.target_weight ?? null} targetBodyFat={settings?.target_bodyfat ?? null} />
+<DerivedMetrics values={derived} expanded={breakdownOpen} gender={context.gender} latestWeight={records.length ? records[records.length - 1]?.weight : null} latestBodyFat={records.length ? records[records.length - 1]?.body_fat : null} latestDate={records.length ? records[records.length - 1]?.measure_date : null} targetWeight={settings?.target_weight ?? null} targetBodyFat={settings?.target_bodyfat ?? null} />
 
                         </aside>
 

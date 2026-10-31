@@ -19,6 +19,19 @@ const inRange = (date: string, days: number | null): boolean => {
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
+/**
+ * One colour per tone, used for the icon so the head and the hint below it always
+ * agree. The icon used to be pinned to a fixed accent per card -- the macro cards
+ * were all `#22c55e` regardless of tone -- which left a green icon sitting above
+ * a red "+923 vs. goal" hint on a card that had gone over budget. The two said
+ * opposite things and the icon won, because an inline colour beats the tone class
+ * that only reached the hint. Toning the icon off the same flag removes the fight.
+ */
+const toneColor = (tone: 'good' | 'warn' | 'flat'): string =>
+    tone === 'good' ? 'var(--color-good)'
+    : tone === 'warn' ? 'var(--color-bad)'
+    : 'var(--color-light)';
+
 interface Stat {
     key: string;
     label: string;
@@ -123,7 +136,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             value: fmtDuration(duration),
             hint: `Quality ${fmt(mean(sorted.map(l => l.sleep_quality)), '/10')}`,
             icon: Moon,
-            color: '#a78bfa',
+            color: toneColor(duration !== null && duration >= 7 ? 'good' : duration === null ? 'flat' : 'warn'),
             tone: duration !== null && duration >= 7 ? 'good' : duration === null ? 'flat' : 'warn',
         });
         out.push({
@@ -132,7 +145,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             value: fmtClock(avgBed),
             hint: 'Average bedtime',
             icon: Moon,
-            color: '#a78bfa',
+            color: toneColor('flat'),
             tone: 'flat',
         });
         out.push({
@@ -141,20 +154,21 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             value: fmtClock(avgWake),
             hint: 'Average wake time',
             icon: Moon,
-            color: '#a78bfa',
+            color: toneColor('flat'),
             tone: 'flat',
         });
 
         // 3. Hydration.
         const water = mean(sorted.map(l => l.water));
-        const waterGoal = mean(sorted.map(l => goalsOn(l.log_date)?.nutrition?.water ?? null));
-        // Per-day attainment, not intake-over-mean-goal: a day met its own target
-        // even if a later edit raised that target above it.
-        const attainmentRatios = sorted
-            .map(l => ({ log: l.water, goal: goalsOn(l.log_date)?.nutrition?.water ?? null }))
-            .filter((r): r is { log: number; goal: number } =>
-                typeof r.log === 'number' && !Number.isNaN(r.log) && typeof r.goal === 'number' && r.goal > 0)
-            .map(r => Math.min(1, r.log / r.goal));
+        const waterDays = sorted
+            .map(l => ({ water: l.water, goal: goalsOn(l.log_date)?.nutrition?.water ?? null }))
+            .filter((r): r is { water: number; goal: number } =>
+                typeof r.water === 'number' && typeof r.goal === 'number' && r.goal > 0
+            );
+        const waterGoal = waterDays.length
+            ? waterDays.reduce((sum, r) => sum + r.goal, 0) / waterDays.length
+            : null;
+        const attainmentRatios = waterDays.map(r => Math.min(1, r.water / r.goal));
         const waterAttainment = attainmentRatios.length
             ? Math.round((attainmentRatios.reduce((a, b) => a + b, 0) / attainmentRatios.length) * 100)
             : null;
@@ -178,22 +192,40 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             { key: 'fat', label: 'Fat', field: 'fat' as const, goalKey: 'fat' as const, suffix: ' g', icon: Utensils },
         ];
         for (const m of macroDefs) {
-            const vals = sorted.map(l => l[m.field] as number | null);
-            const avg = mean(vals);
-            const goal = mean(sorted.map(l => goalsOn(l.log_date)?.nutrition?.[m.goalKey] ?? null));
-            const delta = avg !== null && goal !== null ? avg - goal : null;
+            // Pair each day's intake with its own goal, and only count days
+            // that actually have an intake value. A later goal edit must not
+            // drag down days that were logged before it existed.
+            const paired = sorted
+                .map(l => ({
+                    intake: l[m.field] as number | null,
+                    goal: goalsOn(l.log_date)?.nutrition?.[m.goalKey] ?? null,
+                }))
+                .filter((p): p is { intake: number; goal: number } =>
+                    typeof p.intake === 'number' && typeof p.goal === 'number' && p.goal > 0
+                );
+            const avg = mean(sorted.map(l => l[m.field] as number | null));
+            let hint: string;
+            let tone: 'good' | 'warn' | 'flat';
+            if (avg === null) {
+                hint = 'No data';
+                tone = 'flat';
+            } else if (paired.length === 0) {
+                hint = 'No goal set';
+                tone = 'flat';
+            } else {
+                const goalAvg = paired.reduce((sum, p) => sum + p.goal, 0) / paired.length;
+                const delta = avg - goalAvg;
+                hint = `${delta > 0 ? '+' : ''}${Math.round(delta)} vs. goal`;
+                tone = Math.abs(delta) <= Math.max(1, goalAvg * 0.1) ? 'good' : 'warn';
+            }
             out.push({
                 key: m.key,
                 label: m.label,
                 value: fmt(avg, m.suffix, 0),
-                hint: goal === null
-                    ? 'No goal set'
-                    : delta === null ? 'No data' : `${delta > 0 ? '+' : ''}${Math.round(delta)} vs. goal`,
+                hint,
                 icon: m.icon,
-                color: '#22c55e',
-                tone: delta === null || goal === null
-                    ? 'flat'
-                    : Math.abs(delta) <= Math.max(1, goal * 0.1) ? 'good' : 'warn',
+                color: toneColor(tone),
+                tone,
             });
         }
 
@@ -216,7 +248,7 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             value: fmt(latestWeight, ' kg'),
             hint: latestWeight === null ? 'No measurements' : weightTrend.text,
             icon: Scale,
-            color: '#f59e0b',
+            color: toneColor(latestWeight === null ? 'flat' : weightTrend.tone),
             tone: latestWeight === null ? 'flat' : weightTrend.tone,
         });
 
@@ -227,14 +259,15 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         // below it plot the two separately, which is where the split is legible.
         const mood = meanMoodAcross(sorted);
         if (mood !== null) {
+            const moodTone: 'good' | 'warn' = mood >= 7 ? 'good' : 'warn';
             out.push({
                 key: 'mood',
                 label: 'Mood',
                 value: fmt(mood, '/10'),
                 hint: 'Average across the range',
                 icon: Smile,
-                color: '#ec4899',
-                tone: mood >= 7 ? 'good' : 'warn',
+                color: toneColor(moodTone),
+                tone: moodTone,
             });
         }
 
@@ -246,26 +279,39 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
             }
         }
         const habitTotal = BUILTIN_HABIT_COUNT + (habits?.length ?? 0);
-        const habitPct = sorted.length > 0 && habitTotal > 0
+        // Only count days with at least one habit signal -- a day where nothing
+        // was checked (built-in or custom) doesn't count against the average,
+        // just like a calorie average ignores days with no calorie entry.
+        const habitDays = sorted.filter(l => {
+            const builtinDone = [
+                l.morning_routine, l.evening_routine, l.fruit_serving, l.studied,
+                l.journal, l.stretching, l.reading, l.project_work_done,
+                l.gym,
+            ].filter(Boolean).length > 0;
+            return builtinDone || (completedByDate.get(l.log_date) ?? 0) > 0;
+        }).length;
+        const habitPct = habitDays > 0 && habitTotal > 0
             ? Math.round(
                 (sorted.reduce((sum, l) => {
                     const builtin = [
                         l.morning_routine, l.evening_routine, l.fruit_serving, l.studied,
                         l.journal, l.stretching, l.reading, l.project_work_done,
+                        l.gym,
                     ].filter(Boolean).length;
                     return sum + builtin + (completedByDate.get(l.log_date) ?? 0);
-                }, 0) / (sorted.length * habitTotal)) * 100
+                }, 0) / (habitDays * habitTotal)) * 100
             )
             : null;
         if (habitPct !== null) {
+            const habitTone: 'good' | 'warn' = habitPct >= 70 ? 'good' : 'warn';
             out.push({
                 key: 'habits',
                 label: 'Habits',
                 value: `${habitPct}%`,
                 hint: 'Completion across the range',
                 icon: Smile,
-                color: '#ec4899',
-                tone: habitPct >= 70 ? 'good' : 'warn',
+                color: toneColor(habitTone),
+                tone: habitTone,
             });
         }
 

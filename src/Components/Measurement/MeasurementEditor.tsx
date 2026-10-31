@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { MEASUREMENT_FIELDS, GROUP_LABELS, GROUP_COLUMNS } from './fieldConfig';
 import { computeBodyCalculations } from '../../utils/measurementCalculations';
 import type { BodyMeasurement } from '../../services/measurementService';
-import { useSaveBodyMeasurement, useDeleteBodyMeasurement } from '../../hooks/useMeasurements';
-import { Trash2 } from 'lucide-react';
+import { useSaveBodyMeasurement } from '../../hooks/useMeasurements';
 
 export interface MeasurementContext {
     gender?: string;
@@ -29,7 +28,6 @@ interface MeasurementEditorProps {
     values: Record<string, string>;
     onValuesChange: (values: Record<string, string>) => void;
     onSaved?: (saved: BodyMeasurement) => void;
-    onDeleted?: () => void;
 }
 
 /**
@@ -58,14 +56,9 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
     values,
     onValuesChange,
     onSaved,
-    onDeleted,
 }) => {
     const saveMutation = useSaveBodyMeasurement(m => onSaved?.(m));
-    const deleteMutation = useDeleteBodyMeasurement(() => onDeleted?.());
-    const [deleteConfirm, setDeleteConfirm] = useState(false);
-    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const saveChainRef = useRef<Promise<unknown>>(Promise.resolve());
     const openWritesRef = useRef(0);
 
@@ -86,8 +79,6 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
             next[f.id] = v != null ? String(v) : '';
         }
         onValuesChange(next);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDeleteConfirm(false);
     }, [initial, date, onValuesChange]);
 
     const setField = (id: string, value: string) => {
@@ -142,7 +133,6 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
             ...calc as unknown as Record<string, number | null>,
         };
         openWritesRef.current += 1;
-        setSaveState('saving');
         let written = false;
         const run = () => saveMutation.mutateAsync(payload);
         saveChainRef.current = saveChainRef.current
@@ -155,16 +145,6 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
                 openWritesRef.current -= 1;
                 if (openWritesRef.current > 0) return;
                 if (written) dirtyRef.current = false;
-                if (!written) {
-                    setSaveState('idle');
-                    return;
-                }
-                setSaveState('saved');
-                if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-                savedTimerRef.current = setTimeout(() => {
-                    savedTimerRef.current = null;
-                    setSaveState('idle');
-                }, 2000);
             });
     }, [date, weight, raw, calc, hasAny, saveMutation]);
 
@@ -191,13 +171,6 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
             runSave();
         }
     }, [runSave]);
-
-    const handleDelete = async () => {
-        if (!initial?.id) return;
-        await deleteMutation.mutateAsync(initial.id);
-    };
-
-    const hasExisting = !!initial;
 
     /**
      * One labelled box.
@@ -300,27 +273,6 @@ const MeasurementEditor: React.FC<MeasurementEditorProps> = ({
                 ))}
             </div>
 
-            <div className="measurement-actions">
-                {/* Says out loud whether the last write has landed. A pending save
-                    looks identical to a saved one, and a refresh in between used to
-                    throw the edit away. */}
-                <span className="measurement-save-state" aria-live="polite">
-                    {saveState === 'saving' && 'Saving…'}
-                    {saveState === 'saved' && 'Saved'}
-                </span>
-                {hasExisting && !deleteConfirm && (
-                    <button className="btn-danger-inline" onClick={() => setDeleteConfirm(true)}>
-                        <Trash2 className="mr-1" />Delete
-                    </button>
-                )}
-                {deleteConfirm && (
-                    <span className="measurement-delete-confirm">
-                        <span className="measurement-delete-confirm__text">Delete this day?</span>
-                        <button className="btn-danger-inline" onClick={handleDelete}>Yes</button>
-                        <button className="btn-form-cancel" onClick={() => setDeleteConfirm(false)}>No</button>
-                    </span>
-                )}
-            </div>
         </div>
     );
 };

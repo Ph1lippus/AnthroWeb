@@ -8,6 +8,18 @@ import type { LucideIcon } from 'lucide-react';
 import { useWeightLoss } from '../../hooks/useWeightLoss';
 import type { DateRange } from './dateRange';
 
+/**
+ * One colour per tone. The icon used to be pinned to a fixed accent per card --
+ * the weight card was always amber, the target card always blue -- which meant an
+ * amber icon sat above a red hint on a card that had gone over budget. The icon
+ * and the hint below it now draw from the same flag, so a card never contradicts
+ * itself.
+ */
+const toneColor = (tone: 'good' | 'warn' | 'flat'): string =>
+  tone === 'good' ? 'var(--color-good)'
+  : tone === 'warn' ? 'var(--color-bad)'
+  : 'var(--color-light)';
+
 interface Stat {
   key: string;
   label: string;
@@ -44,7 +56,7 @@ const WeightLossCards: React.FC<{ range: DateRange }> = ({ range }) => {
       value: fmt(currentWeight, ' kg'),
       hint: currentWeight === null ? 'No weight recorded yet' : 'Latest measurement',
       icon: Scale,
-      color: '#f59e0b',
+      color: toneColor('flat'),
       tone: 'flat',
     });
 
@@ -58,7 +70,7 @@ const WeightLossCards: React.FC<{ range: DateRange }> = ({ range }) => {
           ? `From ${round1(startingWeight).toFixed(1)} kg starting weight`
           : 'Your goal weight',
       icon: Target,
-      color: '#3b82f6',
+      color: toneColor('flat'),
       tone: 'flat',
     });
 
@@ -74,8 +86,8 @@ const WeightLossCards: React.FC<{ range: DateRange }> = ({ range }) => {
         ? `${round1(percentChanged).toFixed(0)}% of the way there`
         : 'No start or target weight set',
       icon: TrendingDown,
-      color: weightToChange != null && weightToChange > 0 ? '#10b981' : '#f59e0b',
-      tone: weightToChange != null && weightToChange > 0 ? 'good' : 'flat',
+      color: toneColor(weightToChange != null && weightToChange > 0 ? 'good' : weightToChange === 0 ? 'flat' : 'warn'),
+      tone: weightToChange != null && weightToChange > 0 ? 'good' : weightToChange === 0 ? 'flat' : 'warn',
     });
 
     return out;

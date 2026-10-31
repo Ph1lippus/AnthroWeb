@@ -64,11 +64,16 @@ export interface BodyCalculations {
     metabolic_age: number | null;
     muscle_quality: number | null;
     dynamic_strength: number | null;
-    // Body-fat percentage the user actually supplied (a reading, not an estimate).
-    // Surfaced on the breakdown as the first of the two body-fat figures.
+    /** Body-mass index: weight (kg) / height (m)^2. */
+    bmi: number | null;
+    /** Body-fat percentage the user actually supplied (a reading, not an estimate). */
     body_fat_measured: number | null;
-    // Estimated body-fat percentage (US Navy method). Not a stored column but
-    // surfaced in the UI and used by the body-composition formula above.
+    /** The US Navy circumference estimate, computed from centimetres directly. */
+    body_fat_navy: number | null;
+    /** The YMCA method: waist and weight only, no neck or height needed. */
+    body_fat_ymca: number | null;
+    /** The body-fat percentage preferred by the rest of the app: the measured
+     * reading when one was entered, otherwise the Navy estimate. */
     body_fat_percent: number | null;
 }
 
@@ -91,26 +96,56 @@ const symmetRy = (left: number | null | undefined, right: number | null | undefi
     return Math.max(0, 100 - (diff / max) * 100);
 };
 
+// Body-mass index: weight in kilograms over height in metres squared.
+const bmiFrom = (weight: number | null | undefined, heightCm: number | null | undefined): number | null => {
+    if (weight == null || heightCm == null || heightCm <= 0) return null;
+    const heightM = heightCm / 100;
+    return round2(weight / (heightM * heightM));
+};
+
 // US Navy circumference method for body-fat percentage.
+//
+// The Hodgdon & Beckett equations take centimetres directly. They were fitted
+// against hydrostatic weighing with the raw metric inputs -- a 172 cm man with
+// an 85 cm waist and 37 cm neck resolves to 18.2%. Converting to inches first
+// (which is what this used to do) pushes the log terms through a different scale
+// and lands near 11.8%, which is why the estimate read far too low for anyone
+// entering metric. Both forms are the same equation; only the unit of the inputs
+// changes, so the conversion was simply wrong to be there.
 const navyBodyFatPercent = (m: MeasurementInput, ctx: CalculationContext): number | null => {
-    const heightIn = (ctx.height_cm ?? 0) * CM_TO_IN;
-    if (heightIn <= 0 || !m.neck) return null;
-    const waistIn = (m.waist ?? 0) * CM_TO_IN;
-    if (waistIn <= 0) return null;
+    const heightCm = ctx.height_cm ?? 0;
+    if (heightCm <= 0 || !m.neck) return null;
+    const waistCm = m.waist ?? 0;
+    if (waistCm <= 0) return null;
 
     const gender: string = ctx.gender || 'male';
     if (gender === 'female') {
-        const hipsIn = (m.hips ?? 0) * CM_TO_IN;
-        if (hipsIn <= 0) return null;
-        const n = 1.29579 - 0.35004 * Math.log10(waistIn + hipsIn - m.neck * CM_TO_IN)
-            + 0.221 * Math.log10(heightIn);
+        const hipsCm = m.hips ?? 0;
+        if (hipsCm <= 0) return null;
+        const n = 1.29579 - 0.35004 * Math.log10(waistCm + hipsCm - m.neck)
+            + 0.221 * Math.log10(heightCm);
         if (n <= 0) return null;
         return Math.max(0, 495 / n - 450);
     }
-    const n = 1.0324 - 0.19077 * Math.log10(waistIn - m.neck * CM_TO_IN)
-        + 0.15456 * Math.log10(heightIn);
+    const n = 1.0324 - 0.19077 * Math.log10(waistCm - m.neck)
+        + 0.15456 * Math.log10(heightCm);
     if (n <= 0) return null;
     return Math.max(0, 495 / n - 450);
+};
+
+// YMCA body-fat method: waist and weight only, so it needs neither neck nor
+// height. Imperial inputs -- waist in inches, weight in pounds -- which is the
+// form the formula was published in, so it is the one place a conversion is
+// required rather than an error to remove.
+const ymcaBodyFatPercent = (m: MeasurementInput, ctx: CalculationContext): number | null => {
+    const waistIn = (m.waist ?? 0) * CM_TO_IN;
+    if (waistIn <= 0 || m.weight == null || m.weight <= 0) return null;
+    const weightLb = m.weight / 0.453592;
+    const gender: string = ctx.gender || 'male';
+    const constant = gender === 'female' ? -76.76 : -98.42;
+    const raw = (constant + 4.15 * waistIn - 0.082 * weightLb) / weightLb;
+    if (!Number.isFinite(raw)) return null;
+    return Math.max(0, raw * 100);
 };
 
 // Mifflin-St Jeor to compute BMR from weight (kg), height (cm), age.
@@ -154,13 +189,17 @@ export const computeBodyCalculations = (
     const avgBicepFlexed = avg(m.bicep_left_flexed, m.bicep_right_flexed);
     const avgForearmFlexed = avg(m.forearm_left_flexed, m.forearm_right_flexed);
 
-    // A body-fat percentage the user supplied beats the Navy derivation. Both
-    // exist now that body_fat is a real column: one is a reading off a scale, the
-    // other an estimate from tape, and the reading is the one to keep. The Navy
-    // value still fills in when nothing was entered, so an existing tape-only
-    // measurement is not left with nothing.
+    // A body-fat percentage the user supplied beats the Navy derivation for the
+    // rest of the app. Both exist now that body_fat is a real column: one is a
+    // reading off a scale, the other an estimate from tape. The estimate is
+    // still computed and surfaced separately so the two can be compared -- the
+    // user asked to see them argue rather than have one silently replace the
+    // other. The Navy value fills in when nothing was entered, so an existing
+    // tape-only measurement is not left with nothing.
     const measuredFat = m.body_fat ?? null;
-    const bodyFat = measuredFat ?? navyBodyFatPercent(m, ctx);
+    const navyFat = navyBodyFatPercent(m, ctx);
+    const ymcaFat = ymcaBodyFatPercent(m, ctx);
+    const bodyFat = measuredFat ?? navyFat;
 
     const fatMass = weight != null && bodyFat != null ? round2((weight * bodyFat) / 100) : null;
     const leanMass = weight != null && fatMass != null ? round2(weight - fatMass) : null;
@@ -191,11 +230,7 @@ export const computeBodyCalculations = (
         fat_mass: fatMass,
         bmr,
         ffmi,
-        adonis_index: round2OrNull(
-            m.shoulders != null && m.waist != null && m.waist > 0 && m.hips != null
-                ? (m.shoulders / m.waist) * (m.hips / m.waist)
-                : null
-        ),
+        adonis_index: round2OrNull(safeDiv(m.shoulders ?? null, m.waist ?? null)),
         torso_taper: m.shoulders != null && m.waist != null ? round1(m.shoulders - m.waist) : null,
         leg_torso_ratio: round2OrNull(safeDiv(avgThigh, avgBicepFlexed)),
         metabolic_age: bmr != null && weight != null && heightCm != null
@@ -203,13 +238,16 @@ export const computeBodyCalculations = (
             : null,
         muscle_quality: weight != null && leanMass != null ? round1((leanMass / weight) * 100) : null,
         dynamic_strength: dynamicStrength,
+        bmi: bmiFrom(weight, heightCm),
         body_fat_measured: measuredFat != null ? round1(measuredFat) : null,
+        body_fat_navy: navyFat != null ? round1(navyFat) : null,
+        body_fat_ymca: ymcaFat != null ? round1(ymcaFat) : null,
         body_fat_percent: bodyFat != null ? round1(bodyFat) : null,
     };
 };
 
-const round2 = (value: number): number => Math.floor(value * 100) / 100;
-const round1 = (value: number): number => Math.floor(value * 10) / 10;
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+const round1 = (value: number): number => Math.round(value * 10) / 10;
 const round2OrNull = (value: number | null): number | null => (value == null ? null : round2(value));
 const round1OrNull = (value: number | null): number | null => (value == null ? null : round1(value));
 

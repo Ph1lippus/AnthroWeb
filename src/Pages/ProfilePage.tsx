@@ -92,30 +92,6 @@ const ProfilePage: React.FC = () => {
         return age;
     };
 
-    const calculateProgress = () => {
-        if (!settings?.goal || settings.goal === 'maintain' || !latestMeasurements) {
-            return { weightProgress: 0, bodyFatProgress: 0, overallProgress: 0 };
-        }
-
-        let weightProgress = 0;
-        let bodyFatProgress = 0;
-
-        if (settings.starting_weight && settings.target_weight && latestMeasurements.weight) {
-            const totalToLose = settings.starting_weight - settings.target_weight;
-            const lostSoFar = settings.starting_weight - latestMeasurements.weight;
-            weightProgress = Math.min(100, Math.max(0, (lostSoFar / totalToLose) * 100));
-        }
-
-        if (settings.starting_bodyfat && settings.target_bodyfat && latestMeasurements.body_fat) {
-            const totalToLose = settings.starting_bodyfat - settings.target_bodyfat;
-            const lostSoFar = settings.starting_bodyfat - latestMeasurements.body_fat;
-            bodyFatProgress = Math.min(100, Math.max(0, (lostSoFar / totalToLose) * 100));
-        }
-
-        const overallProgress = (weightProgress + bodyFatProgress) / 2;
-        return { weightProgress, bodyFatProgress, overallProgress };
-    };
-
     const getGenderDisplay = (gender: string | null | undefined): string => {
         if (!gender) return 'Not set';
         const genderMap: Record<string, string> = {
@@ -159,7 +135,6 @@ const ProfilePage: React.FC = () => {
         );
     }
 
-    const progress = calculateProgress();
     const age = calculateAge(settings?.date_of_birth);
 
     // BMI from the latest logged weight + stored height, so the card has a
@@ -206,37 +181,6 @@ const ProfilePage: React.FC = () => {
                     <div className="profile-two-col">
                         {/* LEFT COLUMN */}
                         <div className="profile-left-col">
-                            {/* Progress Section */}
-                            {settings?.goal && settings.goal !== 'maintain' && settings.starting_weight && settings.target_weight && (
-                                <div className="profile-section">
-                                    <h2 className="profile-section-title">Progress</h2>
-                                    <div className="profile-progress-card">
-                                        <div className="profile-progress-header">
-                                            <span className="profile-progress-label">Overall Progress</span>
-                                            <span className="profile-progress-value">{Math.round(progress.overallProgress)}%</span>
-                                        </div>
-                                        <div className="profile-progress-bar">
-                                            <div className="profile-progress-fill" style={{ width: `${Math.round(progress.overallProgress)}%` }}></div>
-                                            <span className="profile-progress-start" />
-                                            <span className="profile-progress-marker" style={{ left: `${Math.round(progress.overallProgress)}%` }} />
-                                        </div>
-                                        
-                                        <div className="profile-progress-details">
-                                            {settings.starting_weight && settings.target_weight && (
-                                                <div className="profile-progress-detail">
-                                                    <span>Weight: {settings.starting_weight} kg → {latestMeasurements?.weight ?? '—'} kg → {settings.target_weight} kg</span>
-                                                </div>
-                                            )}
-                                            {settings.starting_bodyfat && settings.target_bodyfat && (
-                                                <div className="profile-progress-detail">
-                                                    <span>Body Fat: {settings.starting_bodyfat}% → {latestMeasurements?.body_fat ?? '—'}% → {settings.target_bodyfat}%</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Body Stats Section - mosaic of tiles, each a small
                                 card like the daily log puzzle grid. */}
                             <div className="profile-section">

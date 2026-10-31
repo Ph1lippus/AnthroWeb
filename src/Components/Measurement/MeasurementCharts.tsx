@@ -37,6 +37,9 @@ const RAW_CHARTS: ChartDef[] = [
 
 const DERIVED_CHARTS: ChartDef[] = [
     { key: 'body_fat_percent', label: 'Body Fat %', unit: '%', width: 2, accent: '#ff5f7e' },
+    { key: 'body_fat_navy', label: 'Body Fat (Navy)', unit: '%', width: 1, accent: '#ff5f7e' },
+    { key: 'body_fat_ymca', label: 'Body Fat (YMCA)', unit: '%', width: 1, accent: '#ff5f7e' },
+    { key: 'bmi', label: 'BMI', unit: '', width: 1, accent: '#c084fc' },
     { key: 'lean_body_mass', label: 'Lean Body Mass', unit: 'kg', width: 2, accent: 'var(--color-primary)' },
     { key: 'fat_mass', label: 'Fat Mass', unit: 'kg', width: 2, accent: '#ff5f7e' },
     { key: 'bmr', label: 'BMR', unit: 'kcal', width: 1, accent: '#4fd1ff' },

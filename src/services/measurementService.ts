@@ -51,6 +51,17 @@ export interface BodyMeasurement extends MeasurementInput {
     metabolic_age?: number | null;
     muscle_quality?: number | null;
     dynamic_strength?: number | null;
+    /**
+     * Body-mass index. Migration 0034.
+     */
+    bmi?: number | null;
+    /**
+     * YMCA body-fat estimate. Migration 0034.
+     *
+     * Waist and weight only, so it needs neither neck nor height. Computed
+     * independently of the Navy figure so the two can be compared.
+     */
+    body_fat_ymca?: number | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -201,6 +212,8 @@ const derivedMeasurementFields = (m: BodyMeasurement) => ({
     metabolic_age: m.metabolic_age ?? null,
     muscle_quality: m.muscle_quality ?? null,
     dynamic_strength: m.dynamic_strength ?? null,
+    bmi: m.bmi ?? null,
+    body_fat_ymca: m.body_fat_ymca ?? null,
 });
 
 /**

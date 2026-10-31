@@ -5,7 +5,6 @@ import {
     getLatestMeasurement,
     saveBodyMeasurement,
     logBodyComposition,
-    deleteBodyMeasurement,
     type BodyFatMethod,
     type BodyMeasurement,
 } from '../services/measurementService';
@@ -74,19 +73,6 @@ export const useLogBodyComposition = () => {
             qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurements });
             qc.invalidateQueries({ queryKey: queryKeys.latestMeasurement });
             qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurementByDate(saved.measure_date) });
-        },
-    });
-};
-
-export const useDeleteBodyMeasurement = (onDone?: () => void) => {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (id: string) => deleteBodyMeasurement(id),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: queryKeys.bodyMeasurements });
-            qc.invalidateQueries({ queryKey: queryKeys.latestMeasurement });
-            qc.invalidateQueries({ queryKey: queryKeys.userSettings });
-            onDone?.();
         },
     });
 };

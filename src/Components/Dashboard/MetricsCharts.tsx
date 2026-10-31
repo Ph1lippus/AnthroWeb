@@ -186,6 +186,8 @@ interface ChartPoint {
     eveningDiastolic: number | null;
     eveningBpm: number | null;
     habitPct: number | null;
+    /** True when the day has any habit signal (built-in checked or custom logged). Days with none are excluded from the average. */
+    hasHabitSignal: boolean;
     /**
      * The goal in force on that day's date, carried per point rather than as one
      * chart-wide constant. Goals are versioned by date (see `goalHistory.ts`), so
@@ -380,6 +382,7 @@ const BLANK_POINT: ChartPoint = {
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
     habitPct: null,
+    hasHabitSignal: false,
     goalCalories: null, goalWater: null, goalProtein: null, goalCarbs: null,
     goalFat: null, goalSleepHours: null, goalBedtime: null, goalWakeTime: null,
 };
@@ -792,6 +795,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                 const customTotal = habits?.length || 0;
                 const customDone = completedByDate.get(l.log_date) ?? 0;
                 const habitTotal = BUILTIN_HABIT_COUNT + customTotal;
+                const hasSignal = builtinDone > 0 || customDone > 0;
                 return {
                     date: l.log_date,
                     label: fmtDate(l.log_date),
@@ -813,7 +817,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     eveningSystolic: l.evening_systolic ?? null,
                     eveningDiastolic: l.evening_diastolic ?? null,
                     eveningBpm: l.evening_bpm ?? null,
-                    habitPct: habitTotal > 0 ? Math.round(((builtinDone + customDone) / habitTotal) * 100) : null,
+                    habitPct: hasSignal && habitTotal > 0 ? Math.round(((builtinDone + customDone) / habitTotal) * 100) : null,
+                    hasHabitSignal: hasSignal,
                     goalCalories: goalsOn(l.log_date)?.nutrition?.calories ?? null,
                     goalWater: goalsOn(l.log_date)?.nutrition?.water ?? null,
                     goalProtein: goalsOn(l.log_date)?.nutrition?.protein ?? null,
@@ -1000,11 +1005,11 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
 
     const customHabitData = useMemo(() => {
         if (!habits || habits.length === 0) return [];
-        const logDates = new Set(chartData.map(d => d.date));
+        const habitDays = chartData.filter(d => d.hasHabitSignal).length;
         return habits
             .map(h => ({
                 name: h.name,
-                pct: logDates.size > 0 ? Math.round(((completedByHabit.get(h.id ?? '') ?? 0) / logDates.size) * 100) : 0,
+                pct: habitDays > 0 ? Math.round(((completedByHabit.get(h.id ?? '') ?? 0) / habitDays) * 100) : 0,
             }))
             .sort((a, b) => b.pct - a.pct);
     }, [habits, completedByHabit, chartData]);
