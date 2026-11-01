@@ -221,6 +221,10 @@ export interface ExerciseRollup {
     /** Minutes for cardio and mobility, which carry time instead of weight. */
     minutesLogged: number;
     distanceKm: number;
+    /** Cardio-only totals, kept separate when legacy rows share an exercise key. */
+    cardioMinutesLogged: number;
+    cardioDistanceKm: number;
+    cardioDates: Set<string>;
     bestWeight?: number;
     bestReps?: number;
     lastDate?: string;
@@ -271,6 +275,9 @@ export const rollupExercises = (
                 volumeKg: 0,
                 minutesLogged: 0,
                 distanceKm: 0,
+                cardioMinutesLogged: 0,
+                cardioDistanceKm: 0,
+                cardioDates: new Set<string>(),
                 recentVolumeKg: 0,
             };
             rollups.set(key, rollup);
@@ -289,6 +296,11 @@ export const rollupExercises = (
         // invent kilograms nobody lifted.
         rollup.minutesLogged += row.duration_minutes ?? 0;
         rollup.distanceKm += row.distance_km ?? 0;
+        if (row.activity_type === 'cardio') {
+            rollup.cardioMinutesLogged += row.duration_minutes ?? 0;
+            rollup.cardioDistanceKm += row.distance_km ?? 0;
+            rollup.cardioDates.add(row.workout_date);
+        }
         if (row.workout_date >= cutoff) rollup.recentVolumeKg += volume;
         if (!rollup.lastDate || row.workout_date > rollup.lastDate) rollup.lastDate = row.workout_date;
 
@@ -391,14 +403,15 @@ export const kindTotals = (rollups: ExerciseRollup[]): KindTotals => {
     for (const rollup of rollups) {
         if (rollup.timesLogged === 0) continue;
         const minutes = rollup.minutesLogged;
-        if (rollup.activityType === 'cardio') {
-            totals.cardioMinutes += minutes;
-            totals.cardioDistanceKm += rollup.distanceKm;
-            totals.cardioSessions += 1;
-        } else if (rollup.activityType === 'mobility') {
-            totals.mobilityMinutes += minutes;
+        if (rollup.cardioDates.size > 0) {
+            totals.cardioMinutes += rollup.cardioMinutesLogged;
+            totals.cardioDistanceKm += rollup.cardioDistanceKm;
+            totals.cardioSessions += rollup.cardioDates.size;
+        }
+        if (rollup.activityType === 'mobility') {
+            totals.mobilityMinutes += rollup.minutesLogged;
             totals.mobilitySessions += 1;
-        } else {
+        } else if (rollup.cardioDates.size === 0) {
             totals.strengthMinutes += minutes;
         }
     }

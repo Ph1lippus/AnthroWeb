@@ -28,7 +28,7 @@ const daysSince = (date: string): number =>
     Math.max(0, Math.floor((Date.now() - new Date(`${date}T00:00:00`).getTime()) / 86400000));
 
 const DomainStats: React.FC = () => {
-    const { projects, books, abstinenceGoals, abstinenceHistory, pending } = useDomainStats();
+    const { projects, books, abstinenceGoals, pending } = useDomainStats();
 
     const stats = useMemo<Stat[]>(() => {
         const activeProjects = projects.filter(p => p.status === 'active');
@@ -40,10 +40,6 @@ const DomainStats: React.FC = () => {
         const longest = abstinenceGoals.length > 0
             ? abstinenceGoals.reduce((best, g) => (daysSince(g.start_date) > daysSince(best.start_date) ? g : best))
             : null;
-        const bestStreak = abstinenceHistory.length > 0
-            ? Math.max(...abstinenceHistory.map(h => h.duration_days))
-            : null;
-
         const stats: Stat[] = [];
 
         if (projects.length > 0) {
@@ -89,19 +85,10 @@ const DomainStats: React.FC = () => {
                 tone: 'flat',
                 pending: pending.abstinenceGoals,
             });
-            stats.push({
-                key: 'abstinenceBest',
-                label: 'Best Streak',
-                value: bestStreak === null ? '0d' : `${bestStreak}d`,
-                hint: `${abstinenceHistory.length} completed goal${abstinenceHistory.length === 1 ? '' : 's'}`,
-                icon: ShieldCheck,
-                tone: bestStreak !== null && bestStreak > 0 ? 'good' : 'flat',
-                pending: pending.abstinenceHistory,
-            });
         }
 
         return stats;
-    }, [projects, books, abstinenceGoals, abstinenceHistory, pending]);
+    }, [projects, books, abstinenceGoals, pending]);
 
     if (stats.length === 0) return null;
 

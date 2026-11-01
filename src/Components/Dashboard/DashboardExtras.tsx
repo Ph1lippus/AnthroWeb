@@ -46,10 +46,6 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
             .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
         const activeDays = activeGoal ? daysSince(activeGoal.start_date) : null;
 
-        const bestStreak = abstinenceHistory.length > 0
-            ? Math.max(...abstinenceHistory.map(entry => entry.duration_days))
-            : null;
-
         return {
             totalBooks: books.length,
             reading,
@@ -60,7 +56,6 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
             studyMinutes: studyMinutes % 60,
             activeGoal,
             activeDays,
-            bestStreak,
         };
     }, [books, academicItems, studySessions, abstinenceGoals, abstinenceHistory]);
 
@@ -131,14 +126,7 @@ const DashboardExtras: React.FC<DashboardExtrasProps> = ({
                     stats.activeDays === null ? '--' : `${stats.activeDays}d`,
                     stats.activeGoal
                         ? `${stats.activeGoal.name}${stats.activeGoal.target_days ? ` · ${stats.activeGoal.target_days}d target` : ''}`
-                        : `${abstinenceHistory.length} completed goals`,
-                )}
-                {card(
-                    'Best streak',
-                    ShieldCheck,
-                    pending.streak,
-                    stats.bestStreak === null ? '--' : `${stats.bestStreak}d`,
-                    `${abstinenceHistory.length} completed goals`,
+                        : 'No active goal',
                 )}
             </div>
         </section>
