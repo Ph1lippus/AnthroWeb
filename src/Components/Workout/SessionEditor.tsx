@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Circle, CircleCheck, Copy, Flag, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Circle, CircleCheck, Copy, Flag, Loader2, Trash2 } from 'lucide-react';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
 import {
@@ -648,8 +648,8 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             <label className="form-label" htmlFor="se-notes">Notes</label>
                             <textarea
                                 id="se-notes"
-                                className="form-control"
                                 rows={3}
+                                className="form-control workout-session-notes"
                                 placeholder="How did it go?"
                                 value={notes}
                                 onChange={event => setNotes(event.target.value)}
@@ -746,9 +746,6 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 placeholder="Add an exercise"
                             />
                             </div>
-                            <button type="submit" className="btn-action" disabled={!newName.trim()}>
-                                <Plus size={11} className="mr-1" />Add
-                            </button>
                         </form>
 
                         <div className="workout-ex__actions" style={{ marginTop: '0.85rem' }}>

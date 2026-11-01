@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
-    CalendarCheck,
     Dumbbell,
-    Pencil,
     RotateCcw,
-    Search,
+    Plus,
     Trash2,
     TrendingUp,
     Trophy,
@@ -53,7 +51,6 @@ const RecordsPanel: React.FC = () => {
     const addEntry = useAddPREntry();
     const removeEntry = useDeletePREntry();
 
-    const [search, setSearch] = useState('');
     const [newName, setNewName] = useState('');
     /* Kept so a library pick can hand its id to the PR row. Without it the entry
        was written with `exercise_id: null`, which is the same missing join that
@@ -69,12 +66,6 @@ const RecordsPanel: React.FC = () => {
         return a.entry.exercise_name.localeCompare(b.entry.exercise_name);
     }), [cards]);
 
-    const filtered = useMemo(() => {
-        const needle = search.trim().toLowerCase();
-        if (!needle) return sorted;
-        return sorted.filter(card => card.entry.exercise_name.toLowerCase().includes(needle));
-    }, [sorted, search]);
-
     const withRecord = cards.filter(card => !card.untracked).length;
 
     return (
@@ -85,28 +76,6 @@ const RecordsPanel: React.FC = () => {
                 </div>
                 <div className="card-body">
                     <div className="pr-toolbar">
-                        <div className="search-container">
-                            <div className="search-input-wrapper">
-                                <Search className="search-input-icon" />
-                                <input
-                                    type="text"
-                                    className="search-input"
-                                    value={search}
-                                    onChange={event => setSearch(event.target.value)}
-                                    placeholder="Search"
-                                    aria-label="Search tracked exercises"
-                                />
-                                {search && (
-                                    <button
-                                        className="search-clear-btn"
-                                        onClick={() => setSearch('')}
-                                        aria-label="Clear search"
-                                    >
-                                        <X size={13} />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
                         <form
                             className="pr-toolbar__add"
                             onSubmit={event => {
@@ -142,14 +111,9 @@ const RecordsPanel: React.FC = () => {
                                 Import from a template, or add a lift you want to keep an eye on.
                             </p>
                         </div>
-                    ) : filtered.length === 0 ? (
-                        <div className="workout-empty">
-                            <p className="workout-empty__title">No match</p>
-                            <p className="workout-empty__text">Try a different search.</p>
-                        </div>
                     ) : (
                         <div className="pr-grid">
-                            {filtered.map(card => (
+                            {sorted.map(card => (
                                 <RecordCard
                                     key={card.entry.id}
                                     card={card}
@@ -204,6 +168,7 @@ const RecordCard: React.FC<{
     const [weight, setWeight] = useState('');
     const [reps, setReps] = useState('');
     const [editing, setEditing] = useState<string | null>(null);
+    const [progressOpen, setProgressOpen] = useState(false);
     const [dropping, setDropping] = useState<PRHistory | null>(null);
     const [resetting, setResetting] = useState(false);
 
@@ -213,6 +178,9 @@ const RecordCard: React.FC<{
     // `currentBestOf` hands back the winning row itself, which is the only place
     // the id of the record being displayed is available.
     const bestRow = best?.entry;
+    const previous = card.history
+        .filter(row => row.id !== bestRow?.id)
+        .sort((a, b) => b.workout_date.localeCompare(a.workout_date))[0];
 
     return (
         <div className="card pr-card">
@@ -233,20 +201,7 @@ const RecordCard: React.FC<{
 
             <div className="card-body">
                 {best && bestRow ? (
-                    bestRow.id && editing === bestRow.id ? (
-                        <RecordEditor
-                            row={bestRow}
-                            weightUnit={weightUnit}
-                            busy={updateRow.isPending}
-                            onSave={updates => {
-                                updateRow.mutate({ id: bestRow.id!, updates });
-                                setEditing(null);
-                            }}
-                            onDelete={() => setDropping(bestRow)}
-                            onCancel={() => setEditing(null)}
-                        />
-                    ) : (
-                        <button
+                    <button
                             type="button"
                             className="pr-best"
                             onClick={() => bestRow.id && setEditing(bestRow.id)}
@@ -258,16 +213,9 @@ const RecordCard: React.FC<{
                                 {best.reps != null && <span className="pr-best__reps"> × {best.reps}</span>}
                             </span>
                             <span className="pr-best__meta">
-                                {bestRow.workout_completion_id ? (
-                                    <CalendarCheck size={10} aria-hidden="true" />
-                                ) : (
-                                    <Pencil size={10} aria-hidden="true" />
-                                )}
                                 {formatDayLabel(best.date)}
                             </span>
-                            <Pencil className="pr-best__edit" size={12} aria-hidden="true" />
                         </button>
-                    )
                 ) : (
                     <p className="form-label" style={{ marginBottom: '0.5rem' }}>
                         No max recorded yet. Enter what you have lifted before — it becomes the number
@@ -281,61 +229,19 @@ const RecordCard: React.FC<{
                         {formatDayLabel(delta.fromDate)}
                     </p>
                 )}
+                {previous && (
+                    <p className="semester-meta">
+                        Previous: {previous.weight != null ? `${fromKg(previous.weight, weightUnit)} ${weightUnit}` : '—'}
+                        {previous.reps != null && ` · ${previous.reps} sets`}
+                    </p>
+                )}
 
                 {/* Entering a first record for an untracked lift. Once there is a
                     best, editing it above replaces this -- adding a second number
                     is a progression step, which is what the list below is for. */}
-                {!best && (
-                    <form
-                        className="pr-entry-form"
-                        onSubmit={event => {
-                            event.preventDefault();
-                            if (!entryId || !weight.trim()) return;
-                            const parsed = Number(weight);
-                            if (!Number.isFinite(parsed)) return;
-                            recordMax.mutate({
-                                pr_entry_id: entryId,
-                                exercise_name: card.entry.exercise_name,
-                                weight: toKg(parsed, weightUnit),
-                                reps: reps.trim() ? Number(reps) : null,
-                                workout_date: todayString(),
-                            });
-                            setWeight('');
-                            setReps('');
-                        }}
-                    >
-                        <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            step={weightUnit === 'kg' ? 0.5 : 1}
-                            className="form-control"
-                            style={{ padding: '0.3rem 0.45rem' }}
-                            value={weight}
-                            onChange={event => setWeight(event.target.value)}
-                            placeholder={weightUnit}
-                            aria-label={`Your best ${card.entry.exercise_name} weight`}
-                        />
-                        <input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            className="form-control"
-                            style={{ padding: '0.3rem 0.45rem' }}
-                            value={reps}
-                            onChange={event => setReps(event.target.value)}
-                            placeholder="reps"
-                            aria-label={`Your best ${card.entry.exercise_name} rep count`}
-                        />
-                        <button
-                            type="submit"
-                            className="btn-action"
-                            disabled={!weight.trim() || !entryId || recordMax.isPending}
-                        >
-                            Set
-                        </button>
-                    </form>
-                )}
+                <button type="button" className="btn-action" onClick={() => setProgressOpen(true)} disabled={!entryId}>
+                    <Plus size={11} /> Add progress
+                </button>
 
                 {card.history.length > 1 && (
                     <details className="pr-history">
@@ -344,20 +250,7 @@ const RecordCard: React.FC<{
                         </summary>
                         <div className="workout-rows" style={{ marginTop: '0.4rem' }}>
                             {card.history.map(row => (
-                                row.id && editing === row.id ? (
-                                    <RecordEditor
-                                        key={row.id}
-                                        row={row}
-                                        weightUnit={weightUnit}
-                                        busy={updateRow.isPending}
-                                        onSave={updates => {
-                                            updateRow.mutate({ id: row.id!, updates });
-                                            setEditing(null);
-                                        }}
-                                        onDelete={() => setDropping(row)}
-                                        onCancel={() => setEditing(null)}
-                                    />
-                                ) : (
+                                (
                                     <button
                                         type="button"
                                         className="workout-row pr-history__row"
@@ -406,6 +299,60 @@ const RecordCard: React.FC<{
                 }}
                 onCancel={() => { setDropping(null); setEditing(null); }}
             />
+
+            {editing && (() => {
+                const row = card.history.find(item => item.id === editing);
+                return row ? (
+                    <div className="import-modal-overlay" onMouseDown={event => {
+                        if (event.target === event.currentTarget && !updateRow.isPending) setEditing(null);
+                    }}>
+                        <div className="import-modal-card">
+                            <h3>Edit Progress</h3>
+                            <RecordEditor
+                                row={row}
+                                weightUnit={weightUnit}
+                                busy={updateRow.isPending}
+                                onSave={updates => {
+                                    updateRow.mutate({ id: row.id!, updates });
+                                    setEditing(null);
+                                }}
+                                onDelete={() => setDropping(row)}
+                                onCancel={() => setEditing(null)}
+                            />
+                        </div>
+                    </div>
+                ) : null;
+            })()}
+
+            {progressOpen && (
+                <div className="import-modal-overlay" onMouseDown={event => {
+                    if (event.target === event.currentTarget && !recordMax.isPending) setProgressOpen(false);
+                }}>
+                    <form className="import-modal-card" onSubmit={event => {
+                        event.preventDefault();
+                        const parsed = Number(weight);
+                        const parsedSets = Number(reps);
+                        if (!entryId || !Number.isFinite(parsed) || !Number.isFinite(parsedSets)) return;
+                        recordMax.mutate({
+                            pr_entry_id: entryId,
+                            exercise_name: card.entry.exercise_name,
+                            weight: toKg(parsed, weightUnit),
+                            reps: parsedSets,
+                            workout_date: todayString(),
+                        }, { onSuccess: () => { setWeight(''); setReps(''); setProgressOpen(false); } });
+                    }}>
+                        <h3>Add Progress</h3>
+                        <label className="form-label" htmlFor={`progress-weight-${entryId}`}>Weight ({weightUnit})</label>
+                        <input id={`progress-weight-${entryId}`} className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => setWeight(event.target.value)} required />
+                        <label className="form-label" htmlFor={`progress-sets-${entryId}`}>Sets</label>
+                        <input id={`progress-sets-${entryId}`} className="form-control" type="number" min={1} step={1} value={reps} onChange={event => setReps(event.target.value)} required />
+                        <div className="exercise-create-actions">
+                            <button type="button" className="btn-form-cancel" onClick={() => setProgressOpen(false)}>Cancel</button>
+                            <button type="submit" className="btn-form-submit" disabled={recordMax.isPending}>Add progress</button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             <ConfirmModal
                 open={resetting}

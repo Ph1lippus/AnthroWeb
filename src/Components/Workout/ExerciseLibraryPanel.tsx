@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import {
     useDeleteCustomExercise,
     useExerciseLibrary,
+    useCreateCustomExercise,
     useUpdateCustomExercise,
 } from '../../hooks/useWorkouts';
 import type { LibraryExercise } from '../../services/workoutService';
@@ -19,8 +20,10 @@ const WEIGHTS = [
 const ExerciseLibraryPanel: React.FC = () => {
     const { data: exercises = [], isLoading } = useExerciseLibrary();
     const update = useUpdateCustomExercise();
+    const create = useCreateCustomExercise();
     const remove = useDeleteCustomExercise();
     const [editing, setEditing] = useState<LibraryExercise | null>(null);
+    const [creating, setCreating] = useState(false);
     const [removing, setRemoving] = useState<LibraryExercise | null>(null);
     const [name, setName] = useState('');
     const [type, setType] = useState<ActivityType>('strength');
@@ -37,18 +40,25 @@ const ExerciseLibraryPanel: React.FC = () => {
         setBodyPart(exercise.body_part ?? '');
     };
 
+    const openCreate = () => {
+        setCreating(true);
+        setEditing(null);
+        setName('');
+        setType('strength');
+        setEquipment('');
+        setWeightConvention('total');
+        setBodyPart('');
+    };
+
     const save = async (event: React.FormEvent) => {
         event.preventDefault();
-        if (!editing?.id) return;
-        await update.mutateAsync({
-            id: editing.id,
-            name,
-            activity_type: type,
-            equipment: equipment || null,
-            weight_convention: weightConvention,
-            body_part: bodyPart,
-        });
+        if (creating) {
+            await create.mutateAsync({ name, activity_type: type, equipment: equipment || null, weight_convention: weightConvention, body_part: bodyPart });
+        } else if (editing?.id) {
+            await update.mutateAsync({ id: editing.id, name, activity_type: type, equipment: equipment || null, weight_convention: weightConvention, body_part: bodyPart });
+        } else return;
         setEditing(null);
+        setCreating(false);
     };
 
     return (
@@ -57,6 +67,7 @@ const ExerciseLibraryPanel: React.FC = () => {
                 <div className="card-header">
                     <h3 className="card-title">My Exercises</h3>
                     <span className="semester-meta" style={{ marginLeft: 'auto' }}>{exercises.length} exercise{exercises.length === 1 ? '' : 's'}</span>
+                    <button type="button" className="btn-action" aria-label="Add exercise" onClick={openCreate}><Plus size={13} /></button>
                 </div>
                 <div className="card-body">
                     {isLoading ? <p className="form-label">Loading…</p> : exercises.length === 0 ? (
@@ -83,12 +94,12 @@ const ExerciseLibraryPanel: React.FC = () => {
                 </div>
             </div>
 
-            {editing && (
+            {(editing || creating) && (
                 <div className="import-modal-overlay" onMouseDown={event => {
-                    if (event.target === event.currentTarget && !update.isPending) setEditing(null);
+                    if (event.target === event.currentTarget && !update.isPending && !create.isPending) { setEditing(null); setCreating(false); }
                 }}>
                     <form className="import-modal-card" onSubmit={save}>
-                        <h3>Edit Exercise</h3>
+                        <h3>{creating ? 'Add Exercise' : 'Edit Exercise'}</h3>
                         <label className="form-label" htmlFor="edit-exercise-name">Name</label>
                         <input id="edit-exercise-name" className="form-control" value={name} onChange={event => setName(event.target.value)} />
                         <label className="form-label" htmlFor="edit-exercise-type">Type</label>
@@ -106,8 +117,8 @@ const ExerciseLibraryPanel: React.FC = () => {
                         <label className="form-label" htmlFor="edit-exercise-body-part">Muscle Group / Body Part</label>
                         <input id="edit-exercise-body-part" className="form-control" value={bodyPart} onChange={event => setBodyPart(event.target.value)} />
                         <div className="exercise-create-actions">
-                            <button type="button" className="btn-form-cancel" onClick={() => setEditing(null)}>Cancel</button>
-                            <button type="submit" className="btn-form-submit" disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save Exercise'}</button>
+                            <button type="button" className="btn-form-cancel" onClick={() => { setEditing(null); setCreating(false); }}>Cancel</button>
+                            <button type="submit" className="btn-form-submit" disabled={update.isPending || create.isPending}>{create.isPending || update.isPending ? 'Saving…' : creating ? 'Add Exercise' : 'Save Exercise'}</button>
                         </div>
                     </form>
                 </div>

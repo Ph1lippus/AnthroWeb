@@ -14398,6 +14398,10 @@ button.workout-ex__empty:hover {
   margin-top: 0.85rem;
 }
 .exercise-add .workout-ex__field { flex: 1; min-width: 0; }
+.workout-session-notes {
+  min-height: min(42vh, 30rem);
+  resize: vertical;
+}
 .exercise-add > .btn-action { flex-shrink: 0; margin-bottom: 0.1rem; }
 
 .workout-ex__error {
@@ -14911,9 +14915,15 @@ button.workout-ex__empty:hover {
 
 .pr-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
   align-items: start;
+}
+@media (max-width: 900px) {
+  .pr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .pr-grid { grid-template-columns: 1fr; }
 }
 .pr-card .card { padding: 0.75rem 0.8rem; }
 .pr-card .card-header { margin-bottom: 0.5rem; padding-bottom: 0.3rem; }

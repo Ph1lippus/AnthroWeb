@@ -417,13 +417,6 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                         placeholder="Search or type a name"
                     />
                 </div>
-                <button
-                    type="submit"
-                    className="btn-action btn-action--primary"
-                    disabled={isSaving || !name.trim()}
-                >
-                    Add
-                </button>
             </form>
 
             {/* `role="alert"` rather than a toast: the reason belongs next to the
