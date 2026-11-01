@@ -412,42 +412,6 @@ const RecordCard: React.FC<{
     );
 };
 
-/**
- * The editor for one record.
- *
- * Weight and reps commit on blur or Enter, the date on change. A record earned
- * from a logged session says so: correcting the record here corrects what you
- * claim your max is, and deliberately does not rewrite the session that produced
- * it, because that set is the evidence.
- */
-const RecordEditor: React.FC<{
-    row: PRHistory;
-    weightUnit: WeightUnit;
-    busy: boolean;
-    onSave: (updates: { weight?: number | null; reps?: number | null; workout_date?: string | null }) => void;
-}> = ({ row, weightUnit, busy, onSave }) => {
-    const [date, setDate] = useState(row.workout_date);
-    const [weight, setWeight] = useState(row.weight == null ? '' : String(fromKg(row.weight, weightUnit)));
-    const [sets, setSets] = useState(row.reps == null ? '' : String(row.reps));
-
-    return (
-        <div className="pr-editor__grid">
-            <label className="form-label">Weight ({weightUnit})
-                <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => setWeight(event.target.value)} />
-            </label>
-            <label className="form-label">Sets
-                <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => setSets(event.target.value)} />
-            </label>
-            <input type="date" className="form-control" value={date} max={todayString()} onChange={event => setDate(event.target.value)} aria-label="Date of this record" />
-            <button type="button" className="btn-form-submit" disabled={busy} onClick={() => onSave({
-                weight: weight.trim() ? toKg(Number(weight), weightUnit) : null,
-                reps: sets.trim() ? Number(sets) : null,
-                workout_date: date || null,
-            })}>Save current</button>
-        </div>
-    );
-};
-
 const ProgressForm: React.FC<{
     weightUnit: WeightUnit;
     weight: string;
