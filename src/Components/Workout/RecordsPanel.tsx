@@ -1,16 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
-    Dumbbell,
     Pencil,
     RotateCcw,
     Trash2,
     TrendingUp,
     Trophy,
-    X,
 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import ExerciseNameInput from './ExerciseNameInput';
-import InlineNumber from '../Academic/InlineNumber';
 import {
     usePREntries,
     usePRHistory,
@@ -307,6 +304,7 @@ const RecordCard: React.FC<{
                     }}>
                         <div className="import-modal-card">
                             <h3>Edit Progress</h3>
+                            <h4>Current record</h4>
                             <RecordEditor
                                 row={row}
                                 weightUnit={weightUnit}
@@ -315,10 +313,10 @@ const RecordCard: React.FC<{
                                     updateRow.mutate({ id: row.id!, updates });
                                     setEditing(null);
                                 }}
-                                onDelete={() => setDropping(row)}
-                                onCancel={() => setEditing(null)}
                             />
                             {entryId && (
+                                <>
+                                <h4 style={{ marginTop: '0.75rem' }}>Add progress</h4>
                                 <ProgressForm
                                     weightUnit={weightUnit}
                                     weight={weight}
@@ -326,7 +324,6 @@ const RecordCard: React.FC<{
                                     busy={recordMax.isPending}
                                     onWeightChange={setWeight}
                                     onSetsChange={setReps}
-                                    onCancel={() => setEditing(null)}
                                     onSubmit={() => {
                                         const parsed = Number(weight);
                                         const parsedSets = Number(reps);
@@ -340,6 +337,7 @@ const RecordCard: React.FC<{
                                         }, { onSuccess: () => { setWeight(''); setReps(''); setEditing(null); } });
                                     }}
                                 />
+                                </>
                             )}
                         </div>
                     </div>
@@ -353,7 +351,6 @@ const RecordCard: React.FC<{
                                 busy={recordMax.isPending}
                                 onWeightChange={setWeight}
                                 onSetsChange={setReps}
-                                onCancel={() => setProgressOpen(false)}
                                 onSubmit={() => {
                                     const parsed = Number(weight);
                                     const parsedSets = Number(reps);
@@ -371,36 +368,6 @@ const RecordCard: React.FC<{
                     </div>
                 ) : null;
             })()}
-
-            {progressOpen && (
-                <div className="import-modal-overlay" onMouseDown={event => {
-                    if (event.target === event.currentTarget && !recordMax.isPending) setProgressOpen(false);
-                }}>
-                    <form className="import-modal-card" onSubmit={event => {
-                        event.preventDefault();
-                        const parsed = Number(weight);
-                        const parsedSets = Number(reps);
-                        if (!entryId || !Number.isFinite(parsed) || !Number.isFinite(parsedSets)) return;
-                        recordMax.mutate({
-                            pr_entry_id: entryId,
-                            exercise_name: card.entry.exercise_name,
-                            weight: toKg(parsed, weightUnit),
-                            reps: parsedSets,
-                            workout_date: todayString(),
-                        }, { onSuccess: () => { setWeight(''); setReps(''); setProgressOpen(false); } });
-                    }}>
-                        <h3>Add Progress</h3>
-                        <label className="form-label" htmlFor={`progress-weight-${entryId}`}>Weight ({weightUnit})</label>
-                        <input id={`progress-weight-${entryId}`} className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => setWeight(event.target.value)} required />
-                        <label className="form-label" htmlFor={`progress-sets-${entryId}`}>Sets</label>
-                        <input id={`progress-sets-${entryId}`} className="form-control" type="number" min={1} step={1} value={reps} onChange={event => setReps(event.target.value)} required />
-                        <div className="exercise-create-actions">
-                            <button type="button" className="btn-form-cancel" onClick={() => setProgressOpen(false)}>Cancel</button>
-                            <button type="submit" className="btn-form-submit" disabled={recordMax.isPending}>Add progress</button>
-                        </div>
-                    </form>
-                </div>
-            )}
 
             <ConfirmModal
                 open={resetting}
@@ -431,57 +398,25 @@ const RecordEditor: React.FC<{
     weightUnit: WeightUnit;
     busy: boolean;
     onSave: (updates: { weight?: number | null; reps?: number | null; workout_date?: string | null }) => void;
-    onDelete: () => void;
-    onCancel: () => void;
-}> = ({ row, weightUnit, busy, onSave, onDelete, onCancel }) => {
+}> = ({ row, weightUnit, busy, onSave }) => {
     const [date, setDate] = useState(row.workout_date);
+    const [weight, setWeight] = useState(row.weight == null ? '' : String(fromKg(row.weight, weightUnit)));
+    const [sets, setSets] = useState(row.reps == null ? '' : String(row.reps));
 
     return (
-        <div className="pr-editor">
-            <div className="pr-editor__grid">
-                <InlineNumber
-                    value={row.weight != null ? fromKg(row.weight, weightUnit) : null}
-                    min={0}
-                    placeholder={weightUnit}
-                    ariaLabel="Weight"
-                    onCommit={display => onSave({
-                        weight: display == null ? null : toKg(display, weightUnit),
-                    })}
-                />
-                <InlineNumber
-                    value={row.reps ?? null}
-                    min={0}
-                    placeholder="reps"
-                    ariaLabel="Rep count"
-                    onCommit={value => onSave({ reps: value })}
-                />
-                <input
-                    type="date"
-                    className="num-input"
-                    value={date}
-                    max={todayString()}
-                    onChange={event => {
-                        setDate(event.target.value);
-                        if (event.target.value) onSave({ workout_date: event.target.value });
-                    }}
-                    aria-label="Date of this record"
-                />
-            </div>
-
-            {row.workout_completion_id && (
-                <p className="pr-editor__note">
-                    <Dumbbell size={10} /> from a logged workout — the session itself is unchanged.
-                </p>
-            )}
-
-            <div className="pr-editor__actions">
-                <button className="btn-action" onClick={onDelete} disabled={busy}>
-                    <Trash2 size={11} />Remove
-                </button>
-                <button className="btn-action" onClick={onCancel} disabled={busy}>
-                    <X size={11} />Close
-                </button>
-            </div>
+        <div className="pr-editor__grid">
+            <label className="form-label">Weight ({weightUnit})
+                <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => setWeight(event.target.value)} />
+            </label>
+            <label className="form-label">Sets
+                <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => setSets(event.target.value)} />
+            </label>
+            <input type="date" className="form-control" value={date} max={todayString()} onChange={event => setDate(event.target.value)} aria-label="Date of this record" />
+            <button type="button" className="btn-form-submit" disabled={busy} onClick={() => onSave({
+                weight: weight.trim() ? toKg(Number(weight), weightUnit) : null,
+                reps: sets.trim() ? Number(sets) : null,
+                workout_date: date || null,
+            })}>Save current</button>
         </div>
     );
 };
@@ -493,20 +428,17 @@ const ProgressForm: React.FC<{
     busy: boolean;
     onWeightChange: (value: string) => void;
     onSetsChange: (value: string) => void;
-    onCancel: () => void;
     onSubmit: () => void;
-}> = ({ weightUnit, weight, sets, busy, onWeightChange, onSetsChange, onCancel, onSubmit }) => (
-    <form onSubmit={event => { event.preventDefault(); onSubmit(); }}>
-        <h3>Add Progress</h3>
-        <label className="form-label">Weight ({weightUnit})</label>
-        <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => onWeightChange(event.target.value)} required />
-        <label className="form-label">Sets</label>
-        <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => onSetsChange(event.target.value)} required />
-        <div className="exercise-create-actions">
-            <button type="button" className="btn-form-cancel" onClick={onCancel}>Back</button>
-            <button type="submit" className="btn-form-submit" disabled={busy}>Add progress</button>
-        </div>
-    </form>
+}> = ({ weightUnit, weight, sets, busy, onWeightChange, onSetsChange, onSubmit }) => (
+    <div className="pr-editor__grid">
+        <label className="form-label">Weight ({weightUnit})
+            <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => onWeightChange(event.target.value)} />
+        </label>
+        <label className="form-label">Sets
+            <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => onSetsChange(event.target.value)} />
+        </label>
+        <button type="button" className="btn-form-submit" disabled={busy} onClick={onSubmit}>Add progress</button>
+    </div>
 );
 
 export default RecordsPanel;
