@@ -166,6 +166,9 @@ const RecordCard: React.FC<{
     const [reps, setReps] = useState('');
     const [editing, setEditing] = useState<string | null>(null);
     const [progressOpen, setProgressOpen] = useState(false);
+    const [currentWeight, setCurrentWeight] = useState('');
+    const [currentSets, setCurrentSets] = useState('');
+    const [currentDate, setCurrentDate] = useState('');
     const [dropping, setDropping] = useState<PRHistory | null>(null);
     const [resetting, setResetting] = useState(false);
 
@@ -178,6 +181,14 @@ const RecordCard: React.FC<{
     const previous = card.history
         .filter(row => row.id !== bestRow?.id)
         .sort((a, b) => b.workout_date.localeCompare(a.workout_date))[0];
+    const openEdit = (row: PRHistory) => {
+        setEditing(row.id ?? null);
+        setCurrentWeight(row.weight == null ? '' : String(fromKg(row.weight, weightUnit)));
+        setCurrentSets(row.reps == null ? '' : String(row.reps));
+        setCurrentDate(row.workout_date);
+        setWeight('');
+        setReps('');
+    };
 
     return (
         <div className="card pr-card">
@@ -191,7 +202,7 @@ const RecordCard: React.FC<{
                         type="button"
                         className="btn-action"
                         style={{ padding: '0.2rem 0.35rem', marginLeft: card.entry.source === 'template' ? '0.3rem' : 'auto' }}
-                        onClick={() => bestRow?.id ? setEditing(bestRow.id) : setProgressOpen(true)}
+                        onClick={() => bestRow ? openEdit(bestRow) : setProgressOpen(true)}
                         aria-label={`Edit ${card.entry.exercise_name}`}
                     >
                         <Pencil size={12} />
@@ -303,42 +314,57 @@ const RecordCard: React.FC<{
                         if (event.target === event.currentTarget && !updateRow.isPending) setEditing(null);
                     }}>
                         <div className="import-modal-card">
-                            <h3>Edit Progress</h3>
-                            <h4>Current record</h4>
-                            <RecordEditor
-                                row={row}
-                                weightUnit={weightUnit}
-                                busy={updateRow.isPending}
-                                onSave={updates => {
-                                    updateRow.mutate({ id: row.id!, updates });
-                                    setEditing(null);
-                                }}
-                            />
-                            {entryId && (
-                                <>
-                                <h4 style={{ marginTop: '0.75rem' }}>Add progress</h4>
-                                <ProgressForm
-                                    weightUnit={weightUnit}
-                                    weight={weight}
-                                    sets={reps}
-                                    busy={recordMax.isPending}
-                                    onWeightChange={setWeight}
-                                    onSetsChange={setReps}
-                                    onSubmit={() => {
-                                        const parsed = Number(weight);
-                                        const parsedSets = Number(reps);
-                                        if (!Number.isFinite(parsed) || !Number.isFinite(parsedSets)) return;
+                            <form onSubmit={event => {
+                                event.preventDefault();
+                                const parsedWeight = Number(currentWeight);
+                                const parsedSets = Number(currentSets);
+                                if (!Number.isFinite(parsedWeight) || !Number.isFinite(parsedSets)) return;
+                                updateRow.mutate({ id: row.id!, updates: {
+                                    weight: toKg(parsedWeight, weightUnit),
+                                    reps: parsedSets,
+                                    workout_date: currentDate || null,
+                                }});
+                                if (entryId && weight.trim() && reps.trim()) {
+                                    const progressWeight = Number(weight);
+                                    const progressSets = Number(reps);
+                                    if (Number.isFinite(progressWeight) && Number.isFinite(progressSets)) {
                                         recordMax.mutate({
                                             pr_entry_id: entryId,
                                             exercise_name: card.entry.exercise_name,
-                                            weight: toKg(parsed, weightUnit),
-                                            reps: parsedSets,
+                                            weight: toKg(progressWeight, weightUnit),
+                                            reps: progressSets,
                                             workout_date: todayString(),
-                                        }, { onSuccess: () => { setWeight(''); setReps(''); setEditing(null); } });
-                                    }}
-                                />
-                                </>
-                            )}
+                                        });
+                                    }
+                                }
+                                setEditing(null);
+                                setWeight('');
+                                setReps('');
+                            }}>
+                                <h3>Edit Record</h3>
+                                <h4>Current record</h4>
+                                <div className="pr-editor__grid">
+                                    <label className="form-label">Weight ({weightUnit})
+                                        <input className="form-control" type="number" min={0} step="0.5" value={currentWeight} onChange={event => setCurrentWeight(event.target.value)} required />
+                                    </label>
+                                    <label className="form-label">Sets
+                                        <input className="form-control" type="number" min={1} step={1} value={currentSets} onChange={event => setCurrentSets(event.target.value)} required />
+                                    </label>
+                                </div>
+                                <h4 style={{ marginTop: '0.75rem' }}>Add progress</h4>
+                                <div className="pr-editor__grid">
+                                    <label className="form-label">Weight ({weightUnit})
+                                        <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => setWeight(event.target.value)} />
+                                    </label>
+                                    <label className="form-label">Sets
+                                        <input className="form-control" type="number" min={1} step={1} value={reps} onChange={event => setReps(event.target.value)} />
+                                    </label>
+                                </div>
+                                <div className="exercise-create-actions">
+                                    <button type="button" className="btn-form-cancel" onClick={() => setEditing(null)}>Cancel</button>
+                                    <button type="submit" className="btn-form-submit" disabled={updateRow.isPending || recordMax.isPending}>Save</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 ) : progressOpen && entryId ? (
@@ -351,6 +377,7 @@ const RecordCard: React.FC<{
                                 busy={recordMax.isPending}
                                 onWeightChange={setWeight}
                                 onSetsChange={setReps}
+                                onCancel={() => setProgressOpen(false)}
                                 onSubmit={() => {
                                     const parsed = Number(weight);
                                     const parsedSets = Number(reps);
@@ -428,8 +455,9 @@ const ProgressForm: React.FC<{
     busy: boolean;
     onWeightChange: (value: string) => void;
     onSetsChange: (value: string) => void;
+    onCancel: () => void;
     onSubmit: () => void;
-}> = ({ weightUnit, weight, sets, busy, onWeightChange, onSetsChange, onSubmit }) => (
+}> = ({ weightUnit, weight, sets, busy, onWeightChange, onSetsChange, onCancel, onSubmit }) => (
     <div className="pr-editor__grid">
         <label className="form-label">Weight ({weightUnit})
             <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => onWeightChange(event.target.value)} />
@@ -437,7 +465,10 @@ const ProgressForm: React.FC<{
         <label className="form-label">Sets
             <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => onSetsChange(event.target.value)} />
         </label>
-        <button type="button" className="btn-form-submit" disabled={busy} onClick={onSubmit}>Add progress</button>
+        <div className="exercise-create-actions">
+            <button type="button" className="btn-form-cancel" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn-form-submit" disabled={busy} onClick={onSubmit}>Save</button>
+        </div>
     </div>
 );
 
