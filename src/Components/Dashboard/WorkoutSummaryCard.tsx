@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Activity, ArrowRight, Dumbbell, HeartPulse } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWorkoutsOverview } from '../../hooks/useWorkouts';
+import BreakdownPanel, { type BreakdownGroup } from '../DailyLog/BreakdownPanel';
 
 const WorkoutSummaryCard: React.FC = () => {
     const { sessions, isLoading } = useWorkoutsOverview();
@@ -15,16 +16,36 @@ const WorkoutSummaryCard: React.FC = () => {
         );
         return { completed: completed.length, exercises, cardio, recent };
     }, [sessions]);
+    const breakdown: BreakdownGroup[] = [
+        {
+            key: 'sessions',
+            title: 'Training',
+            count: `${summary.completed} sessions`,
+            chips: [
+                { key: 'completed', label: 'Completed', value: String(summary.completed), tone: summary.completed ? 'value' : 'missing', color: 'var(--chart-primary)' },
+                { key: 'exercises', label: 'Exercises', value: String(summary.exercises), tone: summary.exercises ? 'value' : 'missing', color: 'var(--chart-blue)' },
+            ],
+        },
+        {
+            key: 'types',
+            title: 'Exercise types',
+            count: `${summary.cardio} cardio`,
+            chips: [
+                { key: 'strength', label: 'Strength and mobility', value: String(Math.max(0, summary.exercises - summary.cardio)), tone: summary.exercises - summary.cardio ? 'value' : 'missing', color: 'var(--chart-purple)' },
+                { key: 'cardio', label: 'Cardio', value: String(summary.cardio), tone: summary.cardio ? 'value' : 'missing', color: 'var(--chart-green)' },
+            ],
+        },
+    ];
 
     return (
-        <div className="card dashboard-workout-summary" style={{ marginBottom: '1rem' }}>
-            <div className="card-header">
-                <h3 className="card-title"><Dumbbell size={13} /> Workouts</h3>
-                <Link to="/workouts" className="metric-range-pill">
-                    View workouts <ArrowRight size={11} />
-                </Link>
-            </div>
-            <div className="card-body">
+        <>
+            <div className="dashboard-workout-summary" style={{ marginBottom: '1rem' }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: '0.6rem' }}>
+                    <h3 className="card-title"><Dumbbell size={13} /> Workouts</h3>
+                    <Link to="/workouts" className="metric-range-pill">
+                        View workouts <ArrowRight size={11} />
+                    </Link>
+                </div>
                 {isLoading ? (
                     <p className="form-label">Loading workout summary…</p>
                 ) : (
@@ -35,6 +56,7 @@ const WorkoutSummaryCard: React.FC = () => {
                                 <div className="analysis-card-value">{summary.completed}</div>
                                 <div className="analysis-card-hint">completed workouts</div>
                             </div>
+                            <BreakdownPanel expanded groups={breakdown} />
                             <div className="analysis-card analysis-card--flat">
                                 <div className="analysis-card-head"><Activity className="analysis-card-icon" size={15} /><span className="analysis-card-label">Exercises</span></div>
                                 <div className="analysis-card-value">{summary.exercises}</div>
@@ -59,7 +81,7 @@ const WorkoutSummaryCard: React.FC = () => {
                     </>
                 )}
             </div>
-        </div>
+        </>
     );
 };
 

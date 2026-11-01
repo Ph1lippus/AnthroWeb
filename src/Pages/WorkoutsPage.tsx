@@ -466,23 +466,6 @@ const WorkoutsPage: React.FC = () => {
                                                     hover a square for that day's log
                                                 </span>
                                             </div>
-                                            <div className="card">
-                                                <div className="card-header">
-                                                    <h3 className="card-title">Breakdown</h3>
-                                                    <span className="semester-meta" style={{ marginLeft: 'auto' }}>workout insights</span>
-                                                </div>
-                                                <div className="card-body">
-                                                    <WorkoutStatsRail
-                                                        days={overview.days}
-                                                        last7={overview.last7}
-                                                        last30={overview.last30}
-                                                        year={overview.year}
-                                                        streak={overview.streak}
-                                                        rollups={stats}
-                                                        weightUnit={weightUnit}
-                                                    />
-                                                </div>
-                                            </div>
                                             <div className="card-body">
                                                 <WorkoutYearHeatmap
                                                     weeks={overview.weeks}
@@ -493,7 +476,17 @@ const WorkoutsPage: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-
+                                <div className="workout-rail workout-rail--stats">
+                                    <WorkoutStatsRail
+                                        days={overview.days}
+                                        last7={overview.last7}
+                                        last30={overview.last30}
+                                        year={overview.year}
+                                        streak={overview.streak}
+                                        rollups={stats}
+                                        weightUnit={weightUnit}
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>
