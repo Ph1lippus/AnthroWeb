@@ -321,7 +321,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                 if (plan.length > 0) {
                     setRows(plan.map(row => ({
                         key: draftKey(),
-                        id: null,
+                        id: undefined,
                         exercise_name: row.exercise_name,
                         exercise_id: row.exercise_id ?? null,
                         activity_type: row.activity_type,
@@ -566,8 +566,15 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             </button>
                             {formatDayLabel(date)}
                         </h3>
-                        <button type="button" className="btn-action" onClick={() => void copyWorkout()}>
-                            <Copy size={12} /> {copied ? 'Copied' : 'Copy workout'}
+                        <button
+                            type="button"
+                            className="btn-action"
+                            style={{ marginLeft: 'auto' }}
+                            onClick={() => void copyWorkout()}
+                            aria-label={copied ? 'Workout copied' : 'Copy workout'}
+                            data-tip={copied ? 'Copied' : 'Copy workout'}
+                        >
+                            <Copy size={12} />
                         </button>
                     </div>
                     <div className="card-body">
@@ -708,6 +715,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                         planned: false,
                                         completed: false,
                                         sets_detail: detailToRows([], 1),
+                                        cardio_segments: [],
                                     },
                                 ];
                                 setRows(nextRows);

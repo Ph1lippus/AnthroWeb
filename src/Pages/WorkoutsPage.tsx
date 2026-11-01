@@ -266,7 +266,6 @@ const WorkoutsPage: React.FC = () => {
                                         <TabPanel id="today" hidden={tab !== 'today'}>
                                             <div className="card">
                                                 <div className="card-header">
-                                                    <h3 className="card-title">Today</h3>
                                                     <span className="semester-meta" style={{ marginLeft: 'auto' }}>
                                                         {new Date().toLocaleDateString(undefined, {
                                                             weekday: 'long',

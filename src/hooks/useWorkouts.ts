@@ -198,10 +198,6 @@ export const usePRHistory = () =>
  * mutation settles, so a latch reset made it fire again immediately and a
  * catalogue that keeps coming back empty turned into a fetch loop.
  */
-let autoSyncStarted = false;
-let autoSyncAttempts = 0;
-const MAX_AUTO_ATTEMPTS = 2;
-
 /**
  * What the picker can actually say about the library.
  *

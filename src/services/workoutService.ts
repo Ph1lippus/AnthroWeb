@@ -1234,7 +1234,6 @@ export const saveSessionExercises = async (
     // with the same name (case-insensitive) already exists in this session.
     // Only allow the insert if no exercise with that name is already present.
     if (inserts.length) {
-        const insertedNames = new Set(inserts.map(row => row.exercise_name.trim().toLowerCase()));
         const { data: alreadyLogged } = await supabase
             .from('workout_exercises_log')
             .select('exercise_name')
