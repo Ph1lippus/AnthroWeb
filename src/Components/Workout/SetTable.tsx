@@ -38,7 +38,7 @@ const SetTable: React.FC<SetTableProps> = ({ sets, onChange, weightUnit, showNum
     };
 
     return (
-        <div className="workout-set-table">
+        <div className={`workout-set-table${showNumbers ? '' : ' workout-set-table--compact'}`}>
             <div className="workout-set-table__head">
                 {showNumbers && <span className="workout-set-table__head-cell">#</span>}
                 <span className="workout-set-table__head-cell">Reps</span>
@@ -121,19 +121,21 @@ export const SetCounter: React.FC<{
     count: number;
     onChange: (count: number) => void;
     max?: number;
+    min?: number;
     disabled?: boolean;
-}> = ({ count, onChange, max = 20, disabled = false }) => (
+    label?: string;
+}> = ({ count, onChange, max = 20, min = 1, disabled = false, label = 'sets' }) => (
     <div className="workout-set-counter">
         <button
             type="button"
             className="workout-set-counter__btn"
             aria-label="Remove a set"
-            disabled={disabled || count <= 1}
-            onClick={() => onChange(Math.max(1, count - 1))}
+            disabled={disabled || count <= min}
+            onClick={() => onChange(Math.max(min, count - 1))}
         >
             −
         </button>
-        <span className="workout-set-counter__value">{count} sets</span>
+        <span className="workout-set-counter__value">{count} {label}</span>
         <button
             type="button"
             className="workout-set-counter__btn"

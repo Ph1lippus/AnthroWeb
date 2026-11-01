@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     getWorkoutTemplates,
@@ -42,7 +42,6 @@ import {
     recordNewPRs,
     getExercises,
     createCustomExercise,
-    syncExerciseLibrary,
     type WorkoutTemplate,
     type WorkoutTemplateExercise,
     type WorkoutPlanSession,
@@ -68,7 +67,7 @@ import {
     type PeriodTotals,
 } from '../utils/workoutStats';
 import { exerciseKey, type NewPR } from '../utils/prs';
-import { fetchWgerExercises, inferActivityType } from '../services/wgerService';
+import { getLatestWeightForMeasurement } from '../services/measurementService';
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -221,42 +220,7 @@ export const useExerciseLibrary = () => {
         staleTime: 60 * 60 * 1000,
     });
 
-    const syncLibrary = useSyncExerciseLibrary();
-
-    const isEmpty = query.data != null && query.data.length === 0;
-
-    useEffect(() => {
-        if (!isEmpty || syncLibrary.isPending || autoSyncStarted) return;
-        if (autoSyncAttempts >= MAX_AUTO_ATTEMPTS) return;
-        autoSyncStarted = true;
-        autoSyncAttempts += 1;
-        const giveUp = () => {
-            autoSyncStarted = false;
-        };
-        void syncLibrary
-            .mutateAsync()
-            // A failure is recorded on the mutation as well as released here, so
-            // the picker can show the reason and a later mount can try again.
-            .then(giveUp, giveUp);
-    }, [isEmpty, syncLibrary]);
-
-    const status: LibraryStatus = syncLibrary.isPending
-        ? 'syncing'
-        : syncLibrary.isError
-          ? 'failed'
-          : query.isPending
-            ? 'loading'
-            : isEmpty
-              ? 'empty'
-              : 'ready';
-
-    // `useSyncExerciseLibrary` invalidates the library itself once rows land.
-    return {
-        ...query,
-        syncLibrary,
-        status,
-        error: syncLibrary.error instanceof Error ? syncLibrary.error.message : null,
-    };
+    return query;
 };
 
 // ---------------------------------------------------------------------------
@@ -657,12 +621,28 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
                 sets_detail?: WorkoutSet[];
                 duration_minutes?: number | null;
                 distance_km?: number | null;
+                machine_level?: number | null;
+                machine_incline?: number | null;
+                machine_speed?: number | null;
+                avg_hr?: number | null;
+                hr_max?: number | null;
+                hr_1_min?: number | null;
+                hr_2_min?: number | null;
+                calories?: number | null;
+                avg_watts?: number | null;
+                max_watts?: number | null;
+                cardio_segments?: import('../services/workoutService').CardioSegment[] | null;
                 notes?: string | null;
             }>;
             /** Insert any session that does not exist yet. */
             createIfMissing?: boolean;
         }): Promise<SaveSessionResult> => {
             let sessionId = (await getSessionByDate(input.date))?.id;
+            const latestWeight = await getLatestWeightForMeasurement();
+            const header = {
+                ...input.header,
+                body_weight: input.header.body_weight ?? latestWeight,
+            };
 
             if (!sessionId) {
                 if (!input.createIfMissing) return { prs: [], saved: [] };
@@ -671,12 +651,12 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
                 // is the column's default -- so an edit that creates the row cannot
                 // decide whether the day was trained. Callers that do mean to
                 // complete a day pass it explicitly (setGymForDate).
-                const created = await createSession({ workout_date: input.date, ...input.header });
+                const created = await createSession({ workout_date: input.date, ...header });
                 sessionId = created.id;
-            } else if (Object.keys(input.header).length > 0) {
+            } else if (Object.keys(header).length > 0) {
                 // An empty header would be a no-op write, but `updateSession`
                 // spreads it into the payload, so guard rather than send one.
-                await updateSession(sessionId, input.header);
+                await updateSession(sessionId, header);
             }
 
             await saveSessionExercises(sessionId!, input.exercises);
@@ -788,43 +768,22 @@ export const useClearPRHistory = () => {
     });
 };
 
-/**
- * Pull the exercise library from wger.
- *
- * Guarded so two components mounting at once cannot both fire a 900-row
- * download: the first caller's promise is shared by everyone who asks while it
- * is in flight.
- */
-let librarySync: Promise<number> | null = null;
-
-export const useSyncExerciseLibrary = () => {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: async () => {
-            if (!librarySync) {
-                librarySync = (async () => {
-                    const rows = await fetchWgerExercises();
-                    // wger is a strength catalogue; cardio is recognised by name.
-                    return syncExerciseLibrary(rows.map(row => ({
-                        ...row,
-                        activity_type: inferActivityType(row.name),
-                    })));
-                })().finally(() => {
-                    librarySync = null;
-                });
-            }
-            const added = await librarySync;
-            if (added > 0) qc.invalidateQueries({ queryKey: queryKeys.exerciseLibrary });
-            return added;
-        },
-    });
-};
-
 export const useCreateCustomExercise = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (input: { name: string; activity_type?: ActivityType }) =>
-            createCustomExercise(input.name, input.activity_type),
+        mutationFn: (input: {
+            name: string;
+            activity_type?: ActivityType;
+            equipment?: string | null;
+            weight_convention?: 'total' | 'per_hand' | 'per_side' | null;
+            body_part?: string | null;
+        }) =>
+            createCustomExercise(input.name, {
+                activity_type: input.activity_type,
+                equipment: input.equipment,
+                weight_convention: input.weight_convention,
+                body_part: input.body_part,
+            }),
         onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.exerciseLibrary }),
     });
 };

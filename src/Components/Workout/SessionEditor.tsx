@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Circle, CircleCheck, Flag, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Circle, CircleCheck, Copy, Flag, Loader2, Plus, Trash2 } from 'lucide-react';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
 import {
@@ -12,9 +12,9 @@ import {
     usePlanSession,
     useTodaysPlanSessions,
 } from '../../hooks/useWorkouts';
-import type { WorkoutExerciseLog } from '../../services/workoutService';
+import type { CardioSegment, CardioSegmentType, WorkoutExerciseLog } from '../../services/workoutService';
 import { useUserSettings } from '../../hooks/useUserSettings';
-import { formatDayLabel, todayString, addDays } from '../../utils/dates';
+import { formatDayLabel } from '../../utils/dates';
 import { DAY_NAMES } from '../../utils/workoutStats';
 import {
     detailToRows,
@@ -24,6 +24,7 @@ import {
     type ActivityType,
     type WorkoutSet,
 } from '../../utils/workoutSets';
+import { getPlanForDay } from '../../services/workoutService';
 
 interface DraftRow {
     /**
@@ -42,6 +43,17 @@ interface DraftRow {
     sets_detail: WorkoutSet[];
     duration_minutes?: number | null;
     distance_km?: number | null;
+    machine_level?: number | null;
+    machine_incline?: number | null;
+    machine_speed?: number | null;
+    avg_hr?: number | null;
+    hr_max?: number | null;
+    hr_1_min?: number | null;
+    hr_2_min?: number | null;
+    calories?: number | null;
+    avg_watts?: number | null;
+    max_watts?: number | null;
+    cardio_segments: CardioSegment[];
 }
 
 /** A row identity that does not need the network or a secure context. */
@@ -49,6 +61,9 @@ const draftKey = (): string =>
     typeof crypto?.randomUUID === 'function'
         ? crypto.randomUUID()
         : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+
+const recoveryClass = (drop: number): string =>
+    drop >= 30 ? 'workout-hrr--excellent' : drop >= 20 ? 'workout-hrr--good' : drop >= 12 ? 'workout-hrr--fair' : 'workout-hrr--low';
 
 /**
  * What the active template offers for a day that has no session yet.
@@ -201,6 +216,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const [intensity, setIntensity] = useState(5);
     const [duration, setDuration] = useState('');
     const [notes, setNotes] = useState('');
+    const [copied, setCopied] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [newName, setNewName] = useState('');
@@ -252,7 +268,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     // away whatever the user had typed but not yet saved. The ref guard also
     // keeps this out of the set-state-in-effect pattern the linter looks for.
     useEffect(() => {
-        if (!session?.id || loadedFor.current === session.id) return;
+        if (!session?.id || exercisesLoading || loadedFor.current === session.id) return;
         loadedFor.current = session.id;
 
         // Populating the editor from server data is an external-system sync.
@@ -270,22 +286,63 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
             activity_type: row.activity_type,
             planned: row.planned,
             completed: row.completed,
-            sets_detail: detailToRows(
-                row.sets_detail ?? [],
-                Math.max(1, row.sets_detail?.length ?? 0),
-                row.reps ?? undefined,
-                row.weight ?? undefined,
-            ),
+            sets_detail: row.activity_type === 'strength'
+                ? detailToRows(
+                    row.sets_detail ?? [],
+                    Math.max(1, row.sets_detail?.length ?? 0),
+                    row.reps ?? undefined,
+                    row.weight ?? undefined,
+                )
+                : [],
             duration_minutes: row.duration_minutes ?? null,
             distance_km: row.distance_km ?? null,
+            machine_level: row.machine_level ?? null,
+            machine_incline: row.machine_incline ?? null,
+            machine_speed: row.machine_speed ?? null,
+            avg_hr: row.avg_hr ?? null,
+            hr_max: row.hr_max ?? null,
+            hr_1_min: row.hr_1_min ?? null,
+            hr_2_min: row.hr_2_min ?? null,
+            calories: row.calories ?? null,
+            avg_watts: row.avg_watts ?? null,
+            max_watts: row.max_watts ?? null,
+            cardio_segments: row.cardio_segments ?? [],
         })));
-    }, [session, stored]);
+    }, [session, stored, exercisesLoading]);
+
+    // After hydrating from server data, if the session has no exercises,
+    // try to materialize the plan for this day so the user can edit it.
+    // This handles the case where a session was marked trained but exercises
+    // were never materialized, or the session was created without a plan.
+    useEffect(() => {
+        if (rows.length === 0 && session?.id && !exercisesLoading) {
+            const weekday = new Date(`${date}T00:00:00`).getDay();
+            getPlanForDay(weekday).then(plan => {
+                if (plan.length > 0) {
+                    setRows(plan.map(row => ({
+                        key: draftKey(),
+                        id: null,
+                        exercise_name: row.exercise_name,
+                        exercise_id: row.exercise_id ?? null,
+                        activity_type: row.activity_type,
+                        planned: true,
+                        completed: false,
+                        sets_detail: row.activity_type === 'strength' ? detailToRows([], 1) : [],
+                        cardio_segments: [],
+                        duration_minutes: row.target_duration_minutes ?? null,
+                        distance_km: row.target_distance_km ?? null,
+                    })));
+                }
+            });
+        }
+    }, [date, session?.id, rows.length, exercisesLoading]);
 
     // A row emptied by its delete button is hidden at once; the save turns it
     // into a real DELETE. A blank row left on screen looks like it failed.
     const visible = rows.filter(row => row.exercise_name.trim());
     const doneCount = visible.filter(row => row.completed).length;
-    const totalSets = visible.filter(row => row.completed).reduce((n, row) => n + row.sets_detail.length, 0);
+    const totalSets = visible.filter(row => row.completed && row.activity_type === 'strength')
+        .reduce((n, row) => n + row.sets_detail.length, 0);
     const progress = visible.length > 0 ? doneCount / visible.length * 100 : 0;
 
     /* The ids the insert actually produced.
@@ -302,19 +359,24 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
      * unclaimed server row of the same name. An id only ever goes to a row that has
      * none, and a row that already has one claims its id first. */
     const adoptServerIds = useCallback((saved: WorkoutExerciseLog[], draft: DraftRow[]) => {
-        const claimed = new Set<string>();
-        for (const row of draft) if (row.id) claimed.add(row.id);
+        const claimedIds = new Set<string>();
+        const claimedNames = new Set<string>();
+        for (const row of draft) if (row.id) claimedIds.add(row.id);
 
         const ids = new Map<string, string>();
         draft.filter(row => row.exercise_name.trim()).forEach((row, index) => {
             const name = row.exercise_name.trim();
+            // Skip if this name was already claimed (prevents duplicates of same-named exercises)
+            if (claimedNames.has(name.toLowerCase())) return;
+            claimedNames.add(name.toLowerCase());
+
             const byPosition = saved[index];
             const match = byPosition?.exercise_name.trim() === name
                 ? byPosition
                 : saved.find(candidate =>
-                    candidate.exercise_name.trim() === name && !claimed.has(candidate.id ?? ''));
+                    candidate.exercise_name.trim() === name && !claimedIds.has(candidate.id ?? ''));
             if (!match?.id) return;
-            claimed.add(match.id);
+            claimedIds.add(match.id);
             ids.set(row.key, match.id);
         });
 
@@ -325,6 +387,10 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         }));
     }, []);
 
+    /* Track which exercise names (lowercased) have been claimed to prevent
+     * duplicate server ids for exercises with the same name, which would cause
+     * the same exercise to appear multiple times in the session.
+     */
     /* One write at a time. Two saves in flight overlap in the one way that
      * duplicates exercises: each asks for this date's session, each finds the same
      * one or creates one, and each inserts every row it was handed that had no id.
@@ -375,6 +441,17 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         sets_detail: rowsToDetail(row.sets_detail),
                         duration_minutes: row.duration_minutes ?? null,
                         distance_km: row.distance_km ?? null,
+                        machine_level: row.machine_level ?? null,
+                        machine_incline: row.machine_incline ?? null,
+                        machine_speed: row.machine_speed ?? null,
+                        avg_hr: row.avg_hr ?? null,
+                        hr_max: row.hr_max ?? null,
+                        hr_1_min: row.hr_1_min ?? null,
+                        hr_2_min: row.hr_2_min ?? null,
+                        calories: row.calories ?? null,
+                        avg_watts: row.avg_watts ?? null,
+                        max_watts: row.max_watts ?? null,
+                        cardio_segments: row.cardio_segments,
                     })),
                 });
                 adoptServerIds(result.saved, draftRows);
@@ -387,6 +464,44 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
             setSaving(savingRef.current > 0);
         }
     }, [enqueue, adoptServerIds, saveSession, date, intensity, duration, notes, activeTemplate, rows]);
+
+    const copyWorkout = useCallback(async () => {
+        const lines = [
+            `Workout: ${date}`,
+            `Duration: ${duration || '—'} min`,
+            `Notes: ${notes || '—'}`,
+            '',
+            ...visible.map((row, index) => [
+                `${index + 1}. ${row.exercise_name} (${row.activity_type})`,
+                ...(row.activity_type === 'strength'
+                    ? [
+                        `Sets: ${row.sets_detail.length}`,
+                        ...row.sets_detail.map((set, setIndex) => `  Set ${setIndex + 1}: ${set.reps ?? '—'} reps × ${set.weight ?? '—'} kg`),
+                    ]
+                    : []),
+                row.duration_minutes != null ? `Duration: ${row.duration_minutes} min` : '',
+                row.distance_km != null ? `Distance: ${row.distance_km} km` : '',
+                row.machine_level != null ? `Level: ${row.machine_level}` : '',
+                row.machine_incline != null ? `Incline: ${row.machine_incline}` : '',
+                row.machine_speed != null ? `Speed: ${row.machine_speed}` : '',
+                row.calories != null ? `Calories: ${row.calories}` : '',
+                row.avg_watts != null ? `Average watts: ${row.avg_watts}` : '',
+                row.max_watts != null ? `Maximum watts: ${row.max_watts}` : '',
+                row.avg_hr != null ? `Average HR: ${row.avg_hr}` : '',
+                row.hr_max != null ? `HR max: ${row.hr_max}` : '',
+                row.hr_1_min != null ? `HR +1 min: ${row.hr_1_min}` : '',
+                row.hr_2_min != null ? `HR +2 min: ${row.hr_2_min}` : '',
+                row.cardio_segments.length ? `Segments: ${row.cardio_segments.map(segment => `${segment.type}, ${segment.duration_minutes ?? '—'} min, ${segment.speed ?? '—'} speed, HR ${segment.avg_hr ?? '—'}/${segment.max_hr ?? '—'}`).join(' | ')}` : '',
+            ].filter(Boolean).join('\n')),
+        ].join('\n');
+        try {
+            await navigator.clipboard.writeText(lines);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1800);
+        } catch (error) {
+            console.error('Could not copy workout:', error);
+        }
+    }, [date, duration, notes, visible]);
 
     /* Autosave on leaving a field, the way the daily log autosaves.
      *
@@ -422,11 +537,6 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
 
     useEffect(() => () => { flushPendingSave(); }, [flushPendingSave]);
 
-    const step = (delta: number) => {
-        const next = addDays(date, delta);
-        if (next <= todayString()) onNavigate(next);
-    };
-
     const loading = sessionLoading || (session?.id ? exercisesLoading : false);
     if (loading) return <p className="form-label">Loading&hellip;</p>;
 
@@ -456,34 +566,11 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             </button>
                             {formatDayLabel(date)}
                         </h3>
+                        <button type="button" className="btn-action" onClick={() => void copyWorkout()}>
+                            <Copy size={12} /> {copied ? 'Copied' : 'Copy workout'}
+                        </button>
                     </div>
                     <div className="card-body">
-                        <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.7rem' }}>
-                            <button
-                                className="btn-action"
-                                style={{ padding: '0.2rem 0.35rem' }}
-                                onClick={() => step(-1)}
-                                aria-label="Previous day"
-                            >
-                                <ChevronLeft size={11} />
-                            </button>
-                            <span
-                                className="semester-meta"
-                                style={{ alignSelf: 'center', flex: 1, textAlign: 'center' }}
-                            >
-                                {DAY_NAMES[weekday]}
-                            </span>
-                            <button
-                                className="btn-action"
-                                style={{ padding: '0.2rem 0.35rem' }}
-                                onClick={() => step(1)}
-                                disabled={date >= todayString()}
-                                aria-label="Next day"
-                            >
-                                <ChevronRight size={11} />
-                            </button>
-                        </div>
-
                         <div className="intensity-head">
                             <label className="form-label" htmlFor="session-actual-intensity">
                                 How hard it was
@@ -540,10 +627,11 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 onBlur={scheduleSave}
                             />
                         </div>
-
                         <div className="workout-meter-row" style={{ marginTop: '0.85rem' }}>
                             <span>{doneCount}/{visible.length} exercises done</span>
-                            <strong style={{ marginLeft: 'auto' }}>{totalSets} sets</strong>
+                            {totalSets > 0 && (
+                                <strong style={{ marginLeft: 'auto' }}>{totalSets} strength sets</strong>
+                            )}
                         </div>
                         <div className="workout-meter">
                             <div className="workout-meter__fill" style={{ width: `${progress}%` }} />
@@ -562,11 +650,6 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             />
                         </div>
 
-                        {date !== todayString() && (
-                            <p className="form-label" style={{ marginTop: '0.6rem' }}>
-                                Editing a past day. This changes that session only.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>
@@ -692,7 +775,7 @@ const SessionRow: React.FC<{
     /** Leaving any input in this row saves the session. */
     onCommit?: () => void;
 }> = ({ row, weightUnit, onChange, onCommit }) => {
-    const isStrength = row.activity_type === 'strength';
+    const hasSets = row.activity_type === 'strength';
 
     return (
         <div className={`collapse-card ${row.completed ? 'collapse-card--open' : ''}`}>
@@ -716,12 +799,19 @@ const SessionRow: React.FC<{
                         {row.exercise_name}
                     </span>
                     <span className="semester-meta">
-                        {isStrength
+                        {hasSets
                             ? `${row.sets_detail.length} sets`
+                            : row.activity_type === 'cardio'
+                                ? `${row.cardio_segments.length} segments`
                             : [row.duration_minutes ? `${row.duration_minutes} min` : null,
                                 row.distance_km ? `${row.distance_km} km` : null]
                                 .filter(Boolean).join(' · ') || 'cardio'}
                     </span>
+                    {row.activity_type === 'cardio' && row.hr_max != null && row.hr_2_min != null && (
+                        <span className={`workout-hrr ${recoveryClass(row.hr_max - row.hr_2_min)}`}>
+                            HRR −{row.hr_max - row.hr_2_min} bpm
+                        </span>
+                    )}
                 </span>
                 <span className="collapse-head__right">
                     {row.planned && <span className="workout-chip">plan</span>}
@@ -739,7 +829,7 @@ const SessionRow: React.FC<{
 
             {row.completed && (
                 <div className="collapse-body">
-                    {isStrength ? (
+                    {row.activity_type === 'strength' && (
                         <>
                             <SetCounter
                                 count={row.sets_detail.length}
@@ -759,7 +849,8 @@ const SessionRow: React.FC<{
                                 />
                             </div>
                         </>
-                    ) : (
+                    )}
+                    {row.activity_type !== 'strength' && (
                         <div className="workout-ex__grid">
                             <div className="workout-ex__field">
                                 <label className="form-label" htmlFor={`sd-${row.key}`}>
@@ -779,25 +870,122 @@ const SessionRow: React.FC<{
                                 />
                             </div>
                             {row.activity_type === 'cardio' && (
-                                <div className="workout-ex__field">
-                                    <label className="form-label" htmlFor={`sk-${row.key}`}>
-                                        Distance (km)
-                                    </label>
-                                    <input
-                                        id={`sk-${row.key}`}
-                                        type="number"
-                                        min={0}
-                                        step={0.1}
-                                        className="form-control"
-                                        value={row.distance_km ?? ''}
-                                        onChange={event => onChange({
-                                            ...row,
-                                            distance_km: parseInputNumber(event.target.value) ?? null,
-                                        })}
-                                        onBlur={onCommit}
-                                    />
-                                </div>
+                                <>
+                                    {([
+                                        ['sk', 'Distance (km)', 'distance_km', 0.1],
+                                        ['sc', 'Calories', 'calories', 1],
+                                        ['ha', 'Average HR', 'avg_hr', 1],
+                                        ['hm', 'HR max', 'hr_max', 1],
+                                        ['wa', 'Average watts', 'avg_watts', 1],
+                                        ['wm', 'Maximum watts', 'max_watts', 1],
+                                    ] as const).map(([id, label, field, step]) => (
+                                        <div className="workout-ex__field" key={field}>
+                                            <label className="form-label" htmlFor={`${id}-${row.key}`}>{label}</label>
+                                            <input
+                                                id={`${id}-${row.key}`}
+                                                type="number"
+                                                min={0}
+                                                step={step}
+                                                className="form-control"
+                                                value={row[field] ?? ''}
+                                                onChange={event => onChange({
+                                                    ...row,
+                                                    [field]: parseInputNumber(event.target.value) ?? null,
+                                                })}
+                                                onBlur={onCommit}
+                                            />
+                                        </div>
+                                    ))}
+                                </>
                             )}
+                        </div>
+                    )}
+                    {row.activity_type === 'cardio' && (
+                        <div className="workout-cardio-segments">
+                            <div className="workout-cardio-segments__head">
+                                <span className="form-label">Cardio segments</span>
+                                <SetCounter
+                                    count={row.cardio_segments.length}
+                                    label="segments"
+                                    min={0}
+                                    onChange={count => {
+                                        const segments = [...row.cardio_segments];
+                                        while (segments.length < count) segments.push({ type: 'work' });
+                                        onChange({ ...row, cardio_segments: segments.slice(0, count) });
+                                    }}
+                                />
+                            </div>
+                            {row.cardio_segments.map((segment, index) => (
+                                <div className="workout-cardio-segment" key={`${row.key}-segment-${index}`}>
+                                    <select
+                                        className="form-control"
+                                        value={segment.type}
+                                        onChange={event => {
+                                            const next = [...row.cardio_segments];
+                                            next[index] = { ...segment, type: event.target.value as CardioSegmentType };
+                                            onChange({ ...row, cardio_segments: next });
+                                        }}
+                                        onBlur={onCommit}
+                                        aria-label={`Segment ${index + 1} type`}
+                                    >
+                                        <option value="warm-up">Warm-up</option>
+                                        <option value="work">Work</option>
+                                        <option value="recovery">Recovery</option>
+                                        <option value="cool-down">Cool-down</option>
+                                    </select>
+                                    {([
+                                        ['Duration', 'duration_minutes', 0.1],
+                                        ['Level / incline / speed', 'level', 0.1],
+                                        ['Avg HR', 'avg_hr', 1],
+                                        ['Max HR', 'max_hr', 1],
+                                    ] as const).map(([label, field, step]) => (
+                                        <input
+                                            key={field}
+                                            type="number"
+                                            min={0}
+                                            step={step}
+                                            className="form-control"
+                                            placeholder={label}
+                                            aria-label={`${label} segment ${index + 1}`}
+                                            value={segment[field] ?? ''}
+                                            onChange={event => {
+                                                const next = [...row.cardio_segments];
+                                                next[index] = { ...segment, [field]: parseInputNumber(event.target.value) };
+                                                onChange({ ...row, cardio_segments: next });
+                                            }}
+                                            onBlur={onCommit}
+                                        />
+                                    ))}
+                                    {segment.type === 'recovery' && ([
+                                        ['Peak HR', 'peak_hr'],
+                                        ['HR +1 min', 'hr_1_min'],
+                                        ['HR +2 min', 'hr_2_min'],
+                                    ] as const).map(([label, field]) => (
+                                        <input
+                                            key={field}
+                                            type="number"
+                                            min={0}
+                                            className="form-control"
+                                            placeholder={label}
+                                            value={segment[field] ?? ''}
+                                            onChange={event => {
+                                                const next = [...row.cardio_segments];
+                                                next[index] = { ...segment, [field]: parseInputNumber(event.target.value) };
+                                                onChange({ ...row, cardio_segments: next });
+                                            }}
+                                            onBlur={onCommit}
+                                        />
+                                    ))}
+                                    {segment.type === 'recovery' && segment.peak_hr != null && segment.hr_2_min != null && (
+                                        <span className={`workout-hrr ${recoveryClass(segment.peak_hr - segment.hr_2_min)}`}>
+                                            −{segment.peak_hr - segment.hr_2_min} bpm
+                                        </span>
+                                    )}
+                                    <button type="button" className="btn-action" aria-label={`Remove segment ${index + 1}`} onClick={() => onChange({ ...row, cardio_segments: row.cardio_segments.filter((_, i) => i !== index) })}>
+                                        <Trash2 size={11} />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

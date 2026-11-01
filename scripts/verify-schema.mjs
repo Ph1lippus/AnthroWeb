@@ -437,27 +437,6 @@ for (const [table, insert] of [
     );
 }
 
-// The library's upsert key. PostgREST reads on_conflict as a comma-separated list
-// of plain column names, so this has to be real columns: it was `user_id,lower(name)`
-// once, which it parsed as three columns named user_id, lower and name, and every
-// sync failed. 0009 moved it to (user_id, wger_id).
-//
-// Scoped to syncExerciseLibrary's own body -- the file has four `onConflict`
-// targets, and the first one in the file is the exercise reorder's `id`.
-const svcSrc = readFileSync('src/services/workoutService.ts', 'utf8');
-const syncBody = svcSrc.slice(
-    svcSrc.indexOf('export const syncExerciseLibrary'),
-    svcSrc.indexOf('export const', svcSrc.indexOf('export const syncExerciseLibrary') + 10),
-);
-const conflictTarget = syncBody.match(/onConflict:\s*'([^']+)'/)?.[1];
-check('the library sync upsert names plain columns',
-    !!conflictTarget && !/[()\s]/.test(conflictTarget),
-    conflictTarget ?? 'not found in syncExerciseLibrary');
-check(
-    'the library sync upsert target has a unique index',
-    hasUnique('exercises', (conflictTarget ?? '').split(',').map(s => s.trim()).join(', ')),
-    `target: ${conflictTarget}`,
-);
 check('exercises has no unique constraint on lower(name)',
     !uniqueRules.some(row => row.table === 'exercises' && /lower/.test(row.def)),
     uniqueRules.filter(row => row.table === 'exercises').map(row => row.def).join(' | '));

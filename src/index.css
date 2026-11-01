@@ -14202,9 +14202,13 @@ body {
 .workout-set-table__head,
 .workout-set-table__row {
   display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 1fr) 3rem;
+  grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr) 3rem;
   gap: 0.35rem;
   align-items: center;
+}
+.workout-set-table--compact .workout-set-table__head,
+.workout-set-table--compact .workout-set-table__row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 3rem;
 }
 .workout-set-table__actions {
   display: flex;
@@ -14261,6 +14265,47 @@ body {
 .workout-set-table__action--danger:hover:not(:disabled) {
   opacity: 1;
   color: var(--color-danger);
+}
+
+.workout-cardio-segments {
+  margin-top: 0.85rem;
+}
+.workout-cardio-segments__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.workout-cardio-segment {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) repeat(5, minmax(4.5rem, 1fr)) auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.workout-cardio-segment .form-control {
+  min-width: 0;
+}
+.workout-hrr {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 0.15rem;
+  padding: 0.08rem 0.3rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  line-height: 1.3;
+}
+.workout-hrr--low { color: #f0a3a3; background: #8f2d2d33; }
+.workout-hrr--fair { color: #e8c58c; background: #8a642d33; }
+.workout-hrr--good { color: #b7d59c; background: #4b713633; }
+.workout-hrr--excellent { color: #c9dfb4; background: #4f783d33; }
+@media (max-width: 700px) {
+  .workout-cardio-segment {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Set count stepper. */
@@ -15415,4 +15460,3 @@ button.workout-ex__empty:hover {
   flex-shrink: 0;
   opacity: 0.55;
 }
-

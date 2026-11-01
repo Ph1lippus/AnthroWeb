@@ -5,11 +5,12 @@ import {
     rowsToDetail,
     detailToRows,
     detailVolumeKg,
-    isActivityType,
     type ActivityType,
     type WorkoutSet,
 } from '../utils/workoutSets';
 import { prKey, detectNewPRs, type NewPR } from '../utils/prs';
+import { exerciseNameKey, titleCaseExerciseName } from '../utils/exerciseNames';
+import { getLatestWeightForMeasurement } from './measurementService';
 
 // ---------------------------------------------------------------------------
 // The shape of the workout domain.
@@ -101,12 +102,33 @@ export interface WorkoutCompletionLog {
     /** Which planned session this day followed, so target and actual can be compared. */
     plan_session_id?: string | null;
     completed: boolean;
+    body_weight?: number | null;
     /** 1-10, drives the heatmap shade. */
     intensity?: number | null;
     duration_minutes?: number | null;
+    start_time?: string | null;
+    machine?: string | null;
+    distance_km?: number | null;
+    calories?: number | null;
+    avg_hr?: number | null;
+    max_hr?: number | null;
     notes?: string;
     created_at?: string;
     updated_at?: string;
+}
+
+export type CardioSegmentType = 'warm-up' | 'work' | 'recovery' | 'cool-down';
+
+export interface CardioSegment {
+    type: CardioSegmentType;
+    duration_minutes?: number | null;
+    level?: number | null;
+    speed?: number | null;
+    avg_hr?: number | null;
+    max_hr?: number | null;
+    peak_hr?: number | null;
+    hr_1_min?: number | null;
+    hr_2_min?: number | null;
 }
 
 /** One exercise inside one session, materialised from the template on mark. */
@@ -127,6 +149,17 @@ export interface WorkoutExerciseLog {
     weight?: number;
     duration_minutes?: number | null;
     distance_km?: number;
+    machine_level?: number | null;
+    machine_incline?: number | null;
+    machine_speed?: number | null;
+    avg_hr?: number | null;
+    hr_max?: number | null;
+    hr_1_min?: number | null;
+    hr_2_min?: number | null;
+    calories?: number | null;
+    avg_watts?: number | null;
+    max_watts?: number | null;
+    cardio_segments?: CardioSegment[] | null;
     notes?: string;
     created_at?: string;
 }
@@ -162,6 +195,8 @@ export interface LibraryExercise {
     category?: string | null;
     equipment?: string | null;
     muscles?: string[] | null;
+    body_part?: string | null;
+    weight_convention?: 'total' | 'per_hand' | 'per_side' | null;
     aliases?: string[] | null;
     activity_type: ActivityType;
     is_custom: boolean;
@@ -241,6 +276,7 @@ export const getTemplateExercises = async (templateId: string): Promise<WorkoutT
     }
     return (data as WorkoutTemplateExercise[]).map(row => ({
         ...row,
+        exercise_name: titleCaseExerciseName(row.exercise_name),
         target_sets_detail: row.target_sets_detail ? parseSetDetail(row.target_sets_detail) : null,
     }));
 };
@@ -758,7 +794,9 @@ export const getSessionExercises = async (completionId: string): Promise<Workout
     }
     return (data as WorkoutExerciseLog[]).map(row => ({
         ...row,
+        exercise_name: titleCaseExerciseName(row.exercise_name),
         sets_detail: parseSetDetail(row.sets_detail),
+        cardio_segments: Array.isArray(row.cardio_segments) ? row.cardio_segments : null,
     }));
 };
 
@@ -812,7 +850,11 @@ export const getSessionsWithExercises = async (
     for (const row of exerciseRows ?? []) {
         const log = row as WorkoutExerciseLog;
         const list = byCompletion.get(log.workout_completion_id);
-        const decoded: WorkoutExerciseLog = { ...log, sets_detail: parseSetDetail(log.sets_detail) };
+        const decoded: WorkoutExerciseLog = {
+            ...log,
+            exercise_name: titleCaseExerciseName(log.exercise_name),
+            sets_detail: parseSetDetail(log.sets_detail),
+        };
         if (list) list.push(decoded);
         else byCompletion.set(log.workout_completion_id, [decoded]);
     }
@@ -833,6 +875,7 @@ export const createSession = async (
 ): Promise<WorkoutCompletionLog> => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
+    const bodyWeight = input.body_weight ?? await getLatestWeightForMeasurement();
 
     const { data, error } = await supabase
         .from('workout_completion_log')
@@ -842,6 +885,7 @@ export const createSession = async (
             workout_template_id: input.workout_template_id ?? null,
             ...(input.completed != null ? { completed: input.completed } : {}),
             intensity: input.intensity ?? null,
+            body_weight: bodyWeight,
             duration_minutes: input.duration_minutes ?? null,
             notes: input.notes ?? null,
         })
@@ -891,9 +935,22 @@ export const startSessionFromPlan = async (
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
 
+    // Check for existing session first
     const existing = await getSessionByDate(date);
     if (existing?.id) {
-        return { sessionId: existing.id, seeded: 0 };
+        // If session exists, still try to materialize exercises in case they were
+        // not yet materialized (e.g., if the session was created without a plan).
+        // This is idempotent - it will only add missing exercises.
+        const currentExercises = await getSessionExercises(existing.id);
+        if (currentExercises.length === 0 && planSessionId) {
+            // Try to get the plan and materialize it
+            const weekday = new Date(`${date}T00:00:00`).getDay();
+            const plan = await getPlanForDay(weekday);
+            if (plan.length) {
+                await insertSessionExercises(existing.id, plan);
+            }
+        }
+        return { sessionId: existing.id, seeded: currentExercises.length };
     }
 
     const weekday = new Date(`${date}T00:00:00`).getDay();
@@ -911,7 +968,8 @@ export const startSessionFromPlan = async (
         await insertSessionExercises(created.id, plan);
     }
 
-    return { sessionId: created.id, seeded: plan.length };
+    const seededExercises = plan.length;
+    return { sessionId: created.id, seeded: seededExercises };
 };
 
 /**
@@ -1096,6 +1154,17 @@ export const saveSessionExercises = async (
         sets_detail?: WorkoutSet[];
         duration_minutes?: number | null;
         distance_km?: number | null;
+        machine_level?: number | null;
+        machine_incline?: number | null;
+        machine_speed?: number | null;
+        avg_hr?: number | null;
+        hr_max?: number | null;
+        hr_1_min?: number | null;
+        hr_2_min?: number | null;
+        calories?: number | null;
+        avg_watts?: number | null;
+        max_watts?: number | null;
+        cardio_segments?: CardioSegment[] | null;
         notes?: string | null;
     }>,
 ): Promise<void> => {
@@ -1116,7 +1185,9 @@ export const saveSessionExercises = async (
     }
 
     const upserts = kept.map((row, index) => {
-        const detail = row.sets_detail ? rowsToDetail(row.sets_detail) : [];
+        const detail = row.activity_type === 'strength' && row.sets_detail
+            ? rowsToDetail(row.sets_detail)
+            : [];
         const heaviest = detail.reduce<WorkoutSet | undefined>(
             (best, set) => (best === undefined || (set.weight ?? 0) > (best.weight ?? 0) ? set : best),
             undefined,
@@ -1136,6 +1207,17 @@ export const saveSessionExercises = async (
             weight: heaviest?.weight ?? null,
             duration_minutes: row.duration_minutes ?? null,
             distance_km: row.distance_km ?? null,
+            machine_level: row.machine_level ?? null,
+            avg_hr: row.avg_hr ?? null,
+            machine_incline: row.machine_incline ?? null,
+            machine_speed: row.machine_speed ?? null,
+            hr_max: row.hr_max ?? null,
+            hr_1_min: row.hr_1_min ?? null,
+            hr_2_min: row.hr_2_min ?? null,
+            calories: row.calories ?? null,
+            avg_watts: row.avg_watts ?? null,
+            max_watts: row.max_watts ?? null,
+            cardio_segments: row.cardio_segments ?? null,
             notes: row.notes ?? null,
         };
     });
@@ -1148,10 +1230,30 @@ export const saveSessionExercises = async (
     const updates = upserts.filter(row => row.id);
     const inserts = upserts.filter(row => !row.id);
 
+    // When inserting new exercises, prevent duplicates by checking if an exercise
+    // with the same name (case-insensitive) already exists in this session.
+    // Only allow the insert if no exercise with that name is already present.
     if (inserts.length) {
-        const { error } = await supabase.from('workout_exercises_log').insert(inserts);
+        const insertedNames = new Set(inserts.map(row => row.exercise_name.trim().toLowerCase()));
+        const { data: alreadyLogged } = await supabase
+            .from('workout_exercises_log')
+            .select('exercise_name')
+            .eq('user_id', userId)
+            .eq('workout_completion_id', sessionId);
+        const existingNames = new Set(
+            (alreadyLogged ?? []).map((r: any) => r.exercise_name.trim().toLowerCase()),
+        );
+        const uniqueInserts = inserts.filter(
+            row => !existingNames.has(row.exercise_name.trim().toLowerCase()),
+        );
+        if (uniqueInserts.length !== inserts.length) {
+            // Some were filtered out as duplicates; if nothing remains, abort.
+            if (uniqueInserts.length === 0) return;
+        }
+        const { error } = await supabase.from('workout_exercises_log').insert(uniqueInserts);
         if (error) fail('Could not add exercises', error);
     }
+
     if (updates.length) {
         const { error } = await supabase
             .from('workout_exercises_log')
@@ -1187,7 +1289,10 @@ export const getPREntries = async (): Promise<PREntry[]> => {
         console.error('Error fetching PR entries:', error.message);
         return [];
     }
-    return (data as PREntry[]) ?? [];
+    return ((data as PREntry[]) ?? []).map(row => ({
+        ...row,
+        exercise_name: titleCaseExerciseName(row.exercise_name),
+    }));
 };
 
 export const getPRHistory = async (): Promise<PRHistory[]> => {
@@ -1204,7 +1309,10 @@ export const getPRHistory = async (): Promise<PRHistory[]> => {
         console.error('Error fetching PR history:', error.message);
         return [];
     }
-    return (data as PRHistory[]) ?? [];
+    return ((data as PRHistory[]) ?? []).map(row => ({
+        ...row,
+        exercise_name: titleCaseExerciseName(row.exercise_name),
+    }));
 };
 
 /**
@@ -1441,13 +1549,21 @@ export const getExercises = async (): Promise<LibraryExercise[]> => {
         .from('exercises')
         .select('*')
         .eq('user_id', userId)
+        .eq('is_custom', true)
         .order('name', { ascending: true });
 
     if (error) {
         console.error('Error fetching exercise library:', error.message);
         return [];
     }
-    return data as LibraryExercise[];
+    const unique = new Map<string, LibraryExercise>();
+    for (const row of (data as LibraryExercise[])) {
+        const key = exerciseNameKey(row.name);
+        if (!unique.has(key)) {
+            unique.set(key, { ...row, name: titleCaseExerciseName(row.name) });
+        }
+    }
+    return [...unique.values()];
 };
 
 /** Add an exercise the user typed themselves.
@@ -1465,18 +1581,31 @@ export const getExercises = async (): Promise<LibraryExercise[]> => {
  * `(user_id, wger_id)` unique index, which a custom row leaves NULL. */
 export const createCustomExercise = async (
     name: string,
-    activityType: ActivityType = 'strength',
+    options: {
+        activity_type?: ActivityType;
+        equipment?: string | null;
+        weight_convention?: LibraryExercise['weight_convention'];
+        body_part?: string | null;
+    } = {},
 ): Promise<LibraryExercise | null> => {
     const userId = await getCurrentUserId();
-    const trimmed = name.trim();
+    const trimmed = titleCaseExerciseName(name);
     if (!userId || !trimmed) return null;
+
+    const existing = (await getExercises()).find(
+        row => exerciseNameKey(row.name) === exerciseNameKey(trimmed),
+    );
+    if (existing) return existing;
 
     const { data, error } = await supabase
         .from('exercises')
         .insert({
             user_id: userId,
             name: trimmed,
-            activity_type: activityType,
+            activity_type: options.activity_type ?? 'strength',
+            equipment: options.equipment ?? null,
+            weight_convention: options.weight_convention ?? null,
+            body_part: options.body_part?.trim() || null,
             is_custom: true,
         })
         .select()
@@ -1486,72 +1615,6 @@ export const createCustomExercise = async (
     return data as LibraryExercise;
 };
 
-/** Writes the whole catalogue and reports how many rows it sent.
- *
- * Two things used to make a first sync take the better part of a minute, and
- * neither of them was the network:
- *
- * `getExercises()` was called first to diff the catalogue against what was
- * already there. That reads every existing row -- names plus three JSONB columns
- * -- into the browser, only for the `upsert` below to discard the answer.
- *
- * Then the chunks were written one after another. Six chunks of 400 rows with
- * JSONB arrays is six sequential round trips, each one blocking on the last.
- *
- * The diff is gone because the `upsert` below is already idempotent, and the
- * chunks now go together because they touch disjoint rows. First sync is a
- * couple of round trips rather than seven.
- *
- * The conflict target is `user_id,wger_id` -- two plain columns. It was
- * `user_id,lower(name)`, which cannot work: PostgREST reads `on_conflict` as a
- * comma-separated list of column *names*, so it parsed that as `user_id`,
- * `lower`, `name` and every sync failed on `column "lower" does not exist`.
- * See `0009_exercise_library_sync_key.sql`. */
-export const syncExerciseLibrary = async (
-    rows: Array<Omit<LibraryExercise, 'id' | 'user_id' | 'is_custom'>>,
-): Promise<number> => {
-    const userId = await getCurrentUserId();
-    if (!userId || rows.length === 0) return 0;
-
-    // Chunked so one oversized statement can't trip the request size limit.
-    const CHUNK = 400;
-    const chunks: typeof rows[] = [];
-    for (let i = 0; i < rows.length; i += CHUNK) chunks.push(rows.slice(i, i + CHUNK));
-
-    const writes = await Promise.all(
-        chunks.map(chunk =>
-            supabase
-                .from('exercises')
-                .upsert(
-                    chunk.map(row => ({
-                        user_id: userId,
-                        wger_id: row.wger_id ?? null,
-                        name: row.name,
-                        category: row.category ?? null,
-                        equipment: row.equipment ?? null,
-                        muscles: row.muscles ?? null,
-                        aliases: row.aliases ?? null,
-                        activity_type: isActivityType(row.activity_type) ? row.activity_type : 'strength',
-                        is_custom: false,
-                        last_synced_at: new Date().toISOString(),
-                    })),
-                    { onConflict: 'user_id,wger_id' },
-                )
-                .then(({ error }) => error),
-        ),
-    );
-
-    const failed = writes.findIndex(error => error != null);
-    if (failed !== -1) {
-        // Thrown, not returned. This used to `console.error` and hand back a
-        // partial count, which the caller read as "synced, nothing new" -- so a
-        // database rejection was indistinguishable from an up-to-date library
-        // and showed up as "the library is empty" with the reason nowhere on
-        // screen.
-        throw new Error(`Could not write the exercise library: ${writes[failed]!.message}`);
-    }
-    return rows.length;
-};
 
 // ---------------------------------------------------------------------------
 // Aggregate helpers shared with the stats page

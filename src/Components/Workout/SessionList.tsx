@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Flame, Timer, CircleCheck } from 'lucide-react';
 import { formatWeight, type WeightUnit } from '../../utils/units';
-import { addDays, formatDayLabel, todayString } from '../../utils/dates';
+import { addDays, formatDayLabel } from '../../utils/dates';
 import { ACTIVITY_LABELS, type ActivityType } from '../../utils/workoutSets';
 import type { SessionWithExercises } from '../../services/workoutService';
 
@@ -53,8 +53,6 @@ interface SessionListProps {
  */
 const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, weightUnit, onOpen }) => {
     const [openDate, setOpenDate] = useState<string | null>(null);
-    const today = todayString();
-
     const inWeek = useMemo(() => {
         const weekEnd = weekStart ? addDays(weekStart, 6) : null;
         return sessions
@@ -85,7 +83,6 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
             {inWeek.map(session => {
                 const open = openDate === session.workout_date;
                 const done = session.exercises.filter(row => row.completed).length;
-                const isToday = session.workout_date === today;
 
                 return (
                     <div
@@ -123,9 +120,9 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                                         {session.duration_minutes} min
                                     </span>
                                 ) : null}
-                                {isToday && (
-                                    <span className="workout-logged__chip workout-logged__chip--today">
-                                        today
+                                {session.body_weight != null && (
+                                    <span className="workout-logged__chip">
+                                        {session.body_weight} kg
                                     </span>
                                 )}
                             </span>
@@ -175,7 +172,7 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                                         className="btn-action"
                                         onClick={() => onOpen(session.workout_date)}
                                     >
-                                        {isToday ? 'Open session' : 'Edit this day'}
+                                        Open session
                                     </button>
                                 </div>
                             </div>

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Dumbbell, HeartPulse, PersonStanding, Plus, RefreshCw } from 'lucide-react';
-import { rankMatches } from '../../services/wgerService';
+import { Dumbbell, HeartPulse, PersonStanding, Plus } from 'lucide-react';
 import { useExerciseLibrary, useCreateCustomExercise } from '../../hooks/useWorkouts';
 import type { LibraryExercise } from '../../services/workoutService';
 import type { ActivityType } from '../../utils/workoutSets';
+import { exerciseNameKey, rankExerciseMatches, titleCaseExerciseName } from '../../utils/exerciseNames';
 
 export interface PickedExercise {
     name: string;
@@ -39,6 +39,29 @@ const GROUP_LABELS: Record<ActivityType, string> = {
 };
 
 const MAX = 20;
+const EQUIPMENT_OPTIONS = [
+    'Barbell',
+    'Dumbbell',
+    'Kettlebell',
+    'Machine',
+    'Cable',
+    'Smith Machine',
+    'Bodyweight',
+    'Bike',
+    'Treadmill',
+    'Rower',
+    'Resistance Band',
+    'Medicine Ball',
+    'Stability Ball',
+    'Trap Bar',
+    'EZ Bar',
+    'Other',
+] as const;
+const WEIGHT_CONVENTIONS = [
+    { value: 'total', label: 'Total Weight' },
+    { value: 'per_hand', label: 'Per Hand' },
+    { value: 'per_side', label: 'Per Side' },
+] as const;
 
 /* Placement. The gap is what the absolutely positioned list used to have, and the
    two caps are the old `max-height` and the point below which opening upward stops
@@ -66,13 +89,8 @@ interface Placement {
 /**
  * Exercise picker over the user's own library.
  *
- * Once wger has been synced the library is a local array, so search is a
- * synchronous filter: every keystroke re-ranks instantly with no request to
- * cancel. That is both faster and kinder to a free community server than the
- * debounced-per-keystroke version this replaced.
- *
- * A name that matches nothing offers to add it, so the picker is never a dead
- * end for a lift wger does not carry.
+ * The library is local and user-owned, so search is synchronous and every
+ * unmatched name can be created for later reuse.
  *
  * The list is portalled to `<body>` and positioned from `getBoundingClientRect()`,
  * the same fix `SidebarNav` uses for its tooltips and for the same documented
@@ -97,11 +115,18 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
     const listId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
-    const { data: library = [], status, syncLibrary, error } = useExerciseLibrary();
+    const { data: library = [], isLoading } = useExerciseLibrary();
     const createCustom = useCreateCustomExercise();
     const [open, setOpen] = useState(false);
     const [placement, setPlacement] = useState<Placement | null>(null);
     const [createError, setCreateError] = useState<string | null>(null);
+    const [creating, setCreating] = useState(false);
+    const [createType, setCreateType] = useState<ActivityType>(activityType ?? 'strength');
+    const [createEquipment, setCreateEquipment] = useState<string>('');
+    const [createWeightConvention, setCreateWeightConvention] = useState<
+        'total' | 'per_hand' | 'per_side'
+    >('total');
+    const [createBodyPart, setCreateBodyPart] = useState('');
 
     // The highlighted row belongs to the query that produced it. Storing that
     // query alongside the index, and treating a mismatch as "nothing is
@@ -115,24 +140,24 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
        place the whole library row exists. Both used to be dropped on the floor,
        which is why `exercise_id` was written as NULL for every exercise added
        through the UI: no muscles, no equipment, and no join back to the catalogue.
-       `rankMatches` is typed to the two fields it searches, so the rest is read
+       The matcher is typed to the two fields it searches, so the rest is read
        off the row rather than assumed to be there.
 
        `startsGroup` is computed here rather than in the render so the headings
        are part of the same one-pass result. Grouping is by the activity type the
-       row actually carries -- strength, cardio, mobility -- rather than by wger's
+       row actually carries -- strength, cardio, mobility -- rather than by a
        category: the category is 80-odd mostly-synonymous names ("Bench press
        (barbell)", "Bench press (dumbbell)") and reading those as groups means
        reading a taxonomy, while the three types are the distinction that changes
        what the rest of the app does with the exercise. */
     const matches = useMemo(() => {
-        const ranked = rankMatches(library, value, MAX).map(row => {
+        const ranked = rankExerciseMatches(library, value, MAX).map(row => {
             const full = row as LibraryExercise;
             return {
                 id: full.id ?? null,
                 name: row.name,
                 activity_type: (full.activity_type ?? 'strength') as ActivityType,
-                /* One quiet line: the wger category, the muscles it actually trains,
+                /* One quiet line: the category, the muscles it actually trains,
                    then the equipment. Equipment is last because it is the least
                    useful of the three when choosing a movement, and it is the part
                    that truncates first if a name is long. */
@@ -161,7 +186,7 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
     const canCreate = useMemo(() => {
         const trimmed = value.trim();
         if (trimmed.length < 3) return false;
-        return !library.some(row => row.name.trim().toLowerCase() === trimmed.toLowerCase());
+        return !library.some(row => exerciseNameKey(row.name) === exerciseNameKey(trimmed));
     }, [library, value]);
 
     /* The list opens on focus whenever there is something to say. It used to
@@ -174,28 +199,19 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
        message, because a message needed a query. Now the only reason an unloaded
        library opens the list is that there is a real status to report. */
     const hasQuery = value.trim().length > 0;
-    const loading = status === 'loading' || status === 'syncing';
     const showList =
         open &&
-        (hasQuery || matches.length > 0 || canCreate || loading || status === 'empty');
+        (hasQuery || matches.length > 0 || canCreate || isLoading);
     const nothingFound = hasQuery && matches.length === 0 && !canCreate;
 
     /* What to say when there is nothing to show. Each state gets its own line,
-       because the honest answer differs: still waiting, waiting on wger, wger
-       gave us nothing, the library is loaded and simply has no match, or the sync
-       failed -- in which case the reason is shown rather than a summary, because
-       "empty" and "broken" look identical from out here. */
-    const notice = loading
-        ? status === 'syncing'
-            ? 'Syncing the exercise library…'
-            : 'Loading the exercise library…'
-        : status === 'failed'
-          ? `Could not load the exercise library. ${error ?? ''}`.trim()
-          : status === 'empty'
-            ? 'The library is empty. Nothing to search yet.'
-            : nothingFound
-              ? `Nothing in the library matches “${value.trim()}”.`
-              : null;
+       because the honest answer differs: still loading, or the library is loaded
+       and simply has no match. */
+    const notice = isLoading
+        ? 'Loading Your Exercises…'
+        : nothingFound
+          ? `Nothing In Your Exercises Matches “${titleCaseExerciseName(value)}”.`
+          : null;
 
     /* Measured against the field, not against any ancestor. `above` is the
        preference, not the decision: when the space under the field is too small
@@ -272,8 +288,9 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
     }, []);
 
     const commit = (name: string, type: ActivityType, exerciseId?: string | null, keepOpen = false) => {
-        onChange(name);
-        onPick?.({ name, activity_type: type, exercise_id: exerciseId ?? null });
+        const formatted = titleCaseExerciseName(name);
+        onChange(formatted);
+        onPick?.({ name: formatted, activity_type: type, exercise_id: exerciseId ?? null });
         onActivityTypeChange?.(type);
         if (!keepOpen) setOpen(false);
     };
@@ -288,19 +305,24 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
        write failed. It used to close unconditionally, which meant the error was
        rendered into a list that had just been hidden: reported, and invisible. */
     const createAndPick = async () => {
-        const name = value.trim();
+        const name = titleCaseExerciseName(value);
         if (!name) return;
-        const type = activityType ?? 'strength';
         setCreateError(null);
         let created: LibraryExercise | null = null;
         try {
-            created = await createCustom.mutateAsync({ name, activity_type: type });
+            created = await createCustom.mutateAsync({
+                name,
+                activity_type: createType,
+                equipment: createEquipment || null,
+                weight_convention: createWeightConvention,
+                body_part: createBodyPart,
+            });
         } catch (cause) {
             setCreateError(
                 cause instanceof Error ? cause.message : 'Could not save it to your library.',
             );
         }
-        commit(name, type, created?.id, created == null);
+        commit(name, createType, created?.id, created == null);
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -309,6 +331,12 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
             return;
         }
         if (event.key === 'Enter') {
+            if (canCreate) {
+                event.preventDefault();
+                setCreating(true);
+                setOpen(false);
+                return;
+            }
             // Only intercept when there is something highlighted; otherwise let the
             // surrounding form submit so a plain typed name still works.
             if (open && matches.length > 0 && highlighted < matches.length) {
@@ -365,9 +393,9 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                     autoComplete="off"
                     className={className}
                     value={value}
-                    placeholder={placeholder ?? 'Search exercises'}
+                    placeholder={placeholder ?? 'Search Exercises'}
                     onChange={event => {
-                        onChange(event.target.value);
+                        onChange(titleCaseExerciseName(event.target.value));
                         setCreateError(null);
                         setOpen(true);
                     }}
@@ -423,14 +451,15 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                         </React.Fragment>
                     ))}
 
-                    {canCreate && (
+                    {canCreate && !creating && (
                         <li
                             role="option"
                             aria-selected={false}
                             className="workout-picker__option workout-picker__option--create"
                             onMouseDown={event => {
                                 event.preventDefault();
-                                void createAndPick();
+                                setCreating(true);
+                                setOpen(false);
                             }}
                         >
                             <span className="workout-picker__icon"><Plus size={11} /></span>
@@ -438,28 +467,9 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                         </li>
                     )}
 
-{/* Nothing about syncing is offered here. An import button inside a search
-                         dropdown is the wrong shape for it: it puts a network
-                         request behind a control nobody looks for. The library
-                         fetches itself on first use -- see `useExerciseLibrary`.
-
-                         The one exception is a retry, and it lives in the empty
-                         state rather than above it: the auto-sync gives up after two
-                         attempts, so without this there is no way back for anyone
-                         whose first fetch lost a race with wger. */}
                     {notice && (
                         <li className="workout-picker__none" role="presentation">
                             <span>{notice}</span>
-                            {status === 'empty' || status === 'failed' ? (
-                                <button
-                                    type="button"
-                                    className="btn-action"
-                                    disabled={syncLibrary.isPending}
-                                    onClick={() => syncLibrary.mutate()}
-                                >
-                                    <RefreshCw size={11} /> Fetch the library
-                                </button>
-                            ) : null}
                         </li>
                     )}
 
@@ -469,6 +479,45 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                         </li>
                     )}
                 </ul>,
+                document.body,
+            )}
+            {creating && createPortal(
+                <div className="import-modal-overlay" onMouseDown={event => {
+                    if (event.target === event.currentTarget && !createCustom.isPending) setCreating(false);
+                }}>
+                    <div className="import-modal-card" role="dialog" aria-modal="true" aria-labelledby={`${listId}-create-title`}>
+                        <h3 id={`${listId}-create-title`}>Create Exercise</h3>
+                        <p className="form-label" style={{ marginBottom: '0.75rem' }}>
+                            The exercise name was prefilled from your search.
+                        </p>
+                        <label className="form-label" htmlFor={`${listId}-modal-name`}>Name</label>
+                        <input id={`${listId}-modal-name`} className="form-control" value={titleCaseExerciseName(value)} onChange={event => onChange(event.target.value)} />
+                        <label className="form-label" htmlFor={`${listId}-modal-type`}>Type</label>
+                        <select id={`${listId}-modal-type`} className="form-control" value={createType} onChange={event => setCreateType(event.target.value as ActivityType)}>
+                            <option value="strength">Strength</option>
+                            <option value="cardio">Cardio</option>
+                            <option value="mobility">Mobility</option>
+                        </select>
+                        <label className="form-label" htmlFor={`${listId}-modal-equipment`}>Equipment</label>
+                        <select id={`${listId}-modal-equipment`} className="form-control" value={createEquipment} onChange={event => setCreateEquipment(event.target.value)}>
+                            <option value="">None / Not Specified</option>
+                            {EQUIPMENT_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <label className="form-label" htmlFor={`${listId}-modal-weight`}>Weight Convention</label>
+                        <select id={`${listId}-modal-weight`} className="form-control" value={createWeightConvention} onChange={event => setCreateWeightConvention(event.target.value as 'total' | 'per_hand' | 'per_side')}>
+                            {WEIGHT_CONVENTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        <label className="form-label" htmlFor={`${listId}-modal-body-part`}>Muscle Group / Body Part</label>
+                        <input id={`${listId}-modal-body-part`} className="form-control" value={createBodyPart} placeholder="Chest, Back, Quadriceps" onChange={event => setCreateBodyPart(event.target.value)} />
+                        {createError && <p className="workout-picker__error">{createError}</p>}
+                        <div className="workout-ex__actions">
+                            <button type="button" className="btn-form-cancel" onClick={() => setCreating(false)} disabled={createCustom.isPending}>Cancel</button>
+                            <button type="button" className="btn-action btn-action--primary" disabled={createCustom.isPending} onClick={() => void createAndPick()}>
+                                {createCustom.isPending ? 'Saving…' : 'Save Exercise'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
                 document.body,
             )}
         </>

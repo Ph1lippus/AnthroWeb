@@ -153,8 +153,7 @@ const badType = await applied.exec(
 ).then(() => '', e => String(e.message ?? e).split('\n')[0]);
 check('activity_type outside the vocabulary is refused (0011)', /activity_type/i.test(badType), badType);
 
-// The library upsert key has to exist for syncExerciseLibrary to resolve
-// on_conflict at all.
+// Keep the legacy exercise key so historical Wger-linked rows remain valid.
 const { rows: libKey } = await applied.query(
     `select count(*)::int n from pg_index i
        join pg_class c on c.oid = i.indexrelid

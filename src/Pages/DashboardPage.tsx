@@ -17,6 +17,7 @@ import MetricsCharts from '../Components/Dashboard/MetricsCharts';
 import StudyChart from '../Components/Dashboard/StudyChart';
 import WeightLossCards from '../Components/Dashboard/WeightLossCards';
 import LoadingBar from '../Components/LoadingBar';
+import WorkoutTrendChart from '../Components/Dashboard/WorkoutTrendChart';
 
 const DashboardPage: React.FC = () => {
     const queryClient = useQueryClient();
@@ -141,6 +142,7 @@ const DashboardPage: React.FC = () => {
                         />
                     </div>
                     <StudyChart range={range} />
+                    <WorkoutTrendChart range={range} />
                     {habitStreaks.length > 0 && (
                         <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
                             <h3 className="card-title" style={{ marginBottom: '0.5rem' }}>Habit streaks</h3>
