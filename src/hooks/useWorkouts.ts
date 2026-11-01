@@ -40,6 +40,8 @@ import {
     clearPRHistory,
     getExercises,
     createCustomExercise,
+    updateCustomExercise,
+    deleteCustomExercise,
     type WorkoutTemplate,
     type WorkoutTemplateExercise,
     type WorkoutPlanSession,
@@ -770,6 +772,29 @@ export const useCreateCustomExercise = () => {
                 weight_convention: input.weight_convention,
                 body_part: input.body_part,
             }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.exerciseLibrary }),
+    });
+};
+
+export const useUpdateCustomExercise = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (input: {
+            id: string;
+            name: string;
+            activity_type: ActivityType;
+            equipment?: string | null;
+            weight_convention?: 'total' | 'per_hand' | 'per_side' | null;
+            body_part?: string | null;
+        }) => updateCustomExercise(input.id, input),
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.exerciseLibrary }),
+    });
+};
+
+export const useDeleteCustomExercise = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => deleteCustomExercise(id),
         onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.exerciseLibrary }),
     });
 };

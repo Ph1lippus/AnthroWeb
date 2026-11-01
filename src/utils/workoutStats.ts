@@ -11,7 +11,7 @@ import { parseSetDetail, detailVolumeKg, levelForIntensity, type ActivityType } 
 import { exerciseKey } from './prs';
 
 export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-export const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** A day the user trained on, reduced to what the grid needs. */
@@ -40,7 +40,7 @@ export interface HeatCell {
     record?: DayRecord;
     isToday: boolean;
     isFuture: boolean;
-    /** Sunday-first column index inside its week. */
+    /** Monday-first column index inside its week. */
     weekday: number;
 }
 
@@ -52,9 +52,9 @@ export interface HeatWeek {
 }
 
 /**
- * 53 columns of 7 days, Sunday-first, ending on the week containing `endDate`.
+ * 53 columns of 7 days, Monday-first, ending on the week containing `endDate`.
  *
- * The grid starts on a Sunday so weekday rows line up, which means it shows up
+ * The grid starts on a Monday so weekday rows line up, which means it shows up
  * to six days beyond `endDate`. Those cells are marked `isFuture` and render
  * empty rather than as "missed", because nobody has failed to train on a day
  * that has not happened.
@@ -69,15 +69,15 @@ export const buildHeatGrid = (
     const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
     const endKey = toDateString(end);
 
-    // Walk back 52 weeks, then back to the Sunday that starts that week.
+    // Walk back 52 weeks, then back to the Monday that starts that week.
     const start = new Date(end);
     start.setDate(start.getDate() - 364);
     const gridStart = new Date(start);
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+    gridStart.setDate(gridStart.getDate() - ((gridStart.getDay() + 6) % 7));
 
-    // Forward to the Saturday that closes the week `end` falls in.
+    // Forward to the Sunday that closes the week `end` falls in.
     const gridEnd = new Date(end);
-    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+    gridEnd.setDate(gridEnd.getDate() + ((7 - gridEnd.getDay()) % 7));
 
     const today = todayString();
     const weeks: HeatWeek[] = [];
@@ -97,10 +97,10 @@ export const buildHeatGrid = (
             record,
             isToday: key === today,
             isFuture: key > endKey,
-            weekday: cursor.getDay(),
+            weekday: (cursor.getDay() + 6) % 7,
         });
 
-        if (cursor.getDay() === 6) {
+        if (cursor.getDay() === 0) {
             const labelled = labelWeek(week, lastMonth);
             weeks.push(labelled);
             // Label off the week's *first* day, so a week straddling a month

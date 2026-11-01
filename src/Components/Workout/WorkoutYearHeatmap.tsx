@@ -15,9 +15,9 @@ interface WorkoutYearHeatmapProps {
  * Saturday only -- on the reasoning that it matched the grid's visual rhythm, but
  * it meant the row you had to identify was the row you could not identify, and
  * the labels are `aria-hidden` decoration anyway, so the cost was real and the
- * benefit was not. Sunday-first, because that is what `Date.getDay()` counts.
+ * benefit was not. Monday-first, matching the rest of the workout week views.
  */
-const DAY_ROWS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_ROWS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /* Cell sizing. The square is a fixed size and the row spreads its columns with
    `space-between`, which is what makes the grid use the whole card without the
@@ -34,7 +34,7 @@ const GAP_PX = 2;
 /**
  * A year of training as a git-contribution grid.
  *
- * One square per day, 53 columns of 7, Sunday-first so the rows are weekdays.
+ * One square per day, 53 columns of 7, Monday-first so the rows are weekdays.
  * The shade is the session's self-reported intensity bucketed into five steps,
  * all derived from --color-primary so it follows whatever accent the app wears
  * rather than being a second, fixed green.

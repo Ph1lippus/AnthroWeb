@@ -1626,6 +1626,46 @@ export const createCustomExercise = async (
     return data as LibraryExercise;
 };
 
+export const updateCustomExercise = async (
+    id: string,
+    updates: Pick<LibraryExercise, 'name' | 'activity_type' | 'equipment' | 'weight_convention' | 'body_part'>,
+): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const name = titleCaseExerciseName(updates.name);
+    if (!name) throw new Error('Exercise name is required');
+
+    const { error } = await supabase
+        .from('exercises')
+        .update({
+            name,
+            activity_type: updates.activity_type,
+            equipment: updates.equipment ?? null,
+            weight_convention: updates.weight_convention ?? null,
+            body_part: updates.body_part?.trim() || null,
+        })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .eq('is_custom', true);
+
+    if (error) fail('Could not update the exercise', error);
+};
+
+export const deleteCustomExercise = async (id: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('exercises')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId)
+        .eq('is_custom', true);
+
+    if (error) fail('Could not remove the exercise', error);
+};
+
 
 // ---------------------------------------------------------------------------
 // Aggregate helpers shared with the stats page

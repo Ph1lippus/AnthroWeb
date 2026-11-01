@@ -8,6 +8,7 @@ import WorkoutStatsRail from '../Components/Workout/WorkoutStatsRail';
 import SessionList from '../Components/Workout/SessionList';
 import SessionEditor from '../Components/Workout/SessionEditor';
 import RecordsPanel from '../Components/Workout/RecordsPanel';
+import ExerciseLibraryPanel from '../Components/Workout/ExerciseLibraryPanel';
 import TemplateCard from '../Components/Workout/TemplateCard';
 import TemplateEditorModal from '../Components/Workout/TemplateEditorModal';
 import SessionEditorModal from '../Components/Workout/SessionEditorModal';
@@ -30,7 +31,7 @@ import { isDateString, startOfWeek, todayString, weekRangeLabel, addDays } from 
 import { describeTargets } from '../utils/workoutSets';
 
 /**
- * Three tabs. Records used to be a permanent panel in the left rail, which put
+ * Four tabs. Records used to be a permanent panel in the left rail, which put
  * two unrelated lists side by side and left the tabs a third of the page. It is
  * a tab now: read when you want it, and gone when you want the room.
  */
@@ -38,6 +39,7 @@ const TABS: TabDefinition[] = [
     { id: 'today', label: 'Today' },
     { id: 'templates', label: 'Templates' },
     { id: 'records', label: 'Records' },
+    { id: 'exercises', label: 'Exercises' },
 ];
 
 /**
@@ -449,6 +451,9 @@ const WorkoutsPage: React.FC = () => {
 
                                         <TabPanel id="records" hidden={tab !== 'records'}>
                                             <RecordsPanel />
+                                        </TabPanel>
+                                        <TabPanel id="exercises" hidden={tab !== 'exercises'}>
+                                            <ExerciseLibraryPanel />
                                         </TabPanel>
 
                                         {/* The year closes the column: always

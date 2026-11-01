@@ -51,13 +51,10 @@ export const formatDayLabel = (dateStr: string): string => {
 };
 
 /**
- * The Sunday that starts the week holding `dateStr`.
- *
- * Sunday, because `Date.getDay()` counts from it and the year grid's columns are
- * cut on it -- so a week here is the same seven days a week column is there.
+ * The Monday that starts the week holding `dateStr`.
  */
 export const startOfWeek = (dateStr: string): string =>
-    addDays(dateStr, -new Date(`${dateStr}T00:00:00`).getDay());
+    addDays(dateStr, -((new Date(`${dateStr}T00:00:00`).getDay() + 6) % 7));
 
 /** `Oct 4 – Oct 10`. The end drops its month while both ends are in the same one. */
 export const weekRangeLabel = (start: string): string => {

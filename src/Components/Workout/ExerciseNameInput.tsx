@@ -323,6 +323,10 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
             );
         }
         commit(name, createType, created?.id, created == null);
+        if (created) {
+            setCreating(false);
+            setCreateError(null);
+        }
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {

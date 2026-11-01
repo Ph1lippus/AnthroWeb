@@ -14031,6 +14031,11 @@ body {
   font-size: 0.72rem;
 }
 .workout-row__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workout-row__name > .semester-meta {
+  display: block;
+  margin-top: 0.25rem;
+  white-space: normal;
+}
 .workout-row__value { opacity: 0.6; white-space: nowrap; font-size: 0.68rem; }
 
 .workout-heat {
