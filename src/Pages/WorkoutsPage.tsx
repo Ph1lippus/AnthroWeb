@@ -22,7 +22,6 @@ import {
     useDuplicateWorkoutTemplate,
     useSetActiveTemplate,
     useWorkoutTemplate,
-    useSeedPRsFromTemplate,
     useCreatePlanSession,
     useUpdatePlanSession,
 } from '../hooks/useWorkouts';
@@ -117,7 +116,6 @@ const WorkoutsPage: React.FC = () => {
     const deleteTemplate = useDeleteWorkoutTemplate();
     const duplicateTemplate = useDuplicateWorkoutTemplate();
     const setActive = useSetActiveTemplate();
-    const seedPRs = useSeedPRsFromTemplate();
 
     // The session dialog needs its template, its sessions and its exercises.
     // Read straight from the id in the URL rather than looked up in the
@@ -531,11 +529,6 @@ const WorkoutsPage: React.FC = () => {
                             onSetActive={editingTemplate && !editingTemplate.is_active ? () => {
                                 setActive.mutate(editingTemplate.id!);
                                 setNotice(`${editingTemplate.name} is now your active template.`);
-                                go({ tpl: undefined });
-                            } : undefined}
-                            onTrackAsPRs={editingTemplate ? () => {
-                                seedPRs.mutate(editingTemplate.id!);
-                                setNotice('Added this template’s exercises to your records.');
                                 go({ tpl: undefined });
                             } : undefined}
                         />

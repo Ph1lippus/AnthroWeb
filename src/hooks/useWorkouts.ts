@@ -33,13 +33,11 @@ import {
     getPREntries,
     getPRHistory,
     ensurePREntry,
-    seedPRsFromTemplate,
     deletePREntry,
     recordManualPR,
     updatePRHistory,
     deletePRHistory,
     clearPRHistory,
-    recordNewPRs,
     getExercises,
     createCustomExercise,
     type WorkoutTemplate,
@@ -660,7 +658,7 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
             // were inserted, and the database is the only thing that knows what id
             // they got. Callers reconcile against this to stop re-inserting them.
             const saved = await getSessionExercises(sessionId!);
-            return { prs: await recordNewPRs(input.date, sessionId!, saved), saved };
+            return { prs: [], saved };
         },
         onSuccess: (result, input) => {
             invalidate();
@@ -700,14 +698,6 @@ export const useAddPREntry = () => {
     return useMutation({
         mutationFn: (input: { exercise_id?: string | null; exercise_name: string; source?: 'template' | 'manual' }) =>
             ensurePREntry(input),
-        onSuccess: invalidate,
-    });
-};
-
-export const useSeedPRsFromTemplate = () => {
-    const invalidate = useInvalidateWorkouts();
-    return useMutation({
-        mutationFn: (templateId: string) => seedPRsFromTemplate(templateId),
         onSuccess: invalidate,
     });
 };

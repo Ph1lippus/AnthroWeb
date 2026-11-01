@@ -5,7 +5,6 @@ import {
     Pencil,
     RotateCcw,
     Search,
-    Target,
     Trash2,
     TrendingUp,
     Trophy,
@@ -23,8 +22,6 @@ import {
     useUpdatePRHistory,
     useDeletePRHistory,
     useClearPRHistory,
-    useActiveTemplate,
-    useSeedPRsFromTemplate,
 } from '../../hooks/useWorkouts';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import { buildPRCards, prDelta, type PRCard as PRCardData } from '../../utils/prs';
@@ -53,10 +50,8 @@ const RecordsPanel: React.FC = () => {
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
     const { data: entries = [] } = usePREntries();
     const { data: history = [] } = usePRHistory();
-    const { activeTemplate } = useActiveTemplate();
     const addEntry = useAddPREntry();
     const removeEntry = useDeletePREntry();
-    const seedTemplate = useSeedPRsFromTemplate();
 
     const [search, setSearch] = useState('');
     const [newName, setNewName] = useState('');
@@ -87,18 +82,6 @@ const RecordsPanel: React.FC = () => {
             <div className="card">
                 <div className="card-header">
                     <h3 className="card-title"><Trophy size={12} />Records</h3>
-                    {activeTemplate && (
-                        <button
-                            className="btn-action"
-                            style={{ marginLeft: 'auto' }}
-                            disabled={seedTemplate.isPending}
-                            onClick={() => activeTemplate.id && seedTemplate.mutate(activeTemplate.id)}
-                            data-tip="Add every exercise in the active template"
-                        >
-                            <Target size={11} className="mr-1" />
-                            From template
-                        </button>
-                    )}
                 </div>
                 <div className="card-body">
                     <div className="pr-toolbar">

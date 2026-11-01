@@ -1023,8 +1023,7 @@ export const setGymForDate = async (
 
     await setDailyLogGym(date, true);
 
-    const exercises = sessionId ? await getSessionExercises(sessionId) : [];
-    return { completed: true, newPRs: await recordNewPRs(date, sessionId!, exercises) };
+    return { completed: true, newPRs: [] };
 };
 
 /** Undo a mark. Cascades to the session's exercises and the PRs they earned. */
@@ -1317,8 +1316,8 @@ export const getPRHistory = async (): Promise<PRHistory[]> => {
 /**
  * Add an exercise to the tracked list, or return the one that already exists.
  *
- * Templates seed this automatically, so re-seeding a template must not create
- * a second entry for the same lift -- hence the lookup before the insert.
+ * PR tracking is explicitly opt-in. The exercise must be a user-created
+ * library exercise; templates and logged exercise names cannot create PR rows.
  */
 export const ensurePREntry = async (input: {
     exercise_id?: string | null;
@@ -1330,6 +1329,19 @@ export const ensurePREntry = async (input: {
 
     const name = input.exercise_name.trim();
     if (!name) return null;
+    if (!input.exercise_id) {
+        throw new Error('Choose or create a user exercise before tracking a PR.');
+    }
+
+    const { data: exercise, error: exerciseError } = await supabase
+        .from('exercises')
+        .select('id, name, is_custom')
+        .eq('id', input.exercise_id)
+        .eq('user_id', userId)
+        .eq('is_custom', true)
+        .maybeSingle();
+    if (exerciseError) fail('Could not validate the PR exercise', exerciseError);
+    if (!exercise) throw new Error('PRs can only be tracked for your created exercises.');
 
     const { data: existing } = await supabase
         .from('pr_entries')
@@ -1344,9 +1356,9 @@ export const ensurePREntry = async (input: {
         .from('pr_entries')
         .insert({
             user_id: userId,
-            exercise_id: input.exercise_id ?? null,
-            exercise_name: name,
-            source: input.source ?? 'manual',
+            exercise_id: exercise.id,
+            exercise_name: exercise.name,
+            source: 'manual',
         })
         .select()
         .single();
