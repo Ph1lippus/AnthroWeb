@@ -3763,6 +3763,16 @@ textarea.form-control {
   color: var(--color-light);
   outline: none;
 }
+.exercise-create-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.exercise-create-actions > button {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
 /* Duplicates Modal */
 .duplicates-modal-card {
   max-width: 560px;

@@ -491,7 +491,12 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                             The exercise name was prefilled from your search.
                         </p>
                         <label className="form-label" htmlFor={`${listId}-modal-name`}>Name</label>
-                        <input id={`${listId}-modal-name`} className="form-control" value={titleCaseExerciseName(value)} onChange={event => onChange(event.target.value)} />
+                        <input
+                            id={`${listId}-modal-name`}
+                            className="form-control"
+                            value={value}
+                            onChange={event => onChange(event.target.value)}
+                        />
                         <label className="form-label" htmlFor={`${listId}-modal-type`}>Type</label>
                         <select id={`${listId}-modal-type`} className="form-control" value={createType} onChange={event => setCreateType(event.target.value as ActivityType)}>
                             <option value="strength">Strength</option>
@@ -510,7 +515,7 @@ const ExerciseNameInput: React.FC<ExerciseNameInputProps> = ({
                         <label className="form-label" htmlFor={`${listId}-modal-body-part`}>Muscle Group / Body Part</label>
                         <input id={`${listId}-modal-body-part`} className="form-control" value={createBodyPart} placeholder="Chest, Back, Quadriceps" onChange={event => setCreateBodyPart(event.target.value)} />
                         {createError && <p className="workout-picker__error">{createError}</p>}
-                        <div className="workout-ex__actions">
+                        <div className="exercise-create-actions">
                             <button type="button" className="btn-form-cancel" onClick={() => setCreating(false)} disabled={createCustom.isPending}>Cancel</button>
                             <button type="button" className="btn-action btn-action--primary" disabled={createCustom.isPending} onClick={() => void createAndPick()}>
                                 {createCustom.isPending ? 'Saving…' : 'Save Exercise'}
