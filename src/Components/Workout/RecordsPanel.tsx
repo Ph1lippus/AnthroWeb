@@ -3,7 +3,6 @@ import {
     Dumbbell,
     Pencil,
     RotateCcw,
-    Plus,
     Trash2,
     TrendingUp,
     Trophy,
@@ -213,12 +212,7 @@ const RecordCard: React.FC<{
 
             <div className="card-body">
                 {best && bestRow ? (
-                    <button
-                            type="button"
-                            className="pr-best"
-                            onClick={() => bestRow.id && setEditing(bestRow.id)}
-                            aria-label={`Edit your best ${card.entry.exercise_name}`}
-                        >
+                    <div className="pr-best">
                             <span className="pr-best__value">
                                 {fromKg(best.weight, weightUnit)}{' '}
                                 <span className="pr-best__unit">{weightUnit}</span>
@@ -227,7 +221,7 @@ const RecordCard: React.FC<{
                             <span className="pr-best__meta">
                                 {formatDayLabel(best.date)}
                             </span>
-                        </button>
+                    </div>
                 ) : (
                     <p className="form-label" style={{ marginBottom: '0.5rem' }}>
                         No max recorded yet. Enter what you have lifted before — it becomes the number
@@ -259,12 +253,9 @@ const RecordCard: React.FC<{
                         <div className="workout-rows" style={{ marginTop: '0.4rem' }}>
                             {card.history.map(row => (
                                 (
-                                    <button
-                                        type="button"
+                                    <div
                                         className="workout-row pr-history__row"
                                         key={row.id}
-                                        onClick={() => row.id && setEditing(row.id)}
-                                        aria-label={`Edit the ${card.entry.exercise_name} record from ${formatDayLabel(row.workout_date)}`}
                                     >
                                         <span className="workout-row__name" style={{ fontSize: '0.65rem' }}>
                                             {formatDayLabel(row.workout_date)}
@@ -276,7 +267,7 @@ const RecordCard: React.FC<{
                                                 : '—'}
                                             {row.reps != null && ` × ${row.reps}`}
                                         </span>
-                                    </button>
+                                    </div>
                                 )
                             ))}
                         </div>
@@ -315,7 +306,19 @@ const RecordCard: React.FC<{
                         if (event.target === event.currentTarget && !updateRow.isPending) setEditing(null);
                     }}>
                         <div className="import-modal-card">
-                            {progressOpen ? (
+                            <h3>Edit Progress</h3>
+                            <RecordEditor
+                                row={row}
+                                weightUnit={weightUnit}
+                                busy={updateRow.isPending}
+                                onSave={updates => {
+                                    updateRow.mutate({ id: row.id!, updates });
+                                    setEditing(null);
+                                }}
+                                onDelete={() => setDropping(row)}
+                                onCancel={() => setEditing(null)}
+                            />
+                            {entryId && (
                                 <ProgressForm
                                     weightUnit={weightUnit}
                                     weight={weight}
@@ -323,40 +326,20 @@ const RecordCard: React.FC<{
                                     busy={recordMax.isPending}
                                     onWeightChange={setWeight}
                                     onSetsChange={setReps}
-                                    onCancel={() => setProgressOpen(false)}
+                                    onCancel={() => setEditing(null)}
                                     onSubmit={() => {
                                         const parsed = Number(weight);
                                         const parsedSets = Number(reps);
-                                        if (!entryId || !Number.isFinite(parsed) || !Number.isFinite(parsedSets)) return;
+                                        if (!Number.isFinite(parsed) || !Number.isFinite(parsedSets)) return;
                                         recordMax.mutate({
                                             pr_entry_id: entryId,
                                             exercise_name: card.entry.exercise_name,
                                             weight: toKg(parsed, weightUnit),
                                             reps: parsedSets,
                                             workout_date: todayString(),
-                                        }, { onSuccess: () => { setWeight(''); setReps(''); setProgressOpen(false); } });
+                                        }, { onSuccess: () => { setWeight(''); setReps(''); setEditing(null); } });
                                     }}
                                 />
-                            ) : (
-                                <>
-                                    <h3>Edit Progress</h3>
-                                    <RecordEditor
-                                        row={row}
-                                        weightUnit={weightUnit}
-                                        busy={updateRow.isPending}
-                                        onSave={updates => {
-                                            updateRow.mutate({ id: row.id!, updates });
-                                            setEditing(null);
-                                        }}
-                                        onDelete={() => setDropping(row)}
-                                        onCancel={() => setEditing(null)}
-                                    />
-                                    {entryId && (
-                                        <button type="button" className="btn-action btn-action--primary" onClick={() => setProgressOpen(true)}>
-                                            <Plus size={11} /> Add progress
-                                        </button>
-                                    )}
-                                </>
                             )}
                         </div>
                     </div>
