@@ -18,7 +18,6 @@ import StudyChart from '../Components/Dashboard/StudyChart';
 import WeightLossCards from '../Components/Dashboard/WeightLossCards';
 import LoadingBar from '../Components/LoadingBar';
 import WorkoutTrendChart from '../Components/Dashboard/WorkoutTrendChart';
-import WorkoutSummaryCard from '../Components/Dashboard/WorkoutSummaryCard';
 
 const DashboardPage: React.FC = () => {
     const queryClient = useQueryClient();
@@ -115,7 +114,6 @@ const DashboardPage: React.FC = () => {
                             <RefreshCw size={13} style={refreshingScores ? { animation: 'spin 1s linear infinite' } : undefined} />
                         </button>
                     </div>
-                    <WorkoutSummaryCard />
                     <div className="analysis-grid">
                         <AnalysisCards
                             logs={logs}
