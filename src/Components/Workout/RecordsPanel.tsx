@@ -169,6 +169,7 @@ const RecordCard: React.FC<{
     const [currentWeight, setCurrentWeight] = useState('');
     const [currentSets, setCurrentSets] = useState('');
     const [currentDate, setCurrentDate] = useState('');
+    const [progressDate, setProgressDate] = useState(todayString());
     const [dropping, setDropping] = useState<PRHistory | null>(null);
     const [resetting, setResetting] = useState(false);
 
@@ -188,6 +189,7 @@ const RecordCard: React.FC<{
         setCurrentDate(row.workout_date);
         setWeight('');
         setReps('');
+        setProgressDate(todayString());
     };
 
     return (
@@ -333,7 +335,7 @@ const RecordCard: React.FC<{
                                             exercise_name: card.entry.exercise_name,
                                             weight: toKg(progressWeight, weightUnit),
                                             reps: progressSets,
-                                            workout_date: todayString(),
+                                            workout_date: progressDate,
                                         });
                                     }
                                 }
@@ -351,6 +353,9 @@ const RecordCard: React.FC<{
                                         <input className="form-control" type="number" min={1} step={1} value={currentSets} onChange={event => setCurrentSets(event.target.value)} required />
                                     </label>
                                 </div>
+                                <label className="form-label" style={{ display: 'block', marginTop: '0.5rem' }}>Date
+                                    <input className="form-control" type="date" value={currentDate} max={todayString()} onChange={event => setCurrentDate(event.target.value)} required />
+                                </label>
                                 <h4 style={{ marginTop: '0.75rem' }}>Add progress</h4>
                                 <div className="pr-editor__grid">
                                     <label className="form-label">Weight ({weightUnit})
@@ -360,6 +365,9 @@ const RecordCard: React.FC<{
                                         <input className="form-control" type="number" min={1} step={1} value={reps} onChange={event => setReps(event.target.value)} />
                                     </label>
                                 </div>
+                                <label className="form-label" style={{ display: 'block', marginTop: '0.5rem' }}>Date
+                                    <input className="form-control" type="date" value={progressDate} max={todayString()} onChange={event => setProgressDate(event.target.value)} required />
+                                </label>
                                 <div className="exercise-create-actions">
                                     <button type="button" className="btn-form-cancel" onClick={() => setEditing(null)}>Cancel</button>
                                     <button type="submit" className="btn-form-submit" disabled={updateRow.isPending || recordMax.isPending}>Save</button>
@@ -374,9 +382,11 @@ const RecordCard: React.FC<{
                                 weightUnit={weightUnit}
                                 weight={weight}
                                 sets={reps}
+                                date={progressDate}
                                 busy={recordMax.isPending}
                                 onWeightChange={setWeight}
                                 onSetsChange={setReps}
+                                onDateChange={setProgressDate}
                                 onCancel={() => setProgressOpen(false)}
                                 onSubmit={() => {
                                     const parsed = Number(weight);
@@ -387,7 +397,7 @@ const RecordCard: React.FC<{
                                         exercise_name: card.entry.exercise_name,
                                         weight: toKg(parsed, weightUnit),
                                         reps: parsedSets,
-                                        workout_date: todayString(),
+                                        workout_date: progressDate,
                                     }, { onSuccess: () => { setWeight(''); setReps(''); setProgressOpen(false); } });
                                 }}
                             />
@@ -416,15 +426,20 @@ const ProgressForm: React.FC<{
     weightUnit: WeightUnit;
     weight: string;
     sets: string;
+    date: string;
     busy: boolean;
     onWeightChange: (value: string) => void;
     onSetsChange: (value: string) => void;
+    onDateChange: (value: string) => void;
     onCancel: () => void;
     onSubmit: () => void;
-}> = ({ weightUnit, weight, sets, busy, onWeightChange, onSetsChange, onCancel, onSubmit }) => (
+}> = ({ weightUnit, weight, sets, date, busy, onWeightChange, onSetsChange, onDateChange, onCancel, onSubmit }) => (
     <div className="pr-editor__grid">
         <label className="form-label">Weight ({weightUnit})
             <input className="form-control" type="number" min={0} step="0.5" value={weight} onChange={event => onWeightChange(event.target.value)} />
+        </label>
+        <label className="form-label" style={{ gridColumn: '1 / -1' }}>Date
+            <input className="form-control" type="date" value={date} max={todayString()} onChange={event => onDateChange(event.target.value)} />
         </label>
         <label className="form-label">Sets
             <input className="form-control" type="number" min={1} step={1} value={sets} onChange={event => onSetsChange(event.target.value)} />
