@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Dumbbell, Layers, Plus, Trophy } from 'lucid
 import Title from '../Components/Title';
 import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
+import WorkoutStatsRail from '../Components/Workout/WorkoutStatsRail';
 import SessionList from '../Components/Workout/SessionList';
 import SessionEditor from '../Components/Workout/SessionEditor';
 import RecordsPanel from '../Components/Workout/RecordsPanel';
@@ -15,6 +16,7 @@ import LoadingSpinner from '../Components/LoadingSpinner';
 import {
     useActiveTemplate,
     useWorkoutsOverview,
+    useExerciseStats,
     useCreateWorkoutTemplate,
     useUpdateWorkoutTemplate,
     useDeleteWorkoutTemplate,
@@ -110,6 +112,7 @@ const WorkoutsPage: React.FC = () => {
     // ---- Data ----
     const overview = useWorkoutsOverview();
     const { activeTemplate, templates } = useActiveTemplate();
+    const stats = useExerciseStats(overview.sessions);
 
     const createTemplate = useCreateWorkoutTemplate();
     const updateTemplate = useUpdateWorkoutTemplate();
@@ -462,6 +465,23 @@ const WorkoutsPage: React.FC = () => {
                                                 <span className="semester-meta" style={{ marginLeft: 'auto' }}>
                                                     hover a square for that day's log
                                                 </span>
+                                            </div>
+                                            <div className="card">
+                                                <div className="card-header">
+                                                    <h3 className="card-title">Breakdown</h3>
+                                                    <span className="semester-meta" style={{ marginLeft: 'auto' }}>workout insights</span>
+                                                </div>
+                                                <div className="card-body">
+                                                    <WorkoutStatsRail
+                                                        days={overview.days}
+                                                        last7={overview.last7}
+                                                        last30={overview.last30}
+                                                        year={overview.year}
+                                                        streak={overview.streak}
+                                                        rollups={stats}
+                                                        weightUnit={weightUnit}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="card-body">
                                                 <WorkoutYearHeatmap
