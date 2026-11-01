@@ -4,7 +4,6 @@ import { ChevronLeft, ChevronRight, Dumbbell, Layers, Plus, Trophy } from 'lucid
 import Title from '../Components/Title';
 import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
-import WorkoutStatsRail from '../Components/Workout/WorkoutStatsRail';
 import SessionList from '../Components/Workout/SessionList';
 import SessionEditor from '../Components/Workout/SessionEditor';
 import RecordsPanel from '../Components/Workout/RecordsPanel';
@@ -16,7 +15,6 @@ import LoadingSpinner from '../Components/LoadingSpinner';
 import {
     useActiveTemplate,
     useWorkoutsOverview,
-    useExerciseStats,
     useCreateWorkoutTemplate,
     useUpdateWorkoutTemplate,
     useDeleteWorkoutTemplate,
@@ -133,7 +131,6 @@ const WorkoutsPage: React.FC = () => {
        for a rail describing what you have actually trained -- an exercise you
        logged and then dropped from the template was invisible to every figure
        on the right, including the muscle groups. */
-    const stats = useExerciseStats(overview.sessions);
     const todayRecord = overview.days.get(today);
 
     const editingTemplate = useMemo(
@@ -477,18 +474,6 @@ const WorkoutsPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* ---- Right: the figures ---- */}
-                                <div className="workout-rail workout-rail--stats">
-                                    <WorkoutStatsRail
-                                        days={overview.days}
-                                        last7={overview.last7}
-                                        last30={overview.last30}
-                                        year={overview.year}
-                                        streak={overview.streak}
-                                        rollups={stats}
-                                        weightUnit={weightUnit}
-                                    />
-                                </div>
                             </div>
                         )}
                     </div>
