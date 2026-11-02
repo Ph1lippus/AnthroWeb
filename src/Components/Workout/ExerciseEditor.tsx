@@ -296,7 +296,7 @@ const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exe
                                     {([
                                         ['Duration', 'duration_minutes', 0.1],
                                         ['Level / incline / speed', 'level', 0.1],
-                                        ['Pace', 'pace', 0.1],
+                                        ['Pace', 'speed', 0.1],
                                     ] as const).map(([label, field, step]) => (
                                         <input
                                             key={field}
