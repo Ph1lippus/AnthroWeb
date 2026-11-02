@@ -69,8 +69,15 @@ const mean = (values: (number | null | undefined)[]): number | null => {
 const fmt = (n: number | null, suffix = '', digits = 1): string =>
     n === null ? '--' : `${digits === 0 ? Math.round(n) : round1(n)}${suffix}`;
 
-const fmtDuration = (hours: number | null): string =>
-    hours === null ? '--' : `${Math.floor(hours)}h ${Math.round((hours % 1) * 60)}m`;
+const fmtDuration = (hours: number | null): string => {
+    if (hours === null) return '--';
+    // Round to whole minutes first so 7.999999999999999h (an 8-hour average
+    // dented by floating point) renders as 8h 0m, not 7h 60m.
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h ${m}m`;
+};
 
 // Compares the second half of the window against the first half so the delta
 // reflects the selected range rather than an arbitrary week-over-week slice.
@@ -129,7 +136,15 @@ const AnalysisCards: React.FC<AnalysisCardsProps> = ({ logs, habits, habitLogs, 
         const wakes = sorted.map(l => parseClock(l.wake_time)).filter((v): v is number => v !== null);
         const avgBed = bedtimes.length ? bedtimes.reduce((a, b) => a + b, 0) / bedtimes.length : null;
         const avgWake = wakes.length ? wakes.reduce((a, b) => a + b, 0) / wakes.length : null;
-        const fmtClock = (h: number | null) => h === null ? '--' : `${String(Math.floor(h % 24)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+        const fmtClock = (h: number | null) => {
+            if (h === null) return '--';
+            // Round to whole minutes first so 23.999999999999996h (midnight dented
+            // by floating point) renders as 00:00, not 23:60.
+            const totalMinutes = Math.round(h * 60) % (24 * 60);
+            const hh = Math.floor(totalMinutes / 60);
+            const mm = totalMinutes % 60;
+            return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        };
         out.push({
             key: 'sleepDuration',
             label: 'Duration',

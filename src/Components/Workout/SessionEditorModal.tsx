@@ -30,6 +30,8 @@ interface SessionEditorModalProps {
     onSubmit: (input: {
         name: string;
         day_of_week: number;
+        day_options?: number[] | null;
+        repeat_on_days?: boolean;
         activity_type: ActivityType;
         target_duration_minutes?: number | null;
         target_intensity?: number | null;
@@ -57,7 +59,10 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
     busy = false,
 }) => {
     const [name, setName] = useState(session?.name ?? '');
-    const [day, setDay] = useState(session?.day_of_week ?? defaultDay ?? 1);
+    const [dayOptions, setDayOptions] = useState<number[]>(
+        session?.day_options?.length ? session.day_options : [session?.day_of_week ?? defaultDay ?? 1],
+    );
+    const [repeatOnDays, setRepeatOnDays] = useState(session?.repeat_on_days ?? false);
     const [type, setType] = useState<ActivityType>(session?.activity_type ?? 'strength');
     const [duration, setDuration] = useState(
         session?.target_duration_minutes != null ? String(session.target_duration_minutes) : '',
@@ -65,14 +70,16 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
     const [intensity, setIntensity] = useState(session?.target_intensity ?? 5);
 
     const trimmed = name.trim();
-    const valid = trimmed.length > 0;
+    const valid = trimmed.length > 0 && dayOptions.length > 0;
 
     const handleSubmit = (event: React.FormEvent) => {
         event.preventDefault();
         if (!valid) return;
         onSubmit({
             name: trimmed,
-            day_of_week: day,
+            day_of_week: dayOptions[0],
+            day_options: dayOptions,
+            repeat_on_days: repeatOnDays,
             activity_type: type,
             target_duration_minutes: duration.trim() ? Number(duration) : null,
             target_intensity: intensity,
@@ -111,22 +118,7 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="form-label" htmlFor="session-day">Day</label>
-                            <select
-                                id="session-day"
-                                className="form-control"
-                                value={day}
-                                onChange={event => setDay(Number(event.target.value))}
-                            >
-                                {WEEKDAYS.map(option => (
-                                    <option key={option.value} value={option.value}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                    <div className="mb-4">
                         <div>
                             <label className="form-label" htmlFor="session-type">Type</label>
                             <select
@@ -143,6 +135,57 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                     </div>
 
                     <div className="mb-4">
+                        <span className="form-label">This one session can be done on</span>
+                        <div className="session-day-options">
+                            {WEEKDAYS.map(option => (
+                                <label key={option.value} className="checkbox-label">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox-input"
+                                        checked={dayOptions.includes(option.value)}
+                                        onChange={() => setDayOptions(current =>
+                                            current.includes(option.value)
+                                                ? current.filter(value => value !== option.value)
+                                                : [...current, option.value],
+                                        )}
+                                    />
+                                    <span>{option.label.slice(0, 3)}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mb-4">
+                        <span className="form-label">Schedule</span>
+                        <div className="session-schedule-options">
+                            <label className={`session-schedule-option ${!repeatOnDays ? 'session-schedule-option--active' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name="session-schedule"
+                                    checked={!repeatOnDays}
+                                    onChange={() => setRepeatOnDays(false)}
+                                />
+                                <span>
+                                    <strong>One time</strong>
+                                    <small>Do this session on any one selected day</small>
+                                </span>
+                            </label>
+                            <label className={`session-schedule-option ${repeatOnDays ? 'session-schedule-option--active' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name="session-schedule"
+                                    checked={repeatOnDays}
+                                    onChange={() => setRepeatOnDays(true)}
+                                />
+                                <span>
+                                    <strong>Repeat</strong>
+                                    <small>Plan this session on every selected day</small>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="mb-4">
                         <label className="form-label" htmlFor="session-duration">
                             Duration (min) <span className="form-label__optional">optional</span>
                         </label>
@@ -151,7 +194,7 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                             type="number"
                             inputMode="numeric"
                             min={0}
-                            step={5}
+                            step={1}
                             className="form-control"
                             value={duration}
                             placeholder="45"

@@ -21,7 +21,7 @@ import { MoodReadout } from '../Components/Journal/Mood';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
-import { useSetGymForDate } from '../hooks/useWorkouts';
+import { useActiveTemplate, useSessionByDate, useSetGymForDate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
@@ -240,7 +240,21 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // are the same call, so the habit charts, the score ring and the workout
     // heatmap can never report a different answer for one date.
     const setGym = useSetGymForDate();
+    const { activeTemplate } = useActiveTemplate();
+    const { data: workoutForDate } = useSessionByDate(logDate);
     const [gym, setGymLocal] = useState(false);
+
+    const workoutTypesForTemplate = useMemo(() => {
+        const all = new Set(activeTemplate?.days.map(row => row.activity_type) ?? []);
+        const day = new Date(`${logDate}T00:00:00`).getDay();
+        const today = new Set(
+            (activeTemplate?.days ?? [])
+                .filter(row => row.day_of_week === day)
+                .map(row => row.activity_type),
+        );
+        const completed = new Set(workoutForDate?.exercises.filter(row => row.completed).map(row => row.activity_type) ?? []);
+        return { all, today, completed };
+    }, [activeTemplate, logDate, workoutForDate]);
 
 
     const toggleGym = async () => {
@@ -1510,9 +1524,10 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // is visible rather than hidden behind an identical-looking control.
     const gymCheckbox = (() => {
         const label = builtinHabitLabel('gym');
+        const scheduled = workoutTypesForTemplate.today.has('strength');
         return (
             <div
-                className="habit-row"
+                className={`habit-row ${scheduled ? '' : 'daily-log-habit--optional'}`}
                 onContextMenu={event =>
                     habitMenu.openFromEvent(
                         event,
@@ -1530,7 +1545,10 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                         className="checkbox-input"
                     />
                     <span className="daily-log-habits__gym-label">
-                        <span>{label}</span>
+                        <span>
+                            {label}
+                            {!scheduled && <span className="daily-log-habit__optional">optional</span>}
+                        </span>
                         {gym && (
                             <Link
                                 className="daily-log-habits__gym-link"
@@ -1554,6 +1572,29 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             </div>
         );
     })();
+
+    const templateActivityHabit = (activityType: 'cardio' | 'mobility') => {
+        if (!workoutTypesForTemplate.all.has(activityType)) return null;
+        const scheduled = workoutTypesForTemplate.today.has(activityType);
+        const completed = workoutTypesForTemplate.completed.has(activityType);
+        const label = activityType === 'cardio' ? 'Cardio' : 'Mobility';
+        return (
+            <div className={`habit-row ${scheduled ? '' : 'daily-log-habit--optional'}`} key={activityType}>
+                <label className="checkbox-label flex-1 min-w-0">
+                    <input
+                        type="checkbox"
+                        checked={completed}
+                        onChange={() => navigate(`/Workouts?day=${logDate}`)}
+                        className="checkbox-input"
+                    />
+                    <span className="text-sm opacity-90 truncate">
+                        {label}
+                        {!scheduled && <span className="daily-log-habit__optional">optional</span>}
+                    </span>
+                </label>
+            </div>
+        );
+    };
 
     return (
         <div className="daily-logs-page-wrapper">
@@ -1878,6 +1919,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             {habitCheckbox(stretching, 'stretching', setStretching, 'stretching')}
                                             {habitCheckbox(reading, 'reading', setReading, 'reading')}
                                             {gymCheckbox}
+                                            {templateActivityHabit('cardio')}
+                                            {templateActivityHabit('mobility')}
                                         </div>
 
                                         <div className="flex flex-col gap-1">

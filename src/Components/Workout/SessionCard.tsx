@@ -21,7 +21,7 @@ interface SessionCardProps {
     session: WorkoutPlanSession;
     exercises: WorkoutTemplateExercise[];
     templateId: string;
-    /** Whether the session's weekday is today. */
+    /** Whether today is one of this session's available days. */
     isToday: boolean;
     onEdit: () => void;
 }
@@ -68,6 +68,13 @@ const SessionCard: React.FC<SessionCardProps> = ({
         sets > 0 && `${sets} sets`,
         session.target_duration_minutes ? `${session.target_duration_minutes} min` : null,
     ].filter(Boolean).join(' · ');
+    const availableDays = session.day_options?.length
+        ? session.day_options
+        : [session.day_of_week];
+    const scheduleLabel = availableDays
+        .sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b))
+        .map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day])
+        .join(' / ');
 
     return (
         <>
@@ -84,7 +91,9 @@ const SessionCard: React.FC<SessionCardProps> = ({
                         <span className="semester-title" style={{ color: 'var(--color-light)' }}>
                             {session.name}
                         </span>
-                        <span className="semester-meta">{meta}</span>
+                        <span className="semester-meta">
+                            {meta} · {session.repeat_on_days ? `repeats ${scheduleLabel}` : `one time · ${scheduleLabel}`}
+                        </span>
                     </span>
                     <span className="collapse-head__right">
                         {isToday && <span className="workout-chip">today</span>}

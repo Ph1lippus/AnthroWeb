@@ -89,6 +89,17 @@ const HeatCellView = memo<HeatCellViewProps>(({ cell, onHover }) => (
             cell.isToday ? 'workout-heat__cell--today' : '',
             cell.isFuture ? 'workout-heat__cell--future' : '',
         ].filter(Boolean).join(' ')}
+        style={cell.record?.activityTypes?.length
+            ? {
+                '--workout-heat-type': cell.record.activityTypes.length === 1
+                    ? `var(--workout-${cell.record.activityTypes[0]}-color)`
+                    : `linear-gradient(90deg, ${cell.record.activityTypes.map((type, index, types) => {
+                        const start = Math.round(index * 100 / types.length);
+                        const end = Math.round((index + 1) * 100 / types.length);
+                        return `var(--workout-${type}-color) ${start}% ${end}%`;
+                    }).join(', ')})`,
+            } as CSSProperties
+            : undefined}
         onMouseEnter={event => onHover(cell, event)}
         aria-label={`${formatDayLabel(cell.date)}, ${cell.level > 0
             ? `trained at intensity ${cell.record?.intensity ?? 'unknown'}`
@@ -225,6 +236,18 @@ const WorkoutYearHeatmap: React.FC<WorkoutYearHeatmapProps> = ({
                     />
                 ))}
                 <span>more</span>
+            </div>
+            <div className="workout-heat__type-legend" aria-label="Workout type colors">
+                {[
+                    ['strength', 'Strength'],
+                    ['cardio', 'Cardio'],
+                    ['mobility', 'Mobility'],
+                ].map(([type, label]) => (
+                    <span key={type}>
+                        <i className={`workout-heat__type-dot workout-heat__type-dot--${type}`} />
+                        {label}
+                    </span>
+                ))}
             </div>
 
             {tip && (

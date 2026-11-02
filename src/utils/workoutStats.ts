@@ -25,6 +25,7 @@ export interface DayRecord {
     durationMinutes?: number | null;
     /** The plan session's name, when the day followed a named one. */
     name?: string | null;
+    activityTypes?: ActivityType[];
 }
 
 export const dayKey = (date: Date): string => toDateString(date);

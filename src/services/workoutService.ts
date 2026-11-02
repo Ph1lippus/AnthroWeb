@@ -57,6 +57,10 @@ export interface WorkoutPlanSession {
     name: string;
     /** 0 = Sunday .. 6 = Saturday, matching `Date.getDay()`. */
     day_of_week: number;
+    /** Optional days on which this session may be performed. Legacy rows use day_of_week. */
+    day_options?: number[] | null;
+    /** When true, the session is planned on every selected day; otherwise it is one flexible session. */
+    repeat_on_days?: boolean;
     /** Drives which fields the session's exercises get. */
     activity_type: ActivityType;
     target_duration_minutes?: number | null;
@@ -88,6 +92,7 @@ export interface WorkoutTemplateExercise {
     target_weight?: number | null;
     target_duration_minutes?: number | null;
     target_distance_km?: number | null;
+    cardio_segments?: CardioSegment[] | null;
     notes?: string;
     created_at?: string;
     updated_at?: string;
@@ -301,11 +306,25 @@ export const getPlanForDay = async (dayOfWeek: number): Promise<WorkoutTemplateE
 
     if (templateError || !template) return [];
 
+    const { data: sessions, error: sessionsError } = await supabase
+        .from('workout_plan_sessions')
+        .select('id, day_of_week, day_options')
+        .eq('workout_template_id', template.id)
+        .eq('user_id', userId);
+    if (sessionsError) {
+        console.error('Error fetching plan sessions for day:', sessionsError.message);
+        return [];
+    }
+    const sessionIds = (sessions ?? [])
+        .filter(row => Array.isArray(row.day_options) && row.day_options.length > 0
+            ? row.day_options.includes(dayOfWeek)
+            : row.day_of_week === dayOfWeek)
+        .map(row => row.id);
     const { data, error } = await supabase
         .from('workout_template_exercises')
         .select('*')
         .eq('workout_template_id', template.id)
-        .eq('day_of_week', dayOfWeek)
+        .or(`day_of_week.eq.${dayOfWeek}${sessionIds.length ? `,session_id.in.(${sessionIds.join(',')})` : ''}`)
         .order('position', { ascending: true });
 
     if (error) {
@@ -354,15 +373,11 @@ export const getPlanSessions = async (templateId: string): Promise<WorkoutPlanSe
     }
 
     const rows = data as WorkoutPlanSession[];
-    return [
-        ...rows.filter(row => row.day_of_week === 1),
-        ...rows.filter(row => row.day_of_week === 2),
-        ...rows.filter(row => row.day_of_week === 3),
-        ...rows.filter(row => row.day_of_week === 4),
-        ...rows.filter(row => row.day_of_week === 5),
-        ...rows.filter(row => row.day_of_week === 6),
-        ...rows.filter(row => row.day_of_week === 0),
-    ];
+    return rows.sort((a, b) => {
+        const day = (row: WorkoutPlanSession) => row.day_options?.[0] ?? row.day_of_week;
+        const mondayFirst = (value: number) => value === 0 ? 7 : value;
+        return mondayFirst(day(a)) - mondayFirst(day(b)) || a.position - b.position;
+    });
 };
 
 /** One planned session by id, for reading a target back. */
@@ -403,14 +418,17 @@ export const getPlanSessionsForDay = async (dayOfWeek: number): Promise<WorkoutP
         .select('*')
         .eq('workout_template_id', template.id)
         .eq('user_id', userId)
-        .eq('day_of_week', dayOfWeek)
         .order('position', { ascending: true });
 
     if (error) {
         console.error('Error fetching sessions for day:', error.message);
         return [];
     }
-    return (data as WorkoutPlanSession[]) ?? [];
+    return ((data as WorkoutPlanSession[]) ?? []).filter(row =>
+        Array.isArray(row.day_options) && row.day_options.length > 0
+            ? row.day_options.includes(dayOfWeek)
+            : row.day_of_week === dayOfWeek,
+    );
 };
 
 export const createPlanSession = async (
@@ -418,6 +436,8 @@ export const createPlanSession = async (
     input: {
         name: string;
         day_of_week: number;
+        day_options?: number[] | null;
+        repeat_on_days?: boolean;
         activity_type?: ActivityType;
         target_duration_minutes?: number | null;
         target_intensity?: number | null;
@@ -435,6 +455,8 @@ export const createPlanSession = async (
             workout_template_id: templateId,
             name: input.name,
             day_of_week: input.day_of_week,
+            day_options: input.day_options ?? null,
+            repeat_on_days: input.repeat_on_days ?? false,
             activity_type: input.activity_type ?? 'strength',
             target_duration_minutes: input.target_duration_minutes ?? null,
             target_intensity: input.target_intensity ?? null,
@@ -633,6 +655,7 @@ export interface TemplateExerciseInput {
     target_weight?: number | null;
     target_duration_minutes?: number | null;
     target_distance_km?: number | null;
+    cardio_segments?: CardioSegment[] | null;
     notes?: string | null;
     position?: number;
 }
@@ -661,6 +684,7 @@ const templateExercisePayload = (
         target_weight: input.target_weight ?? null,
         target_duration_minutes: input.target_duration_minutes ?? null,
         target_distance_km: input.target_distance_km ?? null,
+        cardio_segments: input.cardio_segments ?? null,
         notes: input.notes ?? null,
     };
 };
@@ -703,6 +727,7 @@ export const updateTemplateExercise = async (
     if (updates.notes !== undefined) payload.notes = updates.notes;
     if (updates.target_duration_minutes !== undefined) payload.target_duration_minutes = updates.target_duration_minutes;
     if (updates.target_distance_km !== undefined) payload.target_distance_km = updates.target_distance_km;
+    if (updates.cardio_segments !== undefined) payload.cardio_segments = updates.cardio_segments;
     if (updates.target_reps !== undefined) payload.target_reps = updates.target_reps;
     if (updates.target_weight !== undefined) payload.target_weight = updates.target_weight;
     if (updates.target_sets_detail !== undefined) {

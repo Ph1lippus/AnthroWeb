@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
     Pencil,
+    Plus,
     RotateCcw,
     Trash2,
     TrendingUp,
@@ -9,6 +10,7 @@ import {
 import ConfirmModal from '../ConfirmModal';
 import ExerciseNameInput from './ExerciseNameInput';
 import {
+    useActiveTemplate,
     usePREntries,
     usePRHistory,
     useAddPREntry,
@@ -45,6 +47,7 @@ const RecordsPanel: React.FC = () => {
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
     const { data: entries = [] } = usePREntries();
     const { data: history = [] } = usePRHistory();
+    const { activeTemplate } = useActiveTemplate();
     const addEntry = useAddPREntry();
     const removeEntry = useDeletePREntry();
 
@@ -64,6 +67,27 @@ const RecordsPanel: React.FC = () => {
     }), [cards]);
 
     const withRecord = cards.filter(card => !card.untracked).length;
+
+    /** Exercises from the active template (strength & cardio only) that have no PR entry yet. */
+    const missingFromTemplate = useMemo(() => {
+        if (!activeTemplate?.days) return [];
+        const trackedNames = new Set(entries.map(e => e.exercise_name.trim().toLowerCase()));
+        return activeTemplate.days.filter(
+            ex =>
+                (ex.activity_type === 'strength' || ex.activity_type === 'cardio') &&
+                !trackedNames.has(ex.exercise_name.trim().toLowerCase())
+        );
+    }, [activeTemplate?.days, entries]);
+
+    const addMissingFromTemplate = async () => {
+        for (const ex of missingFromTemplate) {
+            await addEntry.mutateAsync({
+                exercise_id: ex.exercise_id ?? null,
+                exercise_name: ex.exercise_name,
+                source: 'template',
+            });
+        }
+    };
 
     return (
         <>
@@ -99,6 +123,17 @@ const RecordsPanel: React.FC = () => {
                                 placeholder="Track a lift not in any template"
                             />
                         </form>
+                        {/* Add every strength & cardio exercise from the active template
+                            that has no PR entry yet. */}
+                        <button
+                            type="button"
+                            className="btn-action"
+                            onClick={addMissingFromTemplate}
+                            disabled={missingFromTemplate.length === 0}
+                            title="Add every strength & cardio exercise from the active template that has no record yet"
+                        >
+                            <Plus size={12} /> Add from template ({missingFromTemplate.length})
+                        </button>
                     </div>
 
                     {cards.length === 0 ? (

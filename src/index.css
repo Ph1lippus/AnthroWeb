@@ -14129,7 +14129,6 @@ body {
   width: var(--heat-cell, 10px);
   height: var(--heat-cell, 10px);
   min-width: 0;
-  border: 1px solid transparent;
   border-radius: clamp(1px, 0.2vw, 2px);
   background: #ffffff0f;
   transition: transform 0.12s ease, border-color 0.12s ease;
@@ -14137,9 +14136,10 @@ body {
 /* The cells are read-only, so the hover is about the tooltip, not a click --
    the scale still makes the square you are reading about findable. */
 .workout-heat__cell:hover {
-  border-color: var(--color-light);
+  scale: 1.145;
   position: relative;
   z-index: 1;
+  cursor: pointer;
 }
 .workout-heat__cell--future { background: transparent; border-color: #ffffff0a; }
 .workout-heat__cell--today { border-color: var(--color-light); }
@@ -14149,6 +14149,35 @@ body {
 .workout-heat__cell--l3 { background: color-mix(in srgb, var(--color-primary) 64%, transparent); }
 .workout-heat__cell--l4 { background: color-mix(in srgb, var(--color-primary) 84%, transparent); }
 .workout-heat__cell--l5 { background: var(--color-primary); }
+.workout-heat__cell--l1,
+.workout-heat__cell--l2,
+.workout-heat__cell--l3,
+.workout-heat__cell--l4,
+.workout-heat__cell--l5 { background: var(--workout-heat-type, var(--color-primary)); }
+.workout-heat__cell--l1 { opacity: 0.35; }
+.workout-heat__cell--l2 { opacity: 0.5; }
+.workout-heat__cell--l3 { opacity: 0.68; }
+.workout-heat__cell--l4 { opacity: 0.84; }
+.workout-heat__cell--l5 { opacity: 1; }
+:root {
+  --workout-strength-color: var(--color-primary);
+  --workout-cardio-color: var(--chart-blue);
+  --workout-mobility-color: var(--chart-purple);
+}
+.workout-heat__type-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  opacity: 0.65;
+}
+.workout-heat__type-legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.workout-heat__type-dot { width: 0.55rem; height: 0.55rem; border-radius: 2px; display: inline-block; }
+.workout-heat__type-dot--strength { background: var(--workout-strength-color); }
+.workout-heat__type-dot--cardio { background: var(--workout-cardio-color); }
+.workout-heat__type-dot--mobility { background: var(--workout-mobility-color); }
 
 .workout-heat__legend {
   display: flex;
@@ -14527,6 +14556,68 @@ button.workout-ex__empty:hover {
 .workout-table__muted { opacity: 0.5; }
 .workout-table__accent { color: var(--color-primary); }
 .workout-table__icon { display: inline-flex; opacity: 0.5; margin-right: 0.35rem; vertical-align: -2px; }
+
+.exercise-library-groups { display: flex; flex-direction: column; gap: 1rem; }
+.exercise-library-group { min-width: 0; }
+.exercise-library-group__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-light);
+}
+.exercise-library-group__title span { margin-left: auto; opacity: 0.45; }
+.exercise-library-group--strength .exercise-library-group__title { color: var(--color-primary); }
+.exercise-library-group--cardio .exercise-library-group__title { color: var(--chart-blue); }
+.exercise-library-group--mobility .exercise-library-group__title { color: var(--chart-purple); }
+.exercise-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.exercise-library-grid .workout-row { min-width: 0; }
+@media (max-width: 620px) {
+  .exercise-library-grid { grid-template-columns: 1fr; }
+}
+.daily-log-habit--optional { opacity: 0.45; }
+.daily-log-habit__optional {
+  margin-left: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.daily-log-habit__link {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: var(--color-primary);
+}
+.session-day-options { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.session-day-options .checkbox-label { font-family: var(--font-mono); font-size: 0.62rem; }
+.session-schedule-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.session-schedule-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid #ffffff14;
+  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+.session-schedule-option--active { border-color: var(--accent-border); background: var(--accent-bg); }
+.session-schedule-option input { margin-top: 0.1rem; accent-color: var(--color-primary); }
+.session-schedule-option span { display: flex; flex-direction: column; gap: 0.2rem; }
+.session-schedule-option strong { font-size: 0.68rem; }
+.session-schedule-option small { opacity: 0.58; line-height: 1.35; }
+@media (max-width: 520px) {
+  .session-schedule-options { grid-template-columns: 1fr; }
+}
 
 .workout-empty {
   padding: 1.1rem 0.9rem;

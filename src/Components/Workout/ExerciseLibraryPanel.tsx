@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Dumbbell, HeartPulse, Pencil, PersonStanding, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import {
     useDeleteCustomExercise,
@@ -9,6 +9,7 @@ import {
 } from '../../hooks/useWorkouts';
 import type { LibraryExercise } from '../../services/workoutService';
 import type { ActivityType } from '../../utils/workoutSets';
+import { ACTIVITY_LABELS } from '../../utils/workoutSets';
 
 const EQUIPMENT = ['Barbell', 'Dumbbell', 'Kettlebell', 'Machine', 'Cable', 'Smith Machine', 'Bodyweight', 'Bike', 'Treadmill', 'Rower', 'Resistance Band', 'Medicine Ball', 'Stability Ball', 'Trap Bar', 'EZ Bar', 'Other'];
 const WEIGHTS = [
@@ -16,6 +17,12 @@ const WEIGHTS = [
     { value: 'per_hand', label: 'Per Hand' },
     { value: 'per_side', label: 'Per Side' },
 ] as const;
+const TYPE_ORDER: ActivityType[] = ['strength', 'cardio', 'mobility'];
+const TYPE_ICONS = {
+    strength: Dumbbell,
+    cardio: HeartPulse,
+    mobility: PersonStanding,
+};
 
 const ExerciseLibraryPanel: React.FC = () => {
     const { data: exercises = [], isLoading } = useExerciseLibrary();
@@ -76,19 +83,34 @@ const ExerciseLibraryPanel: React.FC = () => {
                             <p className="workout-empty__text">Create one from any exercise picker while logging a workout or editing a template.</p>
                         </div>
                     ) : (
-                        <div className="workout-rows">
-                            {exercises.map(exercise => (
-                                <div className="workout-row" key={exercise.id}>
-                                    <span className="workout-row__name">
-                                        {exercise.name}
-                                        <span className="semester-meta">{exercise.activity_type} · {[exercise.equipment, exercise.body_part].filter(Boolean).join(' · ')}</span>
-                                    </span>
-                                    <span className="workout-row__value">
-                                        <button type="button" className="btn-action" aria-label={`Edit ${exercise.name}`} onClick={() => openEdit(exercise)}><Pencil size={12} /></button>
-                                        <button type="button" className="btn-action" aria-label={`Remove ${exercise.name}`} onClick={() => setRemoving(exercise)}><Trash2 size={12} /></button>
-                                    </span>
-                                </div>
-                            ))}
+                        <div className="exercise-library-groups">
+                            {TYPE_ORDER.map(activityType => {
+                                const grouped = exercises.filter(exercise => exercise.activity_type === activityType);
+                                if (grouped.length === 0) return null;
+                                const Icon = TYPE_ICONS[activityType];
+                                return (
+                                    <section className={`exercise-library-group exercise-library-group--${activityType}`} key={activityType}>
+                                        <h4 className="exercise-library-group__title">
+                                            <Icon size={14} /> {ACTIVITY_LABELS[activityType]}
+                                            <span>{grouped.length}</span>
+                                        </h4>
+                                        <div className="exercise-library-grid">
+                                            {grouped.map(exercise => (
+                                                <div className="workout-row" key={exercise.id}>
+                                                    <span className="workout-row__name">
+                                                        {exercise.name}
+                                                        <span className="semester-meta">{[exercise.equipment, exercise.body_part].filter(Boolean).join(' · ') || 'No details'}</span>
+                                                    </span>
+                                                    <span className="workout-row__value">
+                                                        <button type="button" className="btn-action" aria-label={`Edit ${exercise.name}`} onClick={() => openEdit(exercise)}><Pencil size={12} /></button>
+                                                        <button type="button" className="btn-action" aria-label={`Remove ${exercise.name}`} onClick={() => setRemoving(exercise)}><Trash2 size={12} /></button>
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

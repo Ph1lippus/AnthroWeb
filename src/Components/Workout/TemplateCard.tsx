@@ -6,7 +6,10 @@ import {
     useWorkoutTemplate,
     useDeleteWorkoutTemplate,
 } from '../../hooks/useWorkouts';
-import { DAY_NAMES } from '../../utils/workoutStats';
+import { DAY_SHORT } from '../../utils/workoutStats';
+
+/** Monday-first weekday order, matching SessionEditorModal and WorkoutYearHeatmap. */
+const WEEKDAYS_MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 
 interface TemplateCardProps {
     templateId: string;
@@ -64,10 +67,12 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
         );
     }
 
-    const dayGroups = DAY_NAMES.map((dayName, day) => ({
+    const dayGroups = WEEKDAYS_MONDAY_FIRST.map(day => ({
         day,
-        dayName,
-        sessions: sessions.filter(row => row.day_of_week === day),
+        dayName: DAY_SHORT[day - 1 < 0 ? 6 : day - 1],
+        sessions: sessions.filter(row => row.repeat_on_days
+            ? (row.day_options?.length ? row.day_options.includes(day) : row.day_of_week === day)
+            : (row.day_options?.[0] ?? row.day_of_week) === day),
     }));
 
     return (
@@ -108,7 +113,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
                                 <Layers size={32} className="academic-empty__icon" />
                                 <span className="academic-empty__title">No sessions yet</span>
                                 <span className="academic-empty__text">
-                                    A session is one whole workout on one day. Add it, then fill in the
+                                    A session is one whole workout with one or more available days. Add it, then fill in the
                                     exercises it holds.
                                 </span>
                             </div>
@@ -124,13 +129,15 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
                                         </h4>
                                         {group.sessions.map(session => (
                                             <SessionCard
-                                                key={session.id}
+                                                key={`${session.id}-${group.day}`}
                                                 session={session}
                                                 exercises={exercises.filter(
                                                     row => row.session_id === session.id,
                                                 )}
                                                 templateId={templateId}
-                                                isToday={group.day === todayIndex}
+                                                isToday={(session.day_options?.length
+                                                    ? session.day_options
+                                                    : [session.day_of_week]).includes(todayIndex)}
                                                 onEdit={() => onEditSession(session.id!)}
                                             />
                                         ))}

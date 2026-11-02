@@ -282,6 +282,7 @@ const useOverviewFrom = (
             volumeKg,
             durationMinutes: session.duration_minutes ?? null,
             name: session.plan_session?.name ?? null,
+            activityTypes: [...new Set(session.exercises.map(row => row.activity_type))],
         });
         if (session.completed) recent.push(session);
     }
@@ -454,6 +455,8 @@ export const useCreatePlanSession = (templateId: string) => {
         mutationFn: (input: {
             name: string;
             day_of_week: number;
+            day_options?: number[] | null;
+            repeat_on_days?: boolean;
             activity_type?: ActivityType;
             target_duration_minutes?: number | null;
             target_intensity?: number | null;

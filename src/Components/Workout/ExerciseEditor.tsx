@@ -3,7 +3,7 @@ import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Trash2 } from 'lucid
 import ConfirmModal from '../ConfirmModal';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
-import type { WorkoutTemplateExercise } from '../../services/workoutService';
+import type { CardioSegment, CardioSegmentType, WorkoutTemplateExercise } from '../../services/workoutService';
 import type { ActivityType, WorkoutSet } from '../../utils/workoutSets';
 import { ACTIVITY_LABELS, detailToRows, rowsToDetail, describeTargets } from '../../utils/workoutSets';
 import type { WeightUnit } from '../../utils/units';
@@ -15,6 +15,9 @@ const TYPE_ICONS: Record<ActivityType, React.ReactNode> = {
 };
 
 const TYPE_OPTIONS: ActivityType[] = ['strength', 'cardio', 'mobility'];
+
+const templateCardioSegments = (segments: CardioSegment[]): CardioSegment[] =>
+    segments.map(({ hr_1_min: _hr1, hr_2_min: _hr2, ...segment }) => segment);
 
 /**
  * What the row is editing, held locally.
@@ -35,6 +38,7 @@ interface Draft {
     sets: WorkoutSet[];
     duration_minutes: number | null;
     distance_km: number | null;
+    cardio_segments: CardioSegment[];
     notes: string;
 }
 
@@ -52,6 +56,7 @@ const toDraft = (exercise: WorkoutTemplateExercise): Draft => {
         ),
         duration_minutes: exercise.target_duration_minutes ?? null,
         distance_km: exercise.target_distance_km ?? null,
+        cardio_segments: templateCardioSegments(exercise.cardio_segments ?? []),
         notes: exercise.notes ?? '',
     };
 };
@@ -99,6 +104,9 @@ const ExerciseRow: React.FC<ExerciseRowProps> = ({ exercise, weightUnit, onUpdat
             target_weight: heaviest?.weight ?? null,
             target_duration_minutes: next.duration_minutes,
             target_distance_km: next.distance_km,
+            cardio_segments: next.cardio_segments.length
+                ? templateCardioSegments(next.cardio_segments)
+                : null,
             notes: next.notes || undefined,
         });
     };
@@ -248,6 +256,78 @@ const ExerciseRow: React.FC<ExerciseRowProps> = ({ exercise, weightUnit, onUpdat
                             </div>
                         )}
                     </div>
+
+                    {draft.activity_type === 'cardio' && (
+                        <div className="workout-cardio-segments">
+                            <div className="workout-cardio-segments__head">
+                                <span className="form-label">Cardio segments</span>
+                                <SetCounter
+                                    count={draft.cardio_segments.length}
+                                    label="segments"
+                                    min={0}
+                                    onChange={count => {
+                                        const segments = [...draft.cardio_segments];
+                                        while (segments.length < count) segments.push({ type: 'work' });
+                                        patch({ cardio_segments: segments.slice(0, count) });
+                                    }}
+                                />
+                            </div>
+                            {draft.cardio_segments.map((segment, index) => (
+                                <div className="workout-cardio-segment" key={`${exercise.id}-template-segment-${index}`}>
+                                    <select
+                                        className="form-control"
+                                        value={segment.type}
+                                        onChange={event => {
+                                            const next = [...draft.cardio_segments];
+                                            next[index] = { ...segment, type: event.target.value as CardioSegmentType };
+                                            patch({ cardio_segments: next });
+                                        }}
+                                        aria-label={`Segment ${index + 1} type`}
+                                    >
+                                        <option value="warm-up">Warm-up</option>
+                                        <option value="work">Work</option>
+                                        <option value="recovery">Recovery</option>
+                                        <option value="cool-down">Cool-down</option>
+                                    </select>
+                                    {([
+                                        ['Duration', 'duration_minutes', 0.1],
+                                        ['Level / incline / speed', 'level', 0.1],
+                                        ['Avg HR', 'avg_hr', 1],
+                                        ['Max HR', 'max_hr', 1],
+                                    ] as const).map(([label, field, step]) => (
+                                        <input
+                                            key={field}
+                                            type="number"
+                                            min={0}
+                                            step={step}
+                                            className="form-control"
+                                            placeholder={label}
+                                            aria-label={`${label} segment ${index + 1}`}
+                                            value={segment[field] ?? ''}
+                                            onChange={event => {
+                                                const next = [...draft.cardio_segments];
+                                                next[index] = {
+                                                    ...segment,
+                                                    [field]: event.target.value === '' ? null : Number(event.target.value),
+                                                };
+                                                patch({ cardio_segments: next });
+                                            }}
+                                        />
+                                    ))}
+                                    <button
+                                        type="button"
+                                        className="btn-action"
+                                        aria-label={`Remove segment ${index + 1}`}
+                                        onClick={() => patch({
+                                            cardio_segments: draft.cardio_segments.filter((_, segmentIndex) => segmentIndex !== index),
+                                        })}
+                                    >
+                                        <Trash2 size={11} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
                     {isStrength && (
                         <SetTable

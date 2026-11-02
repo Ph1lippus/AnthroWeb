@@ -166,6 +166,7 @@ CREATE TABLE public.workout_template_exercises (
   target_sets_detail jsonb,
   target_duration_minutes integer,
   target_distance_km real,
+  cardio_segments jsonb,
   updated_at timestamp with time zone DEFAULT now(),
   session_id uuid,
   -- No unique constraint on (workout_template_id, day_of_week). There was one --
