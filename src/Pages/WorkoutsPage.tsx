@@ -14,6 +14,7 @@ import TemplateCard from '../Components/Workout/TemplateCard';
 import TemplateEditorModal from '../Components/Workout/TemplateEditorModal';
 import SessionEditorModal from '../Components/Workout/SessionEditorModal';
 import LoadingSpinner from '../Components/LoadingSpinner';
+import { copyTextToClipboard } from '../utils/noteExport';
 import {
     useActiveTemplate,
     useWorkoutsOverview,
@@ -127,6 +128,8 @@ const WorkoutsPage: React.FC = () => {
     // finished loading, and the guard below treated null as "nothing to show",
     // so the Add button appeared to do nothing at all.
     const { data: sessionBundle, isLoading: sessionBundleLoading } = useWorkoutTemplate(sessionTemplateId);
+    const { data: activeTemplateBundle, isLoading: activeTemplateBundleLoading } =
+        useWorkoutTemplate(activeTemplate?.id);
     const createSession = useCreatePlanSession(sessionTemplateId ?? '');
     const updateSessionMutation = useUpdatePlanSession(sessionTemplateId ?? '');
 
@@ -248,16 +251,26 @@ const WorkoutsPage: React.FC = () => {
                                                 type="button"
                                                 className="btn-action"
                                                 onClick={async () => {
-                                                    if (!activeTemplate?.id) return;
-                                                    const copy = await duplicateTemplate.mutateAsync(activeTemplate.id);
-                                                    go({ tpl: copy.id, tab: 'templates' });
+                                                    if (!activeTemplateBundle) return;
+                                                    const text = JSON.stringify({
+                                                        template: {
+                                                            name: activeTemplateBundle.template.name,
+                                                            description: activeTemplateBundle.template.description,
+                                                        },
+                                                        sessions: activeTemplateBundle.sessions,
+                                                        exercises: activeTemplateBundle.exercises,
+                                                    }, null, 2);
+                                                    const copied = await copyTextToClipboard(text);
+                                                    setNotice(copied
+                                                        ? `${activeTemplateBundle.template.name} copied to clipboard.`
+                                                        : 'Could not copy the template to the clipboard.');
                                                 }}
-                                                disabled={!activeTemplate?.id || duplicateTemplate.isPending}
+                                                disabled={!activeTemplateBundle || activeTemplateBundleLoading}
                                                 data-tip={activeTemplate
                                                     ? `Copy ${activeTemplate.name}`
                                                     : 'Create a template before copying it'}
                                             >
-                                                <Copy size={13} /> {duplicateTemplate.isPending ? 'Copying…' : 'Copy template'}
+                                                <Copy size={13} /> Copy template data
                                             </button>
                                         </div>
                                     </div>
