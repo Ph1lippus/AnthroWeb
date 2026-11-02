@@ -596,6 +596,8 @@ export const duplicateWorkoutTemplate = async (templateId: string): Promise<Work
                 workout_template_id: copy.id!,
                 name: row.name,
                 day_of_week: row.day_of_week,
+                day_options: row.day_options ?? null,
+                repeat_on_days: row.repeat_on_days ?? false,
                 activity_type: row.activity_type,
                 target_duration_minutes: row.target_duration_minutes ?? null,
                 target_intensity: row.target_intensity ?? null,
@@ -631,6 +633,7 @@ export const duplicateWorkoutTemplate = async (templateId: string): Promise<Work
             target_weight: row.target_weight ?? null,
             target_duration_minutes: row.target_duration_minutes ?? null,
             target_distance_km: row.target_distance_km ?? null,
+            cardio_segments: row.cardio_segments ?? null,
             notes: row.notes ?? null,
         })),
     );

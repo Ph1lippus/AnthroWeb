@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Dumbbell, Layers, Plus, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Dumbbell, Layers, Plus, Trophy } from 'lucide-react';
 import Title from '../Components/Title';
 import Tabs, { TabPanel, type TabDefinition } from '../Components/Tabs';
 import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
@@ -243,6 +243,21 @@ const WorkoutsPage: React.FC = () => {
                                                 onClick={() => go({ tpl: 'new' })}
                                             >
                                                 <Plus size={13} /> Add template
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={async () => {
+                                                    if (!activeTemplate?.id) return;
+                                                    const copy = await duplicateTemplate.mutateAsync(activeTemplate.id);
+                                                    go({ tpl: copy.id, tab: 'templates' });
+                                                }}
+                                                disabled={!activeTemplate?.id || duplicateTemplate.isPending}
+                                                data-tip={activeTemplate
+                                                    ? `Copy ${activeTemplate.name}`
+                                                    : 'Create a template before copying it'}
+                                            >
+                                                <Copy size={13} /> {duplicateTemplate.isPending ? 'Copying…' : 'Copy template'}
                                             </button>
                                         </div>
                                     </div>
