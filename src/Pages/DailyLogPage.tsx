@@ -254,7 +254,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 .map(row => row.activity_type),
         );
         const completed = new Set(
-    (workoutForDate as SessionWithExercises).exercises?.filter((row) => 'completed' in row && row.completed).map((row) => row.activity_type) ?? [],
+    (workoutForDate as SessionWithExercises)?.exercises?.filter((row) => 'completed' in row && row.completed).map((row) => row.activity_type) ?? [],
 );
         return { all, today, completed };
     }, [activeTemplate, logDate, workoutForDate]);
