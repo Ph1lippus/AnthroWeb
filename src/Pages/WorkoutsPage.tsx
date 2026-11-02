@@ -7,6 +7,7 @@ import WorkoutYearHeatmap from '../Components/Workout/WorkoutYearHeatmap';
 import WorkoutStatsRail from '../Components/Workout/WorkoutStatsRail';
 import SessionList from '../Components/Workout/SessionList';
 import SessionEditor from '../Components/Workout/SessionEditor';
+import SessionCard from '../Components/Workout/SessionCard';
 import RecordsPanel from '../Components/Workout/RecordsPanel';
 import ExerciseLibraryPanel from '../Components/Workout/ExerciseLibraryPanel';
 import TemplateCard from '../Components/Workout/TemplateCard';
@@ -25,10 +26,10 @@ import {
     useWorkoutTemplate,
     useCreatePlanSession,
     useUpdatePlanSession,
+    useTodaysPlanSessions,
 } from '../hooks/useWorkouts';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { isDateString, startOfWeek, todayString, weekRangeLabel, addDays } from '../utils/dates';
-import { describeTargets } from '../utils/workoutSets';
 
 /**
  * Four tabs. Records used to be a permanent panel in the left rail, which put
@@ -147,10 +148,7 @@ const WorkoutsPage: React.FC = () => {
         return { template: sessionBundle.template, session: found ?? null };
     }, [sessionBundle, sessionId]);
 
-    const todayPlan = useMemo(
-        () => (activeTemplate?.days ?? []).filter(row => row.day_of_week === todayIndex),
-        [activeTemplate, todayIndex],
-    );
+    const { data: todaySessions = [] } = useTodaysPlanSessions(todayIndex);
 
     const loading = overview.isLoading && overview.sessions.length === 0;
     const completedSessions = overview.sessions.filter(s => s.completed);
@@ -304,22 +302,36 @@ const WorkoutsPage: React.FC = () => {
                                                                 </button>
                                                             </div>
                                                         </div>
-                                                    ) : todayPlan.length === 0 ? (
+                                                    ) : todaySessions.length === 0 ? (
                                                         <p className="form-label">
                                                             Rest day. You can still log a session.
                                                         </p>
                                                     ) : (
                                                         <>
                                                             <div className="workout-rows">
-                                                                {todayPlan.map(row => (
-                                                                    <div className="workout-row" key={row.id}>
-                                                                        <span className="workout-row__name">{row.exercise_name}</span>
-                                                                        <span className="workout-row__value">
-                                                                            {describeTargets(row, weightUnit)}
-                                                                        </span>
-                                                                    </div>
+                                                                {todaySessions.map(session => (
+                                                                    <SessionCard
+                                                                        key={session.id ?? `today-${session.day_of_week}-${session.position}`}
+                                                                        session={session}
+                                                                        exercises={activeTemplate?.days.filter(
+                                                                            row => row.session_id === session.id,
+                                                                        ) ?? []}
+                                                                        templateId={activeTemplate?.id ?? ''}
+                                                                        isToday={true}
+                                                                        onEdit={() => {}}
+                                                                    />
                                                                 ))}
                                                             </div>
+                                                            {todaySessions.length === 0 ? (
+                                                                <div className="workout-empty">
+                                                                    <p className="workout-empty__title" style={{ margin: 0 }}>
+                                                                        No session for today
+                                                                    </p>
+                                                                    <p className="workout-empty__text" style={{ marginTop: '0.3rem' }}>
+                                                                        {activeTemplate ? 'This is a rest day. You can still log a session.' : 'No active template set.'}
+                                                                    </p>
+                                                                </div>
+                                                            ) : null}
                                                             <p className="form-label" style={{ marginTop: '0.6rem' }}>
                                                                 {todayRecord?.completed
                                                                     ? `Logged today${todayRecord.intensity ? ` at ${todayRecord.intensity}/10` : ''}.`

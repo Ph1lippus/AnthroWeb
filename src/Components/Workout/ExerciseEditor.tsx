@@ -80,8 +80,8 @@ interface ExerciseRowProps {
  * Built on the shared .collapse-card primitives, the same ones a semester or a
  * course row uses, so the interaction is already familiar.
  */
-const ExerciseRow: React.FC<ExerciseRowProps> = ({ exercise, weightUnit, onUpdate, onDelete, isSaving }) => {
-    const [open, setOpen] = useState(false);
+const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exercise, weightUnit, onUpdate, onDelete, isSaving, completed = false }) => {
+    const [open, setOpen] = useState(!completed);
     const [confirming, setConfirming] = useState(false);
     const [draft, setDraft] = useState<Draft>(() => toDraft(exercise));
 
@@ -130,7 +130,11 @@ const ExerciseRow: React.FC<ExerciseRowProps> = ({ exercise, weightUnit, onUpdat
                 type="button"
                 className="collapse-head"
                 aria-expanded={open}
-                onClick={() => (open ? close() : setOpen(true))}
+                onClick={() => {
+  if (completed) return; // Don't open completed exercises
+  if (open) close();
+  else setOpen(true);
+}}
             >
                 <span className={`workout-ex__type workout-ex__type--${exercise.activity_type}`}>
                     {TYPE_ICONS[exercise.activity_type]}
@@ -292,8 +296,7 @@ const ExerciseRow: React.FC<ExerciseRowProps> = ({ exercise, weightUnit, onUpdat
                                     {([
                                         ['Duration', 'duration_minutes', 0.1],
                                         ['Level / incline / speed', 'level', 0.1],
-                                        ['Avg HR', 'avg_hr', 1],
-                                        ['Max HR', 'max_hr', 1],
+                                        ['Pace', 'pace', 0.1],
                                     ] as const).map(([label, field, step]) => (
                                         <input
                                             key={field}
