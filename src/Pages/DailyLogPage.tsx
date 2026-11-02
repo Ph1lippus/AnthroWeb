@@ -22,6 +22,7 @@ import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
 import { useActiveTemplate, useSessionByDate, useSetGymForDate } from '../hooks/useWorkouts';
+import type { SessionWithExercises } from '../services/workoutService';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
@@ -252,7 +253,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 .filter(row => row.day_of_week === day)
                 .map(row => row.activity_type),
         );
-        const completed = new Set(workoutForDate?.exercises.filter(row => row.completed).map(row => row.activity_type) ?? []);
+        const completed = new Set(
+    (workoutForDate as SessionWithExercises).exercises?.filter((row) => 'completed' in row && row.completed).map((row) => row.activity_type) ?? [],
+);
         return { all, today, completed };
     }, [activeTemplate, logDate, workoutForDate]);
 
