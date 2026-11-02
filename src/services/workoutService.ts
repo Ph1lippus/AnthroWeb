@@ -93,7 +93,7 @@ export interface WorkoutTemplateExercise {
     target_duration_minutes?: number | null;
     target_distance_km?: number | null;
     cardio_segments?: CardioSegment[] | null;
-    notes?: string;
+    notes?: string | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -117,7 +117,7 @@ export interface WorkoutCompletionLog {
     calories?: number | null;
     avg_hr?: number | null;
     max_hr?: number | null;
-    notes?: string;
+    notes?: string | null;
     created_at?: string;
     updated_at?: string;
 }
@@ -165,7 +165,7 @@ export interface WorkoutExerciseLog {
     avg_watts?: number | null;
     max_watts?: number | null;
     cardio_segments?: CardioSegment[] | null;
-    notes?: string;
+    notes?: string | null;
     created_at?: string;
 }
 
@@ -329,6 +329,28 @@ export const getPlanForDay = async (dayOfWeek: number): Promise<WorkoutTemplateE
 
     if (error) {
         console.error('Error fetching plan for day:', error.message);
+        return [];
+    }
+    return (data as WorkoutTemplateExercise[]).map(row => ({
+        ...row,
+        target_sets_detail: row.target_sets_detail ? parseSetDetail(row.target_sets_detail) : null,
+    }));
+};
+
+/** The exercises belonging to one planned session. */
+export const getPlanForSession = async (sessionId: string): Promise<WorkoutTemplateExercise[]> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('workout_template_exercises')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('user_id', userId)
+        .order('position', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching plan session exercises:', error.message);
         return [];
     }
     return (data as WorkoutTemplateExercise[]).map(row => ({
@@ -953,8 +975,9 @@ export const updateSession = async (
  * opened this and am about to fill it in" -- a half-written session would count
  * as a finished workout in the streak, the heatmap and the daily log's score.
  *
- * Idempotent: an existing session for the date is returned untouched, so
- * pressing Start twice does not duplicate the plan.
+ * Idempotent: an existing session for the date only receives exercises from the
+ * selected plan that are not already present, so a second plan can be added
+ * without duplicating the first.
  */
 export const startSessionFromPlan = async (
     date: string,
@@ -963,26 +986,34 @@ export const startSessionFromPlan = async (
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
 
-    // Check for existing session first
+    // Check for existing session first. A date may contain more than one planned
+    // session (for example two mobility routines), so an existing completion is
+    // not a reason to discard the newly selected plan.
     const existing = await getSessionByDate(date);
     if (existing?.id) {
-        // If session exists, still try to materialize exercises in case they were
-        // not yet materialized (e.g., if the session was created without a plan).
-        // This is idempotent - it will only add missing exercises.
         const currentExercises = await getSessionExercises(existing.id);
-        if (currentExercises.length === 0 && planSessionId) {
-            // Try to get the plan and materialize it
-            const weekday = new Date(`${date}T00:00:00`).getDay();
-            const plan = await getPlanForDay(weekday);
-            if (plan.length) {
-                await insertSessionExercises(existing.id, plan);
-            }
+        const weekday = new Date(`${date}T00:00:00`).getDay();
+        const plan = planSessionId
+            ? await getPlanForSession(planSessionId)
+            : currentExercises.length === 0
+                ? await getPlanForDay(weekday)
+                : [];
+        const existingTemplateExercises = new Set(
+            currentExercises.map(exercise => exercise.template_exercise_id).filter(Boolean),
+        );
+        const missing = plan.filter(exercise =>
+            !exercise.id || !existingTemplateExercises.has(exercise.id),
+        );
+        if (missing.length) {
+            await insertSessionExercises(existing.id, missing, currentExercises.length);
         }
         return { sessionId: existing.id, seeded: currentExercises.length };
     }
 
     const weekday = new Date(`${date}T00:00:00`).getDay();
-    const plan = await getPlanForDay(weekday);
+    const plan = planSessionId
+        ? await getPlanForSession(planSessionId)
+        : await getPlanForDay(weekday);
     const created = await createSession({
         workout_date: date,
         completed: false,
@@ -998,6 +1029,26 @@ export const startSessionFromPlan = async (
 
     const seededExercises = plan.length;
     return { sessionId: created.id, seeded: seededExercises };
+};
+
+/** Complete the selected planned session without opening the editor. */
+export const completeSessionFromPlan = async (
+    date: string,
+    planSessionId: string,
+): Promise<void> => {
+    const { sessionId } = await startSessionFromPlan(date, planSessionId);
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error: exerciseError } = await supabase
+        .from('workout_exercises_log')
+        .update({ completed: true })
+        .eq('workout_completion_id', sessionId)
+        .eq('user_id', userId);
+    if (exerciseError) fail('Could not complete session exercises', exerciseError);
+
+    await updateSession(sessionId, { completed: true });
+    await setDailyLogGym(date, true);
 };
 
 /**
@@ -1069,6 +1120,29 @@ export const clearGymForDate = async (date: string): Promise<void> => {
     await setDailyLogGym(date, false);
 };
 
+/** Delete one logged session, leaving other sessions on the same day intact. */
+export const deleteLoggedSession = async (sessionId: string, date: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const { error } = await supabase
+        .from('workout_completion_log')
+        .delete()
+        .eq('id', sessionId)
+        .eq('user_id', userId);
+    if (error) fail('Could not delete logged session', error);
+
+    const { data: remaining, error: remainingError } = await supabase
+        .from('workout_completion_log')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('workout_date', date)
+        .eq('completed', true)
+        .limit(1);
+    if (remainingError) fail('Could not verify remaining sessions', remainingError);
+    if (!remaining?.length) await setDailyLogGym(date, false);
+};
+
 const activeTemplateId = async (): Promise<string | null> => {
     const userId = await getCurrentUserId();
     if (!userId) return null;
@@ -1107,6 +1181,7 @@ const setDailyLogGym = async (date: string, trained: boolean): Promise<void> => 
 const insertSessionExercises = async (
     sessionId: string,
     plan: WorkoutTemplateExercise[],
+    positionOffset = 0,
 ): Promise<void> => {
     const userId = await getCurrentUserId();
     if (!userId || plan.length === 0) return;
@@ -1119,7 +1194,7 @@ const insertSessionExercises = async (
             exercise_id: row.exercise_id ?? null,
             exercise_name: row.exercise_name,
             activity_type: row.activity_type,
-            position: index,
+            position: positionOffset + index,
             planned: true,
             completed: false,
             // Pre-fill from the plan so the user edits rather than types.

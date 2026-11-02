@@ -25,8 +25,10 @@ import {
     createSession,
     updateSession,
     startSessionFromPlan,
+    completeSessionFromPlan,
     setGymForDate,
     clearGymForDate,
+    deleteLoggedSession,
     addSessionExercise,
     saveSessionExercises,
     deleteSessionExercise,
@@ -588,10 +590,32 @@ export const useStartSessionFromPlan = () => {
     });
 };
 
+export const useCompleteSessionFromPlan = () => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (input: { date: string; planSessionId: string }) =>
+            completeSessionFromPlan(input.date, input.planSessionId),
+        onSuccess: (_result, input) => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
+        },
+    });
+};
+
 export const useClearGymForDate = () => {
     const invalidate = useInvalidateWorkouts();
     return useMutation({
         mutationFn: (date: string) => clearGymForDate(date),
+        onSuccess: invalidate,
+    });
+};
+
+export const useDeleteLoggedSession = () => {
+    const invalidate = useInvalidateWorkouts();
+    return useMutation({
+        mutationFn: (input: { sessionId: string; date: string }) =>
+            deleteLoggedSession(input.sessionId, input.date),
         onSuccess: invalidate,
     });
 };

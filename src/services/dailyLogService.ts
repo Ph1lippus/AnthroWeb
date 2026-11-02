@@ -56,9 +56,12 @@ export interface DailyLog {
      * `computeDailyScore` for why.
      */
     cheat_day?: boolean;
-    // Written by the workout pages (setGymForDate), never by this service, so
-    // the habit score and the workout heatmap stay one fact rather than two.
+    // Activity habits are intentionally separate from the detailed workout
+    // session: the daily log records that it happened, while Workouts records
+    // what happened.
     gym?: boolean;
+    cardio?: boolean;
+    mobility?: boolean;
 }
 
 // Fetch all daily logs for current user
@@ -350,8 +353,7 @@ export const updateDailyLog = async (id: string, updates: Partial<DailyLog>) => 
     return rows[0] ?? null;
 };
 
-// The built-in habits, named as the columns they are stored in. `gym` is absent on
-// purpose: it is written by the workout pages (setGymForDate), never from here.
+// The built-in habits, named as the columns they are stored in.
 export type DailyLogHabitColumn =
     | 'morning_routine'
     | 'evening_routine'
@@ -362,7 +364,10 @@ export type DailyLogHabitColumn =
     | 'reading'
     | 'project_work_done'
     | 'no_sleep'
-    | 'cheat_day';
+    | 'cheat_day'
+    | 'gym'
+    | 'cardio'
+    | 'mobility';
 
 /**
  * Writes one built-in habit for one day, on its own.

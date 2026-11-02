@@ -102,7 +102,7 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
 
                     The intensity slider is the one deliberate departure: it has
                     no Academic equivalent, and it needs the width. */}
-                <form onSubmit={handleSubmit}>
+                <form className="workout-record-form" onSubmit={handleSubmit}>
                     <div className="mb-4">
                         <label className="form-label" htmlFor="session-name">Name</label>
                         <input
@@ -185,7 +185,8 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="mb-4">
+                    <div className="mb-4 workout-record-form__fields">
+                        <div>
                         <label className="form-label" htmlFor="session-duration">
                             Duration (min) <span className="form-label__optional">optional</span>
                         </label>
@@ -200,12 +201,12 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                             placeholder="45"
                             onChange={event => setDuration(event.target.value)}
                         />
-                    </div>
+                        </div>
 
                     {/* The number is always on screen. A bare slider cannot tell
                         you whether you set 4 or 7, and this asks you to imagine
                         an effort rather than recall one. */}
-                    <div className="mb-4">
+                    <div>
                         <div className="intensity-head">
                             <label className="form-label" htmlFor="session-intensity">Target intensity</label>
                             <output className="intensity-readout" htmlFor="session-intensity">
@@ -228,12 +229,13 @@ const SessionEditorModal: React.FC<SessionEditorModalProps> = ({
                             <span>all out</span>
                         </div>
                     </div>
+                    </div>
 
                     {/* No Delete here, for the same reason the academic editors
                         have none: deleting is a destructive act and belongs on
                         the thing that owns it -- the session card's trash icon,
                         behind a confirmation. */}
-                    <div className="flex gap-2 justify-end mt-5">
+                    <div className="workout-record-form__actions">
                         <button type="button" className="btn-form-cancel" onClick={onClose} disabled={busy}>
                             Cancel
                         </button>

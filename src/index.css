@@ -15004,6 +15004,22 @@ button.workout-ex__empty:hover {
 .pr-toolbar .search-container { flex: 1; min-width: 9rem; }
 .pr-toolbar__add { flex: 1; min-width: 12rem; }
 
+.workout-record-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.workout-record-form__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+.workout-record-form__actions > button { width: 100%; }
+@media (max-width: 480px) {
+  .workout-record-form__fields { grid-template-columns: 1fr; }
+}
+
 .pr-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

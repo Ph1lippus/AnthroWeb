@@ -13,6 +13,7 @@ import ExerciseLibraryPanel from '../Components/Workout/ExerciseLibraryPanel';
 import TemplateCard from '../Components/Workout/TemplateCard';
 import TemplateEditorModal from '../Components/Workout/TemplateEditorModal';
 import SessionEditorModal from '../Components/Workout/SessionEditorModal';
+import ConfirmModal from '../Components/ConfirmModal';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { copyTextToClipboard } from '../utils/noteExport';
 import {
@@ -28,7 +29,9 @@ import {
     useCreatePlanSession,
     useUpdatePlanSession,
     useTodaysPlanSessions,
+    useDeleteLoggedSession,
 } from '../hooks/useWorkouts';
+import type { SessionWithExercises } from '../services/workoutService';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { isDateString, startOfWeek, todayString, weekRangeLabel, addDays } from '../utils/dates';
 
@@ -121,6 +124,8 @@ const WorkoutsPage: React.FC = () => {
     const deleteTemplate = useDeleteWorkoutTemplate();
     const duplicateTemplate = useDuplicateWorkoutTemplate();
     const setActive = useSetActiveTemplate();
+    const deleteLogged = useDeleteLoggedSession();
+    const [deletingLogged, setDeletingLogged] = useState<SessionWithExercises | null>(null);
 
     // The session dialog needs its template, its sessions and its exercises.
     // Read straight from the id in the URL rather than looked up in the
@@ -152,6 +157,22 @@ const WorkoutsPage: React.FC = () => {
     }, [sessionBundle, sessionId]);
 
     const { data: todaySessions = [] } = useTodaysPlanSessions(todayIndex);
+    const completedTodayPlanSessionIds = useMemo(
+        () => new Set(
+            overview.sessions
+                .filter(session => session.workout_date === today && session.completed && session.plan_session_id)
+                .map(session => session.plan_session_id!),
+        ),
+        [overview.sessions, today],
+    );
+    const availableTodaySessions = useMemo(
+        () => todaySessions.filter(session => !completedTodayPlanSessionIds.has(session.id!)),
+        [todaySessions, completedTodayPlanSessionIds],
+    );
+    const completedTodaySessions = useMemo(
+        () => overview.sessions.filter(session => session.workout_date === today && session.completed),
+        [overview.sessions, today],
+    );
 
     const loading = overview.isLoading && overview.sessions.length === 0;
     const completedSessions = overview.sessions.filter(s => s.completed);
@@ -301,6 +322,18 @@ const WorkoutsPage: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <div className="card-body">
+                                                    {completedTodaySessions.length > 0 && (
+                                                        <section className="workout-today-logged">
+                                                            <h4 className="form-label">Logged today</h4>
+                                                            <SessionList
+                                                                sessions={completedTodaySessions}
+                                                                weekStart={null}
+                                                                weightUnit={weightUnit}
+                                                                onOpen={date => go({ day: date })}
+                                                                onDelete={session => setDeletingLogged(session)}
+                                                            />
+                                                        </section>
+                                                    )}
                                                     {!activeTemplate ? (
                                                         /* No template is not an error state, it is the
                                                            starting position. Both doors are offered because
@@ -330,14 +363,14 @@ const WorkoutsPage: React.FC = () => {
                                                                 </button>
                                                             </div>
                                                         </div>
-                                                    ) : todaySessions.length === 0 ? (
+                                                    ) : availableTodaySessions.length === 0 ? (
                                                         <p className="form-label">
                                                             Rest day. You can still log a session.
                                                         </p>
                                                     ) : (
                                                         <>
                                                             <div className="workout-rows">
-                                                                {todaySessions.map(session => (
+                                                                {availableTodaySessions.map(session => (
                                                                     <SessionCard
                                                                         key={session.id ?? `today-${session.day_of_week}-${session.position}`}
                                                                         session={session}
@@ -350,7 +383,7 @@ const WorkoutsPage: React.FC = () => {
                                                                     />
                                                                 ))}
                                                             </div>
-                                                            {todaySessions.length === 0 ? (
+                                                            {availableTodaySessions.length === 0 ? (
                                                                 <div className="workout-empty">
                                                                     <p className="workout-empty__title" style={{ margin: 0 }}>
                                                                         No session for today
@@ -360,11 +393,6 @@ const WorkoutsPage: React.FC = () => {
                                                                     </p>
                                                                 </div>
                                                             ) : null}
-                                                            <p className="form-label" style={{ marginTop: '0.6rem' }}>
-                                                                {todayRecord?.completed
-                                                                    ? `Logged today${todayRecord.intensity ? ` at ${todayRecord.intensity}/10` : ''}.`
-                                                                    : 'Not logged yet.'}
-                                                            </p>
                                                             <div className="plan-preview__actions">
                                                                 <button
                                                                     className="btn-action btn-action--primary"
@@ -436,6 +464,7 @@ const WorkoutsPage: React.FC = () => {
                                                         weekStart={loggedScope === 'all' ? null : loggedWeekStart}
                                                         weightUnit={weightUnit}
                                                         onOpen={date => go({ day: date })}
+                                                        onDelete={session => setDeletingLogged(session)}
                                                     />
                                                 </div>
                                             </div>
@@ -622,6 +651,22 @@ const WorkoutsPage: React.FC = () => {
                     )}
                 </div>
             </div>
+            <ConfirmModal
+                open={deletingLogged !== null}
+                title="Delete logged session?"
+                confirmLabel="Delete"
+                danger
+                busy={deleteLogged.isPending}
+                onCancel={() => setDeletingLogged(null)}
+                onConfirm={async () => {
+                    if (!deletingLogged?.id) return;
+                    await deleteLogged.mutateAsync({
+                        sessionId: deletingLogged.id,
+                        date: deletingLogged.workout_date,
+                    });
+                    setDeletingLogged(null);
+                }}
+            />
         </>
     );
 };

@@ -9,6 +9,7 @@ import {
     useSaveSession,
     useWorkoutPlan,
     useStartSessionFromPlan,
+    useCompleteSessionFromPlan,
     usePlanSession,
     useTodaysPlanSessions,
 } from '../../hooks/useWorkouts';
@@ -96,6 +97,7 @@ const PlanPreview: React.FC<{
        comparable with what the day actually was. */
     const { data: todaysSessions = [] } = useTodaysPlanSessions(weekday);
     const start = useStartSessionFromPlan();
+    const complete = useCompleteSessionFromPlan();
 
     const hasPlan = plan.length > 0;
     const exercisesBySession = useMemo(() => {
@@ -138,19 +140,30 @@ const PlanPreview: React.FC<{
                 {todaysSessions.map(session => {
                     const rows = exercisesBySession.get(session.id!) ?? [];
                     return (
-                        <button
-                            key={session.id}
-                            className="btn-action btn-action--primary"
-                            disabled={start.isPending || isLoading}
-                            onClick={async () => {
-                                await start.mutateAsync({ date, planSessionId: session.id });
-                                onStarted();
-                            }}
-                        >
-                            <Flag size={11} className="mr-1" />
-                            {start.isPending ? 'Starting…' : `Start ${session.name}`}
-                            {rows.length > 0 && ` · ${rows.length}`}
-                        </button>
+                        <React.Fragment key={session.id}>
+                            <button
+                                className="btn-action btn-action--primary"
+                                disabled={start.isPending || complete.isPending || isLoading}
+                                onClick={async () => {
+                                    await start.mutateAsync({ date, planSessionId: session.id });
+                                    onStarted();
+                                }}
+                            >
+                                <Flag size={11} className="mr-1" />
+                                {start.isPending ? 'Starting…' : `Start ${session.name}`}
+                                {rows.length > 0 && ` · ${rows.length}`}
+                            </button>
+                            <button
+                                className="btn-action"
+                                disabled={start.isPending || complete.isPending || isLoading}
+                                onClick={async () => {
+                                    await complete.mutateAsync({ date, planSessionId: session.id! });
+                                    onStarted();
+                                }}
+                            >
+                                {complete.isPending ? 'Completing…' : 'Done'}
+                            </button>
+                        </React.Fragment>
                     );
                 })}
                 {todaysSessions.length === 0 && hasPlan && (
@@ -428,8 +441,10 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                     // see useSaveSession's note on not defaulting it either.
                     header: {
                         intensity,
-                        duration_minutes: duration ? parseInt(duration, 10) : undefined,
-                        notes: notes || undefined,
+                        duration_minutes: duration.trim() ? parseInt(duration, 10) : null,
+                        // Null is intentional: an empty note must clear the
+                        // previously saved value rather than leave it behind.
+                        notes: notes.trim() || null,
                         workout_template_id: activeTemplate?.id ?? null,
                     },
                     exercises: draftRows.map(row => ({
@@ -781,10 +796,26 @@ const SessionRow: React.FC<{
     onCommit?: () => void;
 }> = ({ row, weightUnit, onChange, onCommit }) => {
     const hasSets = row.activity_type === 'strength';
+    // The session list is intentionally compact on first render. Completion is
+    // data, not an instruction to expand the editor; the user can open a row
+    // when they want to enter its details.
+    const [open, setOpen] = useState(false);
 
     return (
-        <div className={`collapse-card ${row.completed ? 'collapse-card--open' : ''}`}>
-            <div className="collapse-head" style={{ cursor: 'default' }}>
+        <div className="collapse-card">
+            <div
+                className="collapse-head"
+                role="button"
+                tabIndex={0}
+                aria-expanded={open && row.completed}
+                onClick={() => row.completed && setOpen(current => !current)}
+                onKeyDown={event => {
+                    if ((event.key === 'Enter' || event.key === ' ') && row.completed) {
+                        event.preventDefault();
+                        setOpen(current => !current);
+                    }
+                }}
+            >
                 <button
                     type="button"
                     className="btn-action"
@@ -793,7 +824,10 @@ const SessionRow: React.FC<{
                     aria-label={row.completed
                         ? `Mark ${row.exercise_name} as not done`
                         : `Mark ${row.exercise_name} as done`}
-                    onClick={() => onChange({ ...row, completed: !row.completed })}
+                    onClick={event => {
+                        event.stopPropagation();
+                        onChange({ ...row, completed: !row.completed });
+                    }}
                 >
                     {row.completed
                         ? <CircleCheck size={13} style={{ color: 'var(--color-primary)' }} />
@@ -825,14 +859,22 @@ const SessionRow: React.FC<{
                         className="btn-action"
                         style={{ padding: '0.2rem 0.35rem' }}
                         aria-label={`Remove ${row.exercise_name}`}
-                        onClick={() => onChange({ ...row, exercise_name: '', completed: false })}
+                        onClick={event => {
+                            event.stopPropagation();
+                            onChange({ ...row, exercise_name: '', completed: false });
+                        }}
                     >
                         <Trash2 size={12} />
                     </button>
+                    {row.completed && (
+                        <span className="collapse-chevron" aria-hidden="true">
+                            <ChevronLeft size={15} />
+                        </span>
+                    )}
                 </span>
             </div>
 
-            {row.completed && (
+            {row.completed && open && (
                 <div className="collapse-body">
                     {row.activity_type === 'strength' && (
                         <>

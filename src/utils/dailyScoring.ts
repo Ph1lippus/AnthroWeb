@@ -312,7 +312,7 @@ export interface DailyScoreResult {
  * count was previously written as a literal `8` in five different files -- the
  * scorer, two dashboard charts, the analysis cards and the history chip -- so
  * adding a habit silently produced charts that disagreed with the score ring.
- * Gym is the ninth: it is a real habit that feeds both, and it is written by
+ * Gym is a real habit that feeds both, and it is written by
  * the workout pages rather than by this one.
  */
 export const BUILTIN_HABITS = [
@@ -321,7 +321,6 @@ export const BUILTIN_HABITS = [
     { key: 'fruitServing', column: 'fruit_serving', label: 'Fruit Serving' },
     { key: 'studied', column: 'studied', label: 'Studied' },
     { key: 'journal', column: 'journal', label: 'Journaled' },
-    { key: 'stretching', column: 'stretching', label: 'Stretching' },
     { key: 'reading', column: 'reading', label: 'Reading' },
     { key: 'projectWorkDone', column: 'project_work_done', label: 'Projects' },
     { key: 'gym', column: 'gym', label: 'Gym' },

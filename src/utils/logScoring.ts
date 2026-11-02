@@ -102,7 +102,6 @@ export const buildScoringInputFromLog = (
             fruitServing: flag(log.fruit_serving),
             studied: flag(log.studied),
             journal: flag(log.journal),
-            stretching: flag(log.stretching),
             reading: flag(log.reading),
             projectWorkDone: flag(log.project_work_done),
             gym: flag(log.gym),

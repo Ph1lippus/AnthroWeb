@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Dumbbell, HeartPulse, Pencil, PersonStanding, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Dumbbell, HeartPulse, Pencil, PersonStanding, Trash2 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import ExerciseEditor from './ExerciseEditor';
 import {
@@ -7,7 +7,9 @@ import {
     useAddTemplateExercise,
     useDeleteTemplateExercise,
     useDeletePlanSession,
+    useCompleteSessionFromPlan,
 } from '../../hooks/useWorkouts';
+import { todayString } from '../../utils/dates';
 import { useUserSettings } from '../../hooks/useUserSettings';
 import type { WorkoutPlanSession, WorkoutTemplateExercise } from '../../services/workoutService';
 
@@ -51,6 +53,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
     const updateExercise = useUpdateTemplateExercise(templateId);
     const deleteExercise = useDeleteTemplateExercise(templateId);
     const deleteSession = useDeletePlanSession(templateId);
+    const completeSession = useCompleteSessionFromPlan();
 
     const [open, setOpen] = useState(false);
     const [dropping, setDropping] = useState(false);
@@ -75,14 +78,23 @@ const SessionCard: React.FC<SessionCardProps> = ({
         .sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b))
         .map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day])
         .join(' / ');
+    const canComplete = isToday && session.id;
 
     return (
         <>
             <div className={`collapse-card ${open ? 'collapse-card--open' : ''}`}>
-                <button
+                <div
                     className="collapse-head"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setOpen(!open)}
                     aria-expanded={open}
+                    onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setOpen(current => !current);
+                        }
+                    }}
                 >
                     <span className={`workout-ex__type workout-ex__type--${session.activity_type}`}>
                         <Icon size={13} />
@@ -97,6 +109,23 @@ const SessionCard: React.FC<SessionCardProps> = ({
                     </span>
                     <span className="collapse-head__right">
                         {isToday && <span className="workout-chip">today</span>}
+                        {canComplete && (
+                            <button
+                                type="button"
+                                className="btn-action btn-action--primary"
+                                onClick={event => {
+                                    event.stopPropagation();
+                                    void completeSession.mutateAsync({
+                                        date: todayString(),
+                                        planSessionId: session.id!,
+                                    });
+                                }}
+                                disabled={completeSession.isPending}
+                            >
+                                <Check size={12} />
+                                {completeSession.isPending ? 'Saving…' : 'Done'}
+                            </button>
+                        )}
                         {/* Wrapped rather than putting the class on the icon:
                             whether an SVG component forwards `className` is not
                             something to depend on for a state indicator. */}
@@ -104,7 +133,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
                             <ChevronDown size={15} />
                         </span>
                     </span>
-                </button>
+                </div>
 
                 {open && (
                     <div className="collapse-body">

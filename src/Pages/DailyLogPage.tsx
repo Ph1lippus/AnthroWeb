@@ -21,8 +21,7 @@ import { MoodReadout } from '../Components/Journal/Mood';
 import type { ActiveGoals } from '../utils/dailyScoring';
 import { parseGoalHistory, resolveGoalsForDay, withVersion, latestGoals } from '../utils/goalHistory';
 import { useLatestMeasurement } from '../hooks/useMeasurements';
-import { useActiveTemplate, useSessionByDate, useSetGymForDate } from '../hooks/useWorkouts';
-import type { SessionWithExercises } from '../services/workoutService';
+import { useActiveTemplate } from '../hooks/useWorkouts';
 import { queryKeys } from '../utils/queryKeys';
 import ScoreCard from '../Components/DailyLog/ScoreCard';
 import DayGoalsEditor from '../Components/DailyLog/DayGoalsEditor';
@@ -57,7 +56,6 @@ type EditableBuiltinHabitKey =
     | 'fruitServing'
     | 'studied'
     | 'journal'
-    | 'stretching'
     | 'reading'
     | 'projectWorkDone'
     | 'gym';
@@ -66,7 +64,6 @@ const BUILTIN_HABIT_LABELS: Record<EditableBuiltinHabitKey, string> = {
     fruitServing: 'Fruit Serving',
     studied: 'Studied',
     journal: 'Journaled',
-    stretching: 'Stretching',
     reading: 'Reading',
     projectWorkDone: 'Projects',
     gym: 'Gym',
@@ -240,10 +237,10 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     // than by this form: ticking it here and marking the same day on /Workouts
     // are the same call, so the habit charts, the score ring and the workout
     // heatmap can never report a different answer for one date.
-    const setGym = useSetGymForDate();
     const { activeTemplate } = useActiveTemplate();
-    const { data: workoutForDate } = useSessionByDate(logDate);
     const [gym, setGymLocal] = useState(false);
+    const [cardio, setCardio] = useState(false);
+    const [mobility, setMobility] = useState(false);
 
     const workoutTypesForTemplate = useMemo(() => {
         const all = new Set(activeTemplate?.days.map(row => row.activity_type) ?? []);
@@ -253,23 +250,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 .filter(row => row.day_of_week === day)
                 .map(row => row.activity_type),
         );
-        const completed = new Set(
-    (workoutForDate as SessionWithExercises)?.exercises?.filter((row) => 'completed' in row && row.completed).map((row) => row.activity_type) ?? [],
-);
-        return { all, today, completed };
-    }, [activeTemplate, logDate, workoutForDate]);
+        return { all, today };
+    }, [activeTemplate, logDate]);
 
-
-    const toggleGym = async () => {
-        const next = !gym;
-        setGymLocal(next);
-        try {
-            await setGym.mutateAsync({ date: logDate, trained: next, materialize: true });
-        } catch (error) {
-            setGymLocal(!next);
-            console.error('Could not update the gym habit:', error);
-        }
-    };
 
     const [showHabitCreateModal, setShowHabitCreateModal] = useState(false);
     const [customHabitPriority, setCustomHabitPriority] = useState<'high' | 'medium' | 'low'>('medium');
@@ -375,6 +358,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setNoSleep(log.no_sleep || false);
         setCheatDay(log.cheat_day || false);
         setGymLocal(log.gym || false);
+        setCardio(log.cardio || false);
+        setMobility(log.mobility || false);
     };
 
     const resetForm = () => {
@@ -405,6 +390,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setNoSleep(false);
         setCheatDay(false);
         setGymLocal(false);
+        setCardio(false);
+        setMobility(false);
         setSelectedProjectIds(new Set());
     };
 
@@ -608,7 +595,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             { key: 'fruitServing', done: fruitServing, baseWeight: 2 },
             { key: 'studied', done: studied, baseWeight: 3 },
             { key: 'journal', done: journal, baseWeight: 2 },
-            { key: 'stretching', done: stretching, baseWeight: 1 },
             { key: 'reading', done: reading, baseWeight: 2 },
             { key: 'projectWorkDone', done: projectWorkDone, baseWeight: 3 },
         ];
@@ -638,7 +624,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         }
         if (totalWeight === 0) return 0;
         return (doneWeight / totalWeight) * 100;
-    }, [fruitServing, studied, journal, stretching, reading, projectWorkDone, gym, habits, completedHabits, logDate, settings]);
+    }, [fruitServing, studied, journal, reading, projectWorkDone, gym, habits, completedHabits, logDate, settings]);
 
     // --- Scoring (fair, grouped) ---
     const scoreResult = useMemo(() => computeDailyScore({
@@ -664,7 +650,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         // day is opened -- even though this page cannot itself change it.
         morningMood: moodFor(existingLog, 'morning')?.toString() ?? '',
         eveningMood: moodFor(existingLog, 'evening')?.toString() ?? '',
-        habits: { morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym },
+        habits: { morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym },
         customCompleted: completedHabits.size,
         customTotal: habits.length,
         habitScore,
@@ -674,7 +660,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         cheatDay,
         cheatDayExempt: cheatStatus.exempt,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate, habitScore]);
+    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate, habitScore]);
 
     const calculatedScore = scoreResult.score;
     // The day's average rating, for the mood card's header. Null rather than zero
@@ -780,6 +766,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 water || journalEntry ||
                 noSleep || cheatDay || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
+                gym || cardio || mobility ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
         }
@@ -860,10 +847,12 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 fruit_serving: fruitServing,
                 studied: studied,
                 journal: journal,
-                stretching: stretching,
                 reading: reading,
                 no_sleep: noSleep,
                 cheat_day: cheatDay,
+                gym,
+                cardio,
+                mobility,
             };
 
             if (isEditing && existingLog?.id) {
@@ -884,7 +873,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setSaveError(message);
             console.error('Auto-save error:', err);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, gym, cardio, mobility, isEditing, existingLog, queryClient]);
 
     /**
      * Queues a whole-row write behind any that are already open.
@@ -1400,8 +1389,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         </div>
     );
 
-    const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, stretching, reading, journal, projectWorkDone, gym].filter(Boolean).length;
-    const habitTotal = BUILTIN_HABIT_COUNT + habits.length;
+    const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym].filter(Boolean).length;
+    const habitTotal = Math.max(0, BUILTIN_HABIT_COUNT - 1) + habits.length;
 
     const timeInputHandlers = (setter: (v: string) => void) => ({
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1521,10 +1510,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         );
     };
 
-    // Gym is different from the others: the tick writes a workout session, so
-    // it is async, it can fail, and marking it opens a real session rather than
-    // only setting a flag. Kept separate from habitCheckbox so that difference
-    // is visible rather than hidden behind an identical-looking control.
+    // Activity checkboxes record only the daily habit. Detailed exercise
+    // selection and session notes belong on the Workouts page.
     const gymCheckbox = (() => {
         const label = builtinHabitLabel('gym');
         const scheduled = workoutTypesForTemplate.today.has('strength');
@@ -1543,8 +1530,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                     <input
                         type="checkbox"
                         checked={gym}
-                        onChange={toggleGym}
-                        disabled={setGym.isPending}
+                        onChange={() => saveBuiltinHabit('gym', !gym, setGymLocal)}
                         className="checkbox-input"
                     />
                     <span className="daily-log-habits__gym-label">
@@ -1579,15 +1565,17 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const templateActivityHabit = (activityType: 'cardio' | 'mobility') => {
         if (!workoutTypesForTemplate.all.has(activityType)) return null;
         const scheduled = workoutTypesForTemplate.today.has(activityType);
-        const completed = workoutTypesForTemplate.completed.has(activityType);
         const label = activityType === 'cardio' ? 'Cardio' : 'Mobility';
+        const checked = activityType === 'cardio' ? cardio : mobility;
+        const column = activityType === 'cardio' ? 'cardio' : 'mobility';
+        const setValue = activityType === 'cardio' ? setCardio : setMobility;
         return (
             <div className={`habit-row ${scheduled ? '' : 'daily-log-habit--optional'}`} key={activityType}>
                 <label className="checkbox-label flex-1 min-w-0">
                     <input
                         type="checkbox"
-                        checked={completed}
-                        onChange={() => navigate(`/Workouts?day=${logDate}`)}
+                        checked={checked}
+                        onChange={() => saveBuiltinHabit(column, !checked, setValue)}
                         className="checkbox-input"
                     />
                     <span className="text-sm opacity-90 truncate">
@@ -1919,7 +1907,6 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             {habitCheckbox(fruitServing, 'fruit_serving', setFruitServing, 'fruitServing')}
                                             {habitCheckbox(studied, 'studied', setStudied, 'studied')}
                                             {habitCheckbox(journal, 'journal', setJournal, 'journal')}
-                                            {habitCheckbox(stretching, 'stretching', setStretching, 'stretching')}
                                             {habitCheckbox(reading, 'reading', setReading, 'reading')}
                                             {gymCheckbox}
                                             {templateActivityHabit('cardio')}

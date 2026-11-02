@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Flame, Timer, CircleCheck } from 'lucide-react';
+import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Flame, Timer, CircleCheck, Trash2 } from 'lucide-react';
 import { formatWeight, type WeightUnit } from '../../utils/units';
 import { addDays, formatDayLabel } from '../../utils/dates';
 import { ACTIVITY_LABELS, type ActivityType } from '../../utils/workoutSets';
@@ -32,6 +32,7 @@ interface SessionListProps {
     weekStart?: string | null;
     weightUnit: WeightUnit;
     onOpen: (date: string) => void;
+    onDelete?: (session: SessionWithExercises) => void;
 }
 
 /**
@@ -51,8 +52,8 @@ interface SessionListProps {
  * template it came from, so a template edited since cannot change what this says
  * you did.
  */
-const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, weightUnit, onOpen }) => {
-    const [openDate, setOpenDate] = useState<string | null>(null);
+const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, weightUnit, onOpen, onDelete }) => {
+    const [openSession, setOpenSession] = useState<string | null>(null);
     const inWeek = useMemo(() => {
         const weekEnd = weekStart ? addDays(weekStart, 6) : null;
         return sessions
@@ -81,7 +82,7 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
     return (
         <div className="workout-logged">
             {inWeek.map(session => {
-                const open = openDate === session.workout_date;
+                const open = openSession === session.id;
                 const done = session.exercises.filter(row => row.completed).length;
 
                 return (
@@ -89,12 +90,25 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                         key={session.id}
                         className={`workout-logged__row ${open ? 'workout-logged__row--open' : ''}`}
                     >
-                        <button
+                        <div
+                            role="button"
+                            tabIndex={0}
                             className="workout-logged__head"
-                            onClick={() => setOpenDate(open ? null : session.workout_date)}
+                            onClick={() => setOpenSession(open ? null : session.id ?? null)}
+                            onKeyDown={event => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    setOpenSession(open ? null : session.id ?? null);
+                                }
+                            }}
                             aria-expanded={open}
                         >
                             <span className="workout-logged__date">
+                                {session.plan_session?.name && (
+                                    <strong className="workout-logged__session-title">
+                                        {session.plan_session.name}
+                                    </strong>
+                                )}
                                 <span className="workout-logged__day">{formatDayLabel(session.workout_date)}</span>
                                 <span className="workout-logged__stamp">{session.workout_date}</span>
                             </span>
@@ -133,7 +147,20 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                             >
                                 <ChevronDown size={15} aria-hidden="true" />
                             </span>
-                        </button>
+                            {onDelete && (
+                                <button
+                                    type="button"
+                                    className="book-action-btn book-action-btn--danger"
+                                    aria-label={`Delete ${session.plan_session?.name ?? 'logged session'}`}
+                                    onClick={event => {
+                                        event.stopPropagation();
+                                        onDelete(session);
+                                    }}
+                                >
+                                    <Trash2 size={13} />
+                                </button>
+                            )}
+                        </div>
 
                         {open && (
                             <div className="workout-logged__body">

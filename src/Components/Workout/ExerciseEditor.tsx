@@ -81,7 +81,7 @@ interface ExerciseRowProps {
  * course row uses, so the interaction is already familiar.
  */
 const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exercise, weightUnit, onUpdate, onDelete, isSaving, completed = false }) => {
-    const [open, setOpen] = useState(!completed);
+    const [open, setOpen] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [draft, setDraft] = useState<Draft>(() => toDraft(exercise));
 
@@ -107,7 +107,7 @@ const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exe
             cardio_segments: next.cardio_segments.length
                 ? templateCardioSegments(next.cardio_segments)
                 : null,
-            notes: next.notes || undefined,
+            notes: next.notes.trim() || null,
         });
     };
 
