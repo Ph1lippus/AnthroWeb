@@ -97,7 +97,7 @@ export default defineConfig(({ mode }) => {
          * `browser` keeps a usable window chrome rather than the URL bar if the
          * browser ever ignores `display` outright.
          */
-        display_override: ['standalone', 'minimal-ui'],
+        display_override: ['window-controls-overlay','standalone', 'minimal-ui'],
         icons: [
           { src: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

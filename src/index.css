@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+header {
+  /* Positions your header exactly where the old title bar used to be */
+  position: fixed;
+  left: env(titlebar-area-x, 0);
+  top: env(titlebar-area-y, 0);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 50px);
+  
+  /* Makes the custom header draggable so users can move the window */
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+header button, header input {
+  /* Crucial: Keeps your buttons/search inputs clickable inside the draggable header */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 @media (max-width: 768px) {
   .chart-modal-head {
     padding: 0.5rem;
