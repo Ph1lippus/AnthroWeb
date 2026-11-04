@@ -62,6 +62,8 @@ export interface DailyLog {
     gym?: boolean;
     cardio?: boolean;
     mobility?: boolean;
+    steps?: number | null;
+    phone_usage?: number | null;
 }
 
 // Fetch all daily logs for current user

@@ -788,6 +788,28 @@ export const deleteTemplateExercise = async (id: string, templateId: string): Pr
  * Persist a whole day at once, used by the editor's reordering.
  */
 export const reorderTemplateExercises = async (
+    templateId: string,
+    ordered: Array<{ id: string; position: number }>,
+): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId || ordered.length === 0) return;
+
+    const results = await Promise.all(
+        ordered.map(item =>
+            supabase
+                .from('workout_template_exercises')
+                .update({ position: item.position, updated_at: new Date().toISOString() })
+                .eq('id', item.id)
+                .eq('user_id', userId)
+                .eq('workout_template_id', templateId),
+        ),
+    );
+    const failed = results.find(result => result.error);
+    if (failed?.error) fail('Could not reorder exercises', failed.error);
+};
+
+/** Reorder plan sessions for a template. */
+export const reorderPlanSessions = async (
     _templateId: string,
     ordered: Array<{ id: string; position: number }>,
 ): Promise<void> => {
@@ -795,14 +817,14 @@ export const reorderTemplateExercises = async (
     if (!userId || ordered.length === 0) return;
 
     const { error } = await supabase
-        .from('workout_template_exercises')
+        .from('workout_plan_sessions')
         .upsert(
             ordered.map(item => ({ id: item.id, position: item.position, updated_at: new Date().toISOString() })),
             { onConflict: 'id' },
         )
         .eq('user_id', userId);
 
-    if (error) fail('Could not reorder exercises', error);
+    if (error) fail('Could not reorder sessions', error);
 };
 
 // ---------------------------------------------------------------------------

@@ -328,11 +328,12 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     // This handles the case where a session was marked trained but exercises
     // were never materialized, or the session was created without a plan.
     useEffect(() => {
-        if (rows.length === 0 && session?.id && !exercisesLoading) {
+        if (rows.length === 0 && stored?.length === 0 && session?.id && session.plan_session_id && !exercisesLoading) {
             const weekday = new Date(`${date}T00:00:00`).getDay();
             getPlanForDay(weekday).then(plan => {
-                if (plan.length > 0) {
-                    setRows(plan.map(row => ({
+                const sessionPlan = plan.filter(row => row.session_id === session.plan_session_id);
+                if (sessionPlan.length > 0) {
+                    setRows(sessionPlan.map(row => ({
                         key: draftKey(),
                         id: undefined,
                         exercise_name: row.exercise_name,
@@ -344,11 +345,11 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         cardio_segments: [],
                         duration_minutes: row.target_duration_minutes ?? null,
                         distance_km: row.target_distance_km ?? null,
-                    })));
+                        })));
                 }
             });
         }
-    }, [date, session?.id, rows.length, exercisesLoading]);
+    }, [date, session?.id, session?.plan_session_id, stored, rows.length, exercisesLoading]);
 
     // A row emptied by its delete button is hidden at once; the save turns it
     // into a real DELETE. A blank row left on screen looks like it failed.

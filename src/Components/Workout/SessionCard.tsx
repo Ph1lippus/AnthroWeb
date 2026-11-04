@@ -6,6 +6,7 @@ import {
     useUpdateTemplateExercise,
     useAddTemplateExercise,
     useDeleteTemplateExercise,
+    useReorderTemplateExercises,
     useDeletePlanSession,
     useCompleteSessionFromPlan,
 } from '../../hooks/useWorkouts';
@@ -52,6 +53,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
     const addExercise = useAddTemplateExercise(templateId);
     const updateExercise = useUpdateTemplateExercise(templateId);
     const deleteExercise = useDeleteTemplateExercise(templateId);
+    const reorderExercises = useReorderTemplateExercises(templateId);
     const deleteSession = useDeletePlanSession(templateId);
     const completeSession = useCompleteSessionFromPlan();
 
@@ -147,6 +149,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
                             onAdd={input => addExercise.mutateAsync(input)}
                             onUpdate={(id, updates) => updateExercise.mutate({ id, updates })}
                             onDelete={id => deleteExercise.mutate(id)}
+                            onReorder={ordered => reorderExercises.mutate(ordered)}
                         />
 
                         {/* Last, like the academic page's card and like the

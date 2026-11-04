@@ -67,10 +67,21 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
         );
     }
 
+    // Identify sessions that span all 7 days (repeat_on_days with day_options covering every day).
+    // These should appear once with an "all days" indicator rather than repeating in every day group.
+    const allDaysSessions = sessions.filter(
+        row => row.repeat_on_days && row.day_options?.length === 7,
+    );
+
+    // Remove all-days sessions from the per-day filter so they don't repeat 7 times.
+    const filteredSessions = sessions.filter(
+        row => !(row.repeat_on_days && row.day_options?.length === 7),
+    );
+
     const dayGroups = WEEKDAYS_MONDAY_FIRST.map(day => ({
         day,
         dayName: DAY_SHORT[day - 1 < 0 ? 6 : day - 1],
-        sessions: sessions.filter(row => row.repeat_on_days
+        sessions: filteredSessions.filter(row => row.repeat_on_days
             ? (row.day_options?.length ? row.day_options.includes(day) : row.day_of_week === day)
             : (row.day_options?.[0] ?? row.day_of_week) === day),
     }));
@@ -135,14 +146,34 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
                                                     row => row.session_id === session.id,
                                                 )}
                                                 templateId={templateId}
-                                                isToday={(session.day_options?.length
-                                                    ? session.day_options
-                                                    : [session.day_of_week]).includes(todayIndex)}
+                                                isToday={group.day === todayIndex}
                                                 onEdit={() => onEditSession(session.id!)}
                                             />
                                         ))}
                                     </section>
                                 ))}
+                                {allDaysSessions.length > 0 && (
+                                    <section key="all-days" className="tpl-day">
+                                        <h4 className="tpl-day__label">
+                                            All days
+                                            {todayIndex === 0 && (
+                                                <span className="tpl-day__today">today</span>
+                                            )}
+                                        </h4>
+                                        {allDaysSessions.map(session => (
+                                            <SessionCard
+                                                key={session.id}
+                                                session={session}
+                                                exercises={exercises.filter(
+                                                    row => row.session_id === session.id,
+                                                )}
+                                                templateId={templateId}
+                                                isToday={todayIndex === 0}
+                                                onEdit={() => onEditSession(session.id!)}
+                                            />
+                                        ))}
+                                    </section>
+                                )}
                             </div>
                         )}
 

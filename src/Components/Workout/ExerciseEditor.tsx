@@ -1,5 +1,5 @@
-import React, { useId, useState } from 'react';
-import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Trash2 } from 'lucide-react';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown, Dumbbell, GripVertical, HeartPulse, PersonStanding, Trash2 } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
@@ -66,6 +66,9 @@ interface ExerciseRowProps {
     weightUnit: WeightUnit;
     onUpdate: (id: string, updates: Partial<WorkoutTemplateExercise>) => void;
     onDelete: (id: string) => void;
+    onPointerDown: (id: string) => void;
+    isDragging: boolean;
+    isDragOver: boolean;
     isSaving?: boolean;
 }
 
@@ -80,7 +83,17 @@ interface ExerciseRowProps {
  * Built on the shared .collapse-card primitives, the same ones a semester or a
  * course row uses, so the interaction is already familiar.
  */
-const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exercise, weightUnit, onUpdate, onDelete, isSaving, completed = false }) => {
+const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({
+    exercise,
+    weightUnit,
+    onUpdate,
+    onDelete,
+    onPointerDown,
+    isDragging,
+    isDragOver,
+    isSaving,
+    completed = false,
+}) => {
     const [open, setOpen] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [draft, setDraft] = useState<Draft>(() => toDraft(exercise));
@@ -125,16 +138,42 @@ const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({ exe
     const notesId = `ex-notes-${exercise.id}`;
 
     return (
-        <div className={`collapse-card ${open ? 'collapse-card--open' : ''}`}>
+        <div
+            className={`collapse-card exercise-row ${open ? 'collapse-card--open' : ''}${isDragging ? ' exercise-row--dragging' : ''}${isDragOver ? ' exercise-row--drag-over' : ''}`}
+            data-exercise-id={exercise.id}
+        >
+            <span
+                className="exercise-drag-handle"
+                role="button"
+                tabIndex={0}
+                aria-label={`Reorder ${exercise.exercise_name}`}
+                title="Drag to reorder"
+                onKeyDown={event => event.stopPropagation()}
+                onPointerDown={event => {
+                    if (completed) return;
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    onPointerDown(exercise.id!);
+                }}
+                onPointerUp={event => {
+                    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                    }
+                }}
+            >
+                <GripVertical size={15} />
+            </span>
             <button
                 type="button"
                 className="collapse-head"
                 aria-expanded={open}
                 onClick={() => {
-  if (completed) return; // Don't open completed exercises
-  if (open) close();
-  else setOpen(true);
-}}
+                    if (completed) return; // Don't open completed exercises
+                    if (open) close();
+                    else setOpen(true);
+                }}
             >
                 <span className={`workout-ex__type workout-ex__type--${exercise.activity_type}`}>
                     {TYPE_ICONS[exercise.activity_type]}
@@ -395,6 +434,7 @@ interface ExerciseEditorProps {
     }) => Promise<unknown>;
     onUpdate: (id: string, updates: Partial<WorkoutTemplateExercise>) => void;
     onDelete: (id: string) => void;
+    onReorder: (ordered: Array<{ id: string; position: number }>) => void;
     isSaving?: boolean;
 }
 
@@ -416,12 +456,16 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
     onAdd,
     onUpdate,
     onDelete,
+    onReorder,
     isSaving,
 }) => {
     const [name, setName] = useState('');
     const [type, setType] = useState<ActivityType>(defaultActivityType);
     const [exerciseId, setExerciseId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const dragOverIdRef = useRef<string | null>(null);
     const addId = useId();
 
     /* A failed add used to be invisible. `onAdd` rejects, the rejection was never
@@ -454,6 +498,58 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
         }
     };
 
+    const dropExercise = (targetId: string) => {
+        if (!draggingId || draggingId === targetId) {
+            setDraggingId(null);
+            setDragOverId(null);
+            return;
+        }
+
+        const reordered = [...exercises];
+        const fromIndex = reordered.findIndex(exercise => exercise.id === draggingId);
+        const targetIndex = reordered.findIndex(exercise => exercise.id === targetId);
+        if (fromIndex === -1 || targetIndex === -1) return;
+
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(targetIndex, 0, moved);
+        onReorder(reordered.map((exercise, position) => ({ id: exercise.id!, position })));
+        setDraggingId(null);
+        setDragOverId(null);
+    };
+
+    useEffect(() => {
+        if (!draggingId) return;
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const target = document
+                .elementFromPoint(event.clientX, event.clientY)
+                ?.closest<HTMLElement>('[data-exercise-id]');
+            const nextDragOverId = target?.dataset.exerciseId ?? null;
+            dragOverIdRef.current = nextDragOverId;
+            setDragOverId(nextDragOverId);
+        };
+        const handlePointerUp = () => {
+            if (dragOverIdRef.current) dropExercise(dragOverIdRef.current);
+            else setDraggingId(null);
+            dragOverIdRef.current = null;
+            setDragOverId(null);
+        };
+        const handlePointerCancel = () => {
+            dragOverIdRef.current = null;
+            setDraggingId(null);
+            setDragOverId(null);
+        };
+
+        document.addEventListener('pointermove', handlePointerMove);
+        document.addEventListener('pointerup', handlePointerUp);
+        document.addEventListener('pointercancel', handlePointerCancel);
+        return () => {
+            document.removeEventListener('pointermove', handlePointerMove);
+            document.removeEventListener('pointerup', handlePointerUp);
+            document.removeEventListener('pointercancel', handlePointerCancel);
+        };
+    }, [draggingId, exercises]);
+
     return (
         <>
             {exercises.length === 0 ? null : (
@@ -465,6 +561,12 @@ const ExerciseEditor: React.FC<ExerciseEditorProps> = ({
                             weightUnit={weightUnit}
                             onUpdate={onUpdate}
                             onDelete={onDelete}
+                            onPointerDown={id => {
+                                dragOverIdRef.current = id;
+                                setDraggingId(id);
+                            }}
+                            isDragging={draggingId === exercise.id}
+                            isDragOver={dragOverId === exercise.id && draggingId !== exercise.id}
                             isSaving={isSaving}
                         />
                     ))}

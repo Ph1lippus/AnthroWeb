@@ -205,6 +205,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [eveningDiastolic, setEveningDiastolic] = useState('');
     const [eveningBpm, setEveningBpm] = useState('');
     const [bodyTemperature, setBodyTemperature] = useState('');
+    const [steps, setSteps] = useState('');
+    const [phoneUsage, setPhoneUsage] = useState('');
     const [calories, setCalories] = useState('');
     const [protein, setProtein] = useState('');
     const [carbs, setCarbs] = useState('');
@@ -336,6 +338,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setEveningDiastolic(log.evening_diastolic?.toString() || '');
         setEveningBpm(log.evening_bpm?.toString() || '');
         setBodyTemperature(log.body_temperature?.toString() || '');
+        setSteps(log.steps?.toString() || '');
+        setPhoneUsage(log.phone_usage?.toString() || '');
         setCalories(log.calories?.toString() || '');
         setProtein(log.protein?.toString() || '');
         setCarbs(log.carbs?.toString() || '');
@@ -373,6 +377,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setEveningDiastolic('');
         setEveningBpm('');
         setBodyTemperature('');
+        setSteps('');
+        setPhoneUsage('');
         setCalories('');
         setProtein('');
         setCarbs('');
@@ -766,7 +772,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 water || journalEntry ||
                 noSleep || cheatDay || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
-                gym || cardio || mobility ||
+                gym || cardio || mobility || steps || phoneUsage ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
         }
@@ -853,6 +859,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 gym,
                 cardio,
                 mobility,
+                steps: steps ? parseInt(steps) : null,
+                phone_usage: phoneUsage ? parseInt(phoneUsage) : null,
             };
 
             if (isEditing && existingLog?.id) {
@@ -1390,7 +1398,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     );
 
     const builtinHabitDone = [morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym].filter(Boolean).length;
-    const habitTotal = Math.max(0, BUILTIN_HABIT_COUNT - 1) + habits.length;
+    const habitTotal = BUILTIN_HABIT_COUNT + habits.length;
 
     const timeInputHandlers = (setter: (v: string) => void) => ({
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1877,6 +1885,49 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                 </div>
                             </div>
                         </div>
+
+                    {/* Steps & Phone Usage stays in the middle column, directly
+                        below blood pressure rather than being auto-placed beside
+                        the habits column on wide screens. */}
+                    <div className="daily-log-steps-phone">
+                        <div className="card puzzle-card">
+                            <div className="card-header">
+                                <h3 className="card-title">Steps & Phone Usage</h3>
+                            </div>
+                            <div className="card-body">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col">
+                                        <div className="scored-input-wrap">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                value={steps}
+                                                onChange={(e) => setSteps(e.target.value)}
+                                                className={"scored-input" + (steps ? '' : ' scored-input--empty')}
+                                                placeholder=" "
+                                            />
+                                            <label className="scored-input-label">Steps <span className="scored-input-goal-inline">10,000</span></label>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="scored-input-wrap">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                value={phoneUsage}
+                                                onChange={(e) => setPhoneUsage(e.target.value)}
+                                                className={"scored-input" + (phoneUsage ? '' : ' scored-input--empty')}
+                                                placeholder=" "
+                                            />
+                                            <label className="scored-input-label">Phone Usage (min) <span className="scored-input-goal-inline">180</span></label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     </div>
 
                         {/* Habits occupies its own right-hand column, outside column 2. */}

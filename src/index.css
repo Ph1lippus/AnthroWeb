@@ -8274,6 +8274,9 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
 .daily-log-wide {
   min-width: 0;
 }
+.daily-log-steps-phone {
+  min-width: 0;
+}
 /* Column 3. The card's own two-up split (habit checkboxes on the left,
    Projects on the right) comes from grid-cols-1 md:grid-cols-2 in the markup;
    phone widths are forced back to one column by .daily-log-form .grid above. */
@@ -14391,6 +14394,33 @@ body {
 }
 .workout-ex__type--cardio { color: var(--chart-blue); opacity: 0.9; }
 .workout-ex__type--mobility { color: var(--chart-purple); opacity: 0.9; }
+.exercise-drag-handle {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0.15rem;
+  color: var(--color-light);
+  opacity: 0.45;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  z-index: 1;
+}
+.exercise-row {
+  position: relative;
+}
+.exercise-row .collapse-head {
+  padding-left: 2.4rem;
+}
+.exercise-drag-handle:hover,
+.exercise-drag-handle:focus-visible { opacity: 0.9; }
+.exercise-drag-handle:active { cursor: grabbing; }
+.exercise-row--dragging { opacity: 0.5; }
+.exercise-row--drag-over { border-color: var(--accent-border); }
 .workout-ex__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -15022,7 +15052,7 @@ button.workout-ex__empty:hover {
 
 .pr-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
   align-items: start;
 }
@@ -15052,7 +15082,6 @@ button.workout-ex__empty:hover {
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.pr-best:hover { background: var(--accent-bg); border-color: var(--accent-border); }
 .pr-best__value {
   font-size: 1.25rem;
   font-weight: 700;

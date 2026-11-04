@@ -19,6 +19,8 @@ import {
     createTemplateExercise,
     updateTemplateExercise,
     deleteTemplateExercise,
+    reorderTemplateExercises,
+    reorderPlanSessions,
     getSessionByDate,
     getSessionExercises,
     getSessionsWithExercises,
@@ -397,8 +399,9 @@ const useInvalidateWorkouts = () => {
     return () => {
         qc.invalidateQueries({ queryKey: queryKeys.workoutSessionsRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutTemplates });
-        qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateExercisesRoot });
+        qc.invalidateQueries({ queryKey: ['workout-today-sessions'] });
         qc.invalidateQueries({ queryKey: queryKeys.workoutPlanRoot });
+        qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateExercisesRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutLogs });
         qc.invalidateQueries({ queryKey: queryKeys.workoutExercisesRoot });
         qc.invalidateQueries({ queryKey: queryKeys.workoutPRs });
@@ -537,6 +540,33 @@ export const useDeleteTemplateExercise = (templateId: string) => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => deleteTemplateExercise(id, templateId),
+        onSuccess: () => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplateSessions(templateId) });
+        },
+    });
+};
+
+export const useReorderTemplateExercises = (templateId: string) => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (ordered: Array<{ id: string; position: number }>) =>
+            reorderTemplateExercises(templateId, ordered),
+        onSuccess: () => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });
+        },
+    });
+};
+
+export const useReorderPlanSessions = (templateId: string) => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (ordered: Array<{ id: string; position: number }>) =>
+            reorderPlanSessions(templateId, ordered),
         onSuccess: () => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutTemplate(templateId) });

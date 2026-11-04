@@ -157,21 +157,21 @@ const WorkoutsPage: React.FC = () => {
     }, [sessionBundle, sessionId]);
 
     const { data: todaySessions = [] } = useTodaysPlanSessions(todayIndex);
+    const completedTodaySessions = useMemo(
+        () => overview.sessions.filter(session => session.workout_date === today && session.completed),
+        [overview.sessions, today],
+    );
     const completedTodayPlanSessionIds = useMemo(
         () => new Set(
-            overview.sessions
-                .filter(session => session.workout_date === today && session.completed && session.plan_session_id)
+            completedTodaySessions
+                .filter(session => session.plan_session_id)
                 .map(session => session.plan_session_id!),
         ),
-        [overview.sessions, today],
+        [completedTodaySessions],
     );
     const availableTodaySessions = useMemo(
         () => todaySessions.filter(session => !completedTodayPlanSessionIds.has(session.id!)),
         [todaySessions, completedTodayPlanSessionIds],
-    );
-    const completedTodaySessions = useMemo(
-        () => overview.sessions.filter(session => session.workout_date === today && session.completed),
-        [overview.sessions, today],
     );
 
     const loading = overview.isLoading && overview.sessions.length === 0;
@@ -322,18 +322,6 @@ const WorkoutsPage: React.FC = () => {
                                                     </span>
                                                 </div>
                                                 <div className="card-body">
-                                                    {completedTodaySessions.length > 0 && (
-                                                        <section className="workout-today-logged">
-                                                            <h4 className="form-label">Logged today</h4>
-                                                            <SessionList
-                                                                sessions={completedTodaySessions}
-                                                                weekStart={null}
-                                                                weightUnit={weightUnit}
-                                                                onOpen={date => go({ day: date })}
-                                                                onDelete={session => setDeletingLogged(session)}
-                                                            />
-                                                        </section>
-                                                    )}
                                                     {!activeTemplate ? (
                                                         /* No template is not an error state, it is the
                                                            starting position. Both doors are offered because
