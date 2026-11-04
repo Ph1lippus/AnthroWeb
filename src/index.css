@@ -7779,7 +7779,7 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
 .daily-log-form .card {
   background: #ffffff08;
   box-shadow: none;
-  border-radius: 20px;
+  border-radius: 25px;
   padding: 1rem;
 }
 .daily-log-form .card-header {
@@ -9802,7 +9802,7 @@ select.form-control option {
 .daily-score-card {
   background: #ffffff08;
   border-radius: 25px;
-  padding: 1.25rem;
+  padding: 1rem;
   margin-bottom: 1rem;
   text-align: center;
 }

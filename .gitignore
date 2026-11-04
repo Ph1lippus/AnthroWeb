@@ -47,3 +47,8 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+
+# Added by cargo
+
+/target
