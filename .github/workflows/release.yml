@@ -31,14 +31,13 @@ jobs:
 
       - name: Install Frontend Dependencies
         run: npm install
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.https://syanlwgmzusnqpupbeqw.supabase.co }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.sb_publishable_tyE85AB2GFiwCXlXLqvV5A_QYBb83-3}}
 
       # The magic step: It runs "tauri build", compiles everything, and pushes it to GitHub Releases
       - uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SUPABASE_URL: "https://syanlwgmzusnqpupbeqw.supabase.co"
+          VITE_SUPABASE_ANON_KEY: "sb_publishable_tyE85AB2GFiwCXlXLqvV5A_QYBb83-3"
         with:
           tagName: app-v__VERSION__ # Automatically replaces with the version number in your tauri.conf.json
           releaseName: "App v__VERSION__"
