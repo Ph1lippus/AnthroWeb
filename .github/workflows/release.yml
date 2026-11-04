@@ -1,0 +1,43 @@
+name: "Publish Desktop App"
+
+on:
+  push:
+    branches:
+      - main # Triggers the build every time you push to the main branch
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write # Crucial: Allows the action to create the release and upload installers
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest" # Builds the Windows .exe
+          - platform: "macos-latest" # Builds the Mac .dmg
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Rust Stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Frontend Dependencies
+        run: npm install
+
+      # The magic step: It runs "tauri build", compiles everything, and pushes it to GitHub Releases
+      - uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__ # Automatically replaces with the version number in your tauri.conf.json
+          releaseName: "App v__VERSION__"
+          releaseDraft: true
+          prerelease: false
