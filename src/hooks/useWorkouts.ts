@@ -28,6 +28,7 @@ import {
     updateSession,
     startSessionFromPlan,
     completeSessionFromPlan,
+    logSessionForDate,
     setGymForDate,
     clearGymForDate,
     deleteLoggedSession,
@@ -629,6 +630,26 @@ export const useCompleteSessionFromPlan = () => {
         onSuccess: (_result, input) => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
+        },
+    });
+};
+
+/**
+ * Log a session that was built by hand, rather than from a plan.
+ *
+ * The daily log's Gym habit, the heatmap and the Logged list all read
+ * `completed`, so this writes the session, its exercise rows and the habit
+ * together instead of letting the editor's autosave decide.
+ */
+export const useLogSession = () => {
+    const invalidate = useInvalidateWorkouts();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (date: string) => logSessionForDate(date),
+        onSuccess: (_result, date) => {
+            invalidate();
+            qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(date) });
+            qc.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(date) });
         },
     });
 };

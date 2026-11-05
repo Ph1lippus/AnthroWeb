@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import Title from '../Components/Title';
 import { getNightThemeOverride, setNightThemeOverride, type ThemeOverride } from '../hooks/useNightTheme';
 import { RotateCw, Download, Info, ChevronRight } from 'lucide-react';
-import { checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp } from '../services/updateService';
-import type { UpdateInfo } from '../services/updateService';
+import { checkForDesktopUpdate, checkForUpdate, downloadAndInstall, fetchLatestUpdate, getCurrentVersion, isCapacitorApp, isTauriApp } from '../services/updateService';
+import type { DesktopUpdate, UpdateInfo } from '../services/updateService';
 import { useInlineError } from '../Components/Feedback/useNotice';
 
 type CheckStatus = 'idle' | 'checking' | 'up-to-date' | 'available' | 'unavailable';
@@ -15,12 +15,28 @@ const AppPage: React.FC = () => {
     const [checkStatus, setCheckStatus] = useState<CheckStatus>('idle');
     const [checkedUpdate, setCheckedUpdate] = useState<UpdateInfo | null>(null);
     const [installing, setInstalling] = useState(false);
+    const [installProgress, setInstallProgress] = useState(0);
+    const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdate | null>(null);
     const [themeOverride, setThemeOverride] = useState<ThemeOverride>(() => getNightThemeOverride());
     const [, raiseInstallError, clearInstallError] = useInlineError();
 
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
+            if (isTauriApp()) {
+                const [current, update] = await Promise.all([
+                    getCurrentVersion(),
+                    checkForDesktopUpdate().catch(() => null),
+                ]);
+                if (cancelled) return;
+                setCurrentVersion(current);
+                setDesktopUpdate(update);
+                if (update) {
+                    setLatestUpdate({ version: update.version, url: '', notes: update.notes });
+                }
+                setCheckingUpdate(false);
+                return;
+            }
             const [update, current] = await Promise.all([
                 fetchLatestUpdate(),
                 getCurrentVersion(),
@@ -38,6 +54,24 @@ const AppPage: React.FC = () => {
     const handleCheck = async () => {
         setCheckStatus('checking');
         clearInstallError();
+
+        if (isTauriApp()) {
+            try {
+                const found = await checkForDesktopUpdate();
+                setDesktopUpdate(found);
+                const info = found
+                    ? { version: found.version, url: '', notes: found.notes }
+                    : null;
+                if (info) setLatestUpdate(info);
+                setCheckedUpdate(info);
+                setCheckStatus(info ? 'available' : 'up-to-date');
+            } catch {
+                setCheckedUpdate(null);
+                setCheckStatus('unavailable');
+            }
+            return;
+        }
+
         const latest = await fetchLatestUpdate();
         if (!latest) {
             setLatestUpdate(null);
@@ -62,6 +96,20 @@ const AppPage: React.FC = () => {
     };
 
     const handleInstall = async (update?: UpdateInfo) => {
+        if (isTauriApp()) {
+            if (!desktopUpdate) return;
+            setInstalling(true);
+            setInstallProgress(0);
+            clearInstallError();
+            try {
+                await desktopUpdate.install(setInstallProgress);
+            } catch (err) {
+                raiseInstallError(err instanceof Error ? err.message : 'Update failed. Please try again.');
+            } finally {
+                setInstalling(false);
+            }
+            return;
+        }
         const target = update ?? checkedUpdate ?? latestUpdate;
         if (!target) return;
         if (!isCapacitorApp()) {
@@ -160,7 +208,13 @@ const AppPage: React.FC = () => {
                                 disabled={installing}
                             >
                                 <Download />
-                                {installing ? 'Downloading...' : isCapacitorApp() ? 'Update & Install' : 'Download APK'}
+                                {installing
+                                    ? isTauriApp()
+                                        ? `Installing ${installProgress}%`
+                                        : 'Downloading...'
+                                    : isTauriApp() || isCapacitorApp()
+                                        ? 'Update & Install'
+                                        : 'Download APK'}
                             </button>
                         </div>
                     )}

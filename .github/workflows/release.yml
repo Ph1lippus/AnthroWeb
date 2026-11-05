@@ -4,6 +4,21 @@ on:
   push:
     branches:
       - main # Triggers the build every time you push to the main branch
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.1.0). Leave blank to auto-bump from the latest desktop release."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+# One desktop release at a time. Desktop releases use their own `app-v*`
+# version series so they never collide with the Android `v*` tags.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
 
 jobs:
   publish-tauri:
@@ -11,10 +26,21 @@ jobs:
       contents: write # Crucial: Allows the action to create the release and upload installers
     strategy:
       fail-fast: false
+      # The updater manifest is merged by downloading the release's existing
+      # latest.json. Running platforms in parallel would let one build
+      # overwrite the other platform's entry, so build them in sequence.
+      max-parallel: 1
       matrix:
         include:
-          - platform: "windows-latest" # Builds the Windows .exe
-          - platform: "macos-latest" # Builds the Mac .dmg
+          - platform: "windows-latest" # Builds the Windows .exe / .msi
+            target: ""
+            args: ""
+          - platform: "macos-latest" # Apple Silicon
+            target: "aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest" # Intel Macs
+            target: "x86_64-apple-darwin"
+            args: "--target x86_64-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -28,18 +54,99 @@ jobs:
 
       - name: Install Rust Stable
         uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
 
       - name: Install Frontend Dependencies
-        run: npm install
+        run: npm ci
 
-      # The magic step: It runs "tauri build", compiles everything, and pushes it to GitHub Releases
-      - uses: tauri-apps/tauri-action@v0.6
+      # The desktop app carries its own version series, bumped from `app-v*`
+      # tags. A fixed version would make every push reuse the same tag and the
+      # updater would never see a newer build.
+      - name: Determine version
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            RELEASES=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isDraft \
+              --jq '.[] | select(.isDraft == false) | .tagName' || true)
+            TAGS=$(git ls-remote --tags --refs origin 'app-v*' | awk '{print $2}' | sed 's#refs/tags/##' || true)
+            LATEST=$(printf '%s\n%s\n' "$RELEASES" "$TAGS" \
+              | grep -E '^app-v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sed 's/^app-v//' \
+              | sort -V \
+              | tail -n 1 || true)
+            if [ -z "$LATEST" ]; then
+              VERSION="1.0.0"
+            else
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$LATEST"
+              PATCH=$(( ${PATCH:-0} + 1 ))
+              VERSION="$MAJOR.$MINOR.${PATCH}"
+            fi
+            echo "Auto-bumped desktop version to $VERSION (from ${LATEST:-no previous version})"
+          fi
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version '$VERSION'. Expected something like 1.2.3."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set app version
+        shell: bash
+        run: node scripts/set-app-version.mjs "$VERSION"
+
+      # The magic step: It runs "tauri build", compiles everything, signs the
+      # updater bundles, and publishes them to GitHub Releases. Releases are
+      # published (not drafts) so installed apps can see them.
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: "https://syanlwgmzusnqpupbeqw.supabase.co"
           VITE_SUPABASE_ANON_KEY: "sb_publishable_tyE85AB2GFiwCXlXLqvV5A_QYBb83-3"
         with:
-          tagName: app-v__VERSION__ # Automatically replaces with the version number in your tauri.conf.json
-          releaseName: "App v__VERSION__"
-          releaseDraft: true
+          tagName: app-v__VERSION__ # Automatically replaces with the version in tauri.conf.json
+          releaseName: "AnthroWeb Desktop v__VERSION__"
+          releaseBody: "Desktop build. Existing installs update themselves from the App screen."
+          releaseDraft: false
           prerelease: false
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }}
+
+  # The app points at this stable release, so an Android release being the
+  # repository's "latest" can never hide the desktop update manifest.
+  publish-updater-json:
+    needs: publish-tauri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${{ github.repository }}"
+          TAG=$(gh release list --repo "$REPO" --limit 100 --json tagName \
+            --jq '.[].tagName' \
+            | grep -E '^app-v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -n 1)
+          if [ -z "$TAG" ]; then
+            echo "::error::No desktop release found to copy latest.json from."
+            exit 1
+          fi
+          echo "Publishing updater manifest from $TAG"
+
+          rm -rf updater-manifest && mkdir updater-manifest
+          gh release download "$TAG" --repo "$REPO" --pattern latest.json --dir updater-manifest
+
+          if ! gh release view desktop-latest --repo "$REPO" >/dev/null 2>&1; then
+            gh release create desktop-latest --repo "$REPO" \
+              --title "Desktop updater channel" \
+              --notes "Stable pointer used by the desktop in-app updater. Do not delete." \
+              --prerelease
+          fi
+
+          gh release upload desktop-latest updater-manifest/latest.json --repo "$REPO" --clobber

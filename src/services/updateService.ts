@@ -11,8 +11,32 @@ export interface UpdateInfo {
     notes: string;
 }
 
+/**
+ * A desktop update that is already checked and ready to install. The handle
+ * owns the Tauri update object, so it must be closed when the user declines.
+ */
+export interface DesktopUpdate {
+    version: string;
+    notes: string;
+    install: (onProgress?: (percent: number) => void) => Promise<void>;
+    close: () => Promise<void>;
+}
+
+export type AppPlatform = 'android' | 'desktop' | 'web';
+
 export const isCapacitorApp = (): boolean => {
     return Capacitor.isNativePlatform();
+};
+
+export const isTauriApp = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return '__TAURI_INTERNALS__' in window;
+};
+
+export const getAppPlatform = (): AppPlatform => {
+    if (isCapacitorApp()) return 'android';
+    if (isTauriApp()) return 'desktop';
+    return 'web';
 };
 
 const parseVersion = (v: string): number[] => {
@@ -39,6 +63,14 @@ const isNewer = (current: string | null, latest: string): boolean => {
 };
 
 export const getCurrentVersion = async (): Promise<string | null> => {
+    if (isTauriApp()) {
+        try {
+            const { getVersion } = await import('@tauri-apps/api/app');
+            return (await getVersion()) || null;
+        } catch {
+            return null;
+        }
+    }
     if (!isCapacitorApp()) return null;
     try {
         const info = await App.getInfo();
@@ -48,20 +80,52 @@ export const getCurrentVersion = async (): Promise<string | null> => {
     }
 };
 
+interface GitHubAsset {
+    name?: string;
+    browser_download_url?: string;
+}
+
+interface GitHubRelease {
+    tag_name?: string;
+    body?: string;
+    draft?: boolean;
+    prerelease?: boolean;
+    assets?: GitHubAsset[];
+}
+
+/**
+ * Find the newest published release that actually contains an APK.
+ *
+ * This deliberately does not use `/releases/latest`: desktop releases are
+ * published from the same repository, and GitHub's "latest" pointers at the
+ * most recent release of any kind. A desktop release has no APK, so trusting
+ * it would make Android report "no update" even when a newer APK exists.
+ */
 export const fetchLatestUpdate = async (): Promise<UpdateInfo | null> => {
     try {
-        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`);
         if (!res.ok) return null;
-        const data = await res.json();
-        const version = (data.tag_name || '').replace(/^v/i, '');
-        if (!version) return null;
-        const asset = (data.assets || []).find((a: { name: string }) => a.name && a.name.endsWith('.apk'));
-        if (!asset) return null;
-        return {
-            version,
-            url: asset.browser_download_url,
-            notes: data.body || '',
-        };
+        const data: unknown = await res.json();
+        if (!Array.isArray(data)) return null;
+
+        let best: UpdateInfo | null = null;
+        for (const release of data as GitHubRelease[]) {
+            if (release.draft || release.prerelease) continue;
+            const version = (release.tag_name || '').replace(/^v/i, '').trim();
+            if (!version) continue;
+            const asset = (release.assets || []).find(
+                a => a.name?.toLowerCase().endsWith('.apk') && a.browser_download_url,
+            );
+            if (!asset?.browser_download_url) continue;
+            if (!best || isNewer(best.version, version)) {
+                best = {
+                    version,
+                    url: asset.browser_download_url,
+                    notes: release.body || '',
+                };
+            }
+        }
+        return best;
     } catch {
         return null;
     }
@@ -74,6 +138,46 @@ export const checkForUpdate = async (): Promise<{ update: UpdateInfo; current: s
     if (!latest) return null;
     if (!isNewer(current, latest.version)) return null;
     return { update: latest, current };
+};
+
+/**
+ * Ask the Tauri updater whether a newer desktop build exists. Returns null
+ * when the app is already current. Throws when the update endpoint cannot be
+ * reached, so callers can distinguish "up to date" from "check failed".
+ */
+export const checkForDesktopUpdate = async (): Promise<DesktopUpdate | null> => {
+    if (!isTauriApp()) return null;
+
+    const { check } = await import('@tauri-apps/plugin-updater');
+    const update = await check();
+    if (!update) return null;
+
+    return {
+        version: update.version,
+        notes: update.body ?? '',
+        install: async (onProgress) => {
+            let downloaded = 0;
+            let total = 0;
+            await update.downloadAndInstall((event) => {
+                if (event.event === 'Started') {
+                    total = event.data.contentLength ?? 0;
+                    onProgress?.(0);
+                } else if (event.event === 'Progress') {
+                    downloaded += event.data.chunkLength;
+                    if (total > 0) {
+                        onProgress?.(Math.min(99, Math.round((downloaded / total) * 100)));
+                    }
+                } else if (event.event === 'Finished') {
+                    onProgress?.(100);
+                }
+            });
+            const { relaunch } = await import('@tauri-apps/plugin-process');
+            await relaunch();
+        },
+        close: async () => {
+            await update.close();
+        },
+    };
 };
 
 export const downloadAndInstall = async (url: string): Promise<void> => {

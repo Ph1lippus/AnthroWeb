@@ -150,14 +150,15 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                             {onDelete && (
                                 <button
                                     type="button"
-                                    className="book-action-btn book-action-btn--danger"
+                                    className="workout-logged__delete"
                                     aria-label={`Delete ${session.plan_session?.name ?? 'logged session'}`}
+                                    data-tip="Delete session"
                                     onClick={event => {
                                         event.stopPropagation();
                                         onDelete(session);
                                     }}
                                 >
-                                    <Trash2 size={13} />
+                                    <Trash2 size={12} />
                                 </button>
                             )}
                         </div>

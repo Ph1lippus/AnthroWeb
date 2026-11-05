@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AnthroWeb",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "identifier": "com.ph1lippus.anthroweb",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -30,10 +30,22 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "../public/AnthroWeb.png",
       "../public/android-chrome-512x512.png",
       "../public/favicon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA3MEE5MERBNjc1QjU1NEUKUldST1ZWdG4ycEFLQjNsZUxkWCtzVG1rQ0Z0cEc3U1BFTGtRNmRlaC9JVy9KOUNoakZBUm1mT0sK",
+      "endpoints": [
+        "https://github.com/Ph1lippus/AnthroWeb/releases/download/desktop-latest/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

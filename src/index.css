@@ -14865,6 +14865,34 @@ button.workout-ex__empty:hover {
 }
 .workout-logged__chip--today { text-transform: uppercase; letter-spacing: 0.3px; }
 .workout-logged__chevron { opacity: 0.45; }
+/* Icon-only and deliberately quiet: the row's own click target is the header,
+   so a 30px danger circle read as the primary action rather than a last resort. */
+.workout-logged__delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-light);
+  opacity: 0.35;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.workout-logged__delete:hover {
+  opacity: 1;
+  background: #ffffff0a;
+  color: var(--color-danger);
+}
+.workout-logged__delete:focus-visible {
+  outline: 1px solid var(--accent-border);
+  outline-offset: 1px;
+  opacity: 1;
+}
 .workout-logged__body {
   display: flex;
   flex-direction: column;

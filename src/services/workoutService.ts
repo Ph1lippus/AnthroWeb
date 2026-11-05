@@ -955,6 +955,7 @@ export const createSession = async (
             user_id: userId,
             workout_date: input.workout_date,
             workout_template_id: input.workout_template_id ?? null,
+            plan_session_id: input.plan_session_id ?? null,
             ...(input.completed != null ? { completed: input.completed } : {}),
             intensity: input.intensity ?? null,
             body_weight: bodyWeight,
@@ -1070,6 +1071,34 @@ export const completeSessionFromPlan = async (
     if (exerciseError) fail('Could not complete session exercises', exerciseError);
 
     await updateSession(sessionId, { completed: true });
+    await setDailyLogGym(date, true);
+};
+
+/**
+ * Mark a whole session as logged.
+ *
+ * The editor autosaves an in-progress session but deliberately never writes
+ * `completed`, so a hand-built workout would otherwise exist in the database and
+ * still be invisible in the Logged list. This is the explicit door: the header,
+ * every exercise row and the daily log's Gym habit are set together, exactly as
+ * `completeSessionFromPlan` does for a planned session.
+ */
+export const logSessionForDate = async (date: string): Promise<void> => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('Not signed in');
+
+    const session = await getSessionByDate(date);
+    if (!session?.id) throw new Error('There is no session to log');
+
+    await updateSession(session.id, { completed: true });
+
+    const { error } = await supabase
+        .from('workout_exercises_log')
+        .update({ completed: true })
+        .eq('workout_completion_id', session.id)
+        .eq('user_id', userId);
+    if (error) fail('Could not mark session exercises complete', error);
+
     await setDailyLogGym(date, true);
 };
 
@@ -1225,6 +1254,7 @@ const insertSessionExercises = async (
             weight: row.target_weight ?? null,
             duration_minutes: row.target_duration_minutes ?? null,
             distance_km: row.target_distance_km ?? null,
+            cardio_segments: row.cardio_segments?.length ? row.cardio_segments : null,
             notes: row.notes ?? null,
         })),
     );

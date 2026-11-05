@@ -334,8 +334,8 @@ const ExerciseRow: React.FC<ExerciseRowProps & { completed?: boolean }> = ({
                                     </select>
                                     {([
                                         ['Duration', 'duration_minutes', 0.1],
-                                        ['Level / incline / speed', 'level', 0.1],
-                                        ['Pace', 'speed', 0.1],
+                                        ['Level', 'level', 0.1],
+                                        ['Speed', 'speed', 0.1],
                                     ] as const).map(([label, field, step]) => (
                                         <input
                                             key={field}

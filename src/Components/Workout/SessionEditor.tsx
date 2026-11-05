@@ -10,6 +10,7 @@ import {
     useWorkoutPlan,
     useStartSessionFromPlan,
     useCompleteSessionFromPlan,
+    useLogSession,
     usePlanSession,
     useTodaysPlanSessions,
 } from '../../hooks/useWorkouts';
@@ -239,6 +240,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const [newExerciseId, setNewExerciseId] = useState<string | null>(null);
 
     const saveSession = useSaveSession();
+    const logSession = useLogSession();
     // A wrapper rather than a ref forwarded into ExerciseNameInput: that component
     // owns its input ref internally, and reaching the input by query keeps the
     // two components from having to agree on one.
@@ -438,8 +440,8 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                     // "Save progress" button that passed `false`, so saving your work
                     // silently un-completed a day the daily log had already ticked --
                     // which is what made the year chart show a trained day as empty.
-                    // Completing a day is the daily log's Gym habit and nothing else;
-                    // see useSaveSession's note on not defaulting it either.
+                    // Editing only ever saves the draft; the header's "Log session"
+                    // button is the one place that marks the day complete.
                     header: {
                         intensity,
                         duration_minutes: duration.trim() ? parseInt(duration, 10) : null,
@@ -481,6 +483,19 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         }
     }, [enqueue, adoptServerIds, saveSession, date, intensity, duration, notes, activeTemplate, rows]);
 
+    /* Logging is a decision, not a side effect of editing. Saving first means the
+       rows the user is looking at are the rows the Logged list will show, and the
+       service then flips the header, the exercise ticks and the Gym habit
+       together. */
+    const handleLog = useCallback(async () => {
+        try {
+            await handleSave();
+            await logSession.mutateAsync(date);
+        } catch (error) {
+            console.error('Could not log the session:', error);
+        }
+    }, [handleSave, logSession, date]);
+
     const copyWorkout = useCallback(async () => {
         const lines = [
             `Workout: ${date}`,
@@ -507,7 +522,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                 row.hr_max != null ? `HR max: ${row.hr_max}` : '',
                 row.hr_1_min != null ? `HR +1 min: ${row.hr_1_min}` : '',
                 row.hr_2_min != null ? `HR +2 min: ${row.hr_2_min}` : '',
-                row.cardio_segments.length ? `Segments: ${row.cardio_segments.map(segment => `${segment.type}, ${segment.duration_minutes ?? '—'} min, ${segment.speed ?? '—'} speed, HR ${segment.avg_hr ?? '—'}/${segment.max_hr ?? '—'}`).join(' | ')}` : '',
+                row.cardio_segments.length ? `Segments: ${row.cardio_segments.map(segment => `${segment.type}, ${segment.duration_minutes ?? '—'} min, level ${segment.level ?? '—'}, speed ${segment.speed ?? '—'}, HR ${segment.avg_hr ?? '—'}/${segment.max_hr ?? '—'}`).join(' | ')}` : '',
             ].filter(Boolean).join('\n')),
         ].join('\n');
         try {
@@ -592,6 +607,24 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         >
                             <Copy size={12} />
                         </button>
+                        {session?.completed ? (
+                            <span className="workout-chip" style={{ padding: '0.2rem 0.55rem' }}>
+                                <CircleCheck size={11} aria-hidden="true" /> Logged
+                            </span>
+                        ) : session?.id ? (
+                            <button
+                                type="button"
+                                className="btn-action btn-action--primary"
+                                onClick={() => void handleLog()}
+                                disabled={logSession.isPending || saving}
+                                data-tip="Mark this session as logged"
+                            >
+                                {logSession.isPending
+                                    ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                                    : <CircleCheck size={12} />}
+                                {logSession.isPending ? 'Logging…' : 'Log session'}
+                            </button>
+                        ) : null}
                     </div>
                     <div className="card-body">
                         <div className="intensity-head">
@@ -921,6 +954,15 @@ const SessionRow: React.FC<{
                                 <>
                                     {([
                                         ['sk', 'Distance (km)', 'distance_km', 0.1],
+                                        /* Segments carry their own level and speed, so the
+                                           row-level pair is only shown for a single-block
+                                           cardio entry. */
+                                        ...(row.cardio_segments.length === 0
+                                            ? [
+                                                ['lv', 'Level', 'machine_level', 0.1],
+                                                ['sp', 'Speed', 'machine_speed', 0.1],
+                                            ] as const
+                                            : []),
                                         ['sc', 'Calories', 'calories', 1],
                                         ['ha', 'Average HR', 'avg_hr', 1],
                                         ['hm', 'HR max', 'hr_max', 1],
@@ -983,7 +1025,8 @@ const SessionRow: React.FC<{
                                     </select>
                                     {([
                                         ['Duration', 'duration_minutes', 0.1],
-                                        ['Level / incline / speed', 'level', 0.1],
+                                        ['Level', 'level', 0.1],
+                                        ['Speed', 'speed', 0.1],
                                         ['Avg HR', 'avg_hr', 1],
                                         ['Max HR', 'max_hr', 1],
                                     ] as const).map(([label, field, step]) => (
