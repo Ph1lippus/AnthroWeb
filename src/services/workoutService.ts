@@ -986,8 +986,44 @@ export const updateSession = async (
 };
 
 /**
+ * Refresh the body weight for a workout session by reading the latest
+ * weight from body_measurements and updating the session record.
+ *
+ * Useful when weight has been added/changed after a workout was logged,
+ * so the workout display shows the most recent weight.
+ */
+export const refreshSessionWeight = async (sessionId: string): Promise<number | null> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+
+    // Get the latest weight from body_measurements
+    const { data, error: weightError } = await supabase
+        .from('body_measurements')
+        .select('weight')
+        .eq('user_id', userId)
+        .not('weight', 'is', null)
+        .order('measure_date', { ascending: false })
+        .limit(1);
+
+    if (weightError) {
+        console.error('Error fetching latest weight:', weightError.message);
+        return null;
+    }
+
+    const latestWeight = data?.[0]?.weight ?? null;
+
+    // Update the session's body_weight
+    if (latestWeight !== null) {
+        await updateSession(sessionId, { body_weight: latestWeight });
+    }
+
+    return latestWeight;
+};
+
+/**
  * Open a session from the active template's plan for that weekday, without
  * claiming the day was trained.
+ */
  *
  * `planSessionId` is the planned session being followed, when there is one. It is
  * recorded on the log row so that the target intensity the session was written

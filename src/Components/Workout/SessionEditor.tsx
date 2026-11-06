@@ -13,6 +13,7 @@ import {
     useLogSession,
     usePlanSession,
     useTodaysPlanSessions,
+    refreshSessionWeight,
 } from '../../hooks/useWorkouts';
 import type { CardioSegment, CardioSegmentType, WorkoutExerciseLog } from '../../services/workoutService';
 import { useUserSettings } from '../../hooks/useUserSettings';
@@ -597,6 +598,15 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             </button>
                             {formatDayLabel(date)}
                         </h3>
+                        <button
+                            type="button"
+                            className="btn-action"
+                            onClick={() => void refreshSessionWeight(session?.id)}
+                            aria-label="Refresh weight from body measurements"
+                            data-tip="Refresh weight from latest body measurement"
+                        >
+                            <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                        </button>
                         <button
                             type="button"
                             className="btn-action"
