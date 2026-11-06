@@ -1023,7 +1023,6 @@ export const refreshSessionWeight = async (sessionId: string): Promise<number | 
 /**
  * Open a session from the active template's plan for that weekday, without
  * claiming the day was trained.
- */
  *
  * `planSessionId` is the planned session being followed, when there is one. It is
  * recorded on the log row so that the target intensity the session was written
