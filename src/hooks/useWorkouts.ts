@@ -47,6 +47,7 @@ import {
     createCustomExercise,
     updateCustomExercise,
     deleteCustomExercise,
+    refreshSessionWeight,
     type WorkoutTemplate,
     type WorkoutTemplateExercise,
     type WorkoutPlanSession,
@@ -879,3 +880,4 @@ export const useDeleteCustomExercise = () => {
 
 export { DAY_NAMES };
 export type { WorkoutTemplate, WorkoutTemplateExercise, WorkoutCompletionLog, WorkoutExerciseLog, PREntry, PRHistory, SessionWithExercises, NewPR };
+export { refreshSessionWeight };
