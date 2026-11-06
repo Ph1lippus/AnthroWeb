@@ -601,7 +601,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         <button
                             type="button"
                             className="btn-action"
-                            onClick={() => void refreshSessionWeight(session?.id)}
+                            onClick={() => session?.id && void refreshSessionWeight(session!.id)}
                             aria-label="Refresh weight from body measurements"
                             data-tip="Refresh weight from latest body measurement"
                         >
