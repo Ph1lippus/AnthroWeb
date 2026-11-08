@@ -814,6 +814,10 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                         hours: base?.sleep?.hours ?? 8,
                         wake_time: base?.sleep?.wake_time ?? null,
                         bedtime: base?.sleep?.bedtime ?? null,
+                    },
+                    activity: {
+                        steps: base?.activity?.steps ?? null,
+                        phone_usage: base?.activity?.phone_usage ?? null,
                     }
                 } : null;
             }

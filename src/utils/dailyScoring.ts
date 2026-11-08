@@ -12,6 +12,10 @@ export interface ActiveGoals {
         wake_time: string | null;
         bedtime: string | null;
     };
+    activity?: {
+        steps: number | null;
+        phone_usage: number | null;
+    };
 }
 
 export interface MetricScore {

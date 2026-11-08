@@ -18,6 +18,7 @@ import StudyChart from '../Components/Dashboard/StudyChart';
 import WeightLossCards from '../Components/Dashboard/WeightLossCards';
 import LoadingBar from '../Components/LoadingBar';
 import WorkoutTrendChart from '../Components/Dashboard/WorkoutTrendChart';
+import StepsPhoneCharts from '../Components/Dashboard/StepsPhoneCharts';
 
 const DashboardPage: React.FC = () => {
     const queryClient = useQueryClient();
@@ -140,6 +141,7 @@ const DashboardPage: React.FC = () => {
                             range={range}
                             measurements={measurements ?? null}
                         />
+                        <StepsPhoneCharts logs={logs ?? []} />
                     </div>
                     <StudyChart range={range} />
                     <WorkoutTrendChart range={range} />

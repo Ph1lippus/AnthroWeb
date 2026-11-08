@@ -64,6 +64,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const [cheatCeiling, setCheatCeiling] = useState('');
     const [studyDaily, setStudyDaily] = useState('');
     const [studyWeekly, setStudyWeekly] = useState('');
+    const [stepsGoal, setStepsGoal] = useState('');
+    const [phoneUsageGoal, setPhoneUsageGoal] = useState('');
 
     const formatTimeInput = (value: string): string => {
         const numbers = value.replace(/\D/g, '').slice(0, 4);
@@ -115,6 +117,10 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     if (goals.sleep) {
                         setWakeTime(goals.sleep.wake_time || '');
                         setBedtime(goals.sleep.bedtime || '');
+                    }
+                    if (goals.activity) {
+                        setStepsGoal(goals.activity.steps?.toString() || '');
+                        setPhoneUsageGoal(goals.activity.phone_usage?.toString() || '');
                     }
                 }
                 setCheatAllowed(
@@ -205,6 +211,10 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     hours: calculateSleepDuration(),
                     wake_time: wakeTime || null,
                     bedtime: bedtime || null,
+                },
+                activity: {
+                    steps: stepsGoal ? parseInt(stepsGoal, 10) : null,
+                    phone_usage: phoneUsageGoal ? parseInt(phoneUsageGoal, 10) : null,
                 }
             };
             // Saving writes a version effective today rather than overwriting.
@@ -346,6 +356,12 @@ const DailyLogGoalSetupPage: React.FC = () => {
 
                         <div className="form-grid">
                             {renderInput('water', 'Water (ml)', water, setWater, 'number', '2500')}
+                        </div>
+
+                        {/* Activity goals */}
+                        <div className="form-grid">
+                            {renderInput('stepsGoal', 'Steps Goal', stepsGoal, setStepsGoal, 'number', '10000')}
+                            {renderInput('phoneUsageGoal', 'Phone Usage Goal (min)', phoneUsageGoal, setPhoneUsageGoal, 'number', '180')}
                         </div>
 
                         {/* Sleep Goals - wake time drives the bedtime chart's axis,

@@ -10783,7 +10783,6 @@ select.form-control option {
   font-size: clamp(3.5rem, 11vw, 9rem);
 }
 .timer-page-wrapper {
-  transition: padding 0.35s ease;
 }
 
 /* The way out, in the corner of focus mode. Focus hides the mosaic, so the
