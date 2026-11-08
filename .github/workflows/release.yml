@@ -78,12 +78,6 @@ jobs:
           - platform: "windows-latest" # Builds the Windows .exe / .msi
             target: ""
             args: ""
-          - platform: "macos-latest" # Apple Silicon
-            target: "aarch64-apple-darwin"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest" # Intel Macs
-            target: "x86_64-apple-darwin"
-            args: "--target x86_64-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
     steps:

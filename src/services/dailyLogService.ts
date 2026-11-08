@@ -208,6 +208,11 @@ export const createDailyLog = async (log: DailyLog) => {
         reading: log.reading,
         no_sleep: log.no_sleep,
         cheat_day: log.cheat_day,
+        gym: log.gym,
+        cardio: log.cardio,
+        mobility: log.mobility,
+        steps: log.steps,
+        phone_usage: log.phone_usage,
     };
 
     /**

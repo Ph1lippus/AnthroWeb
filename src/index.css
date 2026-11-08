@@ -11729,7 +11729,7 @@ select.form-control option {
   position: fixed;
   inset: 0;
   z-index: var(--z-panel);
-  background: rgba(0, 0, 0, 0.78);
+  background: rgba(0, 0, 0, 1);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;

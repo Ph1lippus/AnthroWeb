@@ -270,10 +270,6 @@ const TimerPage: React.FC = () => {
     });
 
     const saveSession = useSaveSession();
- 
-    // saveCurrentSession is defined after notify below.
-
-    // (moved below, after `notify` is declared)
 
     /**
      * Turning an alarm on and off is an edit, not a different verb.
@@ -447,86 +443,11 @@ const TimerPage: React.FC = () => {
         }
     }, [engine.mode, engine.runId, engine.elapsed, engine.intervalConfig, completedFocusRounds, saveSession, notify]);
 
-    /**
-     * Save a countdown or stopwatch run by hand.
-     *
-     * Interval runs are written block by block above and have nothing left to
-     * save here; a partial focus block is not a session, and resetting discards
-     * it. No note is generated for any of them -- a note written by the timer
-     * would overwrite the one place a person writes what they actually studied.
-     */
-    const saveCurrentSession = useCallback(() => {
-        if (engine.mode === 'interval') return;
-        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : 0;
-        if (elapsedMs <= 0) return;
-        const endedAt = new Date();
-        const minutes = Math.max(1, Math.round(elapsedMs / 60000));
-        saveSession.mutate({
-            user_id: '',
-            session_date: toDateString(endedAt),
-            duration_minutes: minutes,
-            session_type: 'study',
-            mode: engine.mode,
-            source: 'timer',
-            run_key: `${engine.runId ?? 'session'}:manual:${Date.now()}`,
-            started_at: new Date(endedAt.getTime() - elapsedMs).toISOString(),
-            ended_at: endedAt.toISOString(),
-            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
-        }, {
-            onSuccess: () => notify('success', 'Study session saved'),
-        });
-    }, [engine.mode, engine.elapsed, engine.runId, engine.totalMs, notify, saveSession]);
-
-    // Auto-save a finished countdown or stopwatch run (once per run).
-    const savedRunsRef = useRef<Set<string>>(new Set());
-
-    const saveRun = useCallback((runId: string) => {
-        // Interval runs are already written focus block by focus block.
-        if (engine.mode === 'interval') return;
-        const endedAt = new Date();
-        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
-        if (elapsedMs <= 0) return;
-        const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
-        const startedAt = new Date(endedAt.getTime() - elapsedMs);
-
-        saveSession.mutate({
-            user_id: '',
-            session_date: toDateString(endedAt),
-            duration_minutes: elapsedMinutes,
-            session_type: 'study',
-            mode: engine.mode,
-            source: 'timer',
-            run_key: runId,
-            started_at: startedAt.toISOString(),
-            ended_at: endedAt.toISOString(),
-            planned_minutes: engine.mode === 'countdown' ? Math.round(engine.totalMs / 60000) : undefined,
-        }, {
-            onSuccess: () => {
-                notify('success', 'Study session saved');
-            },
-            onError: () => savedRunsRef.current.delete(runId),
-        });
-    }, [engine, notify, saveSession]);
-
-    const finishRun = useCallback(() => {
-        if (engine.mode === 'interval') return;
-        const runId = engine.runId;
-        if (!runId || savedRunsRef.current.has(runId)) return;
-        const elapsedMs = engine.elapsed > 0 ? engine.elapsed : engine.totalMs;
-        if (elapsedMs <= 0) return;
-        savedRunsRef.current.add(runId);
-        saveRun(runId);
-    }, [engine.mode, engine.runId, engine.elapsed, engine.totalMs, saveRun]);
 
     const performReset = useCallback(() => {
-        finishRun();
         engine.reset();
-    }, [finishRun, engine]);
+    }, [engine]);
 
-    useEffect(() => {
-        if (engine.alert?.kind !== 'timeup') return;
-        finishRun();
-    }, [engine.alert, finishRun]);
 
     // ==================== ALARMS + WAKE LOCK ====================
 
@@ -885,17 +806,6 @@ const TimerPage: React.FC = () => {
                                         </button>
                                     )}
 
-                                    {engine.elapsed > 0 && engine.mode !== 'interval' && (
-                                    <button
-                                        type="button"
-                                        className="timer-btn"
-                                        onClick={tap(saveCurrentSession)}
-                                        data-tip="Save session"
-                                        aria-label="Save the current run as a study session"
-                                    >
-                                        Save
-                                    </button>
-                                    )}
 
                                     {canResume && (
                                     <button
