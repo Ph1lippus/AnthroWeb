@@ -1662,6 +1662,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
+                                    {currentGoals?.activity?.steps != null && <ReferenceLine y={currentGoals.activity.steps} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
                                     <Bar dataKey="steps" name="Steps" formatter={(v) => `${num(v)}`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }
@@ -1680,6 +1681,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
+                                    {currentGoals?.activity?.phone_usage != null && <ReferenceLine y={currentGoals.activity.phone_usage} stroke={C.pink} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
                                     <Bar dataKey="phone" name="Phone Usage" formatter={(v) => `${num(v)} min`} fill={C.pink} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }
