@@ -28,7 +28,7 @@ import type { ActiveGoals } from '../../utils/dailyScoring';
 import { BUILTIN_HABITS, BUILTIN_HABIT_COUNT } from '../../utils/dailyScoring';
 import { goalsForDate, parseGoalHistory } from '../../utils/goalHistory';
 import { moodFor } from '../../utils/moodSeries';
-import { addDays } from '../../utils/dates';
+import { addDays, todayString } from '../../utils/dates';
 import { copyCsvToClipboard, downloadCsv } from '../../utils/exportFiles';
 import { useWeightLoss } from '../../hooks/useWeightLoss';
 import { KCAL_PER_KG } from '../../utils/weightLoss';
@@ -840,6 +840,21 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
             });
     }, [logs, range.days, habits, completedByDate, goalsOn]);
 
+    const stepsPhoneData = useMemo(() => {
+        if (range.days === null) {
+            return chartData.map(d => ({ date: d.date, label: d.label, steps: d.steps, phone: d.phone }));
+        }
+        const today = todayString();
+        const map = new Map(chartData.map(d => [d.date, d]));
+        const out: { date: string; label: string; steps: number | null; phone: number | null }[] = [];
+        for (let i = range.days - 1; i >= 0; i--) {
+            const date = addDays(today, -i);
+            const d = map.get(date);
+            out.push({ date, label: fmtDate(date), steps: d?.steps ?? null, phone: d?.phone ?? null });
+        }
+        return out;
+    }, [chartData, range.days]);
+
     /**
      * Weight and body fat, from `body_measurements` only. See
      * `utils/bodySeries.ts` for why the daily log is no longer a second source.
@@ -1633,15 +1648,16 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             }
                         />
 
+                        <div className="metrics-columns">
                         {/* Steps */}
                         <ChartCard
                             title="Steps"
-                            empty={!hasAny('steps')}
+                            empty={!stepsPhoneData.some(d => d.steps != null)}
                             onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-steps-${range.label}.csv`, chartData.map(d => ({ date: d.date, steps: d.steps })))}
-                            onCopy={() => copyChart('Steps', chartData.map(d => ({ date: d.date, steps: d.steps })))}
+                            onExport={() => downloadCsv(`anthroweb-steps-${range.label}.csv`, stepsPhoneData.map(d => ({ date: d.date, steps: d.steps })))}
+                            onCopy={() => copyChart('Steps', stepsPhoneData.map(d => ({ date: d.date, steps: d.steps })))}
                             chart={
-                                <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                <BarChart data={stepsPhoneData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY />
@@ -1654,12 +1670,12 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                         {/* Phone Usage */}
                         <ChartCard
                             title="Phone Usage (min)"
-                            empty={!hasAny('phone')}
+                            empty={!stepsPhoneData.some(d => d.phone != null)}
                             onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-phone-usage-${range.label}.csv`, chartData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
-                            onCopy={() => copyChart('Phone Usage', chartData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
+                            onExport={() => downloadCsv(`anthroweb-phone-usage-${range.label}.csv`, stepsPhoneData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
+                            onCopy={() => copyChart('Phone Usage', stepsPhoneData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
                             chart={
-                                <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                <BarChart data={stepsPhoneData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY />
@@ -1669,6 +1685,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             }
                         />
                     </div>
+                </div>
                 </div>
             )}
 
