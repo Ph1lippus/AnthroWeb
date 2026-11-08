@@ -40,6 +40,7 @@ This was done on purpose: the backing Postgres instance has very little free sto
 - **Body Metrics** - Weight & body fat percentage - These are optional and do not affect the daily score.
 - **Nutrition** - Calories, protein, carbs, fat, water intake
 - **Habits** - Daily habit checklist (routines, reading, coding, journaling, stretching, language study, and more)
+- **Activity** - Daily steps and phone usage (minutes) tracking
 - **Daily Score** - Weighted daily score computed from every metric
 
 ### Weekly Body Measurements
@@ -64,7 +65,7 @@ This was done on purpose: the backing Postgres instance has very little free sto
 ### Dashboards
 - Overview dashboard with score, streaks, and key metrics
 - **Switchable time windows** — 7 days / 30 days / 90 days / All Time, with All Time as the default. The window drives both the insight cards and every chart, so they always describe the same period.
-- **One chart per metric** — calories, protein, carbs, fat, water, weight, body fat, mood, sleep duration, sleep quality, bedtime, wake time, systolic, diastolic, heart rate and body temperature each get their own chart with their own axis, goal line and average. A 200g carb day no longer flattens a 60g fat day onto the same baseline.
+- **One chart per metric** — calories, protein, carbs, fat, water, weight, body fat, mood, sleep duration, sleep quality, bedtime, wake time, systolic, diastolic, heart rate, body temperature, steps and phone usage each get their own chart with their own axis, goal line and average. A 200g carb day no longer flattens a 60g fat day onto the same baseline.
 - **Analysis-friendly axes** — 0–10 rating scales (mood, sleep quality) show all eleven stops, 0–10, so any logged value can be read straight off the chart. Percentage and score scales show 0/20/40/60/80/100. Only genuinely continuous measurements (weight, body temperature) use fractional ticks.
 - **Bedtime & wake time as discrete clock points** — both series share a plain 0–24 clock axis with a shaded night band, and are plotted as individual dots rather than joined by a line, because two clock readings from different nights are not a continuous series. The average line uses a circular mean, so 23:30 and 00:30 average to just after midnight instead of to midnight itself.
 - Correlation charts (e.g. sleep duration vs. next-day score)
@@ -78,6 +79,7 @@ This was done on purpose: the backing Postgres instance has very little free sto
 ### Platform
 - Installable PWA — Can add to home screen
 - Native Android app via Capacitor — side-loaded APK with built-in in-app updates
+- Desktop app (Windows) via Tauri with in-app updates
 - Study timer: a placeholder page in-app, replacing the previous external companion app.
 
 ## Tech Stack
