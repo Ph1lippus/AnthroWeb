@@ -52,6 +52,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
     const [carbs, setCarbs] = useState('');
     const [fat, setFat] = useState('');
     const [water, setWater] = useState('');
+    const [steps, setSteps] = useState('');
+    const [phoneUsage, setPhoneUsage] = useState('');
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
     // Held as a string so an empty box can mean "no limit" rather than 0.
@@ -73,6 +75,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
             setCarbs(toStr(goals?.nutrition?.carbs));
             setFat(toStr(goals?.nutrition?.fat));
             setWater(toStr(goals?.nutrition?.water));
+            setSteps(toStr(goals?.activity?.steps));
+            setPhoneUsage(toStr(goals?.activity?.phone_usage));
             setWakeTime(goals?.sleep?.wake_time ?? '');
             setBedtime(goals?.sleep?.bedtime ?? '');
             setCheatAllowedInput(cheatAllowed != null ? String(cheatAllowed) : '');
@@ -112,6 +116,10 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                     wake_time: wakeTime || null,
                     bedtime: bedtime || null,
                 },
+                activity: {
+                    steps: num(steps),
+                    phone_usage: num(phoneUsage),
+                },
             }, {
                 allowed: parsedCheat === null ? null : Math.trunc(parsedCheat),
                 period: cheatPeriodInput,
@@ -146,6 +154,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                         ['Carbs (g)', carbs, setCarbs],
                         ['Fat (g)', fat, setFat],
                         ['Water (ml)', water, setWater],
+                        ['Steps', steps, setSteps],
+                        ['Phone Usage (min)', phoneUsage, setPhoneUsage],
                     ] as const).map(([label, value, setter]) => (
                         <div key={label}>
                             <label className={LABEL}>{label}</label>
