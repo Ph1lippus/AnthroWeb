@@ -204,6 +204,8 @@ interface ChartPoint {
     goalSleepHours: number | null;
     goalBedtime: number | null;
     goalWakeTime: number | null;
+    goalSteps: number | null;
+    goalPhone: number | null;
 }
 
 interface TooltipEntry {
@@ -388,6 +390,7 @@ const BLANK_POINT: ChartPoint = {
     hasHabitSignal: false,
     goalCalories: null, goalWater: null, goalProtein: null, goalCarbs: null,
     goalFat: null, goalSleepHours: null, goalBedtime: null, goalWakeTime: null,
+    goalSteps: null, goalPhone: null,
 };
 
 /**
@@ -405,7 +408,7 @@ const GoalSegments: React.FC<{
     stroke: string;
     label?: string;
     format?: (v: number) => string;
-}> = ({ points, dataKey }) => {
+}> = ({ points, dataKey, stroke }) => {
     const segments = useMemo(() => {
         // Consecutive real days only: a day with no goal set breaks the line
         // rather than bridging it, so a stretch without a goal doesn't read as
@@ -438,7 +441,7 @@ const GoalSegments: React.FC<{
                         <ReferenceLine
                             key={`${runIndex}-${i}`}
                             segment={[{ x: p.x, y: p.y }, { x: q.x, y: q.y }]}
-                            stroke={C.primary}
+                            stroke={stroke ?? C.primary}
                             strokeDasharray="4 4"
                             strokeOpacity={1}
                             label={undefined}
@@ -836,6 +839,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     // null, which simply hides the line for that day.
                     goalBedtime: lateNight(clockToHours(goalsOn(l.log_date)?.sleep?.bedtime)),
                     goalWakeTime: lateNight(clockToHours(goalsOn(l.log_date)?.sleep?.wake_time)),
+                    goalSteps: goalsOn(l.log_date)?.activity?.steps ?? null,
+                    goalPhone: goalsOn(l.log_date)?.activity?.phone_usage ?? null,
                 };
             });
     }, [logs, range.days, habits, completedByDate, goalsOn]);
@@ -1662,7 +1667,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
-                                    {currentGoals?.activity?.steps != null && <ReferenceLine y={currentGoals.activity.steps} stroke={C.primary} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
+                                    <GoalSegments points={chartData} dataKey="goalSteps" stroke={C.primary} label="Goal" />
                                     <Bar dataKey="steps" name="Steps" formatter={(v) => `${num(v)}`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }
@@ -1681,7 +1686,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                     <ChartX />
                                     <ChartY />
                                     <ChartTip />
-                                    {currentGoals?.activity?.phone_usage != null && <ReferenceLine y={currentGoals.activity.phone_usage} stroke={C.pink} strokeDasharray="4 4" strokeOpacity={0.5} label="Goal" />}
+                                    <GoalSegments points={chartData} dataKey="goalPhone" stroke={C.pink} label="Goal" />
                                     <Bar dataKey="phone" name="Phone Usage" formatter={(v) => `${num(v)} min`} fill={C.pink} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }

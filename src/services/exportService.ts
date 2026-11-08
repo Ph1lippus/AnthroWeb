@@ -24,6 +24,7 @@ const TABLES: TableExportConfig[] = [
             'evening_systolic', 'evening_diastolic', 'evening_bpm', 'body_temperature',
             'daily_score', 'morning_routine', 'evening_routine', 'fruit_serving',
             'studied', 'journal', 'stretching', 'reading', 'no_sleep', 'gym',
+            'cardio', 'mobility', 'steps', 'phone_usage',
             'cheat_day', 'project_work_done',
         ],
     },
