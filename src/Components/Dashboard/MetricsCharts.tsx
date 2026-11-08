@@ -179,6 +179,8 @@ interface ChartPoint {
     carbs: number | null;
     fat: number | null;
     water: number | null;
+    steps: number | null;
+    phone: number | null;
     morningSystolic: number | null;
     morningDiastolic: number | null;
     morningBpm: number | null;
@@ -379,6 +381,7 @@ const BLANK_POINT: ChartPoint = {
     date: '', label: '', score: null, sleepDuration: null, sleepQuality: null,
     bedtime: null, wakeTime: null, morningMood: null, eveningMood: null,
     calories: null, protein: null, carbs: null, fat: null, water: null,
+    steps: null, phone: null,
     morningSystolic: null, morningDiastolic: null, morningBpm: null,
     eveningSystolic: null, eveningDiastolic: null, eveningBpm: null,
     habitPct: null,
@@ -811,6 +814,8 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     carbs: l.carbs ?? null,
                     fat: l.fat ?? null,
                     water: l.water ?? null,
+                    steps: l.steps ?? null,
+                    phone: l.phone_usage ?? null,
                     morningSystolic: l.morning_systolic ?? null,
                     morningDiastolic: l.morning_diastolic ?? null,
                     morningBpm: l.morning_bpm ?? null,
@@ -1624,6 +1629,42 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                         />
                                     )}
                                     <Bar dataKey="pct" name="Done %" formatter={(v) => `${num(v)}%`} fill={C.blue} radius={[0, 3, 3, 0]} barSize={14} isAnimationActive={false} />
+                                </BarChart>
+                            }
+                        />
+
+                        {/* Steps */}
+                        <ChartCard
+                            title="Steps"
+                            empty={!hasAny('steps')}
+                            onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-steps-${range.label}.csv`, chartData.map(d => ({ date: d.date, steps: d.steps })))}
+                            onCopy={() => copyChart('Steps', chartData.map(d => ({ date: d.date, steps: d.steps })))}
+                            chart={
+                                <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Bar dataKey="steps" name="Steps" formatter={(v) => `${num(v)}`} fill={C.primary} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
+                                </BarChart>
+                            }
+                        />
+
+                        {/* Phone Usage */}
+                        <ChartCard
+                            title="Phone Usage (min)"
+                            empty={!hasAny('phone')}
+                            onExpand={openChart}
+                            onExport={() => downloadCsv(`anthroweb-phone-usage-${range.label}.csv`, chartData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
+                            onCopy={() => copyChart('Phone Usage', chartData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
+                            chart={
+                                <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                                    <ChartGrid />
+                                    <ChartX />
+                                    <ChartY />
+                                    <ChartTip />
+                                    <Bar dataKey="phone" name="Phone Usage" formatter={(v) => `${num(v)} min`} fill={C.pink} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }
                         />
