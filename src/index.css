@@ -1,30 +1,59 @@
 @import "tailwindcss";
 
+body.topbar-visible { padding-top: 36px; }
+
 .app-top-bar {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    height: 32px;
+    height: 36px;
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0.75rem;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
+    padding: 0 1rem;
+    background: linear-gradient(180deg, rgba(12, 14, 18, 0.92), rgba(8, 10, 14, 0.88));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px) saturate(1.2);
     -webkit-app-region: drag;
     app-region: drag;
     user-select: none;
 }
-.app-top-bar__title { font-size: 0.75rem; opacity: 0.7; }
-.app-top-bar__controls { display: flex; gap: 0.25rem; -webkit-app-region: no-drag; app-region: no-drag; }
-.app-top-bar__btn {
-    width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
-    border: none; background: transparent; color: inherit; cursor: pointer; border-radius: 4px;
+.app-top-bar__title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    color: var(--color-light);
+    opacity: 0.9;
 }
-.app-top-bar__btn:hover { background: rgba(255,255,255,0.1); }
-.app-top-bar__btn--close:hover { background: rgba(255,90,96,0.6); }
+.app-top-bar__controls {
+    display: flex;
+    gap: 0.15rem;
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+.app-top-bar__btn {
+    width: 30px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.app-top-bar__btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+.app-top-bar__btn--close:hover {
+    background: rgba(255, 90, 96, 0.75);
+    color: #fff;
+}
 
 header {
   /* Positions your header exactly where the old title bar used to be */

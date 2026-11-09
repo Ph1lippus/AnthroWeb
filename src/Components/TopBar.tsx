@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Minus, Square, X } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isTauriApp } from '../services/updateService';
@@ -6,6 +6,11 @@ import { isTauriApp } from '../services/updateService';
 const TopBar: React.FC = () => {
     if (!isTauriApp()) return null;
     const appWindow = getCurrentWindow();
+
+    useEffect(() => {
+        document.body.classList.add('topbar-visible');
+        return () => document.body.classList.remove('topbar-visible');
+    }, []);
 
     return (
         <header className="app-top-bar" data-tauri-drag-region>
