@@ -295,7 +295,7 @@ const useOverviewFrom = (
             sets: session.exercises.reduce((total, row) => total + (row.sets_detail?.length ?? 0), 0),
             volumeKg,
             durationMinutes: session.duration_minutes ?? null,
-            name: session.plan_session?.name ?? null,
+            name: session.name ?? session.plan_session?.name ?? null,
             activityTypes: [...new Set(session.exercises.map(row => row.activity_type))],
         });
         if (session.completed) recent.push(session);

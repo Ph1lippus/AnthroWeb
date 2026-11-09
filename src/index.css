@@ -14531,7 +14531,7 @@ button.workout-ex__empty:hover {
 }
 .exercise-add .workout-ex__field { flex: 1; min-width: 0; }
 textarea.workout-session-notes {
-  min-height: min(60vh, 40rem);
+  min-height: 12rem;
   resize: vertical;
 }
 .exercise-add > .btn-action { flex-shrink: 0; margin-bottom: 0.1rem; }

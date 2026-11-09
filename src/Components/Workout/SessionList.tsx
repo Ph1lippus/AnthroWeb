@@ -120,9 +120,9 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                             aria-expanded={open}
                         >
                             <span className="workout-logged__date">
-                                {session.plan_session?.name && (
+                                {(session.name || session.plan_session?.name) && (
                                     <strong className="workout-logged__session-title">
-                                        {session.plan_session.name}
+                                        {session.name || session.plan_session?.name}
                                     </strong>
                                 )}
                                 <span className="workout-logged__day">{formatDayLabel(session.workout_date)}</span>
