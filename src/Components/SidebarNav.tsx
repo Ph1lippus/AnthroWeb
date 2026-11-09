@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Download, LogOut, Menu, Settings } from 'lucide-react';
+import { isTauriApp } from '../services/updateService';
 import { navItems, isNavItemActive } from '../utils/navItems';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { supabase } from '../services/supabaseClient';
@@ -96,6 +97,9 @@ const SidebarNav: React.FC = () => {
     const showTimer = useRef<number | null>(null);
 
     const [menuOpen, setMenuOpen] = useState(false);
+    const [topBarVisible, setTopBarVisible] = useState(() => {
+        try { return localStorage.getItem('anthroweb:show-top-bar') === '1'; } catch { return false; }
+    });
     const [logoutConfirm, setLogoutConfirm] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
@@ -288,6 +292,22 @@ const SidebarNav: React.FC = () => {
                             <Settings size={15} aria-hidden="true" />
                             Settings
                         </button>
+                        {isTauriApp() && (
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-menu-item"
+                            onClick={() => {
+                                const next = !topBarVisible;
+                                try { localStorage.setItem('anthroweb:show-top-bar', next ? '1' : '0'); } catch { /* ignore */ }
+                                setTopBarVisible(next);
+                                window.dispatchEvent(new Event('anthroweb:topbar-changed'));
+                                setMenuOpen(false);
+                            }}
+                        >
+                            {topBarVisible ? 'Hide top bar' : 'Show top bar'}
+                        </button>
+                        )}
                         <button
                             type="button"
                             role="menuitem"

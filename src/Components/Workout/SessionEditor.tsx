@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Circle, CircleCheck, Copy, Flag, Loader2, Trash2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Check, Copy, Flag, Loader2, Trash2 } from 'lucide-react';
 import SetTable, { SetCounter } from './SetTable';
 import ExerciseNameInput from './ExerciseNameInput';
 import {
     useActiveTemplate,
-    useSessionByDate,
+    useSessionsByDate,
     useSessionExercises,
     useSaveSession,
     useWorkoutPlan,
@@ -13,17 +13,16 @@ import {
     useLogSession,
     usePlanSession,
     useTodaysPlanSessions,
-    refreshSessionWeight,
 } from '../../hooks/useWorkouts';
 import type { CardioSegment, CardioSegmentType, WorkoutExerciseLog } from '../../services/workoutService';
 import { useUserSettings } from '../../hooks/useUserSettings';
-import { formatDayLabel } from '../../utils/dates';
+import { addDays, isDateString } from '../../utils/dates';
+
 import { DAY_NAMES } from '../../utils/workoutStats';
 import {
     detailToRows,
     rowsToDetail,
     parseInputNumber,
-    describeTargets,
     type ActivityType,
     type WorkoutSet,
 } from '../../utils/workoutSets';
@@ -91,7 +90,6 @@ const PlanPreview: React.FC<{
     weekday: number;
     onStarted: () => void;
 }> = ({ date, weekday, onStarted }) => {
-    const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
     const { activeTemplate } = useActiveTemplate();
     const { data: plan = [], isLoading } = useWorkoutPlan(weekday);
     /* Today's planned sessions, so the day can be started from one of them and
@@ -127,16 +125,6 @@ const PlanPreview: React.FC<{
                 </p>
             </div>
 
-            {hasPlan && (
-                <div className="workout-rows" style={{ marginTop: '0.75rem' }}>
-                    {plan.map(row => (
-                        <div className="workout-row" key={row.id}>
-                            <span className="workout-row__name">{row.exercise_name}</span>
-                            <span className="workout-row__value">{describeTargets(row, weightUnit)}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             <div className="plan-preview__actions">
                 {todaysSessions.map(session => {
@@ -185,7 +173,7 @@ const PlanPreview: React.FC<{
                     className="btn-action"
                     disabled={start.isPending}
                     onClick={async () => {
-                        await start.mutateAsync({ date });
+                        await start.mutateAsync({ date, seedPlan: false });
                         onStarted();
                     }}
                 >
@@ -198,6 +186,8 @@ const PlanPreview: React.FC<{
 
 interface SessionEditorProps {
     date: string;
+    /** Edit this specific session when several exist for the day. */
+    sessionId?: string | null;
     /** Close the editor, or step to another day when given one. */
     onNavigate: (date?: string) => void;
 }
@@ -215,13 +205,17 @@ interface SessionEditorProps {
  * rather than a live view of a plan that may since have been rewritten -- and it
  * is why saving here never touches the template.
  */
-const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
+const SessionEditor: React.FC<SessionEditorProps> = ({ date, sessionId, onNavigate }) => {
     const weightUnit = useUserSettings().settings?.weight_unit ?? 'kg';
     const weekday = new Date(`${date}T00:00:00`).getDay();
 
     const { activeTemplate } = useActiveTemplate();
-    const { data: session, isLoading: sessionLoading } = useSessionByDate(date);
+    const { data: sessionsForDate = [], isLoading: sessionsLoading } = useSessionsByDate(date);
+    const session = sessionId
+        ? sessionsForDate.find(item => item.id === sessionId) ?? null
+        : sessionsForDate[0] ?? null;
     const { data: stored, isLoading: exercisesLoading } = useSessionExercises(session?.id);
+    const sessionLoading = sessionsLoading;
     /* The planned session this day was started from, for the target/actual
        comparison below. Read from the log row's own back-reference, so it stays
        correct after the plan is edited. */
@@ -231,6 +225,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const [intensity, setIntensity] = useState(5);
     const [duration, setDuration] = useState('');
     const [notes, setNotes] = useState('');
+    const [sessionName, setSessionName] = useState('');
     const [copied, setCopied] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -294,6 +289,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
         setIntensity(session.intensity ?? 5);
         setDuration(session.duration_minutes?.toString() ?? '');
         setNotes(session.notes ?? '');
+        setSessionName(session.name ?? planSession?.name ?? '');
         setRows((stored ?? []).map(row => ({
             key: draftKey(),
             id: row.id,
@@ -343,7 +339,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         exercise_id: row.exercise_id ?? null,
                         activity_type: row.activity_type,
                         planned: true,
-                        completed: false,
+                        completed: true,
                         sets_detail: row.activity_type === 'strength' ? detailToRows([], 1) : [],
                         cardio_segments: [],
                         duration_minutes: row.target_duration_minutes ?? null,
@@ -436,6 +432,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
             await enqueue(async () => {
                 const result = await saveSession.mutateAsync({
                     date,
+                    sessionId: session?.id ?? null,
                     createIfMissing: true,
                     // `completed` is deliberately absent. This used to be written from a
                     // "Save progress" button that passed `false`, so saving your work
@@ -444,6 +441,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                     // Editing only ever saves the draft; the header's "Log session"
                     // button is the one place that marks the day complete.
                     header: {
+                        name: sessionName.trim() || null,
                         intensity,
                         duration_minutes: duration.trim() ? parseInt(duration, 10) : null,
                         // Null is intentional: an empty note must clear the
@@ -456,7 +454,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         exercise_name: row.exercise_name,
                         exercise_id: row.exercise_id ?? null,
                         activity_type: row.activity_type,
-                        completed: row.completed,
+                        completed: true,
                         sets_detail: rowsToDetail(row.sets_detail),
                         duration_minutes: row.duration_minutes ?? null,
                         distance_km: row.distance_km ?? null,
@@ -482,7 +480,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
             savingRef.current -= 1;
             setSaving(savingRef.current > 0);
         }
-    }, [enqueue, adoptServerIds, saveSession, date, intensity, duration, notes, activeTemplate, rows]);
+    }, [enqueue, adoptServerIds, saveSession, date, session?.id, sessionName, intensity, duration, notes, activeTemplate, rows]);
 
     /* Logging is a decision, not a side effect of editing. Saving first means the
        rows the user is looking at are the rows the Logged list will show, and the
@@ -491,11 +489,11 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
     const handleLog = useCallback(async () => {
         try {
             await handleSave();
-            await logSession.mutateAsync(date);
+            await logSession.mutateAsync({ date, sessionId: session?.id ?? null });
         } catch (error) {
             console.error('Could not log the session:', error);
         }
-    }, [handleSave, logSession, date]);
+    }, [handleSave, logSession, date, session?.id]);
 
     const copyWorkout = useCallback(async () => {
         const lines = [
@@ -587,26 +585,39 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
             <div className="workout-mosaic__col workout-mosaic__days">
                 <div className="card">
                     <div className="card-header">
-                        <h3 className="card-title">
-                            <button
-                                className="btn-action"
-                                style={{ padding: '0.15rem 0.3rem' }}
-                                onClick={() => onNavigate()}
-                                aria-label="Back to workouts"
-                            >
-                                <ChevronLeft size={11} />
-                            </button>
-                            {formatDayLabel(date)}
+                        <h3 className="card-title" style={{ width: '100%' }}>
+                            <div className="daily-log-daynav" style={{ flex: 1 }}>
+                                <button
+                                    type="button"
+                                    className="daily-log-daynav-btn"
+                                    onClick={() => onNavigate(addDays(date, -1))}
+                                    aria-label="Previous day"
+                                >
+                                    <ChevronLeft size={15} />
+                                </button>
+                                <span className="daily-log-daynav-label" style={{ minWidth: '9rem' }}>{date}</span>
+                                <label className="daily-log-daynav-btn" data-tip="Pick a day">
+                                    <Calendar size={14} aria-hidden="true" />
+                                    <span className="sr-only">Pick a day</span>
+                                    <input
+                                        type="date"
+                                        className="daily-log-daynav-input"
+                                        value={date}
+                                        onChange={e => {
+                                            if (isDateString(e.target.value)) onNavigate(e.target.value);
+                                        }}
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    className="daily-log-daynav-btn"
+                                    onClick={() => onNavigate(addDays(date, 1))}
+                                    aria-label="Next day"
+                                >
+                                    <ChevronRight size={15} />
+                                </button>
+                            </div>
                         </h3>
-                        <button
-                            type="button"
-                            className="btn-action"
-                            onClick={() => session?.id && void refreshSessionWeight(session!.id)}
-                            aria-label="Refresh weight from body measurements"
-                            data-tip="Refresh weight from latest body measurement"
-                        >
-                            <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                        </button>
                         <button
                             type="button"
                             className="btn-action"
@@ -619,7 +630,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                         </button>
                         {session?.completed ? (
                             <span className="workout-chip" style={{ padding: '0.2rem 0.55rem' }}>
-                                <CircleCheck size={11} aria-hidden="true" /> Logged
+                                Logged
                             </span>
                         ) : session?.id ? (
                             <button
@@ -631,12 +642,24 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                             >
                                 {logSession.isPending
                                     ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-                                    : <CircleCheck size={12} />}
+                                    : <Check size={12} />}
                                 {logSession.isPending ? 'Logging…' : 'Log session'}
                             </button>
                         ) : null}
                     </div>
                     <div className="card-body">
+                        <div className="workout-ex__field" style={{ marginBottom: '0.6rem' }}>
+                            <label className="form-label" htmlFor="session-name">Session name</label>
+                            <input
+                                id="session-name"
+                                type="text"
+                                className="form-control"
+                                value={sessionName}
+                                placeholder="Session name"
+                                onChange={event => setSessionName(event.target.value)}
+                                onBlur={scheduleSave}
+                            />
+                        </div>
                         <div className="intensity-head">
                             <label className="form-label" htmlFor="session-actual-intensity">
                                 How hard it was
@@ -772,7 +795,7 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                         exercise_id: newExerciseId,
                                         activity_type: newType,
                                         planned: false,
-                                        completed: false,
+                                        completed: true,
                                         sets_detail: detailToRows([], 1),
                                         cardio_segments: [],
                                     },
@@ -812,11 +835,6 @@ const SessionEditor: React.FC<SessionEditorProps> = ({ date, onNavigate }) => {
                                 daily log's Gym habit is the only thing that decides
                                 whether a day counts as trained -- so there is nothing
                                 left here for a button to decide. */}
-                            {saving && (
-                                <span className="form-label">
-                                    <Loader2 size={11} className="mr-1" />Saving
-                                </span>
-                            )}
                             {!saving && saved && <span className="workout-chip">saved</span>}
                             {!saving && !saved && (
                                 <span className="form-label" style={{ marginLeft: 'auto' }}>
@@ -851,32 +869,15 @@ const SessionRow: React.FC<{
                 className="collapse-head"
                 role="button"
                 tabIndex={0}
-                aria-expanded={open && row.completed}
-                onClick={() => row.completed && setOpen(current => !current)}
+                aria-expanded={open}
+                onClick={() => setOpen(current => !current)}
                 onKeyDown={event => {
-                    if ((event.key === 'Enter' || event.key === ' ') && row.completed) {
+                    if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
                         setOpen(current => !current);
                     }
                 }}
             >
-                <button
-                    type="button"
-                    className="btn-action"
-                    style={{ padding: '0.2rem 0.35rem' }}
-                    aria-pressed={row.completed}
-                    aria-label={row.completed
-                        ? `Mark ${row.exercise_name} as not done`
-                        : `Mark ${row.exercise_name} as done`}
-                    onClick={event => {
-                        event.stopPropagation();
-                        onChange({ ...row, completed: !row.completed });
-                    }}
-                >
-                    {row.completed
-                        ? <CircleCheck size={13} style={{ color: 'var(--color-primary)' }} />
-                        : <Circle size={13} style={{ opacity: 0.4 }} />}
-                </button>
                 <span className="collapse-head__text">
                     <span className="semester-title" style={{ color: 'var(--color-light)' }}>
                         {row.exercise_name}
@@ -905,16 +906,14 @@ const SessionRow: React.FC<{
                         aria-label={`Remove ${row.exercise_name}`}
                         onClick={event => {
                             event.stopPropagation();
-                            onChange({ ...row, exercise_name: '', completed: false });
+                            onChange({ ...row, exercise_name: '', completed: true });
                         }}
                     >
                         <Trash2 size={12} />
                     </button>
-                    {row.completed && (
-                        <span className="collapse-chevron" aria-hidden="true">
-                            <ChevronLeft size={15} />
-                        </span>
-                    )}
+                    <span className="collapse-chevron" aria-hidden="true">
+                        <ChevronLeft size={15} />
+                    </span>
                 </span>
             </div>
 

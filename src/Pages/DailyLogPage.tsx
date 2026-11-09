@@ -1911,7 +1911,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                                 className={"scored-input" + (steps ? '' : ' scored-input--empty')}
                                                 placeholder=" "
                                             />
-                                            <label className="scored-input-label">Steps <span className="scored-input-goal-inline">10,000</span></label>
+                                            <label className="scored-input-label">Steps <span className="scored-input-goal-inline">{activeGoals?.activity?.steps ?? 10000}</span></label>
                                         </div>
                                     </div>
                                     <div className="flex flex-col">
@@ -1925,7 +1925,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                                 className={"scored-input" + (phoneUsage ? '' : ' scored-input--empty')}
                                                 placeholder=" "
                                             />
-                                            <label className="scored-input-label">Phone Usage (min) <span className="scored-input-goal-inline">180</span></label>
+                                            <label className="scored-input-label">Phone Usage (min) <span className="scored-input-goal-inline">{activeGoals?.activity?.phone_usage ?? 180}</span></label>
                                         </div>
                                     </div>
                                 </div>

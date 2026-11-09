@@ -1,5 +1,7 @@
 import React, { lazy, Suspense, useDeferredValue, useEffect } from 'react';
 import SidebarNav from './Components/SidebarNav'
+import TopBar from './Components/TopBar'
+import { isTauriApp } from './services/updateService'
 import ProtectedRoute from './Components/ProtectedRoute'
 import TipLayer from './Components/TooltipLayer'
 import MobileNavbar from './Components/MobileNavbar'
@@ -175,6 +177,16 @@ const BootHandoff: React.FC = () => {
  */
 const AuthenticatedApp: React.FC = () => {
     const { resolved } = useAuthSession();
+    const [showTopBar, setShowTopBar] = React.useState(() => {
+        try { return localStorage.getItem('anthroweb:show-top-bar') === '1'; } catch { return false; }
+    });
+    React.useEffect(() => {
+        const handler = () => {
+            try { setShowTopBar(localStorage.getItem('anthroweb:show-top-bar') === '1'); } catch { /* ignore */ }
+        };
+        window.addEventListener('anthroweb:topbar-changed', handler);
+        return () => window.removeEventListener('anthroweb:topbar-changed', handler);
+    }, []);
     const queryClient = useQueryClient();
     const location = useLocation();
     // Keep the currently rendered route visible while a newly selected lazy
@@ -213,6 +225,7 @@ const AuthenticatedApp: React.FC = () => {
 
     return (
         <>
+            {showTopBar && isTauriApp() && <TopBar />}
             <SidebarNav />
             <MobileNavbar />
             {/* Mounted once, here, because it works by delegation: any element

@@ -103,6 +103,7 @@ export interface WorkoutCompletionLog {
     id?: string;
     user_id?: string;
     workout_date: string;
+    name?: string | null;
     workout_template_id?: string | null;
     /** Which planned session this day followed, so target and actual can be compared. */
     plan_session_id?: string | null;
@@ -832,21 +833,26 @@ export const reorderPlanSessions = async (
 // ---------------------------------------------------------------------------
 
 export const getSessionByDate = async (date: string): Promise<WorkoutCompletionLog | null> => {
+    const sessions = await getSessionsByDate(date);
+    return sessions[0] ?? null;
+};
+
+export const getSessionsByDate = async (date: string): Promise<WorkoutCompletionLog[]> => {
     const userId = await getCurrentUserId();
-    if (!userId) return null;
+    if (!userId) return [];
 
     const { data, error } = await supabase
         .from('workout_completion_log')
         .select('*')
         .eq('user_id', userId)
         .eq('workout_date', date)
-        .maybeSingle();
+        .order('created_at', { ascending: true });
 
     if (error) {
-        console.error('Error fetching session:', error.message);
-        return null;
+        console.error('Error fetching sessions:', error.message);
+        return [];
     }
-    return (data as WorkoutCompletionLog) ?? null;
+    return (data as WorkoutCompletionLog[]) ?? [];
 };
 
 export const getSessionExercises = async (completionId: string): Promise<WorkoutExerciseLog[]> => {
@@ -1040,38 +1046,18 @@ export const refreshSessionWeight = async (sessionId: string): Promise<number | 
 export const startSessionFromPlan = async (
     date: string,
     planSessionId?: string | null,
+    options?: { seedPlan?: boolean },
 ): Promise<{ sessionId: string; seeded: number }> => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
 
-    // Check for existing session first. A date may contain more than one planned
-    // session (for example two mobility routines), so an existing completion is
-    // not a reason to discard the newly selected plan.
-    const existing = await getSessionByDate(date);
-    if (existing?.id) {
-        const currentExercises = await getSessionExercises(existing.id);
-        const weekday = new Date(`${date}T00:00:00`).getDay();
-        const plan = planSessionId
-            ? await getPlanForSession(planSessionId)
-            : currentExercises.length === 0
-                ? await getPlanForDay(weekday)
-                : [];
-        const existingTemplateExercises = new Set(
-            currentExercises.map(exercise => exercise.template_exercise_id).filter(Boolean),
-        );
-        const missing = plan.filter(exercise =>
-            !exercise.id || !existingTemplateExercises.has(exercise.id),
-        );
-        if (missing.length) {
-            await insertSessionExercises(existing.id, missing, currentExercises.length);
-        }
-        return { sessionId: existing.id, seeded: currentExercises.length };
-    }
-
     const weekday = new Date(`${date}T00:00:00`).getDay();
-    const plan = planSessionId
-        ? await getPlanForSession(planSessionId)
-        : await getPlanForDay(weekday);
+    const seedPlan = options?.seedPlan !== false;
+    const plan = seedPlan
+        ? (planSessionId
+            ? await getPlanForSession(planSessionId)
+            : await getPlanForDay(weekday))
+        : [];
     const created = await createSession({
         workout_date: date,
         completed: false,
@@ -1118,11 +1104,13 @@ export const completeSessionFromPlan = async (
  * every exercise row and the daily log's Gym habit are set together, exactly as
  * `completeSessionFromPlan` does for a planned session.
  */
-export const logSessionForDate = async (date: string): Promise<void> => {
+export const logSessionForDate = async (date: string, sessionId?: string | null): Promise<void> => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('Not signed in');
 
-    const session = await getSessionByDate(date);
+    const session = sessionId
+        ? { id: sessionId } as WorkoutCompletionLog
+        : await getSessionByDate(date);
     if (!session?.id) throw new Error('There is no session to log');
 
     await updateSession(session.id, { completed: true });
@@ -1429,7 +1417,7 @@ export const saveSessionExercises = async (
             .eq('user_id', userId)
             .eq('workout_completion_id', sessionId);
         const existingNames = new Set(
-            (alreadyLogged ?? []).map((r: any) => r.exercise_name.trim().toLowerCase()),
+            (alreadyLogged ?? []).map((r: { exercise_name: string }) => r.exercise_name.trim().toLowerCase()),
         );
         const uniqueInserts = inserts.filter(
             row => !existingNames.has(row.exercise_name.trim().toLowerCase()),

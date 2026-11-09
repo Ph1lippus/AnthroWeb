@@ -22,6 +22,7 @@ import {
     reorderTemplateExercises,
     reorderPlanSessions,
     getSessionByDate,
+    getSessionsByDate,
     getSessionExercises,
     getSessionsWithExercises,
     createSession,
@@ -160,6 +161,13 @@ export const useSessionByDate = (date: string, enabled = true) =>
     useQuery({
         queryKey: queryKeys.workoutLogByDate(date),
         queryFn: () => getSessionByDate(date),
+        enabled: !!date && enabled,
+    });
+
+export const useSessionsByDate = (date: string, enabled = true) =>
+    useQuery({
+        queryKey: [...queryKeys.workoutLogByDate(date), 'all'],
+        queryFn: () => getSessionsByDate(date),
         enabled: !!date && enabled,
     });
 
@@ -613,8 +621,8 @@ export const useStartSessionFromPlan = () => {
     const invalidate = useInvalidateWorkouts();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (input: { date: string; planSessionId?: string | null }) =>
-            startSessionFromPlan(input.date, input.planSessionId),
+        mutationFn: (input: { date: string; planSessionId?: string | null; seedPlan?: boolean }) =>
+            startSessionFromPlan(input.date, input.planSessionId, { seedPlan: input.seedPlan }),
         onSuccess: (_result, input) => {
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(input.date) });
@@ -646,8 +654,13 @@ export const useLogSession = () => {
     const invalidate = useInvalidateWorkouts();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (date: string) => logSessionForDate(date),
-        onSuccess: (_result, date) => {
+        mutationFn: (input: string | { date: string; sessionId?: string | null }) => {
+            const date = typeof input === 'string' ? input : input.date;
+            const sessionId = typeof input === 'string' ? null : input.sessionId ?? null;
+            return logSessionForDate(date, sessionId);
+        },
+        onSuccess: (_result, input) => {
+            const date = typeof input === 'string' ? input : input.date;
             invalidate();
             qc.invalidateQueries({ queryKey: queryKeys.workoutLogByDate(date) });
             qc.invalidateQueries({ queryKey: queryKeys.dailyLogByDate(date) });
@@ -686,6 +699,7 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
     return useMutation({
         mutationFn: async (input: {
             date: string;
+            sessionId?: string | null;
             header: Partial<Omit<WorkoutCompletionLog, 'id' | 'user_id' | 'workout_date'>>;
             exercises: Array<{
                 id?: string;
@@ -712,7 +726,7 @@ export const useSaveSession = (onNewPRs?: (prs: NewPR[]) => void) => {
             /** Insert any session that does not exist yet. */
             createIfMissing?: boolean;
         }): Promise<SaveSessionResult> => {
-            let sessionId = (await getSessionByDate(input.date))?.id;
+            let sessionId = input.sessionId ?? (await getSessionByDate(input.date))?.id;
             const latestWeight = await getLatestWeightForMeasurement();
             const header = {
                 ...input.header,

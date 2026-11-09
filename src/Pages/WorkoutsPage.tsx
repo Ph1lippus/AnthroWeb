@@ -452,6 +452,7 @@ const WorkoutsPage: React.FC = () => {
                                                         weekStart={loggedScope === 'all' ? null : loggedWeekStart}
                                                         weightUnit={weightUnit}
                                                         onOpen={date => go({ day: date })}
+                                                        onCreate={() => go({ day: today })}
                                                         onDelete={session => setDeletingLogged(session)}
                                                     />
                                                 </div>

@@ -32,7 +32,7 @@ const isGoalObject = (value: unknown): value is ActiveGoals => {
     const g = value as Partial<ActiveGoals>;
     // Tolerate a partial blob rather than dropping the version: an old row that
     // only recorded `water` still tells us what the water goal was that day.
-    return typeof g.nutrition === 'object' || typeof g.sleep === 'object';
+    return typeof g.nutrition === 'object' || typeof g.sleep === 'object' || typeof g.activity === 'object';
 };
 
 /**
@@ -65,6 +65,10 @@ export const parseGoalHistory = (raw: unknown): GoalVersion[] => {
                     hours: candidate.goals.sleep?.hours ?? null,
                     wake_time: candidate.goals.sleep?.wake_time ?? null,
                     bedtime: candidate.goals.sleep?.bedtime ?? null,
+                },
+                activity: {
+                    steps: candidate.goals.activity?.steps ?? null,
+                    phone_usage: candidate.goals.activity?.phone_usage ?? null,
                 },
             },
         });
@@ -140,7 +144,7 @@ export const resolveGoalsForDay = (options: {
     if (isDateString(date) && date === today) return fromHistory();
 
     const record = snapshot as ActiveGoals | undefined;
-    if (record && (record.nutrition || record.sleep)) return record;
+    if (record && (record.nutrition || record.sleep || record.activity)) return record;
 
     return fromHistory();
 };

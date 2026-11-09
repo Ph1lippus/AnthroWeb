@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Flame, Timer, CircleCheck, Trash2 } from 'lucide-react';
+import { ChevronDown, Dumbbell, HeartPulse, PersonStanding, Flame, Timer, Trash2 } from 'lucide-react';
 import { formatWeight, type WeightUnit } from '../../utils/units';
 import { addDays, formatDayLabel } from '../../utils/dates';
 import { ACTIVITY_LABELS, type ActivityType } from '../../utils/workoutSets';
@@ -32,6 +32,7 @@ interface SessionListProps {
     weekStart?: string | null;
     weightUnit: WeightUnit;
     onOpen: (date: string) => void;
+    onCreate?: () => void;
     onDelete?: (session: SessionWithExercises) => void;
 }
 
@@ -52,7 +53,7 @@ interface SessionListProps {
  * template it came from, so a template edited since cannot change what this says
  * you did.
  */
-const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, weightUnit, onOpen, onDelete }) => {
+const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, weightUnit, onOpen, onCreate, onDelete }) => {
     const [openSession, setOpenSession] = useState<string | null>(null);
     const inWeek = useMemo(() => {
         const weekEnd = weekStart ? addDays(weekStart, 6) : null;
@@ -63,6 +64,16 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                     : session.workout_date >= weekStart! && session.workout_date <= weekEnd)
             .sort((a, b) => b.workout_date.localeCompare(a.workout_date));
     }, [sessions, weekStart]);
+
+    const grouped = useMemo(() => {
+        const map = new Map<string, SessionWithExercises[]>();
+        for (const session of inWeek) {
+            const list = map.get(session.workout_date);
+            if (list) list.push(session);
+            else map.set(session.workout_date, [session]);
+        }
+        return [...map.entries()];
+    }, [inWeek]);
 
     if (inWeek.length === 0) {
         return (
@@ -81,11 +92,16 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
 
     return (
         <div className="workout-logged">
-            {inWeek.map(session => {
-                const open = openSession === session.id;
-                const done = session.exercises.filter(row => row.completed).length;
+            {grouped.map(([date, sessions]) => (
+                <React.Fragment key={date}>
+                    {sessions.length > 1 && (
+                        <div className="workout-logged__day-group">{formatDayLabel(date)}</div>
+                    )}
+                    {sessions.map(session => {
+                        const open = openSession === session.id;
+                        const done = session.exercises.filter(row => row.completed).length;
 
-                return (
+                        return (
                     <div
                         key={session.id}
                         className={`workout-logged__row ${open ? 'workout-logged__row--open' : ''}`}
@@ -114,10 +130,6 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                             </span>
 
                             <span className="workout-logged__chips">
-                                <span className="workout-logged__chip workout-logged__chip--done">
-                                    <CircleCheck size={10} aria-hidden="true" />
-                                    done
-                                </span>
                                 <span className="workout-logged__chip">
                                     <Dumbbell size={10} aria-hidden="true" />
                                     {done} {done === 1 ? 'exercise' : 'exercises'}
@@ -207,7 +219,16 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, weekStart = null, w
                         )}
                     </div>
                 );
-            })}
+                    })}
+                </React.Fragment>
+            ))}
+            {onCreate && (
+                <div className="workout-ex__actions" style={{ marginTop: '0.75rem' }}>
+                    <button type="button" className="btn-action btn-action--primary" onClick={onCreate}>
+                        Create session
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
