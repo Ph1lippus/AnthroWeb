@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sunrise, Moon } from 'lucide-react';
+import { Sunrise, Sun, Moon } from 'lucide-react';
 import { moodFor, moodColor, moodLabel } from '../../utils/moodSeries';
 import type { MoodSlot, MoodBearing } from '../../utils/moodSeries';
 
@@ -81,7 +81,7 @@ export const MoodScale: React.FC<MoodScaleProps> = ({ slot, value, onChange, lab
             {/* Stated for anyone not looking at the colours, and for a screen
                 reader, which gets the same sentence as everyone else. */}
             <span className="sr-only" aria-live="polite">
-                {slot === 'morning' ? 'Morning' : 'Evening'} mood: {moodLabel(value)}
+                {slot === 'morning' ? 'Morning' : slot === 'midday' ? 'Midday' : 'Evening'} mood: {moodLabel(value)}
             </span>
         </div>
     );
@@ -105,6 +105,7 @@ interface MoodReadoutProps {
 export const MoodReadout: React.FC<MoodReadoutProps> = ({ log, linkTo }) => {
     const slots: Array<{ slot: MoodSlot; label: string; Icon: typeof Sunrise }> = [
         { slot: 'morning', label: 'AM', Icon: Sunrise },
+        { slot: 'midday', label: 'MD', Icon: Sun },
         { slot: 'evening', label: 'PM', Icon: Moon },
     ];
 

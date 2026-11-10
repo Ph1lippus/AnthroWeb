@@ -57,6 +57,7 @@ const JournalPage: React.FC = () => {
      * trip later. The autosave below is what makes it durable.
      */
     const [morningMood, setMorningMood] = useState<number | null>(null);
+    const [middayMood, setMiddayMood] = useState<number | null>(null);
     const [eveningMood, setEveningMood] = useState<number | null>(null);
     const [focusMode, setFocusMode] = useState(false);
 
@@ -198,16 +199,19 @@ const JournalPage: React.FC = () => {
             setIsEditing(true);
             setJournalDocument(parseJournalDocument(dayLog.journal_entry, {
                 morning: dayLog.journal_morning ?? '',
+                midday: '',
                 evening: dayLog.journal_evening ?? '',
                 links: dayLog.journal_links ?? [],
             }));
             setMorningMood(moodFor(dayLog, 'morning'));
+            setMiddayMood(moodFor(dayLog, 'midday'));
             setEveningMood(moodFor(dayLog, 'evening'));
         } else {
             setExistingLog(null);
             setIsEditing(false);
             setJournalDocument(parseJournalDocument());
             setMorningMood(null);
+            setMiddayMood(null);
             setEveningMood(null);
         }
         // A different day is a different entry, so the tip from last night's
@@ -280,7 +284,7 @@ const JournalPage: React.FC = () => {
         // A rating on its own is worth keeping even with no prose: setting a mood
         // and writing nothing are two different intentions, and only the second
         // one should be skipped.
-        const hasRating = morningMood !== null || eveningMood !== null;
+        const hasRating = morningMood !== null || middayMood !== null || eveningMood !== null;
         if (!isEditing && !journalText && !hasRating) return;
 
         // setSaving(true);
@@ -296,6 +300,7 @@ const JournalPage: React.FC = () => {
                 // each half of the writing precisely because that is where the
                 // morning and the evening actually are.
                 morning_mood: morningMood,
+                midday_mood: middayMood,
                 evening_mood: eveningMood,
                 // Writing an entry ticks the "Journaled" habit for this day, so
                 // the habit charts and the daily score agree with the fact that
@@ -343,7 +348,7 @@ const JournalPage: React.FC = () => {
         } finally {
             // setSaving(false);
         }
-    }, [settings, logDate, appliedDate, journalDocument, morningMood, eveningMood, isEditing, existingLog, queryClient]);
+    }, [settings, logDate, appliedDate, journalDocument, morningMood, middayMood, eveningMood, isEditing, existingLog, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -386,7 +391,7 @@ const JournalPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [journalDocument, morningMood, eveningMood, performSave, settings]);
+    }, [journalDocument, morningMood, middayMood, eveningMood, performSave, settings]);
 
     /**
      * Write the pending entry on the way out, instead of dropping it.
@@ -558,7 +563,11 @@ const JournalPage: React.FC = () => {
                             <JournalBreakdown
                                 document={journalDocument}
                                 morningMood={morningMood}
+                                middayMood={middayMood}
                                 eveningMood={eveningMood}
+                                onMorningMood={setMorningMood}
+                                onMiddayMood={setMiddayMood}
+                                onEveningMood={setEveningMood}
                                 dateLabel={formatDayLabel(logDate)}
                                 expanded={breakdownOpen}
                             />
@@ -593,10 +602,6 @@ const JournalPage: React.FC = () => {
                                     key={appliedDate}
                                     value={journalDocument}
                                     onChange={setJournalDocument}
-                                    morningMood={morningMood}
-                                    eveningMood={eveningMood}
-                                    onMorningMood={setMorningMood}
-                                    onEveningMood={setEveningMood}
                                     focusMode={focusMode}
                                 />
                             </div>

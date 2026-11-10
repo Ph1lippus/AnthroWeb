@@ -42,7 +42,7 @@ const DailyLogHistoryPage: React.FC = () => {
         if (log.wake_time) chips.push({ label: 'Wake', value: log.wake_time });
         if (log.bedtime) chips.push({ label: 'Bed', value: log.bedtime });
         if (log.sleep_duration) chips.push({ label: 'Sleep', value: `${log.sleep_duration}h` });
-        if (log.sleep_quality != null) chips.push({ label: 'Sleep Q', value: `${log.sleep_quality}/10` });
+        if (log.morning_feel != null) chips.push({ label: 'Morning Feel', value: `${log.morning_feel}/10` });
         if (log.morning_systolic && log.morning_diastolic) chips.push({ label: 'AM BP', value: `${log.morning_systolic}/${log.morning_diastolic}` });
         if (log.evening_systolic && log.evening_diastolic) chips.push({ label: 'PM BP', value: `${log.evening_systolic}/${log.evening_diastolic}` });
         if (log.morning_bpm) chips.push({ label: 'AM BPM', value: String(log.morning_bpm) });
@@ -73,6 +73,8 @@ const DailyLogHistoryPage: React.FC = () => {
         // than as a zero pulling the pair down.
         const am = moodFor(log, 'morning');
         if (am !== null) chips.push({ label: 'AM Mood', value: `${am}/10` });
+        const md = moodFor(log, 'midday');
+        if (md !== null) chips.push({ label: 'MD Mood', value: `${md}/10` });
         const pm = moodFor(log, 'evening');
         if (pm !== null) chips.push({ label: 'PM Mood', value: `${pm}/10` });
         const habits = BUILTIN_HABITS.filter(h => (log as unknown as Record<string, unknown>)[h.column]).length;

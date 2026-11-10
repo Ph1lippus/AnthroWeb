@@ -183,7 +183,7 @@ export const calculateMetricScore = (
             return { score: Math.max(0, Math.round(100 - (diff / tolerance) * 100)), logged: true };
         }
 
-        case 'sleepQuality': {
+        case 'morningFeel': {
             const sq = parseInt(value as string);
             if (isNaN(sq)) return { score: 0, logged: false };
             // Sleep quality is a subjective 0-10 rating that maps linearly to
@@ -259,9 +259,11 @@ export const getInputScore = (
  * Unrated on both sides is `logged: false`, which is what keeps mood out of the
  * ring's denominator entirely instead of scoring it a zero.
  */
-export const moodMetricScore = (morning: string, evening: string): MetricScore => {
+export const moodMetricScore = (...args: string[]): MetricScore => {
+    const [morning, middayOrEvening, evening] =
+        args.length >= 3 ? args : [args[0] ?? '', '', args[1] ?? ''];
     const rated: number[] = [];
-    for (const raw of [morning, evening]) {
+    for (const raw of [morning, middayOrEvening, evening]) {
         if (raw === null || raw === undefined || raw === '') continue;
         const m = parseInt(raw as string);
         if (isNaN(m)) continue;
@@ -337,7 +339,8 @@ export type BuiltinHabitKey = (typeof BUILTIN_HABITS)[number]['key'];
 export interface DailyScoringInput {
     wakeTime: string;
     bedtime: string;
-    sleepQuality: string;
+    morningFeel: string;
+    middayMood?: string;
     morningSystolic: string;
     morningDiastolic: string;
     morningBpm: string;
@@ -477,7 +480,7 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
     const metrics: Record<string, MetricScore> = {
         wakeTime: sleep(getInputScore('wakeTime', input.wakeTime, activeGoals)),
         bedtime: sleep(getInputScore('bedtime', input.bedtime, activeGoals)),
-        sleepQuality: sleep(calculateMetricScore('sleepQuality', input.sleepQuality, settings)),
+        morningFeel: sleep(calculateMetricScore('morningFeel', input.morningFeel, settings)),
         morningSystolic: calculateMetricScore('morningSystolic', input.morningSystolic, settings),
         morningDiastolic: calculateMetricScore('morningDiastolic', input.morningDiastolic, settings),
         morningBpm: calculateMetricScore('morningBpm', input.morningBpm, settings),
@@ -522,7 +525,7 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         // Where the split itself is the information -- the journal sliders, the
         // mind graph, the dashboard's two series -- it is read directly from
         // `utils/moodSeries`, not through here.
-        mood: moodMetricScore(input.morningMood, input.eveningMood),
+        mood: moodMetricScore(input.morningMood, input.middayMood ?? '', input.eveningMood),
         habits: input.habitScore != null
             ? { score: Math.round(input.habitScore), logged: true }
             : habitGroupScore(input.habits, input.customCompleted, input.customTotal),
@@ -542,8 +545,7 @@ export const computeDailyScore = (input: DailyScoringInput): DailyScoreResult =>
         'eveningBpm',
         'bodyTemperature',
         'mood',
-        'sleepQuality',
-        'weight',
+        'morningFeel',        'weight',
         'bodyFat',
     ]);
     const scoringEntries = Object.entries(metrics).filter(([key]) => !NON_SCORING_METRICS.has(key));

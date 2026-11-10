@@ -18,7 +18,8 @@ export interface ScorableDailyLog {
     log_date: string;
     wake_time?: string | null;
     bedtime?: string | null;
-    sleep_quality?: number | null;
+    morning_feel?: number | null;
+    midday_mood?: number | null;
     morning_systolic?: number | null;
     morning_diastolic?: number | null;
     morning_bpm?: number | null;
@@ -79,7 +80,7 @@ export const buildScoringInputFromLog = (
     return {
         wakeTime: log.wake_time ?? '',
         bedtime: log.bedtime ?? '',
-        sleepQuality: text(log.sleep_quality),
+        morningFeel: text(log.morning_feel),
         morningSystolic: text(log.morning_systolic),
         morningDiastolic: text(log.morning_diastolic),
         morningBpm: text(log.morning_bpm),
@@ -95,6 +96,7 @@ export const buildScoringInputFromLog = (
         weight: context.weight,
         bodyFat: context.bodyFat,
         morningMood: text(log.morning_mood),
+        middayMood: text(log.midday_mood),
         eveningMood: text(log.evening_mood),
         habits: {
             morningRoutine: flag(log.morning_routine),

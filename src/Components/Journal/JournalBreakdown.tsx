@@ -22,26 +22,35 @@ import BreakdownPanel from '../DailyLog/BreakdownPanel';
 import type { BreakdownGroup } from '../DailyLog/BreakdownPanel';
 import { journalDocumentText, journalWordCount, journalTopicSuggestions } from '../../utils/journalContent';
 import type { JournalDocument } from '../../utils/journalContent';
-import { moodColor, moodLabel } from '../../utils/moodSeries';
+import { MoodScale } from './Mood';
+import { moodColor, moodLabel, meanMood } from '../../utils/moodSeries';
 
 interface JournalBreakdownProps {
     document: JournalDocument;
     morningMood: number | null;
+    middayMood: number | null;
     eveningMood: number | null;
+    onMorningMood?: (value: number | null) => void;
+    onMiddayMood?: (value: number | null) => void;
+    onEveningMood?: (value: number | null) => void;
     dateLabel: string;
     expanded: boolean;
 }
 
 /** Words in one half, or nothing if the half is blank. */
 const wordsIn = (html: string): number => {
-    const text = journalDocumentText({ version: 1, morning: html, evening: '', links: [] });
+    const text = journalDocumentText({ version: 1, morning: html, midday: '', evening: '', links: [] });
     return text ? text.split(/\s+/).length : 0;
 };
 
 const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
     document,
     morningMood,
+    middayMood,
     eveningMood,
+    onMorningMood,
+    onMiddayMood,
+    onEveningMood,
     dateLabel,
     expanded,
 }) => {
@@ -51,6 +60,7 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
     const topics = journalTopicSuggestions(document);
 
     const morningColor = moodColor(morningMood);
+    const middayColor = moodColor(middayMood);
     const eveningColor = moodColor(eveningMood);
 
     const groups: BreakdownGroup[] = [
@@ -78,7 +88,8 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
         {
             key: 'mood',
             title: 'Mood',
-            count: morningMood != null && eveningMood != null ? 'both rated' : 'partial',
+            count: morningMood != null || middayMood != null || eveningMood != null ? 'rated' : 'partial',
+            chipsClassName: 'metric-chips--stacked',
             chips: [
                 {
                     key: 'morning-mood',
@@ -86,6 +97,13 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
                     value: morningMood != null ? `${morningMood}/10` : '—',
                     tone: morningMood != null ? 'value' : 'missing',
                     color: morningColor,
+                },
+                {
+                    key: 'midday-mood',
+                    label: 'Midday',
+                    value: middayMood != null ? `${middayMood}/10` : '—',
+                    tone: middayMood != null ? 'value' : 'missing',
+                    color: middayColor,
                 },
                 {
                     key: 'evening-mood',
@@ -128,21 +146,55 @@ const JournalBreakdown: React.FC<JournalBreakdownProps> = ({
                     elsewhere in the app. Two spellings of one value is how a number
                     starts looking wrong in one place and right in another. */}
                 <p className="journal-breakdown-mood-line">
-                    {morningMood != null && eveningMood != null ? (
-                        <>
-                            Rated <strong>{moodLabel(morningMood)}</strong> this morning and{' '}
-                            <strong>{moodLabel(eveningMood)}</strong> this evening
-                        </>
-                    ) : morningMood != null ? (
-                        <>Rated <strong>{moodLabel(morningMood)}</strong> this morning</>
-                    ) : eveningMood != null ? (
-                        <>Rated <strong>{moodLabel(eveningMood)}</strong> this evening</>
-                    ) : (
-                        'Not rated yet'
-                    )}
+                    {(() => {
+                        const avg = meanMood({
+                            morning_mood: morningMood,
+                            midday_mood: middayMood,
+                            evening_mood: eveningMood,
+                        });
+                        return avg != null ? <>Avg <strong>{moodLabel(avg)}</strong></> : 'Not rated yet';
+                    })()}
                 </p>
 
                 <BreakdownPanel expanded={expanded} groups={groups} />
+                <div className="journal-breakdown-moods">
+                    {onMorningMood && (
+                        <div className="journal-breakdown-mood">
+                            <span className="journal-breakdown-mood__label">Morning mood</span>
+                            <MoodScale
+                                slot="morning"
+                                value={morningMood}
+                                onChange={onMorningMood}
+                                label="Morning mood"
+                                className="journal-entry-scale"
+                            />
+                        </div>
+                    )}
+                    {onMiddayMood && (
+                        <div className="journal-breakdown-mood">
+                            <span className="journal-breakdown-mood__label">Midday mood</span>
+                            <MoodScale
+                                slot="midday"
+                                value={middayMood}
+                                onChange={onMiddayMood}
+                                label="Midday mood"
+                                className="journal-entry-scale"
+                            />
+                        </div>
+                    )}
+                    {onEveningMood && (
+                        <div className="journal-breakdown-mood">
+                            <span className="journal-breakdown-mood__label">Evening mood</span>
+                            <MoodScale
+                                slot="evening"
+                                value={eveningMood}
+                                onChange={onEveningMood}
+                                label="Evening mood"
+                                className="journal-entry-scale"
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

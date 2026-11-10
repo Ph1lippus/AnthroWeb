@@ -23,6 +23,8 @@ export interface BreakdownGroup {
     title: string;
     count: string;
     chips: BreakdownChip[];
+    /** Optional class for the chips container (e.g. to stack chips). */
+    chipsClassName?: string;
 }
 
 interface BreakdownPanelProps {
@@ -51,7 +53,7 @@ const BreakdownPanel: React.FC<BreakdownPanelProps> = ({ expanded, groups }) => 
                             <span className="daily-score-category-title">{group.title}</span>
                             <span className="daily-score-category-count">{group.count}</span>
                         </div>
-                        <div className="metric-chips">
+                        <div className={`metric-chips${group.chipsClassName ? ' ' + group.chipsClassName : ''}`}>
                             {group.chips.map(chip => (
                                 <span
                                     key={chip.key}

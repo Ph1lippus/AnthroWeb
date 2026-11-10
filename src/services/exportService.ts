@@ -18,8 +18,8 @@ const TABLES: TableExportConfig[] = [
         table: 'daily_logs',
         dateColumn: 'log_date',
         columns: [
-            'log_date', 'wake_time', 'bedtime', 'sleep_duration', 'sleep_quality',
-            'morning_mood', 'evening_mood', 'calories', 'protein', 'carbs', 'fat',
+            'log_date', 'wake_time', 'bedtime', 'sleep_duration', 'morning_feel',
+            'morning_mood', 'midday_mood', 'evening_mood', 'calories', 'protein', 'carbs', 'fat',
             'water', 'morning_systolic', 'morning_diastolic', 'morning_bpm',
             'evening_systolic', 'evening_diastolic', 'evening_bpm', 'body_temperature',
             'daily_score', 'morning_routine', 'evening_routine', 'fruit_serving',

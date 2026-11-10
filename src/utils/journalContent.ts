@@ -3,6 +3,7 @@ import { stripHtml } from './noteContent';
 export interface JournalDocument {
     version: 1;
     morning: string;
+    midday: string;
     evening: string;
     links: string[];
 }
@@ -10,6 +11,7 @@ export interface JournalDocument {
 const emptyDocument = (): JournalDocument => ({
     version: 1,
     morning: '',
+    midday: '',
     evening: '',
     links: [],
 });
@@ -17,11 +19,12 @@ const emptyDocument = (): JournalDocument => ({
 /** Read the structured journal format while keeping old plain-text entries valid. */
 export const parseJournalDocument = (
     value?: string | null,
-    fields?: Pick<JournalDocument, 'morning' | 'evening' | 'links'>,
+    fields?: Pick<JournalDocument, 'morning' | 'midday' | 'evening' | 'links'>,
 ): JournalDocument => {
     if (
         fields &&
         (fields.morning ||
+            fields.midday ||
             fields.evening ||
             fields.links.length > 0)
     ) {
@@ -67,6 +70,7 @@ export const parseJournalDocument = (
                 ...emptyDocument(),
                 ...document,
                 morning: typeof document.morning === 'string' ? document.morning : '',
+                midday: typeof document.midday === 'string' ? document.midday : '',
                 evening: typeof document.evening === 'string' ? document.evening : '',
                 links: Array.isArray(document.links)
                     ? document.links.filter((link): link is string => typeof link === 'string')

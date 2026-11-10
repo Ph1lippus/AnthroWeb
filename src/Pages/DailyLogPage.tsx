@@ -197,7 +197,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
 
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
-    const [sleepQuality, setSleepQuality] = useState('');
+    const [morningFeel, setMorningFeel] = useState('');
     const [morningSystolic, setMorningSystolic] = useState('');
     const [morningDiastolic, setMorningDiastolic] = useState('');
     const [morningBpm, setMorningBpm] = useState('');
@@ -330,7 +330,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const fillForm = (log: DailyLog) => {
         setWakeTime(log.wake_time || '');
         setBedtime(log.bedtime || '');
-        setSleepQuality(log.sleep_quality?.toString() || '');
+        setMorningFeel(log.morning_feel?.toString() || '');
         setMorningSystolic(log.morning_systolic?.toString() || '');
         setMorningDiastolic(log.morning_diastolic?.toString() || '');
         setMorningBpm(log.morning_bpm?.toString() || '');
@@ -369,7 +369,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const resetForm = () => {
         setWakeTime('');
         setBedtime('');
-        setSleepQuality('');
+        setMorningFeel('');
         setMorningSystolic('');
         setMorningDiastolic('');
         setMorningBpm('');
@@ -636,7 +636,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const scoreResult = useMemo(() => computeDailyScore({
         wakeTime,
         bedtime,
-        sleepQuality,
+        morningFeel,
         morningSystolic,
         morningDiastolic,
         morningBpm,
@@ -666,7 +666,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         cheatDay,
         cheatDayExempt: cheatStatus.exempt,
         lastMeasurementDate,
-    }), [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate, habitScore]);
+    }), [wakeTime, bedtime, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, existingLog, morningRoutine, eveningRoutine, fruitServing, studied, reading, journal, projectWorkDone, gym, completedHabits, habits, activeGoals, effectiveSettings, noSleep, cheatDay, cheatStatus, lastMeasurementDate, habitScore]);
 
     const calculatedScore = scoreResult.score;
     // The day's average rating, for the mood card's header. Null rather than zero
@@ -765,7 +765,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         // Don't create a brand-new log unless the user has actually entered something
         if (!isEditing) {
             const hasAnyData =
-                wakeTime || bedtime || sleepQuality ||
+                wakeTime || bedtime || morningFeel ||
                 morningSystolic || morningDiastolic || morningBpm ||
                 eveningSystolic || eveningDiastolic || eveningBpm ||
                 bodyTemperature || calories || protein || carbs || fat ||
@@ -827,7 +827,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 wake_time: noSleep ? null : (wakeTime || null),
                 bedtime: noSleep ? null : (bedtime || null),
                 sleep_duration: noSleep ? null : computedSleepDuration,
-                sleep_quality: noSleep ? null : (sleepQuality ? Math.round(parseFloat(sleepQuality)) : null),
+                morning_feel: noSleep ? null : (morningFeel ? Math.round(parseFloat(morningFeel)) : null),
                 morning_systolic: morningSystolic ? parseInt(morningSystolic) : null,
                 morning_diastolic: morningDiastolic ? parseInt(morningDiastolic) : null,
                 morning_bpm: morningBpm ? parseInt(morningBpm) : null,
@@ -885,7 +885,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setSaveError(message);
             console.error('Auto-save error:', err);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, gym, cardio, mobility, steps, phoneUsage, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, gym, cardio, mobility, steps, phoneUsage, isEditing, existingLog, queryClient]);
 
     /**
      * Queues a whole-row write behind any that are already open.
@@ -1037,7 +1037,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             // Timer cleanup is handled by flushSave on unmount; this cleanup
             // only cancels the timer if the effect re-runs for another reason.
         };
-    }, [wakeTime, bedtime, sleepQuality, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, steps, phoneUsage, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
+    }, [wakeTime, bedtime, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, steps, phoneUsage, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -1672,7 +1672,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             type="text"
                                             value={wakeTime || ''}
                                             {...timeInputHandlers(setWakeTime)}
-                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 0, formatTimeToken)}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setMorningFeel], 0, formatTimeToken)}
                                             disabled={noSleep}
                                             className={"scored-input font-mono" + (wakeTime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
@@ -1686,7 +1686,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             type="text"
                                             value={bedtime || ''}
                                             {...timeInputHandlers(setBedtime)}
-                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 1, formatTimeToken)}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setMorningFeel], 1, formatTimeToken)}
                                             disabled={noSleep}
                                             className={"scored-input font-mono" + (bedtime ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
@@ -1701,19 +1701,19 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                             min="0"
                                             max="10"
                                             step="1"
-                                            value={sleepQuality}
+                                            value={morningFeel}
                                             disabled={noSleep}
                                             onChange={(e) => {
                                                 const val = parseInt(e.target.value);
-                                                if (!isNaN(val) && val >= 0 && val <= 10) setSleepQuality(e.target.value);
-                                                else if (e.target.value === '') setSleepQuality('');
+                                                if (!isNaN(val) && val >= 0 && val <= 10) setMorningFeel(e.target.value);
+                                                else if (e.target.value === '') setMorningFeel('');
                                             }}
-                                            {...seriesHandlers([setWakeTime, setBedtime, setSleepQuality], 2)}
-                                            className={"scored-input" + (sleepQuality ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
+                                            {...seriesHandlers([setWakeTime, setBedtime, setMorningFeel], 2)}
+                                            className={"scored-input" + (morningFeel ? '' : ' scored-input--empty') + (noSleep ? ' scored-input--disabled' : '')}
                                             placeholder=" "
-                                            style={sleepQuality && !noSleep ? { borderColor: getScoreColor(scoreOf('sleepQuality')! ?? 0) } : undefined}
+                                            style={morningFeel && !noSleep ? { borderColor: getScoreColor(scoreOf('morningFeel')! ?? 0) } : undefined}
                                         />
-                                        <label className="scored-input-label">Sleep Quality (0-10)</label>
+                                        <label className="scored-input-label">Morning Feel (0-10)</label>
                                     </div>
                                 </div>
                             </div>

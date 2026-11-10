@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Title from '../Components/Title';
 import { getUserBooks, createBook, updateBook, deleteBook, updateBookProgress, exportBooksToCSV, importBooksFromCSV, deleteMultipleBooks } from '../services/bookService';
 import type { Book } from '../services/bookService';
-import { SquarePen, Trash2, RotateCw, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
+import { SquarePen, Trash2, Search, X, Layers, Bookmark, CircleCheck, Copy } from 'lucide-react';
 import LoadingSpinner from '../Components/LoadingSpinner';
 import { useBootHold } from '../services/bootScreen';
 import { queryKeys } from '../utils/queryKeys';
@@ -99,19 +99,6 @@ const BooksPage: React.FC = () => {
     const [totalPages, setTotalPages] = useState('');
     const [currentPageInput, setCurrentPageInput] = useState('');
 
-    // Timer state - use refs to avoid stale closure issues
-    const timerDisplayRef = useRef({ minutes: 15, seconds: 0 });
-    const [timerDisplay, setTimerDisplay] = useState('15:00');
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const timerInputRef = useRef<HTMLInputElement>(null);
-
-    // Chronometer state - counts up forever
-    const chronoTimeRef = useRef(0);
-    const [chronoDisplay, setChronoDisplay] = useState('00:00:00');
-    const [isChronoRunning, setIsChronoRunning] = useState(false);
-    const chronoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
     // Random book picker state
     const [randomBook, setRandomBook] = useState<Book | null>(null);
     const [showRandomModal, setShowRandomModal] = useState(false);
@@ -152,18 +139,6 @@ const BooksPage: React.FC = () => {
         setRandomBook(notStartedBooks[randomIndex]);
         setShowRandomModal(true);
     };
-    // Cleanup timers on unmount
-    useEffect(() => {
-        return () => {
-            if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
-            }
-            if (chronoIntervalRef.current) {
-                clearInterval(chronoIntervalRef.current);
-            }
-        };
-    }, []);
-
     const resetForm = () => {
         setTitle('');
         setTotalPages('');
@@ -450,82 +425,6 @@ const BooksPage: React.FC = () => {
         setSelectedDeleteIds(new Set());
     };
 
-    // Fixed timer: uses refs to avoid stale closures
-    const startTimer = () => {
-        const minutes = parseInt(timerInputRef.current?.value || '15');
-        timerDisplayRef.current = { minutes, seconds: 0 };
-        setTimerDisplay(formatTime(minutes, 0));
-        setIsTimerRunning(true);
-
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-        }
-
-        timerIntervalRef.current = setInterval(() => {
-            const { minutes: m, seconds: s } = timerDisplayRef.current;
-            if (s > 0) {
-                timerDisplayRef.current = { minutes: m, seconds: s - 1 };
-            } else if (m > 0) {
-                timerDisplayRef.current = { minutes: m - 1, seconds: 59 };
-            } else {
-                clearInterval(timerIntervalRef.current!);
-                timerIntervalRef.current = null;
-                setIsTimerRunning(false);
-                return;
-            }
-            const { minutes: newM, seconds: newS } = timerDisplayRef.current;
-            setTimerDisplay(formatTime(newM, newS));
-        }, 1000);
-    };
-
-    const stopTimer = () => {
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
-        setIsTimerRunning(false);
-        // Keep the current display showing the stopped time
-    };
-
-    const formatTime = (minutes: number, seconds: number) => {
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    // Chronometer functions - counts up forever
-    const formatChronoTime = (totalSeconds: number) => {
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const startChrono = () => {
-        if (isChronoRunning) return;
-        setIsChronoRunning(true);
-        chronoIntervalRef.current = setInterval(() => {
-            chronoTimeRef.current += 1;
-            setChronoDisplay(formatChronoTime(chronoTimeRef.current));
-        }, 1000);
-    };
-
-    const stopChrono = () => {
-        if (chronoIntervalRef.current) {
-            clearInterval(chronoIntervalRef.current);
-            chronoIntervalRef.current = null;
-        }
-        setIsChronoRunning(false);
-    };
-
-    const resetChrono = () => {
-        if (chronoIntervalRef.current) {
-            clearInterval(chronoIntervalRef.current);
-            chronoIntervalRef.current = null;
-        }
-        chronoTimeRef.current = 0;
-        setChronoDisplay('00:00:00');
-        setIsChronoRunning(false);
-    };
-
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             setSubmittedSearch(searchQuery);
@@ -691,54 +590,6 @@ const BooksPage: React.FC = () => {
                                 </button>
                             </div>
 
-                            <div className="timer-section chrono-section">
-                                <span className="timer-label">Chrono:</span>
-                                <span className="chrono-display">{chronoDisplay}</span>
-                                {isChronoRunning ? (
-                                    <>
-                                        <button onClick={stopChrono} className="timer-btn timer-btn--stop">
-                                            <i className="i-lucide-pause mr-1"></i>Stop
-                                        </button>
-                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" data-tip="Reset">
-                                            <RotateCw />
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button onClick={startChrono} className="timer-btn timer-btn--start">
-                                            <i className="i-lucide-play mr-1"></i>Start
-                                        </button>
-                                        <button onClick={resetChrono} className="timer-btn timer-btn--reset" data-tip="Reset">
-                                            <RotateCw />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            <div className="timer-section">
-                                <span className="timer-label">Timer:</span>
-                                {isTimerRunning ? (
-                                    <>
-                                        <span className="timer-display">{timerDisplay}</span>
-                                        <button onClick={stopTimer} className="timer-btn timer-btn--stop">
-                                            <i className="i-lucide-pause mr-1"></i>Stop
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <input
-                                            ref={timerInputRef}
-                                            type="number"
-                                            defaultValue={15}
-                                            className="timer-input"
-                                            min="1"
-                                        />
-                                        <span className="timer-unit">min</span>
-                                        <button onClick={startTimer} className="timer-btn timer-btn--start">
-                                            <i className="i-lucide-play mr-1"></i>Start
-                                        </button>
-                                    </>
-                                )}
-                            </div>
                         </div>
 
                         {/* Add Book Modal */}

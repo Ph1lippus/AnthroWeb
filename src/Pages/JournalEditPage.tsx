@@ -28,6 +28,7 @@ const JournalEditPage: React.FC = () => {
     // page: this is one of the two places a rating is set, and holding them in
     // local state is what makes a slider respond before a round trip.
     const [morningMood, setMorningMood] = useState<number | null>(null);
+    const [middayMood, setMiddayMood] = useState<number | null>(null);
     const [eveningMood, setEveningMood] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -47,10 +48,12 @@ const JournalEditPage: React.FC = () => {
                     setExistingLog(log);
                     setJournalDocument(parseJournalDocument(log.journal_entry, {
                         morning: log.journal_morning ?? '',
+                        midday: '',
                         evening: log.journal_evening ?? '',
                         links: log.journal_links ?? [],
                     }));
                     setMorningMood(moodFor(log, 'morning'));
+                    setMiddayMood(moodFor(log, 'midday'));
                     setEveningMood(moodFor(log, 'evening'));
                 }
                 setSettings(userSettings);
@@ -88,6 +91,7 @@ const JournalEditPage: React.FC = () => {
                 // the stored tick alone.
                 journal: journalHabitFor(journalDocumentText(journalDocument), existingLog.journal),
                 morning_mood: morningMood,
+                midday_mood: middayMood,
                 evening_mood: eveningMood,
                 daily_score: existingLog.daily_score != null ? existingLog.daily_score : null,
             };
@@ -107,7 +111,7 @@ const JournalEditPage: React.FC = () => {
         } finally {
             setSaving(false);
         }
-    }, [id, settings, existingLog, journalDocument, morningMood, eveningMood, queryClient]);
+    }, [id, settings, existingLog, journalDocument, morningMood, middayMood, eveningMood, queryClient]);
 
     useEffect(() => {
         if (saveError) {
@@ -143,7 +147,7 @@ const JournalEditPage: React.FC = () => {
                 clearTimeout(autoSaveTimerRef.current);
             }
         };
-    }, [journalDocument, morningMood, eveningMood, performSave, settings, existingLog]);
+    }, [journalDocument, morningMood, middayMood, eveningMood, performSave, settings, existingLog]);
 
     // Write the pending entry on the way out. The cleanup above cancels the timer,
     // so navigating away -- or refreshing, which is where this was noticed --
@@ -276,10 +280,6 @@ const JournalEditPage: React.FC = () => {
                                 key={existingLog.id}
                                 value={journalDocument}
                                 onChange={setJournalDocument}
-                                morningMood={morningMood}
-                                eveningMood={eveningMood}
-                                onMorningMood={setMorningMood}
-                                onEveningMood={setEveningMood}
                                 focusMode={focusMode}
                             />
                         </div>

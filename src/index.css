@@ -8701,6 +8701,7 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   height: 80vh;
   padding: 1rem 2rem ;
   border-radius: 20px;
+  text-align: left;
 }
 .journal-node .note-prose ul,
 .journal-node .note-prose ol {
@@ -8992,6 +8993,42 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   font-weight: 600;
   opacity: 1;
 }
+
+/* All mood scales live at the end of the breakdown, stacked so the ten
+   buttons of each scale fit the card width instead of overflowing. */
+.journal-breakdown-moods {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.journal-breakdown-mood {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.journal-breakdown-mood__label {
+  font-size: 0.78rem;
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+.journal-breakdown-mood .journal-entry-scale {
+  width: 100%;
+  max-width: 100%;
+}
+
+.journal-breakdown-mood .journal-entry-scale .mood-scale {
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+.journal-breakdown-mood .journal-entry-scale .mood-scale-btn {
+  min-width: 0;
+  height: 1.35rem;
+  font-size: 0.62rem;
+}
 /* A topic chip carries no value, so it would render as a label with an empty
    right-hand column. Tightened rather than given a placeholder, because the chip
    is a word here and padding it out to match the numbered chips makes it look
@@ -9277,8 +9314,6 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   padding: 0.75rem 0.85rem 0.75rem 1rem;
   border-radius: 20px;
   border: 1px solid transparent;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
   font-size: 0.82rem;
   line-height: 1.45;
@@ -9289,17 +9324,17 @@ body:has(.note-editor-shell--focus) .sidebar-nav:hover {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .notice--error {
-  background: color-mix(in srgb, var(--color-danger-dark) 88%, transparent);
+  background: var(--color-danger-dark);
   border-color: color-mix(in srgb, var(--color-danger) 42%, transparent);
   color: var(--color-light);
 }
 .notice--success {
-  background: var(--accent-bg);
+  background: color-mix(in srgb, var(--accent) 22%, #111111);
   border-color: color-mix(in srgb, var(--color-primary) 34%, transparent);
   color: var(--color-light);
 }
 .notice--info {
-  background: rgba(20, 20, 24, 0.92);
+  background: rgb(20, 20, 24);
   border-color: rgba(255, 255, 255, 0.1);
   color: var(--color-light);
 }
@@ -10092,6 +10127,11 @@ select.form-control option {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.metric-chips--stacked {
+  flex-direction: column;
+  align-items: flex-start;
 }
 .metric-chip {
   display: inline-flex;

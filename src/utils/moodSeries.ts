@@ -15,11 +15,12 @@
  */
 
 /** Which reading of a day is being asked about. */
-export type MoodSlot = 'morning' | 'evening';
+export type MoodSlot = 'morning' | 'midday' | 'evening';
 
 /** The shape this module needs, so callers can pass a whole DailyLog. */
 export interface MoodBearing {
     morning_mood?: number | null;
+    midday_mood?: number | null;
     evening_mood?: number | null;
 }
 
@@ -36,15 +37,21 @@ export const MOOD_MAX = 10;
  * nobody rated. Missing is the honest answer.
  */
 export const moodFor = (log: MoodBearing | null | undefined, slot: MoodSlot): number | null => {
-    const raw = slot === 'morning' ? log?.morning_mood : log?.evening_mood;
+    const raw =
+        slot === 'morning'
+            ? log?.morning_mood
+            : slot === 'midday'
+                ? log?.midday_mood
+                : log?.evening_mood;
     if (raw == null || !Number.isFinite(raw)) return null;
     if (raw < MOOD_MIN || raw > MOOD_MAX) return null;
     return raw;
 };
 
-/** Both readings of a day, with either side possibly null. */
-export const moodPair = (log: MoodBearing | null | undefined): { morning: number | null; evening: number | null } => ({
+/** All readings of a day, with any side possibly null. */
+export const moodPair = (log: MoodBearing | null | undefined): { morning: number | null; midday: number | null; evening: number | null } => ({
     morning: moodFor(log, 'morning'),
+    midday: moodFor(log, 'midday'),
     evening: moodFor(log, 'evening'),
 });
 
@@ -61,8 +68,8 @@ export const moodPair = (log: MoodBearing | null | undefined): { morning: number
  * what this is for. Where the split is the point, use `moodPair` instead.
  */
 export const meanMood = (log: MoodBearing | null | undefined): number | null => {
-    const { morning, evening } = moodPair(log);
-    const rated = [morning, evening].filter((v): v is number => v !== null);
+    const { morning, midday, evening } = moodPair(log);
+    const rated = [morning, midday, evening].filter((v): v is number => v !== null);
     if (rated.length === 0) return null;
     return rated.reduce((sum, v) => sum + v, 0) / rated.length;
 };

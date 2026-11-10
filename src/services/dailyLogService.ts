@@ -33,6 +33,7 @@ export interface DailyLog {
      * calm. Read them through `utils/moodSeries` rather than averaging by hand.
      */
     morning_mood?: number | null;
+    midday_mood?: number | null;
     evening_mood?: number | null;
     journal_entry?: string | null;
     journal_morning?: string | null;
@@ -41,7 +42,7 @@ export interface DailyLog {
     created_at?: string;
     updated_at?: string;
     goal_snapshot?: Record<string, unknown> | null;
-    sleep_quality?: number | null;
+    morning_feel?: number | null;
     morning_routine?: boolean;
     evening_routine?: boolean;
     fruit_serving?: boolean;
@@ -191,13 +192,14 @@ export const createDailyLog = async (log: DailyLog) => {
         project_work_done: log.project_work_done,
         daily_score: log.daily_score,
         morning_mood: log.morning_mood,
+        midday_mood: log.midday_mood,
         evening_mood: log.evening_mood,
         journal_entry: log.journal_entry,
         journal_morning: log.journal_morning,
         journal_evening: log.journal_evening,
         journal_links: log.journal_links,
         goal_snapshot: log.goal_snapshot,
-        sleep_quality: log.sleep_quality,
+        morning_feel: log.morning_feel,
         // Built-in habits
         morning_routine: log.morning_routine,
         evening_routine: log.evening_routine,

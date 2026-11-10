@@ -159,7 +159,7 @@ interface ChartPoint {
     label: string;
     score: number | null;
     sleepDuration: number | null;
-    sleepQuality: number | null;
+    morningFeel: number | null;
     bedtime: number | null;
     wakeTime: number | null;
     /**
@@ -380,7 +380,7 @@ const clockAxisLabel = (value: number): string => hoursToClock(value);
  * would be a new `useMemo` dependency every time and defeat the memo.
  */
 const BLANK_POINT: ChartPoint = {
-    date: '', label: '', score: null, sleepDuration: null, sleepQuality: null,
+    date: '', label: '', score: null, sleepDuration: null, morningFeel: null,
     bedtime: null, wakeTime: null, morningMood: null, eveningMood: null,
     calories: null, protein: null, carbs: null, fat: null, water: null,
     steps: null, phone: null,
@@ -807,7 +807,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                     label: fmtDate(l.log_date),
                     score: l.daily_score ?? null,
                     sleepDuration: l.sleep_duration ?? null,
-                    sleepQuality: l.sleep_quality ?? null,
+                    morningFeel: l.morning_feel ?? null,
                     bedtime: lateNight(clockToHours(l.bedtime)),
                     wakeTime: lateNight(clockToHours(l.wake_time)),
                     morningMood: moodFor(l, 'morning'),
@@ -1086,7 +1086,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
         return {
             score: avg('score'),
             sleepDuration: avg('sleepDuration'),
-            sleepQuality: avg('sleepQuality'),
+            morningFeel: avg('morningFeel'),
             // Clock averages are circular; a plain mean would place 23:30 and
             // 00:30 at midnight instead of just after it. The mean comes back on
             // a 0-24 face, so it is shifted onto the chart's 04:00-04:00 axis
@@ -1229,19 +1229,19 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                             }
                         />
                         <ChartCard
-                            title="Sleep Quality"
-                            empty={!hasAny('sleepQuality')}
+                            title="Morning Feel"
+                            empty={!hasAny('morningFeel')}
                             onExpand={openChart}
-                            onExport={() => downloadCsv(`anthroweb-sleep-quality-${range.label}.csv`, chartData.map(d => ({ date: d.date, sleepQuality: d.sleepQuality })))}
-                            onCopy={() => copyChart('Sleep Quality', chartData.map(d => ({ date: d.date, sleepQuality: d.sleepQuality })))}
+                            onExport={() => downloadCsv(`anthroweb-morning-feel-${range.label}.csv`, chartData.map(d => ({ date: d.date, morningFeel: d.morningFeel })))}
+                            onCopy={() => copyChart('Morning Feel', chartData.map(d => ({ date: d.date, morningFeel: d.morningFeel })))}
                             chart={
                                 <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
                                     <ChartY domain={[0, 10]} ticks={TICKS.rating0to10} />
                                     <ChartTip />
-                                    <AvgLine y={averages.sleepQuality} stroke={C.blue} />
-                                    <Line type="monotone" dataKey="sleepQuality" name="Quality" formatter={(v) => `${num(v)}/10`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+                                    <AvgLine y={averages.morningFeel} stroke={C.blue} />
+                                    <Line type="monotone" dataKey="morningFeel" name="Morning Feel" formatter={(v) => `${num(v)}/10`} stroke={C.blue} strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
                                 </LineChart>
                             }
                         />

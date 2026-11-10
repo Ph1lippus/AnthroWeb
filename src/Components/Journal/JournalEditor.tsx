@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNoteEditorChunk } from '../Notes/useNoteEditorChunk';
-import { MoodScale } from './Mood';
 import type { JournalDocument } from '../../utils/journalContent';
 
 interface JournalEditorProps {
@@ -18,11 +17,6 @@ interface JournalEditorProps {
      * does -- so the page can hand `setJournalDocument` straight through.
      */
     onChange: (update: (current: JournalDocument) => JournalDocument) => void;
-    /** The day's two ratings. Held by the page, because the page autosaves them. */
-    morningMood: number | null;
-    eveningMood: number | null;
-    onMorningMood: (value: number | null) => void;
-    onEveningMood: (value: number | null) => void;
     focusMode: boolean;
 }
 
@@ -45,10 +39,6 @@ interface JournalEditorProps {
 const JournalEditor: React.FC<JournalEditorProps> = ({
     value,
     onChange,
-    morningMood,
-    eveningMood,
-    onMorningMood,
-    onEveningMood,
     focusMode,
 }) => {
     const { Editor } = useNoteEditorChunk();
@@ -59,13 +49,6 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
             <div className="journal-log-puzzle">
                 <section className="card puzzle-card journal-node journal-node--morning">
                     <div className="card-body">
-                        <MoodScale
-                            slot="morning"
-                            value={morningMood}
-                            onChange={onMorningMood}
-                            label="Morning mood"
-                            className="journal-entry-scale"
-                        />
                         <Editor
                             initialHtml={value.morning}
                             onChange={morning => onChange(current => ({ ...current, morning }))}
@@ -76,13 +59,6 @@ const JournalEditor: React.FC<JournalEditorProps> = ({
 
                 <section className="card puzzle-card journal-node journal-node--evening">
                     <div className="card-body">
-                        <MoodScale
-                            slot="evening"
-                            value={eveningMood}
-                            onChange={onEveningMood}
-                            label="Evening mood"
-                            className="journal-entry-scale"
-                        />
                         <Editor
                             initialHtml={value.evening}
                             onChange={evening => onChange(current => ({ ...current, evening }))}
