@@ -29,7 +29,7 @@ const TABLES: TableExportConfig[] = [
         ],
     },
     { table: 'daily_habit_logs', dateColumn: 'log_date', columns: ['log_date', 'habit_id', 'completed'] },
-    { table: 'habits', columns: ['id', 'name', 'is_active'] },
+    { table: 'habits', columns: ['id', 'name', 'description', 'is_active'] },
     {
         table: 'body_measurements',
         dateColumn: 'measure_date',
@@ -42,13 +42,20 @@ const TABLES: TableExportConfig[] = [
     {
         table: 'workout_completion_log',
         dateColumn: 'workout_date',
-        columns: ['workout_date', 'completed', 'intensity', 'duration_minutes', 'notes'],
+        columns: [
+            'id', 'workout_date', 'name', 'completed', 'intensity', 'duration_minutes',
+            'distance_km', 'calories', 'avg_hr', 'max_hr', 'machine', 'start_time',
+            'body_weight', 'notes',
+        ],
     },
     {
         table: 'workout_exercises_log',
         columns: [
-            'exercise_name', 'activity_type', 'reps', 'weight', 'sets_detail',
-            'duration_minutes', 'distance_km', 'completed', 'planned', 'notes',
+            'workout_completion_id', 'exercise_name', 'activity_type', 'position', 'reps',
+            'weight', 'body_weight', 'sets_detail', 'duration_minutes', 'distance_km',
+            'machine_level', 'machine_incline', 'machine_speed', 'hr_max', 'hr_1_min',
+            'hr_2_min', 'calories', 'avg_hr', 'avg_watts', 'max_watts', 'cardio_segments',
+            'completed', 'planned', 'notes',
         ],
     },
     {
@@ -90,6 +97,17 @@ const TABLES_BY_NAME = new Map(TABLES.map(t => [t.table, t]));
 
 const hasUserId = (table: string): boolean => table !== 'gpa_scale_bands';
 
+/**
+ * Local calendar date as YYYY-MM-DD, avoiding the UTC shift that
+ * toISOString() introduces for users behind UTC.
+ */
+const localDateStr = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
 const projectRow = (table: string, row: Record<string, unknown>): Record<string, unknown> => {
     const cfg = TABLES_BY_NAME.get(table);
     const allowed = cfg?.columns ? new Set(cfg.columns) : null;
@@ -108,8 +126,9 @@ const projectRow = (table: string, row: Record<string, unknown>): Record<string,
 const cutoffFor = (days: ExportRangeDays): string | null => {
     if (days === null) return null;
     const d = new Date();
-    d.setDate(d.getDate() - days);
-    return d.toISOString().slice(0, 10);
+    // "N days" means N calendar days including today.
+    d.setDate(d.getDate() - (days - 1));
+    return localDateStr(d);
 };
 
 const inWindow = (value: unknown, cutoff: string | null): boolean => {
@@ -117,6 +136,289 @@ const inWindow = (value: unknown, cutoff: string | null): boolean => {
     if (value === null || value === undefined) return true;
     const str = String(value).slice(0, 10);
     return str >= cutoff;
+};
+
+// ---------------------------------------------------------------------------
+// Self-describing schema so any consumer (human or AI) understands the export
+// without external documentation. In particular, the daily-log activity habits
+// (gym / cardio / mobility) are day-level booleans that are *separate* from the
+// detailed workout session tables.
+// ---------------------------------------------------------------------------
+const ACTIVITY_HABIT_DESC =
+    'Boolean day-level "activity habit". True when the user did this kind of ' +
+    'session that day. This is a simple yes/no for the whole day and is separate ' +
+    'from the detailed workout rows in workout_completion_log / ' +
+    'workout_exercises_log, which describe what was actually done.';
+
+const EXPORT_SCHEMA = {
+    overview:
+        'AnthroWeb personal tracking export. Top-level keys are table names; each ' +
+        'holds an array of rows. _meta holds export metadata. _schema (this object) ' +
+        'documents every table and column, including units and semantics. ' +
+        'Date-based tables are filtered to the requested range; reference/config ' +
+        'tables are always included in full. Books and projects are intentionally ' +
+        'excluded. Private journal text and secrets are never exported.',
+    range: {
+        rangeDays:
+            'Requested lookback in days (7, 14, 30 or 90) or null for "all time".',
+        dateFiltering:
+            'For tables with a date column, only rows whose date is >= ' +
+            '(export date - (rangeDays - 1) days) are included, so "7 days" means ' +
+            'exactly the last 7 calendar days including today. Rows with a null date ' +
+            'are retained. Tables without a date column are always fully exported.',
+    },
+    units: {
+        sleep_duration: 'hours',
+        water: 'millilitres (ml)',
+        phone_usage: 'minutes',
+        steps: 'count',
+        weight: 'kilograms (kg)',
+        body_fat: 'percent',
+        body_temperature: 'degrees Celsius',
+        blood_pressure: 'mmHg',
+        heart_rate: 'beats per minute (bpm)',
+        distance_km: 'kilometres',
+        duration_minutes: 'minutes',
+        calories: 'kilocalories (kcal)',
+        protein: 'grams (g)',
+        carbs: 'grams (g)',
+        fat: 'grams (g)',
+        waist_hip_ratio: 'ratio',
+        ffmi: 'fat-free mass index',
+        bmr: 'kilocalories (kcal)',
+        mood: 'integer rating 1-10',
+        morning_feel: 'integer rating 0-10',
+        daily_score: 'integer score 0-100',
+        intensity: 'integer rating 1-10',
+    },
+    tables: {
+        daily_logs: {
+            description:
+                'One row per calendar day. Combines sleep, vitals, nutrition, habits, ' +
+                'activity and the computed daily score.',
+            columns: {
+                log_date: 'ISO date (YYYY-MM-DD) of the day.',
+                wake_time: 'Wake time (HH:MM, local).',
+                bedtime: 'Bedtime (HH:MM, local).',
+                sleep_duration: 'Sleep duration in hours.',
+                morning_feel: 'Subjective morning feel rating, 0-10.',
+                morning_mood: 'Morning mood rating, 1-10.',
+                midday_mood: 'Midday mood rating, 1-10.',
+                evening_mood: 'Evening mood rating, 1-10.',
+                calories: 'Calories consumed (kcal).',
+                protein: 'Protein (g).',
+                carbs: 'Carbohydrates (g).',
+                fat: 'Fat (g).',
+                water: 'Water intake (ml).',
+                morning_systolic: 'Morning systolic blood pressure (mmHg).',
+                morning_diastolic: 'Morning diastolic blood pressure (mmHg).',
+                morning_bpm: 'Morning heart rate (bpm).',
+                evening_systolic: 'Evening systolic blood pressure (mmHg).',
+                evening_diastolic: 'Evening diastolic blood pressure (mmHg).',
+                evening_bpm: 'Evening heart rate (bpm).',
+                body_temperature: 'Body temperature (°C).',
+                daily_score: 'Computed daily score, 0-100.',
+                morning_routine: 'Boolean habit: completed morning routine.',
+                evening_routine: 'Boolean habit: completed evening routine.',
+                fruit_serving: 'Boolean habit: had a fruit serving.',
+                studied: 'Boolean habit: studied.',
+                journal: 'Boolean habit: journaled.',
+                stretching: 'Boolean habit: stretched.',
+                reading: 'Boolean habit: read.',
+                no_sleep: 'Boolean: had no sleep that night.',
+                gym: ACTIVITY_HABIT_DESC + ' "gym" = a gym/strength-training session.',
+                cardio: ACTIVITY_HABIT_DESC + ' "cardio" = a cardio session.',
+                mobility: ACTIVITY_HABIT_DESC + ' "mobility" = a mobility/flexibility session.',
+                steps: 'Integer. Total steps walked during the whole day, including days without a logged workout.',
+                phone_usage: 'Integer minutes of phone screen time that day.',
+                cheat_day: 'Boolean: day off the food plan (macros stored as typed but excluded from the score).',
+                project_work_done: 'Boolean: worked on a project that day.',
+            },
+        },
+        daily_habit_logs: {
+            description: 'Per-habit completion records for custom habits.',
+            columns: {
+                log_date: 'ISO date (YYYY-MM-DD).',
+                habit_id: 'Foreign key to habits.id.',
+                completed: 'Boolean: habit completed that day.',
+            },
+        },
+        habits: {
+            description: 'Habit definitions.',
+            columns: {
+                id: 'Habit id.',
+                name: 'Habit name.',
+                description: 'Optional habit description.',
+                is_active: 'Boolean: habit is active.',
+            },
+        },
+        body_measurements: {
+            description: 'Periodic body measurements (usually weekly).',
+            columns: {
+                measure_date: 'ISO date (YYYY-MM-DD).',
+                weight: 'Body weight (kg).',
+                body_fat: 'Body fat percentage.',
+                body_fat_method: 'Method used to estimate body fat (scale/calipers/navy/manual).',
+                waist: 'Waist circumference (cm).',
+                hips: 'Hip circumference (cm).',
+                neck: 'Neck circumference (cm).',
+                shoulders: 'Shoulder circumference (cm).',
+                chest: 'Chest circumference (cm).',
+                bicep_left_flexed: 'Left bicep (flexed) circumference (cm).',
+                thigh_left: 'Left thigh circumference (cm).',
+                calf_left: 'Left calf circumference (cm).',
+                waist_hip_ratio: 'Waist-to-hip ratio.',
+                ffmi: 'Fat-free mass index.',
+                bmr: 'Basal metabolic rate (kcal).',
+            },
+        },
+        workout_completion_log: {
+            description:
+                'One row per completed workout session. Multiple sessions per day are allowed.',
+            columns: {
+                id: 'Workout session id (join key for workout_exercises_log.workout_completion_id).',
+                workout_date: 'ISO date (YYYY-MM-DD) of the session.',
+                name: 'Session name/title.',
+                completed: 'Boolean: session completed.',
+                intensity: 'Subjective intensity rating, 1-10.',
+                duration_minutes: 'Session duration (minutes).',
+                distance_km: 'Distance covered (km), for cardio sessions.',
+                calories: 'Calories burned estimate (kcal).',
+                avg_hr: 'Average heart rate (bpm).',
+                max_hr: 'Maximum heart rate (bpm).',
+                machine: 'Machine used (cardio).',
+                start_time: 'Session start time (HH:MM).',
+                body_weight: 'Body weight snapshot (kg) when the session was saved.',
+                notes: 'Free-text notes.',
+            },
+        },
+        workout_exercises_log: {
+            description: 'Exercises performed within a workout session.',
+            columns: {
+                workout_completion_id: 'Foreign key to workout_completion_log.id.',
+                exercise_name: 'Exercise name.',
+                activity_type: 'Exercise type: strength, cardio or mobility.',
+                position: 'Order of the exercise within the session.',
+                reps: 'Repetitions (strength).',
+                weight: 'Weight used (kg).',
+                body_weight: 'Body weight snapshot (kg).',
+                sets_detail: 'JSON: per-set reps/weight details.',
+                duration_minutes: 'Duration (minutes), for cardio/mobility.',
+                distance_km: 'Distance (km), for cardio.',
+                machine_level: 'Machine resistance/program level (cardio).',
+                machine_incline: 'Machine incline (cardio).',
+                machine_speed: 'Machine speed (cardio).',
+                hr_max: 'Maximum heart rate during this exercise (bpm).',
+                hr_1_min: 'Heart rate 1 minute after (bpm).',
+                hr_2_min: 'Heart rate 2 minutes after (bpm).',
+                calories: 'Calories burned for this exercise (kcal).',
+                avg_hr: 'Average heart rate (bpm).',
+                avg_watts: 'Average power (watts).',
+                max_watts: 'Maximum power (watts).',
+                cardio_segments: 'JSON: cardio interval segments.',
+                completed: 'Boolean: exercise completed.',
+                planned: 'Boolean: exercise was part of the plan.',
+                notes: 'Free-text notes.',
+            },
+        },
+        study_sessions: {
+            description: 'Study/break sessions.',
+            columns: {
+                session_date: 'ISO date (YYYY-MM-DD).',
+                duration_minutes: 'Session duration (minutes).',
+                session_type: 'study or break.',
+                mode: 'countdown, stopwatch or interval.',
+                started_at: 'Start timestamp (ISO).',
+                ended_at: 'End timestamp (ISO).',
+                planned_minutes: 'Planned duration (minutes).',
+                break_minutes: 'Break time (minutes).',
+                notes: 'Free-text notes.',
+            },
+        },
+        study_history: {
+            description: 'Daily aggregated study statistics.',
+            columns: {
+                history_date: 'ISO date (YYYY-MM-DD).',
+                total_study_minutes: 'Total study minutes that day.',
+                total_break_minutes: 'Total break minutes that day.',
+                session_count: 'Number of sessions.',
+                average_session_length: 'Average session length (minutes).',
+            },
+        },
+        abstinence_goals: {
+            description: 'Abstinence goals (tracked streaks).',
+            columns: {
+                name: 'Goal name.',
+                start_date: 'Start date (ISO).',
+                end_date: 'End date (ISO), if set.',
+                target_days: 'Target number of days.',
+                notes: 'Free-text notes.',
+            },
+        },
+        abstinence_history: {
+            description: 'Completed abstinence streaks.',
+            columns: {
+                name: 'Goal name.',
+                start_date: 'Start date (ISO).',
+                end_date: 'End date (ISO).',
+                duration_days: 'Duration (days).',
+                notes: 'Free-text notes.',
+            },
+        },
+        custom_measurement_logs: {
+            description: 'Values for user-defined custom measurements.',
+            columns: {
+                measurement_id: 'Foreign key to custom_measurements.id.',
+                log_date: 'ISO date (YYYY-MM-DD).',
+                value: 'Measured value.',
+            },
+        },
+        custom_measurements: {
+            description: 'User-defined measurement definitions.',
+            columns: {
+                id: 'Measurement id.',
+                name: 'Measurement name.',
+                unit: 'Unit of measurement.',
+            },
+        },
+        academic_grades: {
+            description: 'Course-level grades.',
+            columns: {
+                course_name: 'Course name.',
+                grade: 'Grade value.',
+                weight: 'Weight of the grade.',
+                attendance_grade: 'Attendance grade.',
+                attendance_weight: 'Weight of attendance.',
+                notes: 'Free-text notes.',
+            },
+        },
+        academic_assessments: {
+            description: 'Assessments (exams, quizzes, etc.) per course.',
+            columns: {
+                course_name: 'Course name.',
+                name: 'Assessment name.',
+                grade: 'Grade value.',
+                weight: 'Weight of the assessment.',
+                is_completed: 'Boolean: completed.',
+                due_date: 'Due date (ISO).',
+            },
+        },
+    },
+    enums: {
+        activity_type: {
+            strength: 'Strength/resistance training.',
+            cardio: 'Cardiovascular exercise.',
+            mobility: 'Mobility/flexibility work.',
+        },
+        body_fat_method: {
+            scale: 'Scale estimate.',
+            calipers: 'Caliper measurement.',
+            navy: 'US Navy formula.',
+            manual: 'Manual entry.',
+        },
+        mood_scale: 'Integer 1-10 (higher = better).',
+        morning_feel_scale: 'Integer 0-10 (higher = better).',
+    },
 };
 
 export interface ExportProgress {
@@ -150,12 +452,28 @@ export async function exportAllData(
 
     const cutoff = cutoffFor(days);
     const activeTables = TABLES.filter(t => !t.skip);
+
+    // Precompute the set of workout session ids inside the requested window so
+    // the child table (workout_exercises_log) can be filtered without per-row
+    // queries or worker races.
+    let inRangeWorkoutIds: Set<string> | null = null;
+    if (cutoff) {
+        const { data, error } = await supabase
+            .from('workout_completion_log')
+            .select('id')
+            .eq('user_id', userId)
+            .gte('workout_date', cutoff);
+        if (error) throw error;
+        inRangeWorkoutIds = new Set((data ?? []).map((r: { id: string }) => r.id));
+    }
+
     const result: Record<string, unknown> = {
         _meta: {
             exportedAt: new Date().toISOString(),
             rangeDays: days,
             failedTables: [] as string[],
         },
+        _schema: EXPORT_SCHEMA,
     };
     const failed: string[] = [];
 
@@ -177,6 +495,10 @@ export async function exportAllData(
                 const { data, error } = await query;
                 if (error) throw error;
                 rows = (data ?? []) as Record<string, unknown>[];
+            }
+
+            if (cfg.table === 'workout_exercises_log' && inRangeWorkoutIds) {
+                rows = rows.filter(r => inRangeWorkoutIds!.has(String(r.workout_completion_id)));
             }
 
             if (cfg.dateColumn && cutoff) {
@@ -207,8 +529,8 @@ export async function exportAllData(
 
     (result._meta as { failedTables: string[] }).failedTables = failed;
 
-    const date = new Date().toISOString().slice(0, 10);
-    downloadTextFile(`anthroweb-export-${date}.json`, JSON.stringify(result), 'application/json');
+    const date = localDateStr(new Date());
+    downloadTextFile(`anthroweb-export-${date}.json`, JSON.stringify(result, null, 2), 'application/json');
 }
 
 export { downloadTextFile };
