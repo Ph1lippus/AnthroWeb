@@ -242,6 +242,17 @@ const num = (v: FormatterValue, digits = 1): string => {
     return String(Math.round(n * 10 ** digits) / 10 ** digits);
 };
 
+/** Minutes -> "Xh Ym" for phone usage display. */
+const minsToHM = (v: FormatterValue): string => {
+    const n = toNumber(v);
+    if (!Number.isFinite(n)) return '';
+    const h = Math.floor(n / 60);
+    const m = Math.round(n % 60);
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+};
+
 /** "23.5" -> "23:30", used for every clock series. */
 const clockValue = (v: FormatterValue): string => {
     const n = toNumber(v);
@@ -1675,7 +1686,7 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
 
                         {/* Phone Usage */}
                         <ChartCard
-                            title="Phone Usage (min)"
+                            title="Phone Usage"
                             empty={!stepsPhoneData.some(d => d.phone != null)}
                             onExpand={openChart}
                             onExport={() => downloadCsv(`anthroweb-phone-usage-${range.label}.csv`, stepsPhoneData.map(d => ({ date: d.date, phoneUsage: d.phone })))}
@@ -1684,10 +1695,10 @@ const MetricsCharts: React.FC<MetricsChartsProps> = ({ logs, habits, habitLogs, 
                                 <BarChart data={stepsPhoneData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                                     <ChartGrid />
                                     <ChartX />
-                                    <ChartY />
+                                    <ChartY tickFormatter={(v) => minsToHM(v)} />
                                     <ChartTip />
                                     <GoalSegments points={chartData} dataKey="goalPhone" stroke={C.pink} label="Goal" />
-                                    <Bar dataKey="phone" name="Phone Usage" formatter={(v) => `${num(v)} min`} fill={C.pink} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
+                                    <Bar dataKey="phone" name="Phone Usage" formatter={(v) => minsToHM(v)} fill={C.pink} radius={[3, 3, 0, 0]} maxBarSize={18} isAnimationActive={false} />
                                 </BarChart>
                             }
                         />

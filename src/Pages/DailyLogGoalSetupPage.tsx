@@ -65,7 +65,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
     const [studyDaily, setStudyDaily] = useState('');
     const [studyWeekly, setStudyWeekly] = useState('');
     const [stepsGoal, setStepsGoal] = useState('');
-    const [phoneUsageGoal, setPhoneUsageGoal] = useState('');
+    const [phoneUsageGoalHours, setPhoneUsageGoalHours] = useState('');
+    const [phoneUsageGoalMinutes, setPhoneUsageGoalMinutes] = useState('');
 
     const formatTimeInput = (value: string): string => {
         const numbers = value.replace(/\D/g, '').slice(0, 4);
@@ -120,7 +121,13 @@ const DailyLogGoalSetupPage: React.FC = () => {
                     }
                     if (goals.activity) {
                         setStepsGoal(goals.activity.steps?.toString() || '');
-                        setPhoneUsageGoal(goals.activity.phone_usage?.toString() || '');
+                        if (goals.activity?.phone_usage == null) {
+                            setPhoneUsageGoalHours('');
+                            setPhoneUsageGoalMinutes('');
+                        } else {
+                            setPhoneUsageGoalHours(String(Math.floor(goals.activity.phone_usage / 60)));
+                            setPhoneUsageGoalMinutes(String(goals.activity.phone_usage % 60));
+                        }
                     }
                 }
                 setCheatAllowed(
@@ -214,7 +221,9 @@ const DailyLogGoalSetupPage: React.FC = () => {
                 },
                 activity: {
                     steps: stepsGoal ? parseInt(stepsGoal, 10) : null,
-                    phone_usage: phoneUsageGoal ? parseInt(phoneUsageGoal, 10) : null,
+                    phone_usage: (phoneUsageGoalHours.trim() === '' && phoneUsageGoalMinutes.trim() === '')
+                        ? null
+                        : (parseInt(phoneUsageGoalHours || '0', 10) || 0) * 60 + (parseInt(phoneUsageGoalMinutes || '0', 10) || 0),
                 }
             };
             // Saving writes a version effective today rather than overwriting.
@@ -361,7 +370,8 @@ const DailyLogGoalSetupPage: React.FC = () => {
                         {/* Activity goals */}
                         <div className="form-grid">
                             {renderInput('stepsGoal', 'Steps Goal', stepsGoal, setStepsGoal, 'number', '10000')}
-                            {renderInput('phoneUsageGoal', 'Phone Usage Goal (min)', phoneUsageGoal, setPhoneUsageGoal, 'number', '180')}
+                            {renderInput('phoneUsageGoalHours', 'Phone Usage Goal (h)', phoneUsageGoalHours, setPhoneUsageGoalHours, 'number', '3')}
+                            {renderInput('phoneUsageGoalMinutes', 'Phone Usage Goal (m)', phoneUsageGoalMinutes, setPhoneUsageGoalMinutes, 'number', '0')}
                         </div>
 
                         {/* Sleep Goals - wake time drives the bedtime chart's axis,

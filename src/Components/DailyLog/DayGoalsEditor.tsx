@@ -53,7 +53,8 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
     const [fat, setFat] = useState('');
     const [water, setWater] = useState('');
     const [steps, setSteps] = useState('');
-    const [phoneUsage, setPhoneUsage] = useState('');
+    const [phoneUsageHours, setPhoneUsageHours] = useState('');
+    const [phoneUsageMinutes, setPhoneUsageMinutes] = useState('');
     const [wakeTime, setWakeTime] = useState('');
     const [bedtime, setBedtime] = useState('');
     // Held as a string so an empty box can mean "no limit" rather than 0.
@@ -76,7 +77,13 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
             setFat(toStr(goals?.nutrition?.fat));
             setWater(toStr(goals?.nutrition?.water));
             setSteps(toStr(goals?.activity?.steps));
-            setPhoneUsage(toStr(goals?.activity?.phone_usage));
+            if (goals?.activity?.phone_usage == null) {
+                setPhoneUsageHours('');
+                setPhoneUsageMinutes('');
+            } else {
+                setPhoneUsageHours(String(Math.floor(goals.activity.phone_usage / 60)));
+                setPhoneUsageMinutes(String(goals.activity.phone_usage % 60));
+            }
             setWakeTime(goals?.sleep?.wake_time ?? '');
             setBedtime(goals?.sleep?.bedtime ?? '');
             setCheatAllowedInput(cheatAllowed != null ? String(cheatAllowed) : '');
@@ -118,7 +125,9 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                 },
                 activity: {
                     steps: num(steps),
-                    phone_usage: num(phoneUsage),
+                    phone_usage: (phoneUsageHours.trim() === '' && phoneUsageMinutes.trim() === '')
+                        ? null
+                        : (Number(phoneUsageHours || 0) * 60 + Number(phoneUsageMinutes || 0)),
                 },
             }, {
                 allowed: parsedCheat === null ? null : Math.trunc(parsedCheat),
@@ -155,7 +164,6 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                         ['Fat (g)', fat, setFat],
                         ['Water (ml)', water, setWater],
                         ['Steps', steps, setSteps],
-                        ['Phone Usage (min)', phoneUsage, setPhoneUsage],
                     ] as const).map(([label, value, setter]) => (
                         <div key={label}>
                             <label className={LABEL}>{label}</label>
@@ -168,7 +176,34 @@ const DayGoalsEditor: React.FC<DayGoalsEditorProps> = ({
                             />
                         </div>
                     ))}
-
+ 
+                    <div>
+                        <label className={LABEL}>Phone Usage (h / m)</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="number"
+                                className={FIELD}
+                                value={phoneUsageHours}
+                                onChange={e => setPhoneUsageHours(e.target.value)}
+                                inputMode="numeric"
+                                placeholder="h"
+                                min="0"
+                                step="1"
+                            />
+                            <input
+                                type="number"
+                                className={FIELD}
+                                value={phoneUsageMinutes}
+                                onChange={e => setPhoneUsageMinutes(e.target.value)}
+                                inputMode="numeric"
+                                placeholder="m"
+                                min="0"
+                                max="59"
+                                step="1"
+                            />
+                        </div>
+                    </div>
+ 
                     <div>
                         <label className={LABEL}>Wake time</label>
                         <input

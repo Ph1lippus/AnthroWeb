@@ -206,7 +206,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
     const [eveningBpm, setEveningBpm] = useState('');
     const [bodyTemperature, setBodyTemperature] = useState('');
     const [steps, setSteps] = useState('');
-    const [phoneUsage, setPhoneUsage] = useState('');
+    const [phoneUsageHours, setPhoneUsageHours] = useState('');
+    const [phoneUsageMinutes, setPhoneUsageMinutes] = useState('');
     const [calories, setCalories] = useState('');
     const [protein, setProtein] = useState('');
     const [carbs, setCarbs] = useState('');
@@ -339,7 +340,13 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setEveningBpm(log.evening_bpm?.toString() || '');
         setBodyTemperature(log.body_temperature?.toString() || '');
         setSteps(log.steps?.toString() || '');
-        setPhoneUsage(log.phone_usage?.toString() || '');
+        if (log.phone_usage == null) {
+            setPhoneUsageHours('');
+            setPhoneUsageMinutes('');
+        } else {
+            setPhoneUsageHours(String(Math.floor(log.phone_usage / 60)));
+            setPhoneUsageMinutes(String(log.phone_usage % 60));
+        }
         setCalories(log.calories?.toString() || '');
         setProtein(log.protein?.toString() || '');
         setCarbs(log.carbs?.toString() || '');
@@ -378,7 +385,8 @@ const [breakdownOpen, setBreakdownOpen] = useState(
         setEveningBpm('');
         setBodyTemperature('');
         setSteps('');
-        setPhoneUsage('');
+        setPhoneUsageHours('');
+        setPhoneUsageMinutes('');
         setCalories('');
         setProtein('');
         setCarbs('');
@@ -772,7 +780,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 water || journalEntry ||
                 noSleep || cheatDay || projectWorkDone || morningRoutine || eveningRoutine ||
                 fruitServing || studied || journal || stretching || reading ||
-                gym || cardio || mobility || steps || phoneUsage ||
+                gym || cardio || mobility || steps || phoneUsageHours || phoneUsageMinutes ||
                 selectedProjectIds.size > 0;
             if (!hasAnyData) return;
         }
@@ -864,7 +872,9 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                 cardio,
                 mobility,
                 steps: steps ? parseInt(steps) : null,
-                phone_usage: phoneUsage ? parseInt(phoneUsage) : null,
+                phone_usage: (phoneUsageHours.trim() === '' && phoneUsageMinutes.trim() === '')
+                    ? null
+                    : (parseInt(phoneUsageHours || '0', 10) || 0) * 60 + (parseInt(phoneUsageMinutes || '0', 10) || 0),
             };
 
             if (isEditing && existingLog?.id) {
@@ -885,7 +895,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             setSaveError(message);
             console.error('Auto-save error:', err);
         }
-    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, gym, cardio, mobility, steps, phoneUsage, isEditing, existingLog, queryClient]);
+    }, [settings, activeGoals, logDate, goalsExplicitlyEdited, wakeTime, bedtime, computedSleepDuration, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, calculatedScore, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, gym, cardio, mobility, steps, phoneUsageHours, phoneUsageMinutes, isEditing, existingLog, queryClient]);
 
     /**
      * Queues a whole-row write behind any that are already open.
@@ -1037,7 +1047,7 @@ const [breakdownOpen, setBreakdownOpen] = useState(
             // Timer cleanup is handled by flushSave on unmount; this cleanup
             // only cancels the timer if the effect re-runs for another reason.
         };
-    }, [wakeTime, bedtime, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, steps, phoneUsage, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
+    }, [wakeTime, bedtime, morningFeel, morningSystolic, morningDiastolic, morningBpm, eveningSystolic, eveningDiastolic, eveningBpm, bodyTemperature, calories, protein, carbs, fat, water, journalEntry, selectedProjectIds, projectWorkDone, noSleep, cheatDay, morningRoutine, eveningRoutine, fruitServing, studied, journal, stretching, reading, steps, phoneUsageHours, phoneUsageMinutes, completedHabits, scheduleSave, settings, isLoadingData, dayLogLoading, id]);
 
     const handleProjectToggle = (projectId: string) => {
         setSelectedProjectIds(prev => {
@@ -1915,17 +1925,32 @@ const [breakdownOpen, setBreakdownOpen] = useState(
                                         </div>
                                     </div>
                                     <div className="flex flex-col">
-                                        <div className="scored-input-wrap">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="1"
-                                                value={phoneUsage}
-                                                onChange={(e) => setPhoneUsage(e.target.value)}
-                                                className={"scored-input" + (phoneUsage ? '' : ' scored-input--empty')}
-                                                placeholder=" "
-                                            />
-                                            <label className="scored-input-label">Phone Usage (min) <span className="scored-input-goal-inline">{activeGoals?.activity?.phone_usage ?? 180}</span></label>
+                                        <div className="scored-input-wrap" style={{ display: 'flex', gap: '0.4rem' }}>
+                                            <div style={{ flex: 1, position: 'relative' }}>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    value={phoneUsageHours}
+                                                    onChange={(e) => setPhoneUsageHours(e.target.value)}
+                                                    className={"scored-input" + (phoneUsageHours ? '' : ' scored-input--empty')}
+                                                    placeholder=" "
+                                                />
+                                                <label className="scored-input-label">Phone Usage (h) <span className="scored-input-goal-inline">{Math.floor((activeGoals?.activity?.phone_usage ?? 180) / 60)}h</span></label>
+                                            </div>
+                                            <div style={{ flex: 1, position: 'relative' }}>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="59"
+                                                    step="1"
+                                                    value={phoneUsageMinutes}
+                                                    onChange={(e) => setPhoneUsageMinutes(e.target.value)}
+                                                    className={"scored-input" + (phoneUsageMinutes ? '' : ' scored-input--empty')}
+                                                    placeholder=" "
+                                                />
+                                                <label className="scored-input-label">Minutes <span className="scored-input-goal-inline">{(activeGoals?.activity?.phone_usage ?? 180) % 60}m</span></label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
